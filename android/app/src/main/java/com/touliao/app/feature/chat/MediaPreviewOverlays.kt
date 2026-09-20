@@ -44,9 +44,7 @@ fun VideoPlayerOverlay(url: String, filename: String?, onDismiss: () -> Unit) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val exoPlayer = remember {
-        ExoPlayer.Builder(context).build().apply {
-
-        }
+        ExoPlayer.Builder(context).build()
     }
     LaunchedEffect(url) {
         try {

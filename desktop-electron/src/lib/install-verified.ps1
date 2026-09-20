@@ -19,6 +19,16 @@ public static class TouliaoUpdatePathLock {
   static extern SafeFileHandle CreateFile(string name, uint access, uint share, IntPtr security, uint creation, uint flags, IntPtr template);
   [DllImport("kernel32.dll", SetLastError=true)]
   static extern bool GetFileInformationByHandleEx(SafeFileHandle file, int infoClass, out AttributeTag info, uint size);
+  public static SafeFileHandle OpenInstaller(string path) {
+    // Atomically open the directory entry itself; never follow a file reparse point.
+    var handle = CreateFile(path, 0x80000000, 1, IntPtr.Zero, 3, 0x00200000, IntPtr.Zero);
+    if (handle.IsInvalid) { handle.Dispose(); throw new Win32Exception(Marshal.GetLastWin32Error()); }
+    AttributeTag info;
+    if (!GetFileInformationByHandleEx(handle, 9, out info, 8) || (info.Attributes & 0x410) != 0) {
+      handle.Dispose(); throw new InvalidOperationException("Untrusted update file");
+    }
+    return handle;
+  }
   public static SafeFileHandle OpenDirectory(string path) {
     // FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_OPEN_REPARSE_POINT; FILE_SHARE_READ only.
     var handle = CreateFile(path, 0x80000000, 1, IntPtr.Zero, 3, 0x02200000, IntPtr.Zero);
@@ -43,20 +53,21 @@ public static class TouliaoUpdatePathLock {
   $pins = $PublisherPins.Split(',')
   if ($pins.Count -eq 0) { throw 'Missing publisher' }
   foreach ($pin in $pins) { if ($pin -notmatch '^[A-F0-9]{40}$') { throw 'Invalid publisher' } }
-  $item = Get-Item -LiteralPath $fullPath
-  if ($item.Attributes -band [IO.FileAttributes]::ReparsePoint) { throw 'Reparse point blocked' }
-  # FileShare.Read denies writes, rename and deletion until the installer process exits.
-  $stream = [IO.File]::Open($item.FullName, [IO.FileMode]::Open, [IO.FileAccess]::Read, [IO.FileShare]::Read)
+  # The same handle is inspected and hashed. No check-then-follow symlink window.
+  # FILE_SHARE_READ denies writes, rename and deletion until the installer exits.
+  $handle = [TouliaoUpdatePathLock]::OpenInstaller($fullPath)
+  try { $stream = New-Object IO.FileStream($handle, [IO.FileAccess]::Read) }
+  catch { $handle.Dispose(); throw }
   $hash = [Security.Cryptography.SHA512]::Create()
   try { $actual = [BitConverter]::ToString($hash.ComputeHash($stream)).Replace('-', '').ToLowerInvariant() }
   finally { $hash.Dispose() }
   if ($actual -cne $ExpectedSha512) { throw 'Installer digest mismatch' }
-  $signature = Get-AuthenticodeSignature -LiteralPath $item.FullName
+  $signature = Get-AuthenticodeSignature -LiteralPath $fullPath
   if ($signature.Status -ne 'Valid' -or $null -eq $signature.SignerCertificate -or $pins -cnotcontains $signature.SignerCertificate.Thumbprint) {
     throw 'Untrusted publisher or invalid Authenticode signature'
   }
   $start = New-Object Diagnostics.ProcessStartInfo
-  $start.FileName = $item.FullName
+  $start.FileName = $fullPath
   $start.Arguments = '--updated --force-run'
   $start.UseShellExecute = $false
   $process = [Diagnostics.Process]::Start($start)

@@ -63,9 +63,12 @@ class AudioRecorder @Inject constructor(
         val r = recorder ?: return null
         return try {
             r.stop()
+            val completed = outputFile?.takeIf { it.isFile && it.length() > 0 }
+                ?: throw java.io.IOException("录音文件为空或已丢失")
             recorder = null
             lastDurationSeconds = ((android.os.SystemClock.elapsedRealtime() - startedAtMs) / 1000).toInt().coerceAtLeast(0)
-            outputFile
+            outputFile = null
+            completed
         } catch (e: Exception) {
             Log.e(TAG, "录音失败")
             recorder = null

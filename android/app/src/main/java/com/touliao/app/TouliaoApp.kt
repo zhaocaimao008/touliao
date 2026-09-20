@@ -114,7 +114,8 @@ class TouliaoApp : Application(), ImageLoaderFactory {
                             var account = ""
                             if (!credentials.withCurrent(owner) { account = entry.accountStore().activeId().orEmpty() }) throw java.io.IOException("媒体所属账号已切换")
                             val key = account + ":" + data.substringBefore("?")
-                            val builder = req.newBuilder().diskCacheKey(key).memoryCacheKey(key)
+                            val builder = req.newBuilder().diskCacheKey(key)
+                                .setParameter("touliao.account", account, account)
                             owner.token?.let { builder.addHeader("Authorization", "Bearer $it") }
                             val result = chain.proceed(builder.build())
                             if (!credentials.isCurrent(owner)) throw java.io.IOException("媒体所属账号已切换")

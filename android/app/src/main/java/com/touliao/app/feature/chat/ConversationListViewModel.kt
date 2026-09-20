@@ -174,7 +174,9 @@ class ConversationListViewModel @Inject constructor(
                  .onSuccess { list ->
                     if (sessionManager.isCredentialCurrent(owner) && sessionManager.currentUser?.id == myId && serverConfig.baseUrl == origin) {
                         accountStore.cacheConversations(origin, myId, list)
-                        _uiState.update { it.copy(loading = false, conversations = list) }; refreshDrafts()
+                        if (sessionManager.isCredentialCurrent(owner) && sessionManager.currentUser?.id == myId && serverConfig.baseUrl == origin) {
+                            _uiState.update { it.copy(loading = false, conversations = list) }; refreshDrafts()
+                        }
                     }
                 }
                 .onFailure { e -> if (sessionManager.isCredentialCurrent(owner)) _uiState.update { it.copy(loading = false, error = e.toUserMessage("加载会话失败")) } }

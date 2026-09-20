@@ -849,7 +849,7 @@ class ChatViewModel @Inject constructor(
         }
     }
 
-    /** /uploads 相对路径 → 带 token 的绝对地址，供 Coil/播放器加载 */
+    /** /uploads 相对路径 → 不含登录凭据的绝对地址，供 Coil/播放器加载 */
     fun resolveMediaUrl(url: String?): String? = mediaUrlResolver.resolve(url)
 
     /** 播放语音消息 */
@@ -914,6 +914,7 @@ class ChatViewModel @Inject constructor(
                         _uiState.update { it.copy(error = "消息缓存更新失败，请重试同步") }
                         return@onSuccess
                     }
+                    if (!currentAttempt(credential)) return@onSuccess
                     if (syncCursorStore.load(myId, conversationId) == 0L) {
                         list.maxOfOrNull { it.server_sequence }?.takeIf { it > 0 }?.let {
                             syncCursorStore.save(myId, conversationId, it)

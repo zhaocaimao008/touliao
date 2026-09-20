@@ -38,7 +38,7 @@ function request(target) {
           res.finished = true; res.emit('finish'); socket.destroy();
           const text = Buffer.concat(chunks).toString();
           let parsed; try { parsed = JSON.parse(text); } catch { parsed = text; }
-          resolve({ status: res.statusCode, body: parsed, text });
+          resolve({ status: res.statusCode, body: parsed, text, headers: res.getHeaders() });
           return res;
         };
         res.on('error', reject);
@@ -49,7 +49,7 @@ function request(target) {
     }
     return chain;
   };
-  return { get: method('GET'), post: method('POST'), delete: method('DELETE') };
+  return { get: method('GET'), head: method('HEAD'), post: method('POST'), delete: method('DELETE') };
 }
 async function befriend(a, b) {
   for (const [u, v] of [[a, b], [b, a]]) db.prepare('INSERT INTO contacts(id,user_id,contact_id) VALUES (?,?,?)').run(`fixture-contact-${++serial}`, u.userId, v.userId);

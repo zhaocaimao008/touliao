@@ -50,7 +50,7 @@ class AccountStore @Inject constructor(
     /** 移除账号，返回剩余账号 */
     fun remove(id: String): List<Account> {
         val next = accounts().filterNot { it.id == id }
-        prefs.edit().also { edit -> prefs.all.keys.filter { it.startsWith("conversations:") && it.endsWith(":$id") }.forEach { edit.remove(it) } }.commit()
+        prefs.edit().also { edit -> prefs.all.keys.filter { it.startsWith("conversations:") && it.endsWith(":$id") }.forEach { edit.remove(it) } }.apply()
         save(next)
         if (activeId() == id) prefs.edit().remove(KEY_ACTIVE).apply()
         return next
@@ -65,7 +65,7 @@ class AccountStore @Inject constructor(
         }.getOrDefault(emptyList())
     }
 
-    fun cacheConversations(origin: String, id: String, list: List<com.touliao.app.data.model.Conversation>) {
+    suspend fun cacheConversations(origin: String, id: String, list: List<com.touliao.app.data.model.Conversation>) = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
         // Offline navigation metadata only: never persist message previews (including burn content).
         val safe = list.map { it.copy(lastMessage = null, lastMessageType = null, lastSenderName = null) }
         prefs.edit().putString("conversations:$origin:$id", json.encodeToString(safe)).commit()

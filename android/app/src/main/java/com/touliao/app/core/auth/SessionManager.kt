@@ -94,6 +94,13 @@ class SessionManager @Inject constructor(
             },
             failure = { failure ->
                 _recovery.value = failure.message
+                if (failure == RestoreFailure.FORBIDDEN) tokenStore.withCurrent(credential) {
+                    // /me denied access: stop retries and sockets, retain credentials for recovery.
+                    identityCleanup.forEach { it() }
+                    notificationHelper.clearAccountNotifications()
+                    socketManager.disconnect()
+                    _state.value = AuthState.Unauthenticated
+                }
                 if (failure == RestoreFailure.EXPIRED) tokenStore.withCurrent(credential) {
                     beginIdentityChange()
                     socketManager.disconnect()

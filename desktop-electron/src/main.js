@@ -110,7 +110,7 @@ process.on('unhandledRejection', (reason) => {
   log.error('[main] 未处理的 Promise 拒绝:', reason);
 });
 // Windows installation is exclusively through the locked, verified helper below.
-autoUpdater.autoInstallOnAppQuit = process.platform !== 'win32' && PROFILE === 1;
+autoUpdater.autoInstallOnAppQuit = false;
 autoUpdater.disableWebInstaller = true;
 // 安全：关闭自动下载，改由 update-available 事件中先对更新元数据(latest.yml)做
 // Ed25519 二次验签，通过后再 downloadUpdate()。使更新真实性不单纯依赖 TLS。
@@ -616,6 +616,8 @@ function fetchBuffer(url, { allowMissing = false } = {}) {
         if (size > 5 * 1024 * 1024) { req.destroy(); reject(new Error('元数据过大')); return; }
         chunks.push(c);
       });
+      res.on('error', reject);
+      res.on('aborted', () => reject(new Error('元数据传输中断')));
       res.on('end', () => resolve(Buffer.concat(chunks)));
     });
     req.on('timeout', () => req.destroy(new Error('请求超时')));
@@ -630,6 +632,7 @@ function fetchBuffer(url, { allowMissing = false } = {}) {
 // 现成的降级路径（只要让 .sig 拉取失败/让公钥文件不可读，就能绕过整条Ed25519防线），
 // 已删除。
 async function verifyUpdateSignature(info) {
+  if (process.platform !== 'win32') return 'fail';
   const pub = loadUpdatePublicKey();
   if (!pub) {
     log.error('更新验签：公钥缺失或仍为占位文本，已阻止安装（验签为强制项，不再回退TLS）');
@@ -676,7 +679,16 @@ function setupAutoUpdater() {
   autoUpdater.on('update-available', async (info) => {
     log.info('发现新版本:', info.version);
     mainWindow?.webContents.send('update:available', info);
+    if (process.platform !== 'win32') {
+      mainWindow?.webContents.send('update:error', '当前平台尚不支持安全自动更新，请从可信分发渠道安装完整安装包');
+      return;
+    }
     if (installingUpdate) return;
+    try { updateTrust.publishers(updatePolicy); } catch {
+      trustedUpdate = null; downloadedInstaller = null;
+      mainWindow?.webContents.send('update:error', '此版本未配置 Windows 发布者证书，自动更新不可用，请联系发行方');
+      return;
+    }
     const attempt = ++updateAttempt;
     trustedUpdate = null;
     downloadedInstaller = null;
@@ -701,6 +713,7 @@ function setupAutoUpdater() {
   });
 
   autoUpdater.on('update-downloaded', async (info) => {
+    if (process.platform !== 'win32') return;
     if (process.platform === 'win32') {
       try {
         if (!trustedUpdate || info.version !== trustedUpdate.version) throw new Error('版本不匹配');
@@ -716,6 +729,7 @@ function setupAutoUpdater() {
   });
 
   autoUpdater.on('error', (err) => {
+    trustedUpdate = null; downloadedInstaller = null;
     log.error('更新错误:', err.message);
     mainWindow?.webContents.send('update:error', err.message);
   });
@@ -1095,7 +1109,10 @@ function setupIPC() {
   // 更新：用户在 UI 确认后主动触发安装
   ipcMain.handle('update:install', async (_e) => {
     if (!isTrustedSender(_e) || PROFILE !== 1 || installingUpdate) return;
-    if (process.platform !== 'win32') { isQuitting = true; autoUpdater.quitAndInstall(); return; }
+    if (process.platform !== 'win32') {
+      mainWindow?.webContents.send('update:error', '当前平台尚不支持安全自动更新，请从可信分发渠道安装完整安装包');
+      return;
+    }
     installingUpdate = true;
     try {
       await updateTrust.installVerified({ filename: downloadedInstaller, binding: trustedUpdate, policy: updatePolicy,
@@ -1103,11 +1120,11 @@ function setupIPC() {
           const shell = path.join(process.env.SystemRoot || 'C:\\Windows', 'System32', 'WindowsPowerShell', 'v1.0', 'powershell.exe');
           // Script must be a real file outside app.asar (configured in extraResources).
           const helper = path.join(process.resourcesPath, 'install-verified.ps1');
-          const child = require('child_process').spawn(shell, ['-NoProfile', '-NonInteractive', '-File', helper,
+          const child = require('child_process').spawn(shell, ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', helper,
             '-Installer', filename, '-ExpectedSha512', sha512, '-PublisherPins', publishers.join(',')],
             { windowsHide: true, detached: true, stdio: ['ignore', 'pipe', 'pipe'] });
           let output = '', started = false;
-          child.stdout.on('data', bytes => { output += bytes.toString(); if (!started && output.includes('STARTED')) { started = true; child.unref(); resolve(); } });
+          child.stdout.on('data', bytes => { output += bytes.toString(); if (!started && output.split(/\r?\n/).slice(0, -1).includes('STARTED')) { started = true; child.unref(); resolve(); } });
           child.stderr.resume();
           child.on('error', reject);
           child.on('exit', () => { if (!started) reject(new Error('安装校验失败')); });

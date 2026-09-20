@@ -170,14 +170,15 @@ fun AppNavigation(appViewModel: AppViewModel = hiltViewModel()) {
     val unreadTotal by appViewModel.unreadTotal.collectAsStateWithLifecycle()
 
     val recovery by appViewModel.recovery.collectAsStateWithLifecycle()
-    androidx.compose.foundation.layout.Column {
-    if (recovery != null) Text(recovery!!)
+    val context = androidx.compose.ui.platform.LocalContext.current
+    LaunchedEffect(recovery) {
+        recovery?.let { android.widget.Toast.makeText(context, it, android.widget.Toast.LENGTH_LONG).show() }
+    }
     when (authState) {
         // 启动画面已全部移除：Loading 状态不渲染任何画面，等鉴权结果直接进主界面/登录页
-        is AuthState.Loading -> androidx.compose.material3.CircularProgressIndicator()
+        is AuthState.Loading -> {}
         is AuthState.Authenticated -> MainFlow(features, unreadTotal)
         is AuthState.Unauthenticated -> AuthFlow()
-    }
     }
 }
 

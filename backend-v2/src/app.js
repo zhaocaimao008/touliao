@@ -214,6 +214,10 @@ app.use((req, res, next) => {
 });
 
 app.use('/uploads', async (req, res, next) => {
+  if (req.query?.access_token !== undefined || req.query?.refresh_token !== undefined
+    || (req.query?.token !== undefined && (typeof req.query.token !== 'string' || !req.query.token))) {
+    return res.status(401).json({ error: '媒体鉴权已升级，请升级客户端', code: 'MEDIA_CLIENT_UPGRADE_REQUIRED' });
+  }
   // Explicit media credentials take precedence over a different account's shared cookie.
   const bearer = (req.headers.authorization || '').replace(/^Bearer\s+/i, '') || null;
   const token = req.query?.token || bearer || req.cookies?.[config.cookieName] || req.cookies?.[config.admin.cookieName];
@@ -245,7 +249,7 @@ app.use('/uploads', async (req, res, next) => {
   // Old clients must upgrade; a login/admin credential is never accepted in a URL.
   if ((req.query?.token !== undefined && (isAdmin || payload.purpose !== 'upload-read'))
     || (payload.purpose === 'upload-read' && !['GET', 'HEAD'].includes(req.method))) {
-    return res.status(401).json({ error: '媒体鉴权已升级，请升级客户端' });
+    return res.status(401).json({ error: '媒体鉴权已升级，请升级客户端', code: 'MEDIA_CLIENT_UPGRADE_REQUIRED' });
   }
 
   try {

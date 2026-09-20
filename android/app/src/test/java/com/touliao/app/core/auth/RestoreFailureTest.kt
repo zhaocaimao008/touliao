@@ -10,7 +10,8 @@ import kotlinx.coroutines.async
 class RestoreFailureTest {
     @Test fun only401InvalidatesCredentials() {
         assertEquals(RestoreFailure.EXPIRED, RestoreFailure.from(HttpException(Response.error<Any>(401,"{}".toResponseBody()))))
-        for(code in listOf(403,429,500,502,503)) assertEquals(RestoreFailure.SERVER, RestoreFailure.from(HttpException(Response.error<Any>(code,"{}".toResponseBody()))))
+        assertEquals(RestoreFailure.FORBIDDEN, RestoreFailure.from(HttpException(Response.error<Any>(403,"{}".toResponseBody()))))
+        for(code in listOf(429,500,502,503)) assertEquals(RestoreFailure.SERVER, RestoreFailure.from(HttpException(Response.error<Any>(code,"{}".toResponseBody()))))
     }
     @Test fun offlineTimeoutAndUnknownFailureRemainRetryable() {
         assertEquals(RestoreFailure.TIMEOUT,RestoreFailure.from(SocketTimeoutException()))
@@ -43,4 +44,19 @@ class RestoreFailureTest {
         try { restoreWithRetry(isCurrent={true}, load={throw kotlinx.coroutines.CancellationException()}, accept={fail()}, failure={fail("cancel logged out")}); fail() } catch(_: kotlinx.coroutines.CancellationException) {}
     }
 
+    @Test fun forbiddenIsTerminalAndStaleForbiddenCannotAffectNewAccount() = kotlinx.coroutines.runBlocking {
+        var attempts=0; var errors=0; var current=true
+        restoreWithRetry(isCurrent={current}, load={attempts++; throw HttpException(Response.error<Any>(403,"{}".toResponseBody()))},
+            accept={fail()}, failure={ assertEquals(RestoreFailure.FORBIDDEN,it); errors++ }, wait={fail("403 retried")})
+        assertEquals(1, attempts); assertEquals(1, errors)
+        restoreWithRetry(isCurrent={current}, load={current=false; throw HttpException(Response.error<Any>(403,"{}".toResponseBody()))},
+            accept={fail()}, failure={fail("stale 403 published")}, wait={fail()})
+    }
+    @Test fun retriesAreCappedAndAccountSwitchDuringBackoffStopsNetwork() = kotlinx.coroutines.runBlocking {
+        var current=true; var attempts=0; val waits=mutableListOf<Long>()
+        restoreWithRetry(isCurrent={current}, load={attempts++; throw IOException()}, accept={fail()}, failure={},
+            wait={ waits.add(it); if(waits.size==8) current=false })
+        assertEquals(listOf(1000L,2000L,4000L,8000L,16000L,30000L,30000L,30000L), waits)
+        assertEquals(8, attempts)
+    }
 }

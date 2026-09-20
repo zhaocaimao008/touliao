@@ -118,6 +118,14 @@ final class SessionStore: ObservableObject {
                     state = .unauthenticated
                     return
                 }
+                if case APIError.server(403, let message) = error {
+                    clearIdentityResources()
+                    SocketService.shared.disconnect()
+                    recoveryMessage = message ?? "账号访问被拒绝或已封禁，请联系管理员"
+                    lastAuthError = recoveryMessage
+                    state = .unauthenticated
+                    return
+                }
                 switch error {
                 case APIError.timeout: recoveryMessage = "连接超时，正在重试"
                 case APIError.network: recoveryMessage = "网络不可用，正在重试"

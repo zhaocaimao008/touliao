@@ -33,4 +33,29 @@ final class Batch3SessionMediaTests: XCTestCase {
         let request = MediaUrlResolver.request(URL(string: "https://third-party.invalid/uploads/files/a")!, owner: credentials.snapshot())
         XCTAssertNil(request.value(forHTTPHeaderField: "Authorization"))
     }
+    func testConversationCodableAndDiskCacheRoundTripStripPreviewsAndIsolateAccounts() throws {
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: dir) }
+        var item = Conversation(id: "same", type: "group", name: "Fixture")
+        item.burnAfter = 30; item.manuallyUnread = 1; item.archived = 1; item.hasMention = true
+        item.lastMessage = "private-preview"; item.lastSenderName = "private-sender"; item.lastMessageType = "text"
+        item.otherUser = Conversation.OtherUser(id: "peer", username: "Fixture peer")
+        let decoded = try JSONDecoder().decode(Conversation.self, from: JSONEncoder().encode(item))
+        XCTAssertEqual(decoded, item)
+        ConversationCache.save([item], id: "A", origin: "server1", directory: dir)
+        let loaded = ConversationCache.load(id: "A", origin: "server1", directory: dir)
+        XCTAssertEqual(loaded.count, 1); XCTAssertEqual(loaded[0].burnAfter, 30)
+        XCTAssertEqual(loaded[0].manuallyUnread, 1); XCTAssertEqual(loaded[0].archived, 1)
+        XCTAssertTrue(loaded[0].hasMention); XCTAssertEqual(loaded[0].otherUser, item.otherUser)
+        XCTAssertNil(loaded[0].lastMessage); XCTAssertNil(loaded[0].lastMessageType); XCTAssertNil(loaded[0].lastSenderName)
+        XCTAssertTrue(ConversationCache.load(id: "B", origin: "server1", directory: dir).isEmpty)
+        XCTAssertTrue(ConversationCache.load(id: "A", origin: "server2", directory: dir).isEmpty)
+        ConversationCache.save([Conversation(id: "B-only")], id: "B", origin: "server1", directory: dir)
+        XCTAssertEqual(ConversationCache.load(id: "A", origin: "server1", directory: dir).first?.id, "same")
+        // A truncated/corrupt file is discarded without reading another account's cache.
+        try Data("{broken".utf8).write(to: ConversationCache.file("A", "server1", directory: dir))
+        XCTAssertTrue(ConversationCache.load(id: "A", origin: "server1", directory: dir).isEmpty)
+        XCTAssertEqual(ConversationCache.load(id: "B", origin: "server1", directory: dir).first?.id, "B-only")
+    }
 }
