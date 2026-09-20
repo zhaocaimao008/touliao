@@ -52,6 +52,11 @@ const _pending    = new Map();   // reqId → handler(err)
 const _pendingOps = new Map();   // reqId → 原始外发消息对象（write 或 writeBatch），崩溃重启时原样重放
 const retryQueue  = [];
 let isRestarting  = false;
+let acknowledgedThrough = 0;
+const acknowledgedOutOfOrder = new Set();
+function pruneAcknowledged(w) {
+  if (acknowledgedThrough) w.postMessage({ type: 'pruneReceipts', session: writerSession, through: acknowledgedThrough });
+}
 
 function createWorker() {
   const w = new Worker(WORKER_SCRIPT, { workerData: WORKER_DATA });
@@ -60,10 +65,13 @@ function createWorker() {
     if (msg.type === 'ack') {
       const err = msg.error ? new Error(msg.error) : null;
       for (const id of msg.ids) {
+        acknowledgedOutOfOrder.add(id);
+        while (acknowledgedOutOfOrder.delete(acknowledgedThrough + 1)) acknowledgedThrough++;
         _pendingOps.delete(id);
         const handler = _pending.get(id);
         if (handler) { _pending.delete(id); handler(err, msg.result); }
       }
+      pruneAcknowledged(w);
     } else if (msg.type === 'overload') {
       // Worker 端队列已饱和，标记过载状态以触发主线程背压
       if (!_overloaded) { _overloaded = true; backpressure.overloadedEnters++; }
@@ -87,6 +95,7 @@ function createWorker() {
     _pendingOps.clear();
     setTimeout(() => {
       worker = createWorker();
+      pruneAcknowledged(worker);
       isRestarting = false;
       const backlog = retryQueue.splice(0);
       for (const msg of backlog) {

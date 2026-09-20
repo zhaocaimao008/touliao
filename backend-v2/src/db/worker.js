@@ -124,6 +124,13 @@ parentPort.on('message', msg => {
       queue.push(msg);
       schedule();
       break;
+    case 'pruneReceipts':
+      // The parent has received these acks and will never replay them. A range
+      // on the primary key isolates this writer session; active/unacked rows stay.
+      stmt(`DELETE FROM writer_receipts WHERE operation_id>=? AND operation_id<?
+        AND CAST(substr(operation_id,38) AS INTEGER)<=?`)
+        .run(`${msg.session}:`, `${msg.session};`, msg.through);
+      break;
     case 'shutdown':
       if (timer) { clearTimeout(timer); timer = null; }
       while (queue.length > 0) flushBatch(queue.splice(0, MAX_BATCH));
