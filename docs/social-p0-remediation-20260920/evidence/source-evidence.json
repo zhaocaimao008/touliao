@@ -1,0 +1,97 @@
+[
+  {
+    "title": "服务器现有设置归属",
+    "file": "backend-v2/src/modules/conversations/conversations.service.js",
+    "line": 468
+  },
+  {
+    "title": "个人/全局删除权限",
+    "file": "backend-v2/src/modules/messages/messages.service.js",
+    "line": 474
+  },
+  {
+    "title": "全局删除事件残文清理",
+    "file": "backend-v2/src/modules/messages/messages.service.js",
+    "line": 459
+  },
+  {
+    "title": "当前访问投影",
+    "file": "backend-v2/src/modules/messages/visibility.js",
+    "line": 6
+  },
+  {
+    "title": "旧事件重新授权",
+    "file": "backend-v2/src/modules/messages/sync.service.js",
+    "line": 89
+  },
+  {
+    "title": "附件可信来源与当前引用",
+    "file": "backend-v2/src/app.js",
+    "line": 182
+  },
+  {
+    "title": "聊天CDN旁路防护",
+    "file": "backend-v2/src/integrations/cdnOptimizer.js",
+    "line": 37
+  },
+  {
+    "title": "通知当前授权",
+    "file": "backend-v2/src/utils/push.js",
+    "line": 276
+  },
+  {
+    "title": "Web定时个人移除",
+    "file": "web/src/components/ChatWindow.jsx",
+    "line": 411
+  },
+  {
+    "title": "Android缓存策略",
+    "file": "android/app/src/main/java/com/touliao/app/feature/chat/ChatViewModel.kt",
+    "line": 171
+  },
+  {
+    "title": "iOS缓存策略",
+    "file": "ios/Touliao/Features/Chat/ChatViewModel.swift",
+    "line": 109
+  },
+  {
+    "title": "既有本地缓存契约",
+    "file": "docs/offline-message-cache-contract.md",
+    "line": 67
+  },
+  {
+    "title": "既有备份默认范围",
+    "file": "deploy/touliao-backup.sh",
+    "line": 23
+  },
+  {
+    "title": "后端读取回归",
+    "file": "backend-v2/test/burn-access-regression.test.js",
+    "line": 16
+  },
+  {
+    "title": "Android应用集成测试",
+    "file": "android/app/src/androidTest/java/com/touliao/app/review/NativeUIReviewTest.kt",
+    "line": 94
+  },
+  {
+    "title": "iOS应用VM集成测试",
+    "file": "ios/TouliaoTests/Review/NativeUIReviewTests.swift",
+    "line": 123
+  },
+  {
+    "title": "Windows/Web真实运行工具",
+    "file": "scripts/social-core/runtime.cjs",
+    "line": 2
+  },
+  {
+    "title": "新增收藏源鉴权",
+    "file": "backend-v2/src/modules/messages/messages.service.js",
+    "line": 649
+  },
+  {
+    "title": "批量撤回事件清理",
+    "file": "backend-v2/src/modules/messages/messages.service.js",
+    "line": 435
+  }
+]

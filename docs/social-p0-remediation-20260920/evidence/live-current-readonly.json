@@ -1,0 +1,67 @@
+{
+  "checkedUTC": "2026-09-20T06:24:53.020105+00:00",
+  "items": {
+    "windows": {
+      "url": "https://touliao.cc/downloads/updates/latest.yml",
+      "status": 200,
+      "sha256": "6134990b4f0c50bfcc9ba89f835215639524418785fdb2a4e40652b4380c0a7e",
+      "unchangedSincePrior": true
+    },
+    "android": {
+      "url": "https://touliao.cc/downloads/touliao-android-version.json",
+      "status": 200,
+      "sha256": "01deb363a9a12dba994eeb4386b5a661c6abd62fc53e6bf9163e70bb970c6c83",
+      "unchangedSincePrior": true
+    },
+    "web": {
+      "url": "https://touliao.cc/",
+      "status": 200,
+      "sha256": "e8e8001ac8fdc5f3c20cfe4452bfcfd2ff2f0cbedfc2bd81507d9179576a9ee6",
+      "unchangedSincePrior": true
+    },
+    "identity": {
+      "url": "https://touliao.cc/releases/d93a861b617b200973c3ecc9314105faac921402.json",
+      "status": 200,
+      "sha256": "b9c9240d76cc57755df439165e595f41e09177b80eb3453a496677c2ce146024",
+      "unchangedSincePrior": true
+    },
+    "health": {
+      "url": "https://touliao.cc/health",
+      "status": 200,
+      "sha256": "6ecb17cdc48f1181aeeb51321d793c8626129decbdc2227e6fcaf0ff81487163",
+      "unchangedSincePrior": true,
+      "publicMetadata": {
+        "version": 2
+      }
+    },
+    "config": {
+      "url": "https://touliao.cc/api/config",
+      "status": 200,
+      "sha256": "5d9f8c3487c4b9c6e6af6f71beb992dc17e56ba1aacad83cd57c121c17cbd375",
+      "unchangedSincePrior": true,
+      "publicMetadata": {
+        "features": {
+          "moments": false,
+          "collect": false,
+          "inviteRequired": true,
+          "groupVoiceCall": false,
+          "groupVideoCall": false,
+          "voiceCall": true,
+          "videoCall": true,
+          "redPacket": false,
+          "nudge": true,
+          "changePassword": true,
+          "loginCaptcha": false,
+          "aiAssistants": []
+        }
+      }
+    }
+  },
+  "writesPerformed": false,
+  "serverRuntimeSHA": "UNKNOWN: health does not expose loaded commit",
+  "serverProcess": {
+    "pid": "730353",
+    "cwd": "/home/ubuntu/gh-mirror/touliao/backend-v2",
+    "diskHead": "45dccd9963cad8dec00ef8d13019207491016fb4"
+  }
+}

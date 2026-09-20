@@ -1,0 +1,33 @@
+{
+  "currentCodeHead": "a5b1d72e4aeab973a0ce50ff8569b64a9053489e",
+  "checks": {
+    "ios": {
+      "testedSourceCommit": "c6fe44f985404a907f3a70a52c66534ceafffd43",
+      "changedProductPathsSince": [],
+      "identical": true
+    },
+    "android": {
+      "testedSourceCommit": "a41be97970bbf6fef14a763510e5886934d3502e",
+      "changedProductPathsSince": [],
+      "identical": true
+    },
+    "backend": {
+      "testedSourceCommit": "de19c772517bbe21e2ac3282a0449a6cdfd6c4f0",
+      "changedProductPathsSince": [
+        "backend-v2/src/modules/messages/messages.service.js",
+        "backend-v2/test/burn-access-regression.test.js"
+      ],
+      "identical": false
+    }
+  },
+  "finalBackend": {
+    "sourceCommit": "a5b1d72e4aeab973a0ce50ff8569b64a9053489e",
+    "verification": "backend-complete.json",
+    "passed": 928,
+    "failed": 0
+  },
+  "windowsRenderer": {
+    "sourceCommit": "67bc0ef9",
+    "sourceUnchanged": true
+  }
+}

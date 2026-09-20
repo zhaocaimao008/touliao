@@ -1,0 +1,14 @@
+{
+  "scope": "isolated SQL plan rehearsal, not a product worker or automatic expiry test",
+  "checks": [
+    "Injected failure rolls back the whole synthetic transaction; no body is logged",
+    "Retry cleans only globally removed primary body and event payload; rerun is idempotent",
+    "Personal tombstone and ordinary/peer-authorized messages are preserved",
+    "Fresh connection to the synthetic file sees completed cleanup",
+    "Old synthetic backup still contains pre-cleanup content; restore must stay isolated until reconciliation"
+  ],
+  "passed": 5,
+  "productionWrites": false,
+  "automaticExpiry": "NOT_IMPLEMENTED_RULE_BLOCKED",
+  "attachmentsPhysicallyDeleted": false
+}

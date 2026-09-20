@@ -1,0 +1,139 @@
+{
+  "protectedWorktrees": 19,
+  "allUnchanged": true,
+  "results": [
+    {
+      "path": "/home/ubuntu/gh-mirror/touliao",
+      "headUnchanged": true,
+      "statusUnchanged": true,
+      "uncommittedBytesUnchanged": true,
+      "mismatchedFiles": []
+    },
+    {
+      "path": "/home/ubuntu/touliao-account-fixes-20260915",
+      "headUnchanged": true,
+      "statusUnchanged": true,
+      "uncommittedBytesUnchanged": true,
+      "mismatchedFiles": []
+    },
+    {
+      "path": "/home/ubuntu/touliao-audit-worktree",
+      "headUnchanged": true,
+      "statusUnchanged": true,
+      "uncommittedBytesUnchanged": true,
+      "mismatchedFiles": []
+    },
+    {
+      "path": "/home/ubuntu/touliao-design-system-20260918",
+      "headUnchanged": true,
+      "statusUnchanged": true,
+      "uncommittedBytesUnchanged": true,
+      "mismatchedFiles": []
+    },
+    {
+      "path": "/home/ubuntu/touliao-ios-ui-20260919",
+      "headUnchanged": true,
+      "statusUnchanged": true,
+      "uncommittedBytesUnchanged": true,
+      "mismatchedFiles": []
+    },
+    {
+      "path": "/home/ubuntu/touliao-launch-audit-20260915",
+      "headUnchanged": true,
+      "statusUnchanged": true,
+      "uncommittedBytesUnchanged": true,
+      "mismatchedFiles": []
+    },
+    {
+      "path": "/home/ubuntu/touliao-launch-fixes-20260915",
+      "headUnchanged": true,
+      "statusUnchanged": true,
+      "uncommittedBytesUnchanged": true,
+      "mismatchedFiles": []
+    },
+    {
+      "path": "/home/ubuntu/touliao-legacy-update-20260918",
+      "headUnchanged": true,
+      "statusUnchanged": true,
+      "uncommittedBytesUnchanged": true,
+      "mismatchedFiles": []
+    },
+    {
+      "path": "/home/ubuntu/touliao-native-baseline-20260918",
+      "headUnchanged": true,
+      "statusUnchanged": true,
+      "uncommittedBytesUnchanged": true,
+      "mismatchedFiles": []
+    },
+    {
+      "path": "/home/ubuntu/touliao-release-worktree-20260918",
+      "headUnchanged": true,
+      "statusUnchanged": true,
+      "uncommittedBytesUnchanged": true,
+      "mismatchedFiles": []
+    },
+    {
+      "path": "/home/ubuntu/touliao-social-core-remediation-20260920/worktree",
+      "headUnchanged": true,
+      "statusUnchanged": true,
+      "uncommittedBytesUnchanged": true,
+      "mismatchedFiles": []
+    },
+    {
+      "path": "/home/ubuntu/touliao-ui-release-20260919",
+      "headUnchanged": true,
+      "statusUnchanged": true,
+      "uncommittedBytesUnchanged": true,
+      "mismatchedFiles": []
+    },
+    {
+      "path": "/home/ubuntu/touliao-windows-package-20260919",
+      "headUnchanged": true,
+      "statusUnchanged": true,
+      "uncommittedBytesUnchanged": true,
+      "mismatchedFiles": []
+    },
+    {
+      "path": "/home/ubuntu/touliao-windows-ui-20260918",
+      "headUnchanged": true,
+      "statusUnchanged": true,
+      "uncommittedBytesUnchanged": true,
+      "mismatchedFiles": []
+    },
+    {
+      "path": "/home/ubuntu/touliao-windows-update-20260919",
+      "headUnchanged": true,
+      "statusUnchanged": true,
+      "uncommittedBytesUnchanged": true,
+      "mismatchedFiles": []
+    },
+    {
+      "path": "/home/ubuntu/touliao-windows-update-8129-20260919",
+      "headUnchanged": true,
+      "statusUnchanged": true,
+      "uncommittedBytesUnchanged": true,
+      "mismatchedFiles": []
+    },
+    {
+      "path": "/home/ubuntu/touliao-windows-update-fix-20260919",
+      "headUnchanged": true,
+      "statusUnchanged": true,
+      "uncommittedBytesUnchanged": true,
+      "mismatchedFiles": []
+    },
+    {
+      "path": "/home/ubuntu/touliao-windows42-probe",
+      "headUnchanged": true,
+      "statusUnchanged": true,
+      "uncommittedBytesUnchanged": true,
+      "mismatchedFiles": []
+    },
+    {
+      "path": "/tmp/claude-1000/-home-ubuntu/f99c5ac6-e727-4020-a2ae-c2f1186009f1/scratchpad/fix-optimistic-send",
+      "headUnchanged": true,
+      "statusUnchanged": true,
+      "uncommittedBytesUnchanged": true,
+      "mismatchedFiles": []
+    }
+  ]
+}
