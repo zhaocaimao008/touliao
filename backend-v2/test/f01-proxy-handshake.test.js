@@ -65,3 +65,7 @@ test('independent global budget limits distributed unauthenticated handshakes an
   now += 60001;
   expect(await connect('192.0.2.1')).toBe('ok');
 });
+test('documented residual: rotating 31 IPv6 addresses within one /64 has separate quotas', async () => {
+  for (let i = 1; i <= 31; i++) expect(await connect(`2001:db8:1234:5678::${i.toString(16)}`)).toBe('ok');
+  // The existing global-budget test uses this same /64 and proves the 6001st denial.
+});

@@ -12,7 +12,7 @@ const config = require('../src/config');
 const realtime = require('../src/realtime');
 const presence = require('../src/realtime/presence');
 let server, io, nginx, dir, proxyUrl, directUrl, middleware;
-const token = jwt.sign({ id: 'f01-user' }, config.jwtSecret, { expiresIn: '1h' });
+const token = jwt.sign({ id: 'f01-live-user' }, config.jwtSecret, { expiresIn: '1h' });
 const listen = server => new Promise((resolve, reject) => { server.once('error', reject); server.listen(0, '127.0.0.1', resolve); });
 
 function connect(url, source, headers = {}) {
@@ -24,7 +24,7 @@ function connect(url, source, headers = {}) {
   });
 }
 beforeAll(async () => {
-  db.prepare('INSERT INTO users(id,username,phone,password) VALUES (?,?,?,?)').run('f01-user', 'f01-user', 'f01-phone', 'synthetic');
+  db.prepare('INSERT INTO users(id,username,phone,password) VALUES (?,?,?,?)').run('f01-live-user', 'f01-live-user', 'f01-live-phone', 'synthetic');
   server = http.createServer();
   io = new Server(server);
   // Exercise the production middleware, without unrelated online/push side effects.
@@ -92,8 +92,8 @@ test('IPv6 spellings and IPv4-mapped IPv6 share a canonical quota', async () => 
   expect(await attempt('192.0.2.1')).toMatch(/连接过于频繁/);
 });
 test('account concurrent socket cap remains enforced', async () => {
-  presence.onlineUsers.set('f01-user', new Set(['1', '2', '3', '4', '5']));
+  presence.onlineUsers.set('f01-live-user', new Set(['1', '2', '3', '4', '5']));
   try { expect(await connect(proxyUrl, '127.0.0.2')).toMatch(/连接数超限/); }
-  finally { presence.onlineUsers.delete('f01-user'); }
+  finally { presence.onlineUsers.delete('f01-live-user'); }
   expect(await connect(proxyUrl, '127.0.0.2')).toBe('ok');
 });
