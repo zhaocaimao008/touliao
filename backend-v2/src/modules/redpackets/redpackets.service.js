@@ -5,12 +5,13 @@ const { badRequest, forbidden, notFound } = require('../../utils/http');
 const { isMember, requireMember, privateSendGuard } = require('../messages/shared');
 const wallet = require('../wallet/wallet.service');
 const broadcaster = require('../../realtime/broadcaster');
+const { runFinancialOperation } = require('../wallet/financialIdempotency');
 const { appendConversationEventTx, emitSyncAvailable } = require('../messages/sync.service');
 
 // ── 发红包（扣款 + 建红包 + 发一条 red_packet 类型消息，单事务原子）──
 // ⚠ 与 claim 同理：扣余额是「读余额→判断够不够→扣→写」的读-判-写闭环，
 //   必须与建红包在同一同步事务内完成（不可拆 worker），否则可能扣了钱没建包、或余额穿透。
-async function send(io, userId, { conversationId, totalAmount, totalCount, greeting }) {
+async function send(io, userId, { conversationId, totalAmount, totalCount, greeting }, idempotencyKey) {
   // 后台开关拦截：关闭「红包」后，任何客户端（含绕过 UI 的直连）都被拒绝发红包。
   // 直接读 db，避免引入 admin.service 造成循环依赖；实时生效，无需重启。
   if (db.prepare('SELECT value FROM admin_settings WHERE key=?').get('feature_red_packet')?.value === 'off') {
@@ -39,9 +40,10 @@ async function send(io, userId, { conversationId, totalAmount, totalCount, greet
   const msgContent = JSON.stringify({ packetId, greeting: greet, totalCount, totalAmount });
   const msgId = uuidv4();
 
-  let serverSequence;
+  let serverSequence, outcome;
   try {
-    db.transaction(() => {
+    outcome = runFinancialOperation(userId, 'redpacket_send', idempotencyKey,
+      { conversationId, totalAmount, totalCount, greeting: greet }, () => {
       wallet.applyDeltaTx(userId, -totalAmount, 'red_packet_send', packetId, '发红包');
       db.prepare('INSERT INTO red_packets (id,sender_id,conversation_id,total_amount,total_count,greeting) VALUES (?,?,?,?,?,?)')
         .run(packetId, userId, conversationId, totalAmount, totalCount, greet);
@@ -50,18 +52,21 @@ async function send(io, userId, { conversationId, totalAmount, totalCount, greet
         apply: sequence => db.prepare('INSERT INTO messages (id,conversation_id,sender_id,type,content,server_sequence) VALUES (?,?,?,?,?,?)')
           .run(msgId, conversationId, userId, 'red_packet', msgContent, sequence),
       });
-    })();
+      const msg = db.prepare('SELECT m.*, u.username as senderName, u.avatar as senderAvatar FROM messages m JOIN users u ON u.id=m.sender_id WHERE m.id=?').get(msgId);
+      msg.reactions = [];
+      return { packetId, message: msg };
+    });
   } catch (e) {
     if (e.status) throw e;       // ApiError（如余额不足）原样抛给前端
     console.error('[redpacket] send 失败:', e.code, e.message);
     throw new Error('发红包失败，请重试');
   }
 
-  const msg = db.prepare('SELECT m.*, u.username as senderName, u.avatar as senderAvatar FROM messages m JOIN users u ON u.id=m.sender_id WHERE m.id=?').get(msgId);
-  msg.reactions = [];
-  broadcaster.broadcastMessage(conversationId, msg);
-  emitSyncAvailable(io, conversationId, serverSequence);
-  return { packetId, message: msg };
+  if (!outcome.replayed) {
+    broadcaster.broadcastMessage(conversationId, outcome.result.message);
+    emitSyncAvailable(io, conversationId, serverSequence);
+  }
+  return outcome.result;
 }
 
 // ── 红包详情 ────────────────────────────────────────────────────

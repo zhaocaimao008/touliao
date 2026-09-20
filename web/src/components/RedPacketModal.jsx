@@ -1,7 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
 import useFocusTrap from '../hooks/useFocusTrap';
 import { useI18n } from '../contexts/I18nContext';
+import { createFinancialRequest } from '../utils/financialRequest';
 
 export default function RedPacketModal({ conversation, onClose, onSent }) {
   const { t } = useI18n();
@@ -11,6 +12,9 @@ export default function RedPacketModal({ conversation, onClose, onSent }) {
   const [greeting, setGreeting] = useState(t('redPacket.defaultGreeting'));
   const [sending, setSending] = useState(false);
   const [error, setError] = useState('');
+  const requestConfig = useRef(null);
+  if (!requestConfig.current) requestConfig.current = createFinancialRequest();
+  const inFlight = useRef(false);
 
   // 私聊红包固定 1 个（对齐微信：私聊只填金额，无「个数」）；群聊才有个数
   const isGroup = conversation.type === 'group';
@@ -29,22 +33,25 @@ export default function RedPacketModal({ conversation, onClose, onSent }) {
 
   const send = async () => {
     // 资金操作，函数入口二次守卫：快速双击时 disabled 尚未重渲染也不会重复发送/扣款
-    if (!canSend || sending) return;
+    if (!canSend || sending || inFlight.current) return;
+    inFlight.current = true;
     setSending(true);
     setError('');
     try {
-      const { data } = await axios.post('/api/redpackets/send', {
+      const payload = {
         conversationId: conversation.id,
         totalAmount: amountNum,
         totalCount: countNum,
         greeting,
-      });
+      };
+      const { data } = await axios.post('/api/redpackets/send', payload, requestConfig.current(payload));
       onSent?.(data.message);
       onClose();
     } catch (e) {
       setError(e.response?.data?.error || t('chat.sendFailed'));
     }
     setSending(false);
+    inFlight.current = false;
   };
 
   return (
