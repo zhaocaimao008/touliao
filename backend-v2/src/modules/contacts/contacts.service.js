@@ -2,6 +2,7 @@
 const { v4: uuidv4 } = require('uuid');
 const { db } = require('../../db/connection');
 const { badRequest, forbidden, notFound } = require('../../utils/http');
+const { projectProfiles } = require('../../utils/socialPrivacy');
 const usersSvc = require('../users/users.service');
 const { getOrCreatePrivate } = require('../conversations/conversations.service');
 const { pushToUser, langOf } = require('../../utils/push');
@@ -16,13 +17,13 @@ function listContacts(userId) {
   const cols = isPrivileged
     ? 'u.id, u.username, u.avatar, u.bio, u.status, u.wechat_id, u.last_online_at, c.remark'
     : 'u.id, u.username, u.avatar, u.bio, u.status, u.wechat_id, c.remark';
-  return db.prepare(`
+  return projectProfiles(userId, db.prepare(`
     SELECT ${cols}
     FROM contacts c JOIN users u ON u.id = c.contact_id
     WHERE c.user_id = ?
     ORDER BY COALESCE(c.remark, u.username) COLLATE NOCASE
     LIMIT 1000
-  `).all(userId);
+  `).all(userId));
 }
 
 function deleteContact(userId, contactId) {
@@ -100,6 +101,7 @@ function sendFriendRequest(io, fromId, { toId, message }) {
       io.to(`user_${fromId}`).emit('new_conversation', convForSender);
       io.to(`user_${toId}`).emit('new_conversation', convForTarget);
     }
+    require('../../realtime/socialState').invalidateSocial(io, [fromId, toId]);
     return { success: true, autoAccepted: true };
   }
 
@@ -168,6 +170,8 @@ function handleRequest(io, userId, requestId, action) {
   // 期间任一方可能拉黑对方、或来源群开启"禁止群成员互加"。此时不应再建立好友关系。
   // 仅在 action='accepted' 时复查（拒绝请求无需门控）。
   if (action === 'accepted') {
+    const requester = db.prepare('SELECT banned FROM users WHERE id=?').get(request.from_id);
+    if (!requester || requester.banned) throw forbidden('该账号已停用', 'ACCOUNT_UNAVAILABLE');
     // 已是好友：幂等，直接放行（沿用 sendFriendRequest 里 INSERT OR IGNORE 的宽松处理，不视为错误）
     // 黑名单：双向复查——任一方拉黑对方都拒绝建立好友（比 send 侧更严，覆盖接受方在期间拉黑请求方的场景）
     const blocked = db.prepare('SELECT user_id FROM blocked_users WHERE (user_id=? AND blocked_id=?) OR (user_id=? AND blocked_id=?)')
@@ -219,6 +223,7 @@ function handleRequest(io, userId, requestId, action) {
     // 只需通知"我自己"的其他设备刷新列表，不需要通知请求方(拒绝不像接受那样需要对方知晓)。
     if (io) io.to(`user_${userId}`).emit('friend_request_rejected', { requestId });
   }
+  require('../../realtime/socialState').invalidateSocial(io, [userId, request.from_id]);
   return { success: true };
 }
 

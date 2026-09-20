@@ -1,31 +1,54 @@
 package com.touliao.app.core.storage
 
 import android.content.Context
+import android.content.SharedPreferences
 import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
 import javax.inject.Singleton
 
-/**
- * 会话输入草稿（对齐微信/Web：切走会话再回来，未发送的文字仍在；会话列表显示「[草稿]」前缀）。
- * 按 conversationId 持久化到 SharedPreferences，进程重启后仍保留。
- */
+data class DraftOwner(val server: String, val accountId: String, val identityEpoch: Long, val generation: Long)
+
+/** Text drafts only. Unowned legacy keys remain quarantined and are never imported. */
 @Singleton
-class DraftStore @Inject constructor(
-    @ApplicationContext context: Context,
+class DraftStore internal constructor(
+    private val prefs: SharedPreferences,
+    private val environment: (() -> Pair<String, Long>)? = null,
 ) {
-    private val prefs = context.getSharedPreferences("vxin_drafts", Context.MODE_PRIVATE)
+    @Inject constructor(@ApplicationContext context: Context, tokens: TokenStore, server: ServerConfig) : this(
+        context.getSharedPreferences("vxin_drafts", Context.MODE_PRIVATE),
+        { server.baseUrl.trimEnd('/') to tokens.snapshot().identityEpoch },
+    )
+    private var generation = 0L
+    private var active: DraftOwner? = null
 
-    /** 读取草稿；无则返回空串 */
-    fun get(conversationId: String): String =
-        if (conversationId.isBlank()) "" else prefs.getString(conversationId, "").orEmpty()
-
-    /** 写入草稿：空则清除（避免残留空键） */
-    fun set(conversationId: String, text: String) {
-        if (conversationId.isBlank()) return
-        prefs.edit().apply {
-            if (text.isBlank()) remove(conversationId) else putString(conversationId, text)
-        }.apply()
+    @Synchronized fun activate(server: String, accountId: String, identityEpoch: Long): DraftOwner {
+        val normalized = server.trimEnd('/')
+        active?.let { if (it.server == normalized && it.accountId == accountId && it.identityEpoch == identityEpoch) return it }
+        return DraftOwner(normalized, accountId, identityEpoch, ++generation).also { active = it }
     }
-
-    fun clear(conversationId: String) = set(conversationId, "")
+    @Synchronized fun invalidate() { active = null; generation++ }
+    @Synchronized fun capture(): DraftOwner? = active
+    private fun current(owner: DraftOwner?, env: Pair<String, Long>?): Boolean = owner != null && owner == active &&
+        owner.accountId.isNotBlank() && owner.server.isNotBlank() &&
+        (env?.let { it.first == owner.server && it.second == owner.identityEpoch } ?: true)
+    // Length-prefix encoding prevents separator collisions in server/account/conversation IDs.
+    private fun key(owner: DraftOwner, conversationId: String) = "v2:" +
+        listOf(owner.server, owner.accountId, conversationId).joinToString("") { "${it.length}:$it" }
+    fun get(conversationId: String, owner: DraftOwner? = capture()): String {
+        // Read the credential lock before the draft lock, matching SessionManager.
+        val env = environment?.invoke()
+        return synchronized(this) {
+            if (conversationId.isBlank() || !current(owner, env)) ""
+            else prefs.getString(key(owner!!, conversationId), "").orEmpty()
+        }
+    }
+    fun set(conversationId: String, text: String, owner: DraftOwner?) {
+        val env = environment?.invoke()
+        synchronized(this) {
+            if (conversationId.isBlank() || !current(owner, env)) return
+            val key = key(owner!!, conversationId)
+            prefs.edit().apply { if (text.isBlank()) remove(key) else putString(key, text) }.apply()
+        }
+    }
+    fun clear(conversationId: String, owner: DraftOwner?) = set(conversationId, "", owner)
 }

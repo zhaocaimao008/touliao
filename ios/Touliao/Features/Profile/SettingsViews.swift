@@ -1,3 +1,4 @@
+import Combine
 import SwiftUI
 
 // MARK: - 外观（纯本地设置，AppStorage 持久化）
@@ -98,16 +99,26 @@ final class NotificationSettingsViewModel: ObservableObject {
     @Published var loading = true
     @Published var error: String?
 
+    private let socialGuard = SocialReadGuard()
+    private var socialSubscription: AnyCancellable?
+    init() {
+        socialSubscription = SocketService.shared.socialState.dropFirst()
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] _ in Task { @MainActor in await self?.load() } }
+    }
     private let repo = ProfileRepository.shared
 
     func load() async {
+        guard let stamp = socialGuard.begin() else { return }
         loading = true; error = nil
         if let s = try? await repo.notificationSettings() {
+            guard socialGuard.current(stamp) else { return }
             messageNotify = s.messageNotify
             sound = s.sound
             vibrate = s.vibrate
             detailPreview = s.detailPreview
         } else {
+            guard socialGuard.current(stamp) else { return }
             error = "加载通知设置失败"
         }
         loading = false
@@ -259,6 +270,13 @@ final class QuietSettingsViewModel: ObservableObject {
     @Published var saving = false
     @Published var error: String?
 
+    private let socialGuard = SocialReadGuard()
+    private var socialSubscription: AnyCancellable?
+    init() {
+        socialSubscription = SocketService.shared.socialState.dropFirst()
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] _ in Task { @MainActor in await self?.load() } }
+    }
     private let repo = ProfileRepository.shared
 
     /// 将 "HH:MM" 字符串解析为当天对应的 Date（仅 HH:MM 有意义，日期取今天）
@@ -280,12 +298,15 @@ final class QuietSettingsViewModel: ObservableObject {
     }
 
     func load() async {
+        guard let stamp = socialGuard.begin() else { return }
         loading = true; error = nil
         if let s = try? await repo.quietSettings() {
+            guard socialGuard.current(stamp) else { return }
             quietEnabled = s.quietEnabled == 1
             quietStart = parseHHMM(s.quietStart)
             quietEnd = parseHHMM(s.quietEnd)
         } else {
+            guard socialGuard.current(stamp) else { return }
             error = "加载勿扰设置失败"
         }
         loading = false
@@ -384,16 +405,26 @@ final class PrivacySettingsViewModel: ObservableObject {
     @Published var loading = true
     @Published var error: String?
 
+    private let socialGuard = SocialReadGuard()
+    private var socialSubscription: AnyCancellable?
+    init() {
+        socialSubscription = SocketService.shared.socialState.dropFirst()
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] _ in Task { @MainActor in await self?.load() } }
+    }
     private let repo = ProfileRepository.shared
 
     func load() async {
+        guard let stamp = socialGuard.begin() else { return }
         loading = true; error = nil
         if let s = try? await repo.privacySettings() {
+            guard socialGuard.current(stamp) else { return }
             addByVxinId = s.addByVxinId
             addByPhone = s.addByPhone
             requireVerify = s.requireVerify
             noDirectGroupInvite = s.noDirectGroupInvite
         } else {
+            guard socialGuard.current(stamp) else { return }
             error = "加载隐私设置失败"
         }
         loading = false

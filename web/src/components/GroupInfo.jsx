@@ -1,3 +1,4 @@
+import { useSocialRevision } from '../hooks/useSocialRevision';
 import TouliaoField from '../ui-kit/Field';
 import { PrimaryButton, SecondaryButton, DangerButton } from '../ui-kit/Button';
 import TouliaoSwitch from '../ui-kit/Switch';
@@ -116,6 +117,7 @@ const GroupMemberRow = React.memo(function GroupMemberRow({ index, style, data }
 
 /* ── 主组件 ── */
 export default function GroupInfo({ conversation, currentUserId, onClose, onLeave, onConvUpdate, onPickBackground, onClearBackground, onCleared, onOpenChatFiles }) {
+  const socialRevision = useSocialRevision();
   const { t } = useI18n();
   const { socket } = useSocket();
   const [info, setInfo] = useState(null);
@@ -167,18 +169,20 @@ export default function GroupInfo({ conversation, currentUserId, onClose, onLeav
     setLoading(true);
     axios.get(`/api/messages/conversation/${conversation.id}/info`)
       .then(r => applyInfo(r.data))
+      .catch(() => {})
       .finally(() => setLoading(false));
   }, [conversation.id, applyInfo]);
 
   // 初次挂载 / 切换会话：loading 初值已为 true，effect 内不做同步 setState
   useEffect(() => {
     let alive = true;
+    setInfo(null); setLoading(true);
     axios.get(`/api/messages/conversation/${conversation.id}/info`)
       .then(r => { if (alive) applyInfo(r.data); })
       .catch(() => {})
       .finally(() => { if (alive) setLoading(false); });
     return () => { alive = false; };
-  }, [conversation.id, applyInfo]);
+  }, [conversation.id, applyInfo, socialRevision]);
 
   useEffect(() => {
     if (!socket) return undefined;

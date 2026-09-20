@@ -87,3 +87,4 @@ data class NicknameBody(val nickname: String)
 
 @Serializable
 data class InviteBody(val userIds: List<String>)
+data class GroupInviteResult(val added: Int = 0, val blocked: Int = 0)

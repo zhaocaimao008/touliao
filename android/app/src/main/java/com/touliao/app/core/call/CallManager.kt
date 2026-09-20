@@ -57,6 +57,7 @@ data class CallState(
     // 2026-09-02新增：通话质量指示（getStats 2s 采样）。""=未采样 / good=优 / medium=中 / poor=差
     val callQuality: String = "",
     val connectedAt: Long = 0,        // 接通时刻(elapsedRealtime ms)，用于通话计时
+    val permissionEnded: Boolean = false,
     val endedAt: Long = 0,            // 结束时刻(elapsedRealtime ms)，用于结束页定格总时长
     // 2026-08-29新增：通话小窗(对齐iOS)。true时CallHost渲染悬浮小窗而非全屏通话界面，
     // 用户可退回App其它页面继续操作，PeerConnection/信令不受UI切换影响。
@@ -630,6 +631,7 @@ class CallManager @Inject constructor(
                     _state.update { it.copy(stage = CallStage.CONNECTING) }
                     createOfferAndSend()
                 } else {
+                    _state.update { it.copy(permissionEnded = e.reason == "permission_revoked") }
                     cleanup(CallStage.ENDED)
                 }
             }
@@ -702,6 +704,7 @@ class CallManager @Inject constructor(
                 val matchesOtherDeviceOutgoing = !s.isCaller && s.stage == CallStage.OUTGOING &&
                     (e.callId.isEmpty() || e.callId == s.callId)
                 if (matchesPeerCall || matchesOtherDeviceOutgoing) {
+                    _state.update { it.copy(permissionEnded = e.reason == "permission_revoked") }
                     cleanup(CallStage.ENDED)
                 }
             }

@@ -22,7 +22,7 @@ describe('新建会话/加成员时在线成员即时入房间（round47 回归�
       socketsLeave: () => {},
       emit: () => {},
     });
-    app.set('io', { in: chain, to: chain });
+    app.set('io', { in: chain, to: chain, emit: () => {} });
   });
   afterAll(() => { app.set('io', realIo); });
   beforeEach(() => { joins = []; });

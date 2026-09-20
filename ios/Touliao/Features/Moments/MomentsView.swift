@@ -14,6 +14,10 @@ final class MomentsViewModel: ObservableObject {
     @Published var notifications: [MomentNotification] = []
     @Published var notifLoading = false
 
+    private let socialOwner = KeychainStore.shared.snapshot().identityEpoch
+    private func socialCurrent(_ revision: UInt64) -> Bool {
+        KeychainStore.shared.snapshot().identityEpoch == socialOwner && SocketService.shared.socialState.value == revision
+    }
     private let repo = MomentRepository.shared
     private let page = 20
     private var cancellables = Set<AnyCancellable>()
@@ -21,6 +25,13 @@ final class MomentsViewModel: ObservableObject {
 
     init(myId: String) {
         self.myId = myId
+        SocketService.shared.socialState.dropFirst().receive(on: DispatchQueue.main)
+            .sink { [weak self] _ in Task { @MainActor in
+                guard let self, self.socialCurrent(SocketService.shared.socialState.value) else { return }
+                self.moments = []; self.notifications = []; self.notifUnread = 0
+                await self.refresh(); await self.loadNotifUnread()
+            } }.store(in: &cancellables)
+
         repo.eventsPublisher
             .sink { [weak self] in Task { @MainActor in await self?.refresh(); await self?.loadNotifUnread() } }
             .store(in: &cancellables)
@@ -29,14 +40,20 @@ final class MomentsViewModel: ObservableObject {
 
     // ── 互动通知（谁赞了/评论了我的动态）──
     func loadNotifUnread() async {
-        if let n = try? await repo.notifUnreadCount() { notifUnread = n }
+        let revision = SocketService.shared.socialState.value
+        guard socialCurrent(revision) else { return }
+        if let n = try? await repo.notifUnreadCount(), socialCurrent(revision) { notifUnread = n }
     }
 
     func openNotif() {
+        let revision = SocketService.shared.socialState.value
+        guard socialCurrent(revision) else { return }
         notifLoading = true
         Task {
             do {
-                notifications = try await repo.notifications(limit: 30).items
+                let fresh = try await repo.notifications(limit: 30).items
+                guard socialCurrent(revision) else { return }
+                notifications = fresh
                 // 打开即标记已读，清零角标
                 if notifUnread > 0 { try? await repo.markNotificationsRead(); notifUnread = 0 }
             } catch { self.error = (error as? LocalizedError)?.errorDescription ?? "加载失败" }
@@ -58,18 +75,25 @@ final class MomentsViewModel: ObservableObject {
     }
 
     func refresh() async {
+        let revision = SocketService.shared.socialState.value
+        guard socialCurrent(revision) else { return }
         loading = true; error = nil
         do {
-            moments = try await repo.timeline(limit: page, offset: 0)
+            let fresh = try await repo.timeline(limit: page, offset: 0)
+            guard socialCurrent(revision) else { return }
+            moments = fresh
             reachedEnd = moments.count < page
         } catch { self.error = (error as? LocalizedError)?.errorDescription ?? "加载失败" }
         loading = false
     }
 
     func loadMore() {
+        let revision = SocketService.shared.socialState.value
+        guard socialCurrent(revision) else { return }
         guard !reachedEnd, !loading else { return }
         Task {
             if let more = try? await repo.timeline(limit: page, offset: moments.count) {
+                guard socialCurrent(revision) else { return }
                 moments.append(contentsOf: more)
                 reachedEnd = more.count < page
             }

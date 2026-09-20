@@ -104,11 +104,13 @@ final class ChatViewModel: ObservableObject {
     private let historyPagination = HistoryPaginationAction(source: ChatRepository.shared)
     private let recorder = AudioRecorder.shared
     private let player = AudioPlayerService.shared
+    private let draftOwner: DraftOwner?
     private var cancellables = Set<AnyCancellable>()
     private var lastTypingEmit = Date.distantPast
     private var typingClearTask: Task<Void, Never>?
 
     init(conversationId: String, title: String, myId: String, isGroup: Bool = false, peerUserId: String? = nil) {
+        self.draftOwner = DraftStore.shared.capture()
         self.conversationId = conversationId
         self.title = title
         self.myId = myId
@@ -116,17 +118,23 @@ final class ChatViewModel: ObservableObject {
         self.outboxOwner = OutboxOwner(server: ServerConfig.shared.baseURL, accountId: myId)
         self.isGroup = isGroup
         self.peerUserId = peerUserId
-        self.input = DraftStore.shared.get(conversationId)   // 恢复未发送草稿(对齐微信/Web/Android)
+        self.input = DraftStore.shared.get(conversationId, owner: draftOwner)   // 恢复未发送草稿(对齐微信/Web/Android)
 
-        // 输入变化即持久化草稿(去抖，避免每字符都写盘)
+        // 输入变化即按捕获的账号身份持久化；切号后的旧回调由 DraftStore 拒绝。
         $input
             .dropFirst()
-            .debounce(for: .milliseconds(300), scheduler: RunLoop.main)
             .sink { [weak self] text in
                 guard let self else { return }
-                DraftStore.shared.set(self.conversationId, text)
+                DraftStore.shared.set(self.conversationId, text, owner: self.draftOwner)
             }
             .store(in: &cancellables)
+
+        SocketService.shared.socialState.dropFirst().receive(on: DispatchQueue.main)
+            .sink { [weak self] _ in Task { @MainActor in
+                guard let self, self.currentOwner else { return }
+                self.groupMembers = []
+                if self.isGroup { await self.loadGroupMembers() }
+            } }.store(in: &cancellables)
 
         repo.incomingPublisher
             .sink { [weak self] msg in Task { @MainActor in self?.onIncoming(msg) } }
@@ -368,7 +376,10 @@ final class ChatViewModel: ObservableObject {
 
     // MARK: - @提及
     func loadGroupMembers() async {
+        let revision = SocketService.shared.socialState.value
+        guard currentOwner else { return }
         if let info = try? await GroupRepository.shared.info(conversationId) {
+            guard currentOwner, revision == SocketService.shared.socialState.value else { return }
             groupMembers = info.members.filter { $0.id != myId }
             canManageGroup = info.canManage
             groupAnnouncement = info.announcement
@@ -1054,7 +1065,7 @@ final class ChatViewModel: ObservableObject {
                                  senderId: myId, content: text, replyToId: replyId,
                                  replyTo: replySnap, clientMsgId: clientMsgId)
         input = ""
-        DraftStore.shared.clear(conversationId)
+        DraftStore.shared.clear(conversationId, owner: draftOwner)
         replyingTo = nil
         error = nil
         messages.append(optimistic)

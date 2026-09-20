@@ -1,4 +1,5 @@
 'use strict';
+const { directInvitees } = require('../../utils/socialPrivacy');
 /**
  * 会话域 service。保留原 messages.js 中全部已优化查询（注释标注耗时来源）。
  * P2 优化：集成 Redis 缓存
@@ -95,18 +96,8 @@ function createGroup(io, ownerId, { name, memberIds }) {
     throw badRequest('群名称 1-50 字符');
   if (memberIds.length > config.limits.maxGroupMembers)
     throw badRequest(`单次邀请成员数不能超过 ${config.limits.maxGroupMembers}`);
-  // 过滤：只允许添加确实存在的联系人（防止注入不存在的 userId 产生幽灵成员）
-  const ph = memberIds.map(() => '?').join(',');
-  const validSet = new Set(
-    db.prepare(`SELECT contact_id FROM contacts WHERE user_id=? AND contact_id IN (${ph})`)
-      .all(ownerId, ...memberIds).map(r => r.contact_id)
-  );
-  // 隐私保护：开启「好友不能直接邀请我进群」的用户，建群时不会被直接拉入
-  const protectedSet = new Set(
-    db.prepare(`SELECT user_id FROM user_settings WHERE no_direct_group_invite=1 AND user_id IN (${ph})`)
-      .all(...memberIds).map(r => r.user_id)
-  );
-  const validMemberIds = memberIds.filter(id => validSet.has(id) && !protectedSet.has(id));
+  if (!Array.isArray(memberIds)) throw badRequest('成员列表格式错误');
+  const validMemberIds = directInvitees(ownerId, memberIds);
 
   // BUG-2: 限制每人最多创建 1000 个群
   const userGroupCount = db.prepare(

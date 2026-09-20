@@ -30,10 +30,14 @@ data class ContactsUiState(
 
 @HiltViewModel
 class ContactsViewModel @Inject constructor(
+    private val socialSocket: com.touliao.app.core.realtime.SocketManager,
+    private val socialTokens: com.touliao.app.core.storage.TokenStore,
     private val contactRepository: ContactRepository,
     private val mediaUrlResolver: MediaUrlResolver,
 ) : ViewModel() {
 
+    private val socialGuard = com.touliao.app.core.realtime.SocialReadGuard(
+        { socialTokens.snapshot().identityEpoch }, { socialSocket.socialRevision.value })
     private val _uiState = MutableStateFlow(ContactsUiState(loading = true))
     val uiState: StateFlow<ContactsUiState> = _uiState.asStateFlow()
 
@@ -46,6 +50,8 @@ class ContactsViewModel @Inject constructor(
     fun consumeError() = _uiState.update { it.copy(error = null) }
 
     init {
+        viewModelScope.launch { socialSocket.socialRevision.collect { _uiState.update { it.copy(contacts = emptyList()) }; refresh() } }
+
         refresh()
         viewModelScope.launch { contactRepository.friendEvents.collect { refresh() } }
         viewModelScope.launch {
@@ -58,16 +64,17 @@ class ContactsViewModel @Inject constructor(
     }
 
     fun refresh() {
+        val stamp = socialGuard.begin() ?: return
         _uiState.update { it.copy(loading = true, error = null) }
         viewModelScope.launch {
             runCatching { contactRepository.contacts() }
-                .onSuccess { list -> _uiState.update { it.copy(loading = false, contacts = list, onlineIds = list.filter { c -> c.status == "online" }.map { c -> c.id }.toSet()) } }
-                .onFailure { e -> _uiState.update { it.copy(loading = false, error = e.toUserMessage("加载联系人失败")) } }
+                .onSuccess { list -> if (!socialGuard.current(stamp)) return@onSuccess; _uiState.update { it.copy(loading = false, contacts = list, onlineIds = list.filter { c -> c.status == "online" }.map { c -> c.id }.toSet()) } }
+                .onFailure { e -> if (!socialGuard.current(stamp)) return@onFailure; _uiState.update { it.copy(loading = false, error = e.toUserMessage("加载联系人失败")) } }
             runCatching { contactRepository.receivedRequests().size }
-                .onSuccess { n -> _uiState.update { it.copy(requestCount = n) } }
+                .onSuccess { n -> if (!socialGuard.current(stamp)) return@onSuccess; _uiState.update { it.copy(requestCount = n) } }
             // AI 助手列表：拉取失败静默保持空（隐藏分组）
             runCatching { contactRepository.fetchAiAssistants() }
-                .onSuccess { bots -> _uiState.update { it.copy(aiBots = bots) } }
+                .onSuccess { bots -> if (!socialGuard.current(stamp)) return@onSuccess; _uiState.update { it.copy(aiBots = bots) } }
         }
     }
 
@@ -97,11 +104,7 @@ class ContactsViewModel @Inject constructor(
     fun setRemark(contact: Contact, remark: String) {
         viewModelScope.launch {
             runCatching { contactRepository.setRemark(contact.id, remark.trim()) }
-                .onSuccess {
-                    _uiState.update { s ->
-                        s.copy(contacts = s.contacts.map { if (it.id == contact.id) it.copy(remark = remark.trim().ifBlank { null }) else it })
-                    }
-                }
+                .onSuccess { refresh() }
                 .onFailure { e -> _uiState.update { it.copy(error = e.toUserMessage("设置备注失败")) } }
         }
     }
@@ -109,7 +112,7 @@ class ContactsViewModel @Inject constructor(
     fun deleteContact(contact: Contact) {
         viewModelScope.launch {
             runCatching { contactRepository.deleteContact(contact.id) }
-                .onSuccess { _uiState.update { s -> s.copy(contacts = s.contacts.filterNot { it.id == contact.id }) } }
+                .onSuccess { refresh() }
                 .onFailure { e -> _uiState.update { it.copy(error = e.toUserMessage("删除好友失败")) } }
         }
     }
@@ -117,7 +120,7 @@ class ContactsViewModel @Inject constructor(
     fun block(contact: Contact) {
         viewModelScope.launch {
             runCatching { contactRepository.block(contact.id) }
-                .onSuccess { _uiState.update { s -> s.copy(contacts = s.contacts.filterNot { it.id == contact.id }, error = "已加入黑名单") } }
+                .onSuccess { refresh() }
                 .onFailure { e -> _uiState.update { it.copy(error = e.toUserMessage("拉黑失败")) } }
         }
     }

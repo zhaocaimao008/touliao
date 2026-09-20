@@ -64,12 +64,13 @@ import javax.inject.Inject
 
 @HiltViewModel
 class AppViewModel @Inject constructor(
-    sessionManager: SessionManager,
+    private val sessionManager: SessionManager,
     private val configApi: ConfigApi,
     private val chatRepository: ChatRepository,
     private val updateChecker: UpdateChecker,
 ) : ViewModel() {
     val authState: StateFlow<AuthState> = sessionManager.state
+    fun identityEpoch() = sessionManager.credentialSnapshot().identityEpoch
 
     // 后台功能开关（朋友圈/收藏）。默认全开，拉取失败不误伤已有功能。
     private val _features = MutableStateFlow(Features())
@@ -172,7 +173,9 @@ fun AppNavigation(appViewModel: AppViewModel = hiltViewModel()) {
     when (authState) {
         // 启动画面已全部移除：Loading 状态不渲染任何画面，等鉴权结果直接进主界面/登录页
         is AuthState.Loading -> {}
-        is AuthState.Authenticated -> MainFlow(features, unreadTotal)
+        is AuthState.Authenticated -> androidx.compose.runtime.key(
+            (authState as AuthState.Authenticated).user.id, appViewModel.identityEpoch(),
+        ) { MainFlow(features, unreadTotal) }
         is AuthState.Unauthenticated -> AuthFlow()
     }
 }
@@ -476,4 +479,3 @@ private fun MainFlow(features: Features, unreadTotal: Int = 0, appViewModel: App
         com.touliao.app.feature.call.GroupCallHost()
     }
 }
-

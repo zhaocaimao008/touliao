@@ -2,6 +2,7 @@ import Foundation
 
 struct RenameGroupBody: Encodable { let name: String }
 struct InviteBody: Encodable { let userIds: [String] }
+struct GroupInviteResult: Decodable { let added: Int; let blocked: Int }
 private struct AnnouncementBody: Encodable { let announcement: String }
 private struct NicknameBody: Encodable { let nickname: String }
 private struct GroupAvatarResponse: Decodable { let avatar: String }
@@ -69,8 +70,8 @@ final class GroupRepository {
         )
     }
 
-    func invite(_ conversationId: String, userIds: [String]) async throws {
-        let _: EmptyResponse = try await api.send(
+    func invite(_ conversationId: String, userIds: [String]) async throws -> GroupInviteResult {
+        try await api.send(
             "api/messages/conversation/\(conversationId)/invite", method: "POST", body: InviteBody(userIds: userIds)
         )
     }

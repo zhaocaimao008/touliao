@@ -14,6 +14,8 @@ class ProfileRepository @Inject constructor(
     private val userApi: UserApi,
     private val authApi: AuthApi,
 ) {
+    suspend fun me(): User = authApi.me()
+
     suspend fun updateProfile(username: String?, bio: String?): User =
         userApi.updateProfile(UpdateProfileRequest(username, bio))
 

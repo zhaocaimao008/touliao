@@ -1,4 +1,5 @@
 'use strict';
+const { visibleProfileIds } = require('../../utils/socialPrivacy');
 const { db } = require('../../db/connection');
 const { notFound, badRequest, conflict, paginated } = require('../../utils/http');
 const cache = require('../../utils/cache');
@@ -242,12 +243,11 @@ async function getUserDetail(viewerId, targetId) {
   const contact   = db.prepare('SELECT remark FROM contacts WHERE user_id=? AND contact_id=?').get(viewerId, targetId);
   const isFriend  = !!contact;
   const isBlocked = !!db.prepare('SELECT 1 FROM blocked_users WHERE user_id=? AND blocked_id=?').get(viewerId, targetId);
-  const settings  = serializeSettings(ensureSettings(targetId));
-  const visible   = isFriend || targetId === viewerId || settings.profileVisible;
+  const visible = visibleProfileIds(viewerId, [targetId]).has(targetId);
   const pendingReq = db.prepare('SELECT id FROM friend_requests WHERE from_id=? AND to_id=? AND status=?').get(viewerId, targetId, 'pending');
 
   // 特权账户对好友（或自己）可见精确最后在线时间（Unix 秒）
-  const showLastOnline = isPrivileged && (isFriend || targetId === viewerId);
+  const showLastOnline = visible && isPrivileged && (isFriend || targetId === viewerId);
 
   return {
     ...user,

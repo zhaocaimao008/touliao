@@ -1,3 +1,4 @@
+import { useSocialRevision } from '../hooks/useSocialRevision';
 import { EmptyState } from './StateViews';
 import TouliaoIcon from '../ui-kit/Icon';
 import React, { useState, useEffect, useCallback, useRef, useMemo, memo, Suspense, lazy } from 'react';
@@ -53,6 +54,7 @@ function aiBotConv(conversationId, bot) {
 }
 
 export default function ContactList({ onStartChat, searchQuery = '', addFriendRequest = 0, onAddFriendConsumed, openFriendRequests = 0, onOpenFriendRequestsConsumed }) {
+  const socialRevision = useSocialRevision();
   const { t, lang } = useI18n();
   const requestTimeFormatter = useMemo(() => new Intl.DateTimeFormat(lang, {
     month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit',
@@ -96,8 +98,9 @@ export default function ContactList({ onStartChat, searchQuery = '', addFriendRe
       .catch(() => setAiBots([])), []);
 
   useEffect(() => {
-    fetchContacts(); fetchRequests(); fetchSent(); fetchGroups(); fetchLabels(); fetchAiBots();
-  }, [fetchContacts, fetchRequests, fetchSent, fetchGroups, fetchLabels, fetchAiBots]);
+    setContacts([]); setBlockedUsers([]);
+    fetchContacts(); fetchRequests(); fetchSent(); fetchBlocked(); fetchGroups(); fetchLabels(); fetchAiBots();
+  }, [fetchContacts, fetchRequests, fetchSent, fetchBlocked, fetchGroups, fetchLabels, fetchAiBots, socialRevision]);
 
   useEffect(() => {
     if (!socket) return;
@@ -128,9 +131,7 @@ export default function ContactList({ onStartChat, searchQuery = '', addFriendRe
   }, [socket, fetchContacts, fetchGroups, fetchRequests, fetchSent]);
 
   useEffect(() => {
-    const handler = ({ detail }) => {
-      const { userId, remark } = detail || {};
-      if (userId) setContacts(prev => prev.map(c => c.id === userId ? { ...c, remark: remark || '' } : c));
+    const handler = () => {
       fetchContacts();
     };
     window.addEventListener('touliao:remark-changed', handler);

@@ -57,7 +57,7 @@ interface GroupApi {
 
     /** 邀请成员 */
     @POST("api/messages/conversation/{id}/invite")
-    suspend fun invite(@Path("id") id: String, @Body body: InviteBody)
+    suspend fun invite(@Path("id") id: String, @Body body: InviteBody): com.touliao.app.data.model.GroupInviteResult
 
     /** 移除成员（仅群主/管理员） */
     @DELETE("api/messages/conversation/{id}/members/{uid}")

@@ -19,6 +19,7 @@ struct CallState {
     var speakerOn: Bool = false   // 2026-08-29 语音通话审计新增：此前完全没有扬声器切换能力
     var remoteVideoActive: Bool = false
     var timedOut: Bool = false          // 主叫未接听超时 → 结束页提示"对方未接听"
+    var permissionEnded: Bool = false
     var networkEnded: Bool = false      // 网络断开/ICE 失败 → 结束页提示"网络已断开"
     var connectedAt: Date?              // 接通时刻，用于计算通话时长(mm:ss)
     var endedAt: Date?                  // 结束时刻，用于在结束页定格总时长
@@ -358,7 +359,7 @@ final class CallManager: NSObject, ObservableObject {
             }
         }.store(in: &cancellables)
 
-        socket.callResponse.receive(on: DispatchQueue.main).sink { [weak self] (from, accepted, callId) in
+        socket.callResponse.receive(on: DispatchQueue.main).sink { [weak self] (from, accepted, callId, reason) in
             guard let self, self.state.isCaller, self.state.peerId == from else { return }
             // 紧急修复（2026-09-03）：主叫的 state.callId 要等 call:request 的 ack 异步回填
             // （startCall 里先 refreshIceServers()/建流再 emit，ack 往返还得再走一轮），被叫
@@ -373,7 +374,7 @@ final class CallManager: NSObject, ObservableObject {
                 || CallSignalMatcher.matches(activeCallId: self.state.callId, eventCallId: callId, activePeerId: self.state.peerId, eventPeerId: from)
             guard idOk else { return }
             if accepted { self.state.stage = .connecting; self.createOfferAndSend() }
-            else { self.cleanup(.ended) }
+            else { self.state.permissionEnded = reason == "permission_revoked"; self.cleanup(.ended) }
         }.store(in: &cancellables)
 
         socket.callOffer.receive(on: DispatchQueue.main).sink { [weak self] (from, sdp, callId) in
@@ -437,6 +438,7 @@ final class CallManager: NSObject, ObservableObject {
                 )
             }
             guard matched else { return }
+            self.state.permissionEnded = reason == "permission_revoked"
             VoipCallManager.shared.endActiveCall()   // 对方挂断/被其它设备处理时同步收尾 CallKit
             self.cleanup(.ended)
         }.store(in: &cancellables)

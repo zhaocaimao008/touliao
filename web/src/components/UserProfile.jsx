@@ -1,3 +1,4 @@
+import { useSocialRevision } from '../hooks/useSocialRevision';
 import { GhostButton, PrimaryButton, SecondaryButton, DangerButton } from '../ui-kit/Button';
 import TouliaoIcon from '../ui-kit/Icon';
 import React, { useState, useEffect } from 'react';
@@ -13,6 +14,8 @@ import { formatLastOnline } from '../utils/time';
 import { useI18n } from '../contexts/I18nContext';
 
 export default function UserProfile({ userId, onClose, onStartChat, onFriendAdded, onFriendDeleted, onNudge }) {
+  const socialRevision = useSocialRevision();
+  const [localRevision, refreshProfile] = useState(0);
   useMediaCredentials();
   const { t } = useI18n();
   const { user: currentUser } = useAuth();
@@ -46,6 +49,7 @@ export default function UserProfile({ userId, onClose, onStartChat, onFriendAdde
 
   useEffect(() => {
     let alive = true;
+    setUser(null); setLoading(true);
     axios.get(`/api/users/${userId}`).then(r => {
       if (!alive) return;
       setUser(r.data);
@@ -55,7 +59,7 @@ export default function UserProfile({ userId, onClose, onStartChat, onFriendAdde
       setLoading(false);
     }).catch(() => { if (alive) setLoading(false); });
     return () => { alive = false; };
-  }, [userId]);
+  }, [userId, socialRevision, localRevision]);
 
   const sendRequest = async () => {
     setSending(true);
@@ -64,18 +68,18 @@ export default function UserProfile({ userId, onClose, onStartChat, onFriendAdde
       const { data } = await axios.post('/api/users/friend-request', { toId: userId, message: verifyMsg.trim() || t('up.iAmTemplate').replace('{name}', user?.username || '') });
       if (data.autoAccepted) {
         // 对方免验证，直接成为好友
-        setUser(u => ({ ...u, isFriend: true }));
         onFriendAdded?.();
       } else {
         setAddStep('sent');
         onFriendAdded?.();
       }
+      refreshProfile(n => n + 1);
     } catch (err) {
       const msg = err.response?.data?.error || t('up.sendFailedDefault');
       setErrMsg(msg);
       // 若服务端说已是好友或请求已存在，同步本地状态
       if (msg === '已是好友') {
-        setUser(u => u ? { ...u, isFriend: true } : u);
+        refreshProfile(n => n + 1);
       } else if (msg === '请求已发送') {
         setAddStep('sent');
       }
@@ -88,10 +92,10 @@ export default function UserProfile({ userId, onClose, onStartChat, onFriendAdde
     try {
       const next = remark.trim();
       await axios.put(`/api/users/contacts/${userId}/remark`, { remark: next });
-      setUser(u => ({ ...u, remark: next }));
       setShowRemarkEdit(false);
-      window.dispatchEvent(new CustomEvent('touliao:remark-changed', { detail: { userId, remark: next } }));
+      window.dispatchEvent(new CustomEvent('touliao:remark-changed', { detail: { userId } }));
       onFriendAdded?.();
+      refreshProfile(n => n + 1);
     } catch (err) {
       setErrMsg(err.response?.data?.error || t('up.saveFailed'));
     }
@@ -105,6 +109,7 @@ export default function UserProfile({ userId, onClose, onStartChat, onFriendAdde
       onFriendAdded?.();
       onFriendDeleted?.();
       onClose();
+      refreshProfile(n => n + 1);
     } catch (e) {
       // 删除失败时不关闭弹窗，提示用户以免误以为已删除
       showToast(e.response?.data?.error || t('contacts.deleteFailed'), 'error');
@@ -115,12 +120,11 @@ export default function UserProfile({ userId, onClose, onStartChat, onFriendAdde
     try {
       if (blocked) {
         await axios.delete(`/api/users/block/${userId}`);
-        setBlocked(false);
       } else {
         if (!(await showConfirm(t('up.confirmBlacklistTemplate').replace('{name}', user.remark || user.username)))) return;
         await axios.post(`/api/users/block/${userId}`);
-        setBlocked(true);
       }
+      refreshProfile(n => n + 1);
     } catch (e) {
       showToast(e.response?.data?.error || t('common.actionFailed'), 'error');
     }

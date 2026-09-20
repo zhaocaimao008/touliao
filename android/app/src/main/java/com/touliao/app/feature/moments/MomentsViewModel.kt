@@ -37,6 +37,8 @@ private const val MAX_COMMENT_PAGES = 60 // IV-3：loadAllComments 分页上限�
 
 @HiltViewModel
 class MomentsViewModel @Inject constructor(
+    private val socialSocket: com.touliao.app.core.realtime.SocketManager,
+    private val socialTokens: com.touliao.app.core.storage.TokenStore,
     private val momentRepository: MomentRepository,
     private val profileRepository: com.touliao.app.data.repository.ProfileRepository,
     private val mediaUrlResolver: MediaUrlResolver,
@@ -45,6 +47,8 @@ class MomentsViewModel @Inject constructor(
 
     val myId: String = sessionManager.currentUser?.id.orEmpty()
 
+    private val socialOwner = socialTokens.snapshot().identityEpoch
+    private fun socialCurrent(revision: Long) = socialTokens.snapshot().identityEpoch == socialOwner && socialSocket.socialRevision.value == revision
     private val _uiState = MutableStateFlow(MomentsUiState())
     val uiState: StateFlow<MomentsUiState> = _uiState.asStateFlow()
 
@@ -54,6 +58,14 @@ class MomentsViewModel @Inject constructor(
     fun resolveUrl(url: String?): String? = mediaUrlResolver.resolve(url)
 
     init {
+        viewModelScope.launch { socialSocket.socialRevision.collect {
+            if (socialTokens.snapshot().identityEpoch == socialOwner) {
+                _uiState.update { state -> state.copy(moments = emptyList(), notifications = emptyList(), notifUnread = 0) }
+                refresh(); loadNotifUnread()
+                if (_uiState.value.showNotif) openNotif()
+            }
+        } }
+
         refresh()
         loadSettings()
         loadNotifUnread()
@@ -63,17 +75,21 @@ class MomentsViewModel @Inject constructor(
 
     // ── 互动通知（谁赞了/评论了我的动态）──
     private fun loadNotifUnread() {
+        val socialRevision = socialSocket.socialRevision.value
+        if (!socialCurrent(socialRevision)) return
         viewModelScope.launch {
             runCatching { momentRepository.notifUnreadCount() }
-                .onSuccess { n -> _uiState.update { it.copy(notifUnread = n) } }
+                .onSuccess { n -> if (!socialCurrent(socialRevision)) return@onSuccess; _uiState.update { it.copy(notifUnread = n) } }
         }
     }
 
     fun openNotif() {
+        val socialRevision = socialSocket.socialRevision.value
+        if (!socialCurrent(socialRevision)) return
         _uiState.update { it.copy(showNotif = true, notifLoading = true) }
         viewModelScope.launch {
             runCatching { momentRepository.notifications(limit = 30) }
-                .onSuccess { page ->
+                .onSuccess { page -> if (!socialCurrent(socialRevision)) return@onSuccess;
                     _uiState.update { it.copy(notifLoading = false, notifications = page.items) }
                     // 打开即标记已读，清零角标
                     if (_uiState.value.notifUnread > 0) {
@@ -107,21 +123,25 @@ class MomentsViewModel @Inject constructor(
     }
 
     fun refresh() {
+        val socialRevision = socialSocket.socialRevision.value
+        if (!socialCurrent(socialRevision)) return
         _uiState.update { it.copy(loading = true, error = null) }
         viewModelScope.launch {
             runCatching { momentRepository.timeline(PAGE, 0) }
-                .onSuccess { list -> _uiState.update { it.copy(loading = false, moments = list, reachedEnd = list.size < PAGE) } }
+                .onSuccess { list -> if (!socialCurrent(socialRevision)) return@onSuccess; _uiState.update { it.copy(loading = false, moments = list, reachedEnd = list.size < PAGE) } }
                 .onFailure { e -> _uiState.update { it.copy(loading = false, error = e.toUserMessage("加载失败")) } }
         }
     }
 
     fun loadMore() {
+        val socialRevision = socialSocket.socialRevision.value
+        if (!socialCurrent(socialRevision)) return
         val s = _uiState.value
         if (s.loadingMore || s.reachedEnd || s.loading) return
         _uiState.update { it.copy(loadingMore = true) }
         viewModelScope.launch {
             runCatching { momentRepository.timeline(PAGE, s.moments.size) }
-                .onSuccess { list -> _uiState.update { it.copy(loadingMore = false, moments = it.moments + list, reachedEnd = list.size < PAGE) } }
+                .onSuccess { list -> if (!socialCurrent(socialRevision)) return@onSuccess; _uiState.update { it.copy(loadingMore = false, moments = it.moments + list, reachedEnd = list.size < PAGE) } }
                 .onFailure { _uiState.update { it.copy(loadingMore = false) } }
         }
     }
@@ -155,6 +175,8 @@ class MomentsViewModel @Inject constructor(
 
     // 热门动态：timeline 只返回前 N 条评论，点「查看全部」时分页拉全量替换
     fun loadAllComments(moment: Moment) {
+        val socialRevision = socialSocket.socialRevision.value
+        if (!socialCurrent(socialRevision)) return
         viewModelScope.launch {
             val all = mutableListOf<MomentComment>()
             var offset = 0
@@ -209,6 +231,8 @@ class MomentsViewModel @Inject constructor(
 
     /** 点赞后拉取该条最新（含点赞人列表），保持点赞名单一致 */
     private fun refreshOne(id: String) {
+        val socialRevision = socialSocket.socialRevision.value
+        if (!socialCurrent(socialRevision)) return
         // 简化：依赖本地乐观更新，这里不再请求详情（timeline 无单条接口）
     }
 }

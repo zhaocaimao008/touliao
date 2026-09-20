@@ -14,11 +14,17 @@ final class GroupInfoViewModel: ObservableObject {
     @Published var inviteLinkToCopy: String?
 
     let conversationId: String
+    private let socialGuard = SocialReadGuard()
+    private var socialSubscription: AnyCancellable?
     private let repo = GroupRepository.shared
     private var cancellables = Set<AnyCancellable>()
 
     init(conversationId: String) {
         self.conversationId = conversationId
+        socialSubscription = SocketService.shared.socialState.dropFirst()
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] _ in Task { @MainActor in self?.info = nil; await self?.refresh() } }
+
 
         ChatRepository.shared.groupChangedPublisher
             .sink { [weak self] convId in
@@ -35,9 +41,12 @@ final class GroupInfoViewModel: ObservableObject {
     }
 
     func refresh() async {
+        guard let stamp = socialGuard.begin() else { return }
         loading = true
-        do { info = try await repo.info(conversationId) }
-        catch { self.error = (error as? LocalizedError)?.errorDescription ?? "加载群信息失败" }
+        do { let fresh = try await repo.info(conversationId)
+            guard socialGuard.current(stamp) else { return }
+            info = fresh }
+        catch { guard socialGuard.current(stamp) else { return }; self.error = (error as? LocalizedError)?.errorDescription ?? "加载群信息失败" }
         loading = false
     }
 

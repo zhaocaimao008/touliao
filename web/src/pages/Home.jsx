@@ -1,3 +1,4 @@
+import { useSocialRevision } from '../hooks/useSocialRevision';
 import TouliaoField from '../ui-kit/Field';
 import TouliaoIcon from '../ui-kit/Icon';
 import React, { useState, useEffect, useCallback, useRef, useMemo, Suspense, lazy } from 'react';
@@ -497,6 +498,7 @@ function CreateGroupModal({ onClose, onCreated }) {
 }
 
 export default function Home() {
+  const socialRevision = useSocialRevision();
   const { t, lang } = useI18n();
   const [tab, setTab] = useState('chats');
   const [features, setFeatures] = useState({ moments: true, collect: true });
@@ -541,6 +543,17 @@ export default function Home() {
 
   // 启动预热 IndexedDB：切会话时消息缓存读取无 openDB 冷启动延迟（防「打开会话空白一下」）
   useEffect(() => { warmupCacheDB(); }, []);
+  useEffect(() => {
+    if (!socialRevision) return;
+    let alive = true;
+    axios.get('/api/messages/conversations', { params: { includeArchived: 1 } }).then(({ data }) => {
+      if (!alive) return;
+      setActiveConv(previous => previous ? data.find(c => c.id === previous.id) || null : null);
+    }).catch(() => {});
+    axios.get('/api/users/friend-requests').then(({ data }) => { if (alive) setFriendReqCount(data.length); }).catch(() => {});
+    return () => { alive = false; };
+  }, [socialRevision]);
+
   const activeConvIdRef = useRef(null);
   const addBtnRef = useRef(null);
   useEffect(() => { activeConvIdRef.current = activeConv?.id ?? null; }, [activeConv?.id]);
@@ -841,7 +854,7 @@ export default function Home() {
       const key = r.data?.ringtone;
       if (key) setIncomingRingtone(key);
     }).catch(() => {});
-  }, []);
+  }, [socialRevision]);
 
   // 来电提醒清理兜底：activeCall 消失（挂断/拒绝/超时/对方取消）时恢复标题/favicon。
   // 来电铃声由 CallModal 内部 stopTone 处理（铃声与通话生命周期绑定，无需在此干预）。

@@ -23,20 +23,35 @@ final class SessionStore: ObservableObject {
 
     private let repo = AuthRepository.shared
     private var observer: NSObjectProtocol?
+    private var socialSubscription: AnyCancellable?
     private var socketAuthCancellable: AnyCancellable?
 
     private func clearIdentityResources() {
+        DraftStore.shared.invalidate()
         CallManager.shared.resetForAccountChange()
         GroupCallManager.shared.resetForAccountChange()
         PushManager.shared.clearDisplayedNotifications()
     }
 
     private func beginIdentityChange() {
+        state = .loading
         clearIdentityResources()
         KeychainStore.shared.beginIdentityChange()
     }
 
     init() {
+        socialSubscription = SocketService.shared.socialState.dropFirst()
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] revision in
+                Task { @MainActor in
+                    guard let self, let owner = self.currentUser?.id else { return }
+                    let credential = KeychainStore.shared.snapshot()
+                    guard let user: User = try? await APIClient.shared.send("api/auth/me"),
+                          SocketService.shared.socialState.value == revision, user.id == owner else { return }
+                    KeychainStore.shared.withCurrent(credential) { self.updateCurrentUser(user) }
+                }
+            }
+
         observer = NotificationCenter.default.addObserver(
             forName: APIClient.unauthorizedNotification, object: nil, queue: .main
         ) { [weak self] notification in
@@ -83,6 +98,7 @@ final class SessionStore: ObservableObject {
         let user = await repo.restoreSession()
         KeychainStore.shared.withCurrent(credential) {
             if let user {
+                DraftStore.shared.activate(server: ServerConfig.shared.baseURL, accountId: user.id, identityEpoch: credential.identityEpoch)
                 SocketService.shared.connect()
                 PushManager.shared.requestAuthorizationAndRegister()
                 state = .authenticated(user)
@@ -97,6 +113,7 @@ final class SessionStore: ObservableObject {
         beginIdentityChange()
         // 添加账号/切号场景：Token 已换新，强制断开旧 Socket 再按新 Token 重连，避免跨账号串线
         SocketService.shared.disconnect()
+        DraftStore.shared.activate(server: ServerConfig.shared.baseURL, accountId: user.id, identityEpoch: KeychainStore.shared.snapshot().identityEpoch)
         MsgCacheStore.shared.clear()   // 账号级缓存隔离：先清缓存再连接，避免新连接消息被误清
         SocketService.shared.connect()
         PushManager.shared.requestAuthorizationAndRegister()
@@ -111,7 +128,7 @@ final class SessionStore: ObservableObject {
 
     /// 资料更新后刷新当前用户（不改变登录态）
     func updateCurrentUser(_ user: User) {
-        if case .authenticated = state { state = .authenticated(user) }
+        if currentUser?.id == user.id { state = .authenticated(user) }
     }
 
     // MARK: - 多账号

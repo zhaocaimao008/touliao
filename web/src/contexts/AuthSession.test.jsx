@@ -11,6 +11,7 @@ const hooks = vi.hoisted(() => {
   globalThis.window = new EventTarget();
   return { effects: [], states: [] };
 });
+vi.mock('../hooks/useSocialRevision', () => ({ useSocialRevision: () => 0 }));
 vi.mock('../utils/config', () => ({ getConfig: () => ({}), isConfigLoaded: () => false }));
 vi.mock('react', async importOriginal => ({ ...(await importOriginal()),
   useEffect: effect => hooks.effects.push(effect),
@@ -266,4 +267,27 @@ test.each([false, true])('deleteAccount consumes a synthetic cleanup response (r
   expect(wire).not.toContain('post:/api/auth/logout');
   expect(unsubscribe).toHaveBeenCalledOnce();
   expect(hooks.states[0]).toBe(null);
+});
+
+test.each(['switchAccount', 'logout', 'changeServer'])('SOCIAL-001 %s immediately removes old account view while request is pending', async action => {
+  let resolve;
+  vi.spyOn(axios, 'post').mockReturnValue(new Promise(yes => { resolve = yes; }));
+  const api = AuthProvider({ children: null }).props.value;
+  api.login({ id: 'A' });
+  const pending = api[action](action === 'changeServer' ? 'https://other.invalid' : 'B');
+  expect(hooks.states[0]).toBe(null);
+  resolve({ data: { user: { id: 'B' } } });
+  await pending;
+});
+
+// A transition removes the old view without navigating to /login before switch succeeds.
+test('account switch uses the route loading gate until the new owner is installed', async () => {
+  let resolve;
+  vi.spyOn(axios, 'post').mockReturnValue(new Promise(yes => { resolve = yes; }));
+  const api = AuthProvider({ children: null }).props.value;
+  api.login({ id: 'A' });
+  const pending = api.switchAccount('B');
+  expect(hooks.states[0]).toBe(null); expect(hooks.states[2]).toBe(true);
+  resolve({ data: { user: { id: 'B' } } }); await pending;
+  expect(hooks.states[0]).toEqual({ id: 'B' }); expect(hooks.states[2]).toBe(false);
 });

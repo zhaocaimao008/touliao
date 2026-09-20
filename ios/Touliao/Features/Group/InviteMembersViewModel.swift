@@ -37,7 +37,12 @@ final class InviteMembersViewModel: ObservableObject {
         guard !selected.isEmpty, !inviting else { return }
         inviting = true; error = nil
         Task {
-            do { try await groupRepo.invite(conversationId, userIds: Array(selected)); done = true }
+            do {
+                let result = try await groupRepo.invite(conversationId, userIds: Array(selected))
+                if result.blocked > 0 {
+                    error = "已邀请 \(result.added) 人；\(result.blocked) 人因关系、账号状态或邀请设置限制，未加入"
+                } else { done = true }
+            }
             catch { self.error = (error as? LocalizedError)?.errorDescription ?? "邀请失败" }
             inviting = false
         }

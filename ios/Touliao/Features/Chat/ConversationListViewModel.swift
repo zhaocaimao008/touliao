@@ -10,12 +10,18 @@ final class ConversationListViewModel: ObservableObject {
     @Published var socketStatus: SocketStatus = .disconnected
     @Published var momentsEnabled = true   // 后台 features.moments 开关，控制「消息」顶栏朋友圈图标显隐
 
+    private let socialGuard = SocialReadGuard()
+    private var socialSubscription: AnyCancellable?
     private let repo = ChatRepository.shared
     private let myId: String
     private var cancellables = Set<AnyCancellable>()
 
     init(myId: String) {
         self.myId = myId
+        socialSubscription = SocketService.shared.socialState.dropFirst()
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] _ in Task { @MainActor in await self?.refresh() } }
+
 
         repo.statusPublisher
             .sink { [weak self] status in
@@ -95,7 +101,7 @@ final class ConversationListViewModel: ObservableObject {
         Task {
             do {
                 try await repo.setConversationMuted(conv.id, muted: muted)
-                if let idx = conversations.firstIndex(where: { $0.id == conv.id }) { conversations[idx].muted = muted ? 1 : 0 }
+                await refresh()
             } catch { self.error = (error as? LocalizedError)?.errorDescription ?? "操作失败" }
         }
     }
@@ -191,13 +197,17 @@ final class ConversationListViewModel: ObservableObject {
     }
 
     func refresh() async {
+        guard let stamp = socialGuard.begin() else { return }
         loading = true
         error = nil
         do {
             // F5 归档：一次性拉全量（includeArchived=1），主/归档列表按 archived 标记本地分流
-            conversations = try await repo.loadConversations(includeArchived: true)
+            let fresh = try await repo.loadConversations(includeArchived: true)
+            guard socialGuard.current(stamp) else { return }
+            conversations = fresh
             refreshDrafts()
         } catch {
+            guard socialGuard.current(stamp) else { return }
             self.error = (error as? LocalizedError)?.errorDescription ?? "加载会话失败"
         }
         loading = false

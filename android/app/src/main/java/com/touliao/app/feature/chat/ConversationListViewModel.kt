@@ -29,6 +29,8 @@ data class ConversationListUiState(
 
 @HiltViewModel
 class ConversationListViewModel @Inject constructor(
+    private val socialSocket: com.touliao.app.core.realtime.SocketManager,
+    private val socialTokens: com.touliao.app.core.storage.TokenStore,
     private val chatRepository: ChatRepository,
     private val sessionManager: SessionManager,
     private val mediaUrlResolver: MediaUrlResolver,
@@ -46,10 +48,14 @@ class ConversationListViewModel @Inject constructor(
             viewModelScope, SharingStarted.WhileSubscribed(5000), SocketStatus.DISCONNECTED,
         )
 
+    private val socialGuard = com.touliao.app.core.realtime.SocialReadGuard(
+        { socialTokens.snapshot().identityEpoch }, { socialSocket.socialRevision.value })
     private val _uiState = MutableStateFlow(ConversationListUiState(loading = true))
     val uiState: StateFlow<ConversationListUiState> = _uiState.asStateFlow()
 
     init {
+        viewModelScope.launch { socialSocket.socialRevision.collect { refresh() } }
+
         refresh()
         observeIncoming()
         observeNotify()
@@ -115,9 +121,7 @@ class ConversationListViewModel @Inject constructor(
         val muted = conv.muted != 1
         viewModelScope.launch {
             runCatching { chatRepository.setConversationMuted(conv.id, muted) }
-                .onSuccess {
-                    _uiState.update { s -> s.copy(conversations = s.conversations.map { if (it.id == conv.id) it.copy(muted = if (muted) 1 else 0) else it }) }
-                }
+                .onSuccess { refresh() }
                 .onFailure { e -> _uiState.update { it.copy(error = e.toUserMessage("操作失败")) } }
         }
     }
@@ -163,12 +167,13 @@ class ConversationListViewModel @Inject constructor(
     }
 
     fun refresh() {
+        val stamp = socialGuard.begin() ?: return
         _uiState.update { it.copy(loading = true, error = null) }
         viewModelScope.launch {
             // 拉全量（含归档）：主列表/归档列表本地分流，归档入口角标无需额外请求（对齐 Web）
             runCatching { chatRepository.loadConversations(includeArchived = true) }
-                .onSuccess { list -> _uiState.update { it.copy(loading = false, conversations = list) }; refreshDrafts() }
-                .onFailure { e -> _uiState.update { it.copy(loading = false, error = e.toUserMessage("加载会话失败")) } }
+                .onSuccess { list -> if (!socialGuard.current(stamp)) return@onSuccess; _uiState.update { it.copy(loading = false, conversations = list) }; refreshDrafts() }
+                .onFailure { e -> if (!socialGuard.current(stamp)) return@onFailure; _uiState.update { it.copy(loading = false, error = e.toUserMessage("加载会话失败")) } }
         }
     }
 

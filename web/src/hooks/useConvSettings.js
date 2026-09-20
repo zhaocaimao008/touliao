@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useSocialRevision } from './useSocialRevision';
+import { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
 import { showToast } from '../utils/toast';
 
@@ -15,16 +16,32 @@ import { showToast } from '../utils/toast';
  *          setSaving 暴露给面板复用同一忙碌标志（如私聊「双向删除」与开关互斥）。
  */
 export function useConvSettings(conversation, onConvUpdate) {
+  const socialRevision = useSocialRevision();
   const [muted, setMuted]   = useState(!!conversation.muted);
   const [pinned, setPinned] = useState(!!conversation.pinned);
   const [saving, setSaving] = useState(false);
+  const [mutationRevision, refreshAfterWrite] = useState(0);
+  const onUpdate = useRef(onConvUpdate);
+  onUpdate.current = onConvUpdate;
+
+  useEffect(() => {
+    let alive = true;
+    axios.get('/api/messages/conversations', { params: { includeArchived: 1 } }).then(({ data }) => {
+      if (!alive) return;
+      const current = data.find(c => c.id === conversation.id);
+      if (current) {
+        setMuted(!!current.muted); setPinned(!!current.pinned);
+        onUpdate.current?.({ muted: current.muted, pinned: current.pinned });
+      }
+    }).catch(() => {});
+    return () => { alive = false; };
+  }, [conversation.id, socialRevision, mutationRevision]);
 
   const toggleMute = async (val) => {
     setSaving(true);
     try {
       await axios.post(`/api/messages/conversation/${conversation.id}/mute`, { muted: val ? 1 : 0 });
-      setMuted(val);
-      onConvUpdate?.({ muted: val ? 1 : 0 });
+      refreshAfterWrite(value => value + 1);
     } catch { showToast('操作失败', 'error'); }
     setSaving(false);
   };
@@ -33,8 +50,7 @@ export function useConvSettings(conversation, onConvUpdate) {
     setSaving(true);
     try {
       await axios.post(`/api/messages/conversation/${conversation.id}/pin`, { pinned: val ? 1 : 0 });
-      setPinned(val);
-      onConvUpdate?.({ pinned: val ? 1 : 0 });
+      refreshAfterWrite(value => value + 1);
     } catch { showToast('操作失败', 'error'); }
     setSaving(false);
   };

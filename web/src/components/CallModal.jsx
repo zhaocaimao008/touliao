@@ -739,6 +739,7 @@ export default function CallModal({ socket, call, onClose, onReplyMessage }) {
   }, [videoMode, socket, remoteId, callId, isMediaGenerationCurrent]);
 
   const END_TEXT = {
+    permission_revoked: '当前关系或账号状态不允许通话',
     rejected: t('call.endReasonRejected'),
     busy: t('call.endReasonBusy'),
     timeout: t('call.endReasonTimeout'),

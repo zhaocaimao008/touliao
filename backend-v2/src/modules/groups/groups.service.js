@@ -1,4 +1,5 @@
 'use strict';
+const { projectProfiles, directInvitees } = require('../../utils/socialPrivacy');
 const { v4: uuidv4 } = require('uuid');
 const crypto = require('crypto');
 const QRCode = require('qrcode');
@@ -176,19 +177,10 @@ function invite(io, convId, userId, userIds) {
     const conv = db.prepare('SELECT member_can_invite FROM conversations WHERE id=?').get(convId);
     if (!conv?.member_can_invite) throw forbidden('群主已关闭普通成员邀请权限');
   }
+  userIds = [...new Set(userIds)];
   const ph = userIds.map(() => '?').join(',');
-  // 只允许邀请自己的联系人（与 createGroup 对齐，防止强拉陌生人）
-  const validSet = new Set(
-    db.prepare(`SELECT contact_id FROM contacts WHERE user_id=? AND contact_id IN (${ph})`).all(userId, ...userIds).map(r => r.contact_id)
-  );
-  // 隐私保护：过滤掉「已开启"好友不能直接邀请我进群"」的用户，
-  // 这些人无法被直接拉入群（需通过群邀请二维码/链接自行加入）。
-  const protectedSet = new Set(
-    db.prepare(`SELECT user_id FROM user_settings WHERE no_direct_group_invite=1 AND user_id IN (${ph})`)
-      .all(...userIds).map(r => r.user_id)
-  );
-  protectedSet.forEach(uid => validSet.delete(uid));
-  const blocked = userIds.filter(uid => protectedSet.has(uid));
+  const validSet = new Set(directInvitees(userId, userIds));
+  const blocked = userIds.filter(uid => !validSet.has(uid));
   const add = db.prepare('INSERT OR IGNORE INTO conversation_members (conversation_id,user_id) VALUES (?,?)');
   const added = [];
   db.transaction(() => {
@@ -282,7 +274,7 @@ function info(convId, userId) {
     ORDER BY CASE cm.role WHEN 'owner' THEN 0 WHEN 'admin' THEN 1 ELSE 2 END, u.username
     LIMIT 500
   `).all(convId);
-  return { ...conv, members, myRole };
+  return { ...conv, members: projectProfiles(userId, members), myRole };
 }
 
 // ── 群管理设置（禁止私聊/全员禁言/禁止互加）──────────────────────

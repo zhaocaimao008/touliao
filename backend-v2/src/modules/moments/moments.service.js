@@ -17,7 +17,10 @@ const moderation = require('../moderation/moderation.service');
 
 // ── 互动通知（MO2）：actor≠author 才记。删动态由 FK ON DELETE CASCADE 清理 ──
 function addInteractNotification({ recipientId, actorId, momentId, type, commentId = null }) {
-  if (recipientId === actorId) return;
+  if (recipientId === actorId || isBlockedBetween(recipientId, actorId)) return;
+  const moment = db.prepare('SELECT * FROM moments WHERE id=?').get(momentId);
+  if (!moment) return;
+  try { assertVisible(recipientId, moment); } catch { return; }
   db.prepare('INSERT INTO moment_notifications (id,user_id,actor_id,moment_id,type,comment_id) VALUES (?,?,?,?,?,?)')
     .run(uuidv4(), recipientId, actorId, momentId, type, commentId);
   if (!config.moments.pushOnInteract) return;
@@ -246,8 +249,8 @@ function createMoment(io, userId, { content, images, visibility, visibleTo, vide
 
 // ── 时间线（本人 + 好友）────────────────────────────────────────
 function timeline(viewerId, { limit = 20, offset = 0 } = {}) {
-  const n = Math.min(Number(limit) || 20, 50);
-  const off = Math.max(Number(offset) || 0, 0);
+  const n = Math.max(1, Math.min(Math.floor(Number(limit)) || 20, 50));
+  const off = Math.max(Math.floor(Number(offset)) || 0, 0);
   const rows = db.prepare(`
     SELECT m.* FROM moments m
     LEFT JOIN user_settings us ON us.user_id = m.user_id
@@ -459,8 +462,8 @@ function listLikes(viewerId, momentId, { limit = 20, offset = 0 } = {}) {
   const m = db.prepare('SELECT * FROM moments WHERE id=?').get(momentId);
   if (!m) throw notFound('动态不存在');
   assertVisible(viewerId, m);
-  const n = Math.min(Number(limit) || 20, 50);
-  const off = Math.max(Number(offset) || 0, 0);
+  const n = Math.max(1, Math.min(Math.floor(Number(limit)) || 20, 50));
+  const off = Math.max(Math.floor(Number(offset)) || 0, 0);
   const total = db.prepare('SELECT COUNT(*) AS n FROM moment_likes WHERE moment_id=?').get(momentId).n;
   const rows = db.prepare(
     'SELECT ml.user_id, ml.created_at, u.username, u.avatar FROM moment_likes ml JOIN users u ON u.id=ml.user_id WHERE ml.moment_id=? ORDER BY ml.created_at LIMIT ? OFFSET ?'
@@ -472,8 +475,8 @@ function listComments(viewerId, momentId, { limit = 20, offset = 0 } = {}) {
   const m = db.prepare('SELECT * FROM moments WHERE id=?').get(momentId);
   if (!m) throw notFound('动态不存在');
   assertVisible(viewerId, m);
-  const n = Math.min(Number(limit) || 20, 50);
-  const off = Math.max(Number(offset) || 0, 0);
+  const n = Math.max(1, Math.min(Math.floor(Number(limit)) || 20, 50));
+  const off = Math.max(Math.floor(Number(offset)) || 0, 0);
   const total = db.prepare('SELECT COUNT(*) AS n FROM moment_comments WHERE moment_id=?').get(momentId).n;
   const rows = db.prepare(
     'SELECT mc.id, mc.user_id, mc.content, mc.reply_to_user, ru.username AS reply_to_username, mc.created_at, u.username, u.avatar FROM moment_comments mc JOIN users u ON u.id=mc.user_id LEFT JOIN users ru ON ru.id=mc.reply_to_user WHERE mc.moment_id=? ORDER BY mc.created_at LIMIT ? OFFSET ?'
@@ -516,35 +519,40 @@ function reportMoment(userId, momentId, { reason } = {}) {
 }
 
 // ── 互动通知 feed（MO2）──────────────────────────────────────────
+// Authorization is applied before pagination and shared by feed, total and unread.
+// The actor and author are different identities for replies on a friend's post.
+const notificationFrom = `FROM moment_notifications mn
+  JOIN users u ON u.id=mn.actor_id
+  JOIN moments m ON m.id=mn.moment_id
+  LEFT JOIN moment_comments mc ON mc.id=mn.comment_id
+  LEFT JOIN user_settings ms ON ms.user_id=m.user_id`;
+const notificationWhere = `mn.user_id=$viewer
+  AND (mn.comment_id IS NULL OR mc.id IS NOT NULL)
+  AND NOT EXISTS (SELECT 1 FROM blocked_users b WHERE
+    (b.user_id=$viewer AND b.blocked_id=mn.actor_id) OR (b.user_id=mn.actor_id AND b.blocked_id=$viewer))
+  AND (m.user_id=$viewer OR (
+    m.visibility!='private'
+    AND EXISTS (SELECT 1 FROM contacts c WHERE c.user_id=$viewer AND c.contact_id=m.user_id)
+    AND NOT EXISTS (SELECT 1 FROM blocked_users b WHERE
+      (b.user_id=$viewer AND b.blocked_id=m.user_id) OR (b.user_id=m.user_id AND b.blocked_id=$viewer))
+    AND (m.visibility!='include' OR EXISTS (SELECT 1 FROM json_each(CASE WHEN json_valid(m.visible_to) THEN m.visible_to ELSE '[]' END) j WHERE CAST(j.value AS TEXT)=$viewer))
+    AND (m.visibility!='exclude' OR NOT EXISTS (SELECT 1 FROM json_each(CASE WHEN json_valid(m.visible_to) THEN m.visible_to ELSE '[]' END) j WHERE CAST(j.value AS TEXT)=$viewer))
+    AND (COALESCE(ms.moments_visible_days,0)<=0 OR m.created_at >= $now-ms.moments_visible_days*86400)))`;
+const notificationParams = userId => ({ viewer: userId, now: Math.floor(Date.now()/1000) });
+
 function listNotifications(userId, { limit = 20, offset = 0 } = {}) {
-  const n = Math.min(Number(limit) || 20, 50);
-  const off = Math.max(Number(offset) || 0, 0);
+  const n = Math.max(1, Math.min(Math.floor(Number(limit)) || 20, 50));
+  const off = Math.max(Math.floor(Number(offset)) || 0, 0);
+  const params = notificationParams(userId);
   const rows = db.prepare(`
     SELECT mn.id, mn.type, mn.moment_id, mn.comment_id, mn.is_read, mn.created_at,
            u.id AS actor_id, u.username AS actor_name, u.avatar AS actor_avatar,
            m.content AS moment_content, m.images AS moment_images, m.cover AS moment_cover,
            mc.content AS comment_content
-    FROM moment_notifications mn
-    JOIN users u ON u.id = mn.actor_id
-    LEFT JOIN moments m ON m.id = mn.moment_id
-    LEFT JOIN moment_comments mc ON mc.id = mn.comment_id
-    WHERE mn.user_id = ?
-      AND mn.actor_id NOT IN (
-        SELECT blocked_id FROM blocked_users WHERE user_id=?
-        UNION SELECT user_id FROM blocked_users WHERE blocked_id=?
-      )
-    ORDER BY mn.created_at DESC, mn.rowid DESC
-    LIMIT ? OFFSET ?
-  `).all(userId, userId, userId, n, off);
-  const total = db.prepare(`
-    SELECT COUNT(*) AS c FROM moment_notifications mn
-    JOIN users u ON u.id = mn.actor_id
-    WHERE mn.user_id = ?
-      AND mn.actor_id NOT IN (
-        SELECT blocked_id FROM blocked_users WHERE user_id=?
-        UNION SELECT user_id FROM blocked_users WHERE blocked_id=?
-      )
-  `).get(userId, userId, userId).c;
+    ${notificationFrom} WHERE ${notificationWhere}
+    ORDER BY mn.created_at DESC, mn.rowid DESC LIMIT $limit OFFSET $offset
+  `).all({ ...params, limit: n, offset: off });
+  const total = db.prepare(`SELECT COUNT(*) AS c ${notificationFrom} WHERE ${notificationWhere}`).get(params).c;
   const items = rows.map(r => {
     const images = safeImages(r.moment_images);
     return {
@@ -563,7 +571,7 @@ function listNotifications(userId, { limit = 20, offset = 0 } = {}) {
 }
 
 function unreadNotificationCount(userId) {
-  return db.prepare('SELECT COUNT(*) AS n FROM moment_notifications WHERE user_id=? AND is_read=0').get(userId).n;
+  return db.prepare(`SELECT COUNT(*) AS n ${notificationFrom} WHERE ${notificationWhere} AND mn.is_read=0`).get(notificationParams(userId)).n;
 }
 
 function markNotificationsRead(userId) {

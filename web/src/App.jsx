@@ -32,11 +32,11 @@ const CenteredLoading = () => {
 const RouteFallback = () => <CenteredLoading />;
 
 const PrivateRoute = ({ children }) => {
-  const { user, loading } = useAuth();
+  const { user, loading, outboxScope } = useAuth();
   const { t } = useI18n();
   const location = useLocation();
   if (loading) return <CenteredLoading />;
-  return user ? children : <Navigate to="/login" replace state={{
+  return user ? <React.Fragment key={outboxScope?.generation}>{children}</React.Fragment> : <Navigate to="/login" replace state={{
     from: `${location.pathname}${location.search}`,
     notice: location.pathname.startsWith('/join/') ? t('join.loginRequired') : '',
   }} />;

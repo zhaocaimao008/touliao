@@ -1,3 +1,4 @@
+import { useSocialRevision } from '../hooks/useSocialRevision';
 import { clientStorage as localStorage } from '../utils/clientStorage';
 import React, { createContext, useContext, useEffect, useRef, useState } from 'react';
 import axios from 'axios';
@@ -166,9 +167,14 @@ export const AuthProvider = ({ children }) => {
   // 失败（如 wallet 过期、该账号未在本设备登录过）抛错，调用方回退到密码登录。
   const switchAccount = async (accountId) => {
     if (isIsolatedWindow()) throw new Error('请在独立账号窗口中使用密码登录。');
+    setLoading(true);
     invalidateSession();
+    setUser(null);
+    setOutboxScope(null);
     const operation = captureSession();
-    const response = await axios.post('/api/auth/switch', { userId: accountId }, { _sessionContext: operation });
+    let response;
+    try { response = await axios.post('/api/auth/switch', { userId: accountId }, { _sessionContext: operation }); }
+    catch (error) { if (isOperationGenerationCurrent(operation)) setLoading(false); throw error; }
     if (!canPublishResponse(operation, response)) return;
     const { data } = response;
     setElectronToken(data.token || null);
@@ -177,6 +183,7 @@ export const AuthProvider = ({ children }) => {
     setUser(data.user);
     bindOwner(data.user);
     clearCsrfCache();
+    setLoading(false);
     window.location.reload();
   };
 
@@ -191,11 +198,14 @@ export const AuthProvider = ({ children }) => {
 
   // ── 登出 ──────────────────────────────────────────────────────
   const logout = async () => {
+    const endingUser = userRef.current;
     invalidateSession();
+    setUser(null);
+    setOutboxScope(null);
     let operation = captureSession();
     try {
-      if (userRef.current && 'serviceWorker' in navigator) {
-        const scope = pushScope(userRef.current);
+      if (endingUser && 'serviceWorker' in navigator) {
+        const scope = pushScope(endingUser);
         const reg = await navigator.serviceWorker.getRegistration(scope);
         if (!isOperationCurrent(operation)) return;
         const sub = reg && new URL(reg.scope).pathname === scope ? await reg.pushManager.getSubscription() : null;
@@ -217,7 +227,7 @@ export const AuthProvider = ({ children }) => {
     if (!isOperationCurrent(operation)) return;
     const response = await axios.post('/api/auth/logout', null, { _sessionContext: operation }).catch(error => error);
     if (!canPublishResponse(operation, response)) return;
-    if (userRef.current?.id) removeAccount(userRef.current.id);
+    if (endingUser?.id) removeAccount(endingUser.id);
     clearCsrfCache();
     clearCache();   // 隐私红线：登出清空离线消息缓存
     setElectronToken(null);
@@ -241,11 +251,14 @@ export const AuthProvider = ({ children }) => {
     const requestScope = captureSession();
     const response = await axios.post('/api/auth/delete-account', { password }, { _sessionContext: requestScope });
     if (!canPublishResponse(requestScope, response)) return;
+    const endingUser = userRef.current;
     invalidateSession();
+    setUser(null);
+    setOutboxScope(null);
     let operation = captureSession();
     try {
-      if (userRef.current && 'serviceWorker' in navigator) {
-        const scope = pushScope(userRef.current);
+      if (endingUser && 'serviceWorker' in navigator) {
+        const scope = pushScope(endingUser);
         const reg = await navigator.serviceWorker.getRegistration(scope);
         if (!isOperationCurrent(operation)) return;
         const sub = reg && new URL(reg.scope).pathname === scope ? await reg.pushManager.getSubscription() : null;
@@ -263,7 +276,7 @@ export const AuthProvider = ({ children }) => {
       }
     } catch { /* best-effort push cleanup; ignore */ }
     if (!isOperationCurrent(operation)) return;
-    if (userRef.current?.id) removeAccount(userRef.current.id);
+    if (endingUser?.id) removeAccount(endingUser.id);
     clearCsrfCache();
     clearCache();   // 隐私红线：账号已注销，清空离线消息缓存
     setElectronToken(null);
@@ -276,6 +289,8 @@ export const AuthProvider = ({ children }) => {
   // 3. 清除当前登录态 → PrivateRoute 自动跳转登录页 → 用户用新服务器账号重新登录
   const changeServer = async (newUrl) => {
     invalidateSession();
+    setUser(null);
+    setOutboxScope(null);
     const operation = captureSession();
     const clean = newUrl.trim().replace(/\/$/, '');
     const response = await axios.post('/api/auth/logout', null, { _sessionContext: operation }).catch(error => error);
@@ -315,6 +330,20 @@ export const AuthProvider = ({ children }) => {
       return updated;
     });
   };
+
+  const socialRevision = useSocialRevision();
+  useEffect(() => {
+    if (!socialRevision || !userRef.current) return;
+    let alive = true;
+    const operation = captureSession();
+    axios.get('/api/auth/me').then(response => {
+      if (alive && canPublishResponse(operation, response) && response.data.id === userRef.current?.id) {
+        setUser(response.data);
+        userRef.current = response.data;
+      }
+    }).catch(() => {});
+    return () => { alive = false; };
+  }, [socialRevision]);
 
   return (
     <AuthContext.Provider value={{

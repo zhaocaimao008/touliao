@@ -1,3 +1,4 @@
+import { readDraft, writeDraft, clearDraft } from '../utils/draftStore';
 import TouliaoIcon from '../ui-kit/Icon';
 import { clientStorage as localStorage } from '../utils/clientStorage';
 
@@ -159,7 +160,7 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
   // 切换会话=全清），改为原子 dispatch，杜绝散落 setState 的不一致。见
   // reducers/composeReducer.js（已 vitest 穷举测试）。recording 由 MediaRecorder
   // 副作用驱动，仍用独立 useState。
-  const [compose, dispatchCompose] = useReducer(composeReducer, initialComposeState);
+  const [compose, dispatchCompose] = useReducer(composeReducer, undefined, () => ({ ...initialComposeState, input: readDraft(conversation.id) }));
   const { input, mode: composerMode, editingMsg, replyTo } = compose;
   const voiceMode = composerMode === 'VOICE';
   const [typingName, setTypingName] = useState('');
@@ -268,10 +269,12 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
   const inputAreaRef = useRef(null);
   const { socket, reconnectCount, registerDelivered } = useSocket();
   const { user, outboxScope } = useAuth();
+  const draftOwner = useMemo(() => captureSession(), [outboxScope, conversation.id]);
   const [renderOwner, setRenderOwner] = useState(outboxScope);
   if (renderOwner !== outboxScope) {
     setRenderOwner(outboxScope);
     setMessages([]);
+    dispatchCompose({ type: 'RESET', draft: readDraft(conversation.id, draftOwner) });
   }
   const syncInFlightRef = useRef(null);
   // A view token changes on every conversation/owner transition, including ABA.
@@ -389,7 +392,8 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
     const onCallError = (err) => {
       if (pendingCallRef.current !== 'pending') return; // 跟当前这次发起无关，忽略
       pendingCallRef.current = null;
-      showToast(err?.code === 'CALL_BUSY' ? t('chat.callBusy') : t('chat.callFailedRetry'), 'error');
+      const permissionDenied = ['CONTACT_BLOCKED', 'ACCOUNT_UNAVAILABLE', 'CONTACT_NOT_ALLOWED'].includes(err?.code);
+      showToast(permissionDenied ? '当前关系或账号状态不允许通话' : (err?.code === 'CALL_BUSY' ? t('chat.callBusy') : t('chat.callFailedRetry')), 'error');
     };
     socket.on('call:error', onCallError);
     return () => socket.off('call:error', onCallError);
@@ -571,7 +575,7 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
     setMessages([]);
     setPrevConvId(conversation.id);
     // compose 全清 + 载入新会话草稿（replyTo/editingMsg/voiceMode/input 原子重置）
-    dispatchCompose({ type: 'RESET', draft: localStorage.getItem(`draft_${conversation.id}`) || '' });
+    dispatchCompose({ type: 'RESET', draft: readDraft(conversation.id, draftOwner) });
     setMention(null); // 清 @ 提及态,避免跨会话残留下拉
     closePanels();  // 关闭 emoji/stickers/more 任一展开面板
     setHasMore(true);
@@ -1477,7 +1481,7 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
     forceScrollRef.current = true; // 自己发消息：无条件滚到底(多帧贴底 effect 接管)
     setMessages(prev => [...prev, optimistic]);
     dispatchCompose({ type: 'SENT' });   // 清输入 + 清回复（原子）
-    localStorage.removeItem(`draft_${conversation.id}`);
+    clearDraft(conversation.id, draftOwner);
     window.dispatchEvent(new CustomEvent('draft-changed', { detail: { convId: conversation.id, text: '' } }));
     closePanels();
     socket?.emit('stop_typing', { conversationId: conversation.id });
@@ -2926,8 +2930,7 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
                     }
                     // 编辑态复用同一输入框：此时不写草稿，避免编辑文本污染并覆盖真实草稿
                     if (conversation.id && !editingMsg) {
-                      if (val) localStorage.setItem(`draft_${conversation.id}`, val);
-                      else localStorage.removeItem(`draft_${conversation.id}`);
+                      writeDraft(conversation.id, val, draftOwner);
                       window.dispatchEvent(new CustomEvent('draft-changed', { detail: { convId: conversation.id, text: val } }));
                     }
                   }}

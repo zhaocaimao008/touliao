@@ -27,6 +27,7 @@ struct RootView: View {
             MainTabView(myId: user.id)
                 .overlay(CallHostView())
                 .overlay(GroupCallHostView())
+                .id("\(user.id):\(KeychainStore.shared.snapshot().identityEpoch)")
         }
     }
 }

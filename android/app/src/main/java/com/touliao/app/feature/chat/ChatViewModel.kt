@@ -116,6 +116,7 @@ data class ReadStatusDetail(
 
 @HiltViewModel
 class ChatViewModel @Inject constructor(
+    private val socialSocket: com.touliao.app.core.realtime.SocketManager,
     private val chatRepository: ChatRepository,
     private val stickerRepository: com.touliao.app.data.repository.StickerRepository,
     private val redPacketRepository: RedPacketRepository,
@@ -147,6 +148,7 @@ class ChatViewModel @Inject constructor(
 
     val myId: String = (sessionManager.state.value as? AuthState.Authenticated)?.user?.id.orEmpty()
 
+    private val draftOwner = draftStore.capture()
     private val identityEpoch = tokenStore.snapshot().identityEpoch
     private val outboxOwner = com.touliao.app.core.storage.OutboxOwner(serverConfig.baseUrl, myId)
     private fun currentOwner() = tokenStore.snapshot().identityEpoch == identityEpoch &&
@@ -156,7 +158,7 @@ class ChatViewModel @Inject constructor(
         currentOwner() && tokenStore.isCurrent(credential)
 
     // 进入会话即恢复上次未发送的草稿(对齐微信/Web)
-    private val _uiState = MutableStateFlow(ChatUiState(title = title, loading = true, input = draftStore.get(conversationId)))
+    private val _uiState = MutableStateFlow(ChatUiState(title = title, loading = true, input = draftStore.get(conversationId, draftOwner)))
     val uiState: StateFlow<ChatUiState> = _uiState.asStateFlow()
     private val historyPagination = HistoryPaginationAction(chatRepository)
 
@@ -171,6 +173,10 @@ class ChatViewModel @Inject constructor(
     private val json = Json { ignoreUnknownKeys = true }
 
     init {
+        viewModelScope.launch { socialSocket.socialRevision.collect {
+            if (currentOwner()) { _uiState.update { state -> state.copy(groupMembers = emptyList()) }; if (isGroup) loadGroupMembers() }
+        } }
+
         notificationHelper.clearConversationNotifications(conversationId)   // 进入会话即清理该会话的锁屏/通知栏聚合通知
         chatRepository.joinConversation(conversationId)
         primeFromCache()    // 首屏占位：先渲染离线缓存历史，随后 loadHistory 拉取真相源覆盖
@@ -224,9 +230,12 @@ class ChatViewModel @Inject constructor(
 
     // ── @提及 ──────────────────────────────────────────────
     private fun loadGroupMembers() {
+        val revision = socialSocket.socialRevision.value
+        if (!currentOwner()) return
         viewModelScope.launch {
             runCatching { groupRepository.info(conversationId) }
                 .onSuccess { info ->
+                    if (!currentOwner() || revision != socialSocket.socialRevision.value) return@onSuccess
                     _uiState.update {
                         it.copy(
                             groupMembers = info.members.filterNot { m -> m.id == myId },
@@ -240,13 +249,13 @@ class ChatViewModel @Inject constructor(
 
     fun appendMention(member: com.touliao.app.data.model.GroupMember) {
         _uiState.update { it.copy(input = it.input + "@${member.username} ") }
-        draftStore.set(conversationId, _uiState.value.input)   // @追加也存草稿
+        draftStore.set(conversationId, _uiState.value.input, draftOwner)   // @追加也存草稿
     }
 
     /** @所有人（仅群主/管理员可用，UI 已按 canManageGroup 控制入口）。 */
     fun appendMentionAll() {
         _uiState.update { it.copy(input = it.input + "@所有人 ") }
-        draftStore.set(conversationId, _uiState.value.input)
+        draftStore.set(conversationId, _uiState.value.input, draftOwner)
     }
 
     private fun observeGroupGone() {
@@ -541,7 +550,7 @@ class ChatViewModel @Inject constructor(
     // ── 表情/贴纸 ──────────────────────────────────────
     fun appendEmoji(emoji: String) {
         _uiState.update { it.copy(input = it.input + emoji) }
-        draftStore.set(conversationId, _uiState.value.input)   // 表情追加也存草稿
+        draftStore.set(conversationId, _uiState.value.input, draftOwner)   // 表情追加也存草稿
     }
 
     fun loadStickers() {
@@ -1141,7 +1150,7 @@ class ChatViewModel @Inject constructor(
         // 粘贴多行文本时把换行折叠为空格，消息始终保持单行高度（用户需求）
         val normalized = v.replace("\n", " ").replace("\r", " ")
         _uiState.update { it.copy(input = normalized) }
-        draftStore.set(conversationId, normalized)
+        draftStore.set(conversationId, normalized, draftOwner)
         // 节流：非空且距上次 emit > 2s 才发 typing，避免刷屏
         val now = System.currentTimeMillis()
         if (v.isNotBlank() && now - lastTypingEmit > 2000) {
@@ -1175,7 +1184,7 @@ class ChatViewModel @Inject constructor(
             clientMsgId = clientMsgId,
         )
         _uiState.update { it.copy(input = "", error = null, replyingTo = null, messages = it.messages + optimistic) }
-        draftStore.clear(conversationId)
+        draftStore.clear(conversationId, draftOwner)
         chatRepository.emitStopTyping(conversationId)
         dispatchSend(optimistic)
     }

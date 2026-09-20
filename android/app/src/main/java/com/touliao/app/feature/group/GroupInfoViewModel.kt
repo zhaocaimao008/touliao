@@ -38,6 +38,8 @@ data class GroupInfoUiState(
 
 @HiltViewModel
 class GroupInfoViewModel @Inject constructor(
+    private val socialSocket: com.touliao.app.core.realtime.SocketManager,
+    private val socialTokens: com.touliao.app.core.storage.TokenStore,
     private val groupRepository: GroupRepository,
     private val mediaUploader: MediaUploader,
     private val mediaUrlResolver: MediaUrlResolver,
@@ -48,6 +50,8 @@ class GroupInfoViewModel @Inject constructor(
     val conversationId: String = savedStateHandle.get<String>("conversationId").orEmpty()
     val myId: String = sessionManager.currentUser?.id.orEmpty()
 
+    private val socialGuard = com.touliao.app.core.realtime.SocialReadGuard(
+        { socialTokens.snapshot().identityEpoch }, { socialSocket.socialRevision.value })
     private val _uiState = MutableStateFlow(GroupInfoUiState())
     val uiState: StateFlow<GroupInfoUiState> = _uiState.asStateFlow()
 
@@ -61,6 +65,8 @@ class GroupInfoViewModel @Inject constructor(
     fun resolveUrl(url: String?): String? = mediaUrlResolver.resolve(url)
 
     init {
+        viewModelScope.launch { socialSocket.socialRevision.collect { _uiState.update { it.copy(info = null) }; refresh() } }
+
         refresh()
         observeGroupEvents()
     }
@@ -75,11 +81,12 @@ class GroupInfoViewModel @Inject constructor(
     }
 
     fun refresh() {
+        val stamp = socialGuard.begin() ?: return
         _uiState.update { it.copy(loading = true, error = null) }
         viewModelScope.launch {
             runCatching { groupRepository.info(conversationId) }
-                .onSuccess { info -> _uiState.update { it.copy(loading = false, info = info) } }
-                .onFailure { e -> _uiState.update { it.copy(loading = false, error = e.toUserMessage("加载群信息失败")) } }
+                .onSuccess { info -> if (!socialGuard.current(stamp)) return@onSuccess; _uiState.update { it.copy(loading = false, info = info) } }
+                .onFailure { e -> if (!socialGuard.current(stamp)) return@onFailure; _uiState.update { it.copy(loading = false, error = e.toUserMessage("加载群信息失败")) } }
         }
     }
 

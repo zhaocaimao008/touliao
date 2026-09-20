@@ -51,7 +51,7 @@ data class MentionedEvent(
 // ── WebRTC 通话信令 ──
 data class CallIncomingEvent(val from: String, val type: String, val callerName: String, val callId: String = "")
 data class CallOutgoingEvent(val to: String, val type: String, val callId: String = "")
-data class CallResponseEvent(val callId: String, val from: String, val accepted: Boolean)
+data class CallResponseEvent(val callId: String, val from: String, val accepted: Boolean, val reason: String = "")
 data class CallSdpEvent(val callId: String, val from: String, val sdp: String)            // offer / answer 的 sdp
 data class CallIceEvent(val callId: String, val from: String, val candidate: String, val sdpMid: String?, val sdpMLineIndex: Int)
 data class CallEndEvent(val from: String, val callId: String = "", val reason: String = "")
@@ -166,6 +166,10 @@ class SocketManager @Inject constructor(
     val mentionedEvents: SharedFlow<MentionedEvent> = _mentionedEvents.asSharedFlow()
 
     /** 好友申请相关（新申请 / 申请被通过）→ 提示刷新通讯录与申请列表 */
+    private val _socialRevision = MutableStateFlow(0L)
+    val socialRevision: StateFlow<Long> = _socialRevision.asStateFlow()
+    private fun invalidateSocial() { _socialRevision.value += 1; _friendEvents.tryEmit(Unit) }
+
     private val _friendEvents = MutableSharedFlow<Unit>(extraBufferCapacity = 16)
     val friendEvents: SharedFlow<Unit> = _friendEvents.asSharedFlow()
 
@@ -247,7 +251,12 @@ class SocketManager @Inject constructor(
         socketCredential = credential
         socket = s
 
-        s.on(Socket.EVENT_CONNECT) { _status.value = SocketStatus.CONNECTED }
+        s.on(Socket.EVENT_CONNECT) {
+            if (tokenStore.isCurrent(credential)) { _status.value = SocketStatus.CONNECTED; invalidateSocial() }
+        }
+        s.on("social_state_changed") {
+            if (tokenStore.isCurrent(credential)) invalidateSocial()
+        }
         s.on(Socket.EVENT_DISCONNECT) { _status.value = SocketStatus.DISCONNECTED }
         s.on(Socket.EVENT_CONNECT_ERROR) { args ->
             _status.value = SocketStatus.DISCONNECTED
@@ -337,12 +346,12 @@ class SocketManager @Inject constructor(
                 if (msgId.isNotEmpty()) _reaction.tryEmit(ReactionEvent(msgId, list))
             }
         }
-        s.on("new_friend_request") { _ -> _friendEvents.tryEmit(Unit) }
-        s.on("friend_request_accepted") { _ -> _friendEvents.tryEmit(Unit) }
+        s.on("new_friend_request") { _ -> if (!tokenStore.isCurrent(credential)) return@on; _friendEvents.tryEmit(Unit) }
+        s.on("friend_request_accepted") { _ -> if (!tokenStore.isCurrent(credential)) return@on; _friendEvents.tryEmit(Unit) }
         // 2026-08-29 好友申请提醒优化新增：此前拒绝操作后端完全没广播，同账号多设备场景下
         // (如网页拒绝了，手机还停在"接受/拒绝"两个按钮上)其他设备无法感知。后端已补上广播，
         // 这里复用同一个 friendEvents 流触发列表刷新(FriendRequestsViewModel 已订阅)。
-        s.on("friend_request_rejected") { _ -> _friendEvents.tryEmit(Unit) }
+        s.on("friend_request_rejected") { _ -> if (!tokenStore.isCurrent(credential)) return@on; _friendEvents.tryEmit(Unit) }
         s.on("new_moment") { _ -> _momentEvents.tryEmit(Unit) }
         s.on("moment_liked") { _ -> _momentEvents.tryEmit(Unit) }
         s.on("moment_commented") { _ -> _momentEvents.tryEmit(Unit) }
@@ -353,10 +362,10 @@ class SocketManager @Inject constructor(
                     .getOrNull()?.let(_configUpdated::tryEmit)
             }
         }
-        s.on("user_online") { args ->
+        s.on("user_online") { args -> if (!tokenStore.isCurrent(credential)) return@on;
             (args.firstOrNull() as? JSONObject)?.optString("userId")?.takeIf { it.isNotEmpty() }?.let { _presence.tryEmit(PresenceEvent(it, true)) }
         }
-        s.on("user_offline") { args ->
+        s.on("user_offline") { args -> if (!tokenStore.isCurrent(credential)) return@on;
             (args.firstOrNull() as? JSONObject)?.optString("userId")?.takeIf { it.isNotEmpty() }?.let { _presence.tryEmit(PresenceEvent(it, false)) }
         }
         s.on("message_edited") { args ->
@@ -390,10 +399,10 @@ class SocketManager @Inject constructor(
         s.on("group_dismissed") { args ->
             (args.firstOrNull() as? JSONObject)?.optString("conversationId")?.takeIf { it.isNotEmpty() }?.let(_groupGone::tryEmit)
         }
-        s.on("group_updated") { args ->
+        s.on("group_updated") { args -> if (!tokenStore.isCurrent(credential)) return@on;
             (args.firstOrNull() as? JSONObject)?.optString("id")?.takeIf { it.isNotEmpty() }?.let(_groupChanged::tryEmit)
         }
-        s.on("group_settings_updated") { args ->
+        s.on("group_settings_updated") { args -> if (!tokenStore.isCurrent(credential)) return@on;
             (args.firstOrNull() as? JSONObject)?.optString("id")?.takeIf { it.isNotEmpty() }?.let(_groupChanged::tryEmit)
         }
         s.on("role_changed") { args ->
@@ -431,7 +440,7 @@ class SocketManager @Inject constructor(
         s.on("call:response") { args ->
             (args.firstOrNull() as? JSONObject)?.let { o ->
                 val from = o.optString("from")
-                if (from.isNotEmpty()) _callResponse.tryEmit(CallResponseEvent(o.optString("callId"), from, o.optBoolean("accepted")))
+                if (from.isNotEmpty()) _callResponse.tryEmit(CallResponseEvent(o.optString("callId"), from, o.optBoolean("accepted"), o.optString("reason")))
             }
         }
         s.on("call:offer") { args ->

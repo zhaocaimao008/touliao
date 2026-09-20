@@ -27,12 +27,15 @@ sealed interface AuthState {
  */
 @Singleton
 class SessionManager @Inject constructor(
+    private val profileRepository: com.touliao.app.data.repository.ProfileRepository,
     private val authRepository: AuthRepository,
     private val socketManager: SocketManager,
     private val pushManager: com.touliao.app.core.push.PushManager,
     private val remoteConfig: com.touliao.app.core.config.RemoteConfig,
     private val tokenStore: com.touliao.app.core.storage.TokenStore,
     private val accountStore: com.touliao.app.core.storage.AccountStore,
+    private val draftStore: com.touliao.app.core.storage.DraftStore,
+    private val serverConfig: com.touliao.app.core.storage.ServerConfig,
     private val msgCacheStore: com.touliao.app.core.storage.MsgCacheStore,
     private val notificationHelper: com.touliao.app.core.push.NotificationHelper,
     authInterceptor: AuthInterceptor,
@@ -45,14 +48,29 @@ class SessionManager @Inject constructor(
     fun onIdentityCleanup(action: () -> Unit) { identityCleanup.add(action) }
 
     private fun beginIdentityChange() {
+        draftStore.invalidate()
+        _state.value = AuthState.Loading
         identityCleanup.forEach { it() }
         tokenStore.beginIdentityChange()
     }
 
     init {
         scope.launch {
+            socketManager.socialRevision.collect { revision ->
+                val credential = tokenStore.snapshot()
+                val owner = currentUser?.id ?: return@collect
+                runCatching { profileRepository.me() }.onSuccess { user ->
+                    if (socketManager.socialRevision.value == revision && user.id == owner) {
+                        tokenStore.withCurrent(credential) { updateCurrentUser(user) }
+                    }
+                }
+            }
+        }
+
+        scope.launch {
             authInterceptor.unauthorizedEvents.collect { marker ->
                 tokenStore.withCurrent(marker) {
+                    draftStore.invalidate()
                     identityCleanup.forEach { it() }
                     notificationHelper.clearAccountNotifications()
                     socketManager.disconnect()
@@ -73,6 +91,7 @@ class SessionManager @Inject constructor(
         val user = authRepository.restoreSession()
         tokenStore.withCurrent(credential) {
             if (user != null) {
+                draftStore.activate(serverConfig.baseUrl, user.id, credential.identityEpoch)
                 socketManager.connect()
                 pushManager.registerCurrentToken()
                 _state.value = AuthState.Authenticated(user)
@@ -88,6 +107,7 @@ class SessionManager @Inject constructor(
         notificationHelper.clearAccountNotifications()
         // 添加账号/切号场景：Token 已换新，强制断开旧 Socket 再按新 Token 重连，避免跨账号串线
         socketManager.disconnect()
+        draftStore.activate(serverConfig.baseUrl, user.id, tokenStore.snapshot().identityEpoch)
         msgCacheStore.clear()          // 账号级缓存隔离：先清缓存再连接，避免新连接消息被误清
         socketManager.connect()
         pushManager.registerCurrentToken()
@@ -96,7 +116,7 @@ class SessionManager @Inject constructor(
 
     /** 资料更新后刷新当前用户（不改变登录态） */
     fun updateCurrentUser(user: User) {
-        if (_state.value is AuthState.Authenticated) _state.value = AuthState.Authenticated(user)
+        if (currentUser?.id == user.id) _state.value = AuthState.Authenticated(user)
     }
 
     val currentUser: User? get() = (_state.value as? AuthState.Authenticated)?.user

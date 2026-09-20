@@ -1,3 +1,5 @@
+import { useSocialRevision } from '../hooks/useSocialRevision';
+import { readAllDrafts } from '../utils/draftStore';
 import TouliaoIcon from '../ui-kit/Icon';
 import { clientStorage as localStorage } from '../utils/clientStorage';
 import React, { useState, useEffect, useCallback, memo, useMemo } from 'react';
@@ -111,21 +113,6 @@ function previewMsg(conv, user, t) {
   return conv.lastMessage;
 }
 
-// 扫描 localStorage 里的所有草稿（键形如 draft_<convId>），供会话列表显示「[草稿]」标记
-function readAllDrafts() {
-  const out = {};
-  try {
-    for (let i = 0; i < localStorage.length; i++) {
-      const k = localStorage.key(i);
-      if (k && k.startsWith('draft_')) {
-        const v = localStorage.getItem(k);
-        if (v) out[k.slice(6)] = v;
-      }
-    }
-  } catch { /* localStorage 不可用时忽略 */ }
-  return out;
-}
-
 // 首屏骨架：8 行占位（头像 + 两行文本），shimmer 微光，避免加载时闪「暂无聊天」
 function ChatListSkeleton() {
   return (
@@ -144,6 +131,7 @@ function ChatListSkeleton() {
 }
 
 export default function ChatList({ onSelectConv, activeConvId, unread = {}, searchQuery = '', convRefreshKey = 0, onOpenMentions }) {
+  const socialRevision = useSocialRevision();
   const [itemHeight, setItemHeight] = useState(rowHeight);
   const [filter, setFilter] = useState('all');
   useEffect(() => {
@@ -177,16 +165,8 @@ export default function ChatList({ onSelectConv, activeConvId, unread = {}, sear
 
   // 监听 ChatWindow 派发的草稿变更事件，实时刷新列表里的「[草稿]」标记
   useEffect(() => {
-    const onDraftChanged = (e) => {
-      const { convId, text } = e.detail || {};
-      if (convId == null) return;
-      setDrafts(prev => {
-        const has = !!prev[convId];
-        if (text) { if (prev[convId] === text) return prev; return { ...prev, [convId]: text }; }
-        if (!has) return prev;
-        const next = { ...prev }; delete next[convId]; return next;
-      });
-    };
+    // Re-read owned storage; a delayed event must never carry another owner's text.
+    const onDraftChanged = () => setDrafts(readAllDrafts());
     window.addEventListener('draft-changed', onDraftChanged);
     return () => window.removeEventListener('draft-changed', onDraftChanged);
   }, []);
@@ -195,7 +175,7 @@ export default function ChatList({ onSelectConv, activeConvId, unread = {}, sear
     try {
       const { data } = await axios.get('/api/messages/conversations', { params: { includeArchived: 1 } });
       setConversations(Array.isArray(data) ? data : []);
-    } finally {
+    } catch { /* Invalidated reads are replaced by the current social refresh. */ } finally {
       setLoaded(true);   // 无论成功失败都结束骨架态，不卡在加载
     }
   }, []);
@@ -207,7 +187,7 @@ export default function ChatList({ onSelectConv, activeConvId, unread = {}, sear
     onSelectConv(conv);
   }, [onSelectConv]);
 
-  useEffect(() => { fetchConvs(); }, [fetchConvs]);
+  useEffect(() => { fetchConvs(); }, [fetchConvs, socialRevision]);
 
   // 重连后刷新会话列表（补回未读数和最新消息预览）
   useEffect(() => {

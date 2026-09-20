@@ -1,3 +1,5 @@
+import { captureSession, isOperationGenerationCurrent } from '../utils/sessionContext';
+import { publishSocialChange } from '../utils/socialState';
 import { clientStorage as localStorage } from '../utils/clientStorage';
 import React, { createContext, useContext, useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import { io } from 'socket.io-client';
@@ -38,6 +40,7 @@ export const SocketProvider = ({ children }) => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     if (!userId) { setSocket(null); setConnected(false); return; }
 
+    const owner = captureSession();
     const manualUrl = localStorage.getItem('touliao_server_url');
     // FE-001 之后 config 可能尚未加载完成（Web 端 800ms 超时降级），
     // 此处必须容错：未加载时退到环境变量/同源，避免 getConfig() 抛异常炸掉 Socket 上下文
@@ -62,7 +65,10 @@ export const SocketProvider = ({ children }) => {
     setSocket(s);
     if (typeof window !== 'undefined') window.__touliaoSocket = s;
 
+    s.on('social_state_changed', payload => publishSocialChange(owner, payload));
     s.on('connect', () => {
+      if (!isOperationGenerationCurrent(owner)) return;
+      publishSocialChange(owner);
       setConnected(true);
       if (everConnectedRef.current) setReconnectCount(n => n + 1);
       everConnectedRef.current = true;

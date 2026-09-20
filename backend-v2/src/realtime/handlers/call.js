@@ -16,6 +16,7 @@
  */
 const { v4: uuidv4 } = require('uuid');
 const config = require('../../config');
+const { privateContactDenial } = require('../../utils/privateContactPolicy');
 const { readDb } = require('../../db/connection');
 const { write } = require('../../db/writer');
 const presence = require('../presence');
@@ -97,6 +98,36 @@ const nowSec = () => Math.floor(Date.now() / 1000);
 
 function emitAccountCallEnd(target, accountId, from, reason, callId) {
   target.to(`user_${accountId}`).emit('call:end', { from, reason, callId });
+}
+
+// Reuse existing call:end so released clients also stop ringing/close the call.
+function revokeCall(io, key, call) {
+  if (call.timer) clearTimeout(call.timer);
+  const [caller, callee] = key.split('>');
+  const end = nowSec();
+  write("UPDATE call_logs SET status=?, ended_at=?, duration=? WHERE id=?",
+    [call.answeredAt ? 'completed' : 'canceled', end, call.answeredAt ? Math.max(0, end-call.answeredAt) : 0, call.id]);
+  activeCalls.delete(key);
+  call.registry.end(call.id);
+  removeCooldown(caller);
+  emitAccountCallEnd(io, caller, callee, 'permission_revoked', call.id);
+  emitAccountCallEnd(io, callee, caller, 'permission_revoked', call.id);
+}
+function recheckCall(io, callId) {
+  const entry = [...activeCalls].find(([, call]) => call.id === callId);
+  if (!entry) return false;
+  const [key, call] = entry;
+  const [caller, callee] = key.split('>');
+  if (!privateContactDenial(caller, callee)) return true;
+  revokeCall(io, key, call);
+  return false;
+}
+function reconcilePermissions(io, userIds) {
+  if (!io) return;
+  const affected = new Set(userIds);
+  for (const [key, call] of activeCalls) {
+    if (key.split('>').some(id => affected.has(id))) recheckCall(io, call.id);
+  }
 }
 
 /**
@@ -213,14 +244,17 @@ function registerCallHandler(io, socket, registry) {
     }
     setCooldown(userId, now);
     // 防骚扰 / 防绕过拉黑：被叫已拉黑主叫，或双方无私聊会话(非任意ID都能拨)，则拒接。
-    const blocked = readDb.prepare('SELECT 1 FROM blocked_users WHERE user_id=? AND blocked_id=?').get(to, userId);
+    const denied = privateContactDenial(userId, to);
     const shareConv = readDb.prepare(`
       SELECT 1 FROM conversation_members cm1
       JOIN conversation_members cm2 ON cm1.conversation_id = cm2.conversation_id
       JOIN conversations c ON c.id = cm1.conversation_id AND c.type='private'
       WHERE cm1.user_id=? AND cm2.user_id=? LIMIT 1`).get(userId, to);
-    if (blocked || !shareConv) {
-      socket.emit('call:response', { from: to, accepted: false }); // 给主叫一个"被拒"信号，避免界面一直转
+    if (denied || !shareConv) {
+      const code = denied || 'CONTACT_NOT_ALLOWED';
+      socket.emit('call:error', { code, event: 'call:request' });
+      if (typeof ack === 'function') ack({ callId: null, error: code });
+      socket.emit('call:response', { from: to, accepted: false, reason: 'permission_revoked', code }); // 给主叫一个"被拒"信号，避免界面一直转
       return;
     }
     const t = type === 'video' ? 'video' : 'audio';
@@ -280,7 +314,7 @@ function registerCallHandler(io, socket, registry) {
       return;
     }
     const timer = scheduleCallTimeout(key, io, registry);
-    activeCalls.set(key, { id, answeredAt: null, timer, type: t });
+    activeCalls.set(key, { id, answeredAt: null, timer, type: t, registry });
     write('INSERT INTO call_logs (id,caller_id,callee_id,type,status,started_at) VALUES (?,?,?,?,?,?)',
       [id, userId, to, t, 'missed', nowSec()]);
     // 服务端从 DB 取真实用户信息，不透传客户端 caller 字段（防视觉身份冒充）
@@ -334,6 +368,10 @@ function registerCallHandler(io, socket, registry) {
     const c = activeCalls.get(key);
     if (!c || c.id !== callId) {
       io.to(`user_${userId}`).emit('call:end', { from: to, reason: 'stale', callId });
+      return;
+    }
+    if (accepted && !recheckCall(io, callId)) {
+      if (typeof ack === 'function') ack({ error: 'CONTACT_NOT_ALLOWED' });
       return;
     }
     // A second device may send a stale reject after another device already
@@ -397,6 +435,7 @@ function registerCallHandler(io, socket, registry) {
       console.log(`[${eventName}] DROP from=${userId} to=${to} code=${resolved.code}`);
       return;
     }
+    if (!recheckCall(io, resolved.callId)) return;
     const detail = fieldName === 'candidate'
       ? (p.candidate?.candidate || '').slice(0, 60)
       : (p[fieldName]?.sdp || '').length;
@@ -417,6 +456,7 @@ function registerCallHandler(io, socket, registry) {
     const resolved = resolveCall(p, to, 'call:switch-type');
     if (!resolved) return;
     if (!resolved.ok) { reportResolutionError('call:switch-type', resolved); return; }
+    if (!recheckCall(io, resolved.callId)) return;
     const newType = p.type === 'video' ? 'video' : 'audio';
     console.log(`[call:switch-type] fwd ${userId}→${to} type=${newType} callId=${resolved.callId}`);
     io.to(`user_${to}`).emit('call:switch-type', { from: userId, type: newType, callId: resolved.callId });
@@ -492,6 +532,7 @@ function registerCallHandler(io, socket, registry) {
     const resumeToken = typeof p.resumeToken === 'string' && p.resumeToken.length <= 64 ? p.resumeToken : undefined; // 防超大负载做无谓字符串比较,resumeToken 是 UUID(36字符),合法值恒 <=64
     const resumed = registry.resume(callId, userId, socket.id, resumeToken);
     if (!resumed.ok) reportResolutionError('call:resume', resumed);
+    else recheckCall(io, callId);
   });
 
   // 只解绑当前参与 Socket；最后一条参与连接断开后由 registry 启动重连宽限。
@@ -500,6 +541,7 @@ function registerCallHandler(io, socket, registry) {
   });
 }
 
+registerCallHandler.reconcilePermissions = reconcilePermissions;
 registerCallHandler.handleGraceExpired = cleanupExpiredPrivateCall;
 // 供测试直接断言 env 注入/异常回退逻辑(不改动正常 handler 行为)
 registerCallHandler.resolveTimeoutMs = resolveTimeoutMs;

@@ -54,7 +54,7 @@ exports.dissolve = asyncHandler(async (req, res) => {
   res.json({ success: true });
 });
 
-exports.info   = asyncHandler(async (req, res) => res.json(svc.info(req.params.convId, req.user.id)));
+exports.info = asyncHandler(async (req, res) => { res.setHeader('Cache-Control', 'private, no-store'); res.json(svc.info(req.params.convId, req.user.id)); });
 exports.manage = asyncHandler(async (req, res) => res.json(svc.manage(io(req), req.params.convId, req.user.id, req.body)));
 
 exports.setRole = asyncHandler(async (req, res) => {

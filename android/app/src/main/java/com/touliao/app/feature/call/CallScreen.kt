@@ -162,7 +162,7 @@ fun CallHost(
                 Text(state.peerName.ifBlank { "通话" }, color = Color.White, fontSize = com.touliao.app.ui.theme.VxinTextSize.displaySm)
                 Spacer(Modifier.height(8.dp))
                 Text(
-                    callStatusOrDuration(state.stage, state.isVideo, state.connectedAt, state.endedAt),
+                    if (state.permissionEnded) "当前关系或账号状态不允许通话" else callStatusOrDuration(state.stage, state.isVideo, state.connectedAt, state.endedAt),
                     color = TouliaoMedia.secondary, fontSize = com.touliao.app.ui.theme.VxinTextSize.base,
                 )
                 // 通话质量指示：getStats 2s 采样（RTT<200ms/丢包<2% 优; <500ms/<8% 中; 否则差）

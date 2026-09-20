@@ -2,6 +2,7 @@
 const { asyncHandler, badRequest } = require('../../utils/http');
 const { registerFile } = require('../../utils/fileRegistry');
 const { thumbUrlIfExists } = require('../../utils/upload');
+const { profileChanged } = require('../../realtime/socialState');
 const svc = require('./moments.service');
 
 const io = req => req.app.get('io');
@@ -10,8 +11,8 @@ exports.create        = asyncHandler(async (req, res) => res.json(svc.createMome
 exports.timeline      = asyncHandler(async (req, res) => res.json(svc.timeline(req.user.id, req.query)));
 exports.userMoments   = asyncHandler(async (req, res) => res.json(svc.userMoments(req.user.id, req.params.userId, req.query)));
 exports.detail        = asyncHandler(async (req, res) => res.json(svc.getMoment(req.user.id, req.params.id)));
-exports.remove        = asyncHandler(async (req, res) => res.json(svc.deleteMoment(req.user.id, req.params.id)));
-exports.edit          = asyncHandler(async (req, res) => res.json(svc.editMoment(req.user.id, req.params.id, req.body)));
+exports.remove = asyncHandler(async (req, res) => { const result = svc.deleteMoment(req.user.id, req.params.id); profileChanged(io(req), req.user.id); res.json(result); });
+exports.edit = asyncHandler(async (req, res) => { const result = svc.editMoment(req.user.id, req.params.id, req.body); profileChanged(io(req), req.user.id); res.json(result); });
 exports.like          = asyncHandler(async (req, res) => res.json(svc.toggleLike(io(req), req.user.id, req.params.id)));
 exports.comment       = asyncHandler(async (req, res) => res.json(svc.addComment(io(req), req.user.id, req.params.id, req.body)));
 exports.deleteComment = asyncHandler(async (req, res) => res.json(svc.deleteComment(req.user.id, req.params.commentId)));
@@ -20,7 +21,7 @@ exports.comments      = asyncHandler(async (req, res) => res.json(svc.listCommen
 exports.report        = asyncHandler(async (req, res) => res.json(svc.reportMoment(req.user.id, req.params.id, req.body)));
 
 // ── 互动通知 feed（MO2）──────────────────────────────────────────
-exports.notifications     = asyncHandler(async (req, res) => res.json(svc.listNotifications(req.user.id, req.query)));
+exports.notifications = asyncHandler(async (req, res) => { res.setHeader('Cache-Control', 'private, no-store'); res.json(svc.listNotifications(req.user.id, req.query)); });
 exports.notifUnreadCount  = asyncHandler(async (req, res) => res.json({ count: svc.unreadNotificationCount(req.user.id) }));
 exports.notifMarkRead     = asyncHandler(async (req, res) => res.json(svc.markNotificationsRead(req.user.id)));
 

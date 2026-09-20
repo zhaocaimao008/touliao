@@ -25,36 +25,52 @@ data class SettingsUiState(
 
 @HiltViewModel
 class SettingsViewModel @Inject constructor(
+    private val socialSocket: com.touliao.app.core.realtime.SocketManager,
+    private val socialTokens: com.touliao.app.core.storage.TokenStore,
     private val profileRepository: ProfileRepository,
     private val themeStore: ThemeStore,
     private val callManager: CallManager,
 ) : ViewModel() {
+    private val socialGuard = com.touliao.app.core.realtime.SocialReadGuard(
+        { socialTokens.snapshot().identityEpoch }, { socialSocket.socialRevision.value })
     private val _uiState = MutableStateFlow(SettingsUiState())
     val uiState: StateFlow<SettingsUiState> = _uiState.asStateFlow()
 
     val themeMode: StateFlow<ThemeMode> = themeStore.mode
 
-    init { load() }
+    init {
+        viewModelScope.launch { socialSocket.socialRevision.collect { load() } }
+    }
 
     fun load() {
+        val stamp = socialGuard.begin() ?: return
         _uiState.update { it.copy(loading = true, error = null) }
         viewModelScope.launch {
             runCatching { profileRepository.settings() }
-                .onSuccess { s -> _uiState.update { it.copy(loading = false, settings = s) } }
-                .onFailure { e -> _uiState.update { it.copy(loading = false, error = e.toUserMessage("加载设置失败")) } }
+                .onSuccess { s -> if (!socialGuard.current(stamp)) return@onSuccess; _uiState.update { it.copy(loading = false, settings = s) } }
+                .onFailure { e -> if (!socialGuard.current(stamp)) return@onFailure; _uiState.update { it.copy(loading = false, error = e.toUserMessage("加载设置失败")) } }
         }
     }
 
     fun setThemeMode(mode: ThemeMode) = themeStore.set(mode)
 
-    /** 乐观更新单个开关：先本地翻转，再提交服务端，失败回滚。 */
+    /** 保存后重读真值，迟到的写响应不能覆盖其他端更新。 */
     private fun patch(optimistic: (UserSettings) -> UserSettings, body: UpdateSettingsBody) {
         val prev = _uiState.value.settings
+        val owner = socialTokens.snapshot().identityEpoch
+        val revision = socialSocket.socialRevision.value
         _uiState.update { it.copy(settings = optimistic(it.settings)) }
         viewModelScope.launch {
             runCatching { profileRepository.updateSettings(body) }
-                .onSuccess { s -> _uiState.update { it.copy(settings = s) } }
-                .onFailure { e -> _uiState.update { it.copy(settings = prev, error = e.toUserMessage("保存失败")) } }
+                .onSuccess { load() }
+                .onFailure { e ->
+                    if (socialTokens.snapshot().identityEpoch != owner) return@onFailure
+                    if (socialSocket.socialRevision.value != revision) load()
+                    _uiState.update { it.copy(
+                        settings = if (socialSocket.socialRevision.value == revision) prev else it.settings,
+                        error = e.toUserMessage("保存失败"),
+                    ) }
+                }
         }
     }
 

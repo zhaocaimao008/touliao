@@ -91,6 +91,8 @@ final class SocketService {
     /// 消息被编辑 → (msgId, content, conversationId)
     let messageEdited = PassthroughSubject<(String, String, String), Never>()
     /// 好友申请相关（新申请/被通过）→ 提示刷新
+    let socialState = CurrentValueSubject<UInt64, Never>(0)
+    private func invalidateSocial() { socialState.send(socialState.value + 1); friendEvents.send(()) }
     let friendEvents = PassthroughSubject<Void, Never>()
     /// 联系人在线/离线 → (userId, online)
     let presence = PassthroughSubject<(String, Bool), Never>()
@@ -101,7 +103,7 @@ final class SocketService {
 
     // ── WebRTC 通话信令 ──
     let callIncoming = PassthroughSubject<(from: String, type: String, callerName: String, callId: String), Never>()
-    let callResponse = PassthroughSubject<(from: String, accepted: Bool, callId: String), Never>()
+    let callResponse = PassthroughSubject<(from: String, accepted: Bool, callId: String, reason: String), Never>()
     let callOffer = PassthroughSubject<(from: String, sdp: String, callId: String), Never>()
     let callAnswer = PassthroughSubject<(from: String, sdp: String, callId: String), Never>()
     let callIce = PassthroughSubject<(from: String, candidate: String, sdpMid: String?, sdpMLineIndex: Int32, callId: String), Never>()
@@ -147,6 +149,7 @@ final class SocketService {
             if hasConnectedBefore { self.reconnected.send(()) }
             hasConnectedBefore = true
             self.status.send(.connected)
+            self.invalidateSocial()
         }
         sock.on(clientEvent: .disconnect) { [weak self] _, _ in
             guard KeychainStore.shared.isCurrent(credential) else { return }
@@ -272,11 +275,15 @@ final class SocketService {
                   let msgId = dict["msgId"] as? String else { return }
             self?.mentioned.send((convId: convId, msgId: msgId))
         }
-        sock.on("new_friend_request") { [weak self] _, _ in self?.friendEvents.send(()) }
-        sock.on("friend_request_accepted") { [weak self] _, _ in self?.friendEvents.send(()) }
+        sock.on("social_state_changed") { [weak self] _, _ in
+            guard KeychainStore.shared.isCurrent(credential) else { return }
+            self?.invalidateSocial()
+        }
+        sock.on("new_friend_request") { [weak self] _, _ in guard KeychainStore.shared.isCurrent(credential) else { return }; self?.friendEvents.send(()) }
+        sock.on("friend_request_accepted") { [weak self] _, _ in guard KeychainStore.shared.isCurrent(credential) else { return }; self?.friendEvents.send(()) }
         // 2026-08-29 好友申请提醒优化新增：拒绝操作此前后端完全没广播，多设备场景下其他设备
         // 感知不到。后端已补上广播，这里复用同一个 friendEvents 触发列表刷新。
-        sock.on("friend_request_rejected") { [weak self] _, _ in self?.friendEvents.send(()) }
+        sock.on("friend_request_rejected") { [weak self] _, _ in guard KeychainStore.shared.isCurrent(credential) else { return }; self?.friendEvents.send(()) }
         sock.on("new_moment") { [weak self] _, _ in self?.moments.send(()) }
         sock.on("moment_liked") { [weak self] _, _ in self?.moments.send(()) }
         sock.on("moment_commented") { [weak self] _, _ in self?.moments.send(()) }
@@ -288,10 +295,10 @@ final class SocketService {
             let moments = (f?["moments"] as? Bool) ?? true
             self?.configUpdated.send((groupVoiceCall: voice, groupVideoCall: video, moments: moments))
         }
-        sock.on("user_online") { [weak self] data, _ in
+        sock.on("user_online") { [weak self] data, _ in guard KeychainStore.shared.isCurrent(credential) else { return };
             if let id = (data.first as? [String: Any])?["userId"] as? String, !id.isEmpty { self?.presence.send((id, true)) }
         }
-        sock.on("user_offline") { [weak self] data, _ in
+        sock.on("user_offline") { [weak self] data, _ in guard KeychainStore.shared.isCurrent(credential) else { return };
             if let id = (data.first as? [String: Any])?["userId"] as? String, !id.isEmpty { self?.presence.send((id, false)) }
         }
         sock.on("message_edited") { [weak self] data, _ in
@@ -311,10 +318,10 @@ final class SocketService {
         sock.on("group_dismissed") { [weak self] data, _ in
             if let id = (data.first as? [String: Any])?["conversationId"] as? String, !id.isEmpty { self?.groupGone.send(id) }
         }
-        sock.on("group_updated") { [weak self] data, _ in
+        sock.on("group_updated") { [weak self] data, _ in guard KeychainStore.shared.isCurrent(credential) else { return };
             if let id = (data.first as? [String: Any])?["id"] as? String, !id.isEmpty { self?.groupChanged.send(id) }
         }
-        sock.on("group_settings_updated") { [weak self] data, _ in
+        sock.on("group_settings_updated") { [weak self] data, _ in guard KeychainStore.shared.isCurrent(credential) else { return };
             if let id = (data.first as? [String: Any])?["id"] as? String, !id.isEmpty { self?.groupChanged.send(id) }
         }
         sock.on("role_changed") { [weak self] data, _ in
@@ -339,7 +346,7 @@ final class SocketService {
         }
         sock.on("call:response") { [weak self] data, _ in
             guard let d = data.first as? [String: Any], let from = d["from"] as? String, !from.isEmpty else { return }
-            self?.callResponse.send((from, (d["accepted"] as? Bool) ?? false, d["callId"] as? String ?? ""))
+            self?.callResponse.send((from, (d["accepted"] as? Bool) ?? false, d["callId"] as? String ?? "", d["reason"] as? String ?? ""))
         }
         sock.on("call:offer") { [weak self] data, _ in
             guard let d = data.first as? [String: Any], let from = d["from"] as? String,

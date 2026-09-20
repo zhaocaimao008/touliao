@@ -1,3 +1,4 @@
+import { socialRevision, isSocialRead, socialReadCurrent } from './socialState';
 /**
  * Axios 统一拦截器：CSRF token、token 刷新、错误重试、请求队列
  * 提升安全性和用户体验
@@ -120,6 +121,7 @@ export function setupAxiosInterceptors(axios) {
     config => {
       if (isIsolatedWindow()) config.headers['X-Touliao-Session'] = 'isolated';
       if (config._sessionContext && !currentRequest(config)) throw staleRequest(config);
+      if (isSocialRead(config)) config._socialRevision = socialRevision();
       config._sessionRevision = revision();
       config._sessionContext ??= captureSession();
       if (csrfRevision !== revision()) { csrfToken = null; csrfRevision = revision(); }
@@ -142,6 +144,7 @@ export function setupAxiosInterceptors(axios) {
   axios.interceptors.response.use(
     response => {
       if (!currentRequest(response.config)) return Promise.reject(staleRequest(response.config));
+      if (!socialReadCurrent(response.config)) return Promise.reject(new axios.CanceledError('Social state changed; refetch required'));
       // 提取 CSRF token
       extractCsrfToken(response);
       

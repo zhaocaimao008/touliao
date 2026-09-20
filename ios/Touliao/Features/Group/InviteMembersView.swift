@@ -48,5 +48,8 @@ struct InviteMembersView: View {
         }
         .task { await vm.load() }
         .onChange(of: vm.done) { done in if done { onDone() } }
+        .alert("邀请结果", isPresented: Binding(get: { vm.error != nil }, set: { if !$0 { vm.error = nil } })) {
+            Button("确定") { vm.error = nil }
+        } message: { Text(vm.error ?? "") }
     }
 }

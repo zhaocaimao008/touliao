@@ -194,7 +194,7 @@ private struct CallView: View {
         case .incoming: return state.isVideo ? "邀请你视频通话" : "邀请你语音通话"
         case .connecting: return "连接中…"
         case .connected: return "通话中"
-        case .ended: return state.timedOut ? "对方未接听" : (state.networkEnded ? "网络已断开" : "通话结束")
+        case .ended: return state.permissionEnded ? "当前关系或账号状态不允许通话" : state.timedOut ? "对方未接听" : (state.networkEnded ? "网络已断开" : "通话结束")
         case .idle: return ""
         }
     }

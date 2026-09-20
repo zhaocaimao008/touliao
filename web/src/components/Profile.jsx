@@ -1,3 +1,4 @@
+import { useSocialRevision } from '../hooks/useSocialRevision';
 import { DangerButton, PrimaryButton, SecondaryButton } from '../ui-kit/Button';
 import TouliaoField from '../ui-kit/Field';
 import { TextButton } from '../ui-kit/Button';
@@ -704,6 +705,7 @@ function AppearanceSettings({ onBack }) {
 
 /* ── 通知 ── */
 function NotificationSettings({ onBack }) {
+  const socialRevision = useSocialRevision();
   const { t } = useI18n();
   const { notifySound, setNotifySound } = useSettings();
   const [messageNotify, setMessageNotify] = useState(true);
@@ -734,7 +736,7 @@ function NotificationSettings({ onBack }) {
       localStorage.setItem('wc_notify_preview', s.detailPreview !== false ? '1' : '0');
       setLoaded(true);
     }).catch(() => setLoaded(true));
-  }, []);
+  }, [socialRevision]);
 
   const saveSettings = async (key, value) => {
     setSaving(true);
@@ -824,6 +826,7 @@ function NotificationSettings({ onBack }) {
 
 /* ── 隐私与安全 ── */
 function PrivacySettings({ user, onBack }) {
+  const socialRevision = useSocialRevision();
   const { t } = useI18n();
   const [page, setPage] = useState('main');
   const [settings, setSettings] = useState({
@@ -836,7 +839,7 @@ function PrivacySettings({ user, onBack }) {
     axios.get('/api/users/me/settings')
       .then(({ data }) => setSettings(s => ({ ...s, ...data })))
       .catch(() => {});
-  }, []);
+  }, [socialRevision]);
 
   const setFlag = async (key, value) => {
     const prev = settings[key];

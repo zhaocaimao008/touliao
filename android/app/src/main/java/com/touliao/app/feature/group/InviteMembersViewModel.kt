@@ -62,7 +62,10 @@ class InviteMembersViewModel @Inject constructor(
         _uiState.update { it.copy(inviting = true, error = null) }
         viewModelScope.launch {
             runCatching { groupRepository.invite(conversationId, s.selected.toList()) }
-                .onSuccess { _uiState.update { it.copy(inviting = false, done = true) } }
+                .onSuccess { result -> _uiState.update { it.copy(
+                    inviting = false, done = result.blocked == 0,
+                    error = if (result.blocked > 0) "已邀请 ${result.added} 人；${result.blocked} 人因关系、账号状态或邀请设置限制，未加入" else null,
+                ) } }
                 .onFailure { e -> _uiState.update { it.copy(inviting = false, error = e.toUserMessage("邀请失败")) } }
         }
     }

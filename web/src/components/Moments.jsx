@@ -1,3 +1,4 @@
+import { useSocialRevision } from '../hooks/useSocialRevision';
 import TouliaoIcon from '../ui-kit/Icon';
 
 import React, { useState, useEffect, useCallback, useRef, memo } from 'react';
@@ -264,6 +265,7 @@ function MomentsSkeleton() {
 }
 
 export default function Moments() {
+  const socialRevision = useSocialRevision();
   const { t } = useI18n();
   const { user } = useAuth();
   const meId = user?.id;
@@ -311,12 +313,13 @@ export default function Moments() {
   // 初次挂载拉取：loading 初值已为 true，effect 内不做同步 setState（避免级联渲染）
   useEffect(() => {
     let alive = true;
+    setList([]); setNotifList(null); setFriends([]); setNotifCount(0);
     axios.get('/api/moments')
       .then(r => { if (alive) { setList(r.data); setLoadError(false); } })
       .catch(() => { if (alive) setLoadError(true); })
       .finally(() => { if (alive) setLoading(false); });
     return () => { alive = false; };
-  }, []);
+  }, [socialRevision]);
 
   // 朋友圈"最近 N 天可见"设置初值
   useEffect(() => {
@@ -341,7 +344,7 @@ export default function Moments() {
     axios.get('/api/moments/notifications/unread-count')
       .then(r => setNotifCount(r.data.count || 0)).catch(() => {});
   }, []);
-  useEffect(() => { loadNotifCount(); }, [loadNotifCount]);
+  useEffect(() => { loadNotifCount(); }, [loadNotifCount, socialRevision]);
 
   // 实时朋友圈（对齐安卓/iOS）：socket 广播 → 刷新互动红点；好友发新动态 → 刷新 feed
   useEffect(() => {
