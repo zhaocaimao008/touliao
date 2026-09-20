@@ -359,7 +359,11 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
             });
             return data;
           },
-          applyPage: async events => setMessages(previous => isCurrent() ? applySyncEvents(previous, events) : previous),
+          applyPage: async events => {
+            // Drop persisted snapshots before advancing the durable cursor.
+            if (events.some(e => ['conversation_cleared','message_vanished','message_deleted_for_me'].includes(e.event_type))) await saveCache(conversation.id, [], {strict:true});
+            if (isCurrent()) setMessages(previous => applySyncEvents(previous, events));
+          },
         });
       } while (isCurrent() && flight.requested);
     })().finally(() => { if (syncInFlightRef.current === flight) syncInFlightRef.current = null; });
@@ -457,20 +461,20 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
   // 阅后即焚：Map msgId → setTimeout handle，切换会话时统一取消
   const burnTimersRef = useRef(new Map());
   const scheduleBurn = React.useCallback((msgs) => {
-    const ba = conversation.burn_after || 0;
-    if (!ba || !msgs.length) return;
-    const now = Date.now() / 1000;
     msgs.forEach(msg => {
-      if (!msg?.id || burnTimersRef.current.has(msg.id)) return;
-      const remaining = Math.max(0, ba - (now - msg.created_at)) * 1000;
+      if (!msg?.id || !msg.burn_expires_at || burnTimersRef.current.has(msg.id)) return;
+      const remaining = Math.max(0, Number(msg.burn_expires_at) * 1000 - Date.now());
       const handle = setTimeout(() => {
-        axios.delete(`/api/messages/${msg.id}`, { data: { vanish: true } }).catch(() => {});
+        // Local controlled memory expires at the server deadline, including offline.
+        // Server destruction is independent; no privileged DELETE request is needed.
         setMessages(prev => prev.filter(m => m.id !== msg.id));
+        removeFromCache(conversation.id, msg.id).catch(() => {});
         burnTimersRef.current.delete(msg.id);
       }, remaining);
       burnTimersRef.current.set(msg.id, handle);
     });
-  }, [conversation.burn_after]);
+  }, [conversation.id]);
+  useEffect(() => { scheduleBurn(messages); }, [messages, scheduleBurn]);
 
   // 组件卸载（关闭会话/切换会话）时标记已读
   const convIdRef   = useRef(conversation.id);
@@ -660,7 +664,7 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
     });
 
     fetchMessages(null, ac.signal)
-      .then(data => {
+      .then(async data => {
         if (!isSessionCurrent(loadScope) || ac.signal.aborted) return; // 会话已切走，丢弃结果
         // 合并本地待发件箱：上次「发送失败」且未成功的文本消息，切回本会话仍在
         const pending = loadOutbox(conversation.id, outboxScope);
@@ -712,6 +716,8 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
             ? [...merged, ...inflight, ...confirmed]
             : merged;
         });
+        await saveCache(conversation.id, data, {strict:true});
+        if (!isLoadCurrent()) return;
         const maxSequence = data.reduce((max, message) => Math.max(max, Number(message.server_sequence) || 0), 0);
         loadSyncCursor(user.id, conversation.id, isLoadCurrent).then(cursor => {
           if (isLoadCurrent() && cursor === 0 && maxSequence > 0) return saveSyncCursor(user.id, conversation.id, maxSequence, isLoadCurrent);
@@ -1123,9 +1129,10 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
         return changed ? n : prev;
       });
     };
-    const onCleared = ({ conversationId }) => {
+    const onCleared = ({ conversationId, server_sequence }) => {
+      clearCache(conversationId).catch(() => {});
       if (conversationId !== convIdRef.current) return;
-      setMessages([]);
+      setMessages(prev => server_sequence ? applySyncEvents(prev, [{event_type:'conversation_cleared',server_sequence}]) : []);
       setPinnedMessages([]);
       // 会话被清空：多选态里的所有 id 均已失效
       setSelectedMsgs(prev => (prev.size ? new Set() : prev));

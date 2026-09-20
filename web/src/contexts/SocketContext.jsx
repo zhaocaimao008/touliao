@@ -1,3 +1,4 @@
+import { clearCache, removeFromCache } from '../utils/msgCache';
 import { clientStorage as localStorage } from '../utils/clientStorage';
 import React, { createContext, useContext, useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import { io } from 'socket.io-client';
@@ -74,6 +75,8 @@ export const SocketProvider = ({ children }) => {
     s.on('sync:unread_cleared', (payload) => {
       unreadClearedListeners.current.forEach(fn => fn(payload));
     });
+    s.on('conversation_messages_cleared', ({conversationId}) => { clearCache(conversationId).catch(() => {}); });
+    s.on('message_vanished', ({conversationId, msgId}) => { removeFromCache(conversationId, msgId).catch(() => {}); });
     s.on('message_delivered', (payload) => {
       deliveredListeners.current.forEach(fn => fn(payload));
     });

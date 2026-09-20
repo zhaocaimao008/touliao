@@ -7,7 +7,8 @@
 const winston = require('winston');
 const path = require('path');
 
-const logDir = path.join(__dirname, '../../logs');
+const logDir = process.env.NODE_ENV === 'test' && process.env.LOG_DIR
+  ? process.env.LOG_DIR : path.join(__dirname, '../../logs');
 
 // 日志格式
 const jsonFormat = winston.format.combine(

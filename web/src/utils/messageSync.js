@@ -19,7 +19,16 @@ export function applySyncEvents(currentMessages, events) {
   let index = buildIndex();
   for (const event of [...(events || [])].sort((a, b) => a.server_sequence - b.server_sequence)) {
     const key = String(event.message_id);
-    if (event.event_type === 'message_created') {
+    if (event.event_type === 'conversation_cleared') {
+      for (let i = result.length - 1; i >= 0; i--) {
+        const m = result[i];
+        if (!m._tempId && (m.server_sequence == null || m.server_sequence < event.server_sequence)) result.splice(i, 1);
+      }
+      index = buildIndex();
+    } else if (event.event_type === 'message_burn_started') {
+      const at = index.get(key);
+      if (at !== undefined) result[at] = { ...result[at], burn_read_at: Number(event.payload?.burn_read_at), burn_expires_at: Number(event.payload?.burn_expires_at) };
+    } else if (event.event_type === 'message_created') {
       if (!event.message) continue;
       // 双向清空/撤回后的旧 message_created 补拉：sync 按 server_sequence 重放事件，
       // 但 message 字段是实时 join 的当前行——若这条消息在事件产生之后被清空会话/撤回

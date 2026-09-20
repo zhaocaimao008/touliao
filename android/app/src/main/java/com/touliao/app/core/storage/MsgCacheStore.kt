@@ -83,6 +83,20 @@ class MsgCacheStore @Inject constructor(
         }.apply()
     }
 
+    suspend fun saveBeforeCursor(conversationId: String, msgs: List<Message>) =
+        kotlinx.coroutines.suspendCancellableCoroutine<Unit> { continuation ->
+            io.execute {
+                try {
+                    val clean = normalize(msgs)
+                    val editor = prefs.edit()
+                    if (clean.isEmpty()) editor.remove(conversationId)
+                    else editor.putString(conversationId, json.encodeToString(listSerializer, clean))
+                    if (!editor.commit()) throw java.io.IOException("cache commit failed")
+                    continuation.resumeWith(Result.success(Unit))
+                } catch (e: Exception) { continuation.resumeWith(Result.failure(e)) }
+            }
+        }
+
     /** 删除单条（撤回/删除）。 */
     fun remove(conversationId: String, msgId: String) {
         if (conversationId.isBlank()) return
@@ -119,7 +133,7 @@ class MsgCacheStore @Inject constructor(
         fun normalize(msgs: List<Message>): List<Message> {
             val map = LinkedHashMap<String, Message>()
             for (m in msgs) {
-                if (m.id.isBlank()) continue
+                if (m.id.isBlank() || m.burn_after > 0) continue
                 if (m.clientMsgId != null || m.localStatus != null) continue  // 乐观/待发不入缓存
                 map[m.id] = m                                                 // 后者覆盖同 id
             }

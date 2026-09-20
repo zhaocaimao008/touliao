@@ -98,6 +98,9 @@ struct Message: Decodable, Identifiable, Equatable {
     // 2026-08-29新增：语音/视频时长(秒)。后端此前从不写这个字段，语音气泡只能显示固定文字；
     // 现在上传时可选传duration，服务端落库后这里能拿到真实值渲染时长气泡。
     var duration: Int = 0
+    var burnAfter: Int = 0
+    var burnReadAt: Double? = nil
+    var burnExpiresAt: Double? = nil
     var serverSequence: Int64 = 0
     var batchId: String? = nil
     var clientBatchId: String? = nil
@@ -119,6 +122,9 @@ struct Message: Decodable, Identifiable, Equatable {
         case isScheduled = "is_scheduled"
         case fileMime = "file_mime"
         case fileSize = "file_size"
+        case burnAfter = "burn_after"
+        case burnReadAt = "burn_read_at"
+        case burnExpiresAt = "burn_expires_at"
         case serverSequence = "server_sequence"
         case batchId = "batch_id"
         case clientBatchId = "client_batch_id"
@@ -146,6 +152,9 @@ struct Message: Decodable, Identifiable, Equatable {
         fileMime = try? c.decode(String.self, forKey: .fileMime)
         fileSize = try? c.decode(Int64.self, forKey: .fileSize)
         duration = (try? c.decode(Int.self, forKey: .duration)) ?? 0
+        burnAfter = (try? c.decode(Int.self, forKey: .burnAfter)) ?? 0
+        burnReadAt = try? c.decode(Double.self, forKey: .burnReadAt)
+        burnExpiresAt = try? c.decode(Double.self, forKey: .burnExpiresAt)
         serverSequence = (try? c.decode(Int64.self, forKey: .serverSequence)) ?? 0
         batchId = try? c.decode(String.self, forKey: .batchId)
         clientBatchId = try? c.decode(String.self, forKey: .clientBatchId)
@@ -387,5 +396,27 @@ struct PinnedMessage: Decodable, Identifiable, Equatable {
         fileUrl = (try? c.decode(String.self, forKey: .fileUrl)) ?? ""
         senderName = (try? c.decode(String.self, forKey: .senderName)) ?? ""
         pinnedByName = (try? c.decode(String.self, forKey: .pinnedByName)) ?? ""
+    }
+}
+
+struct ForwardTargetResult: Decodable {
+    let source_message_id: String
+    let conversation_id: String
+    let status: String
+    let reason: String?
+}
+struct ForwardResult: Decodable {
+    let status: String
+    let success_count: Int
+    let failed_count: Int
+    let target_success_count: Int?
+    let target_failed_count: Int?
+    let target_results: [ForwardTargetResult]?
+    var summary: String {
+        let ok = target_success_count ?? success_count
+        let failed = target_failed_count ?? failed_count
+        if status == "success" { return "已转发：成功 \(ok) 项" }
+        if status == "partial_success" { return "部分成功：成功 \(ok) 项，失败 \(failed) 项" }
+        return "转发未完成：成功 \(ok) 项，失败 \(failed) 项"
     }
 }

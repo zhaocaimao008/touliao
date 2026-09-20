@@ -130,4 +130,20 @@ class ChatMessageMergeTest {
 
         assertTrue("清空后不得残留该消息", result.isEmpty())
     }
+
+    @Test fun clearAndBurnEventsPreservePending() {
+        val old = msg("old", 1); val pending = msg("pending", 0, local = "sending"); val newer = msg("new", 5)
+        val clear = ConversationEvent(4, "conversation_cleared", "c1")
+        assertEquals(listOf("pending", "new"), applySyncEvents(listOf(old, pending, newer), listOf(clear)).map { it.id })
+        val burn = ConversationEvent(6, "message_burn_started", "new", payload = mapOf("burn_read_at" to "100", "burn_expires_at" to "160"))
+        assertEquals(160L, applySyncEvents(listOf(newer), listOf(burn))[0].burn_expires_at)
+    }
+    @Test fun burnCannotEnterControlledCache() {
+        val burn = msg("burn", 1).copy(burn_after = 60)
+        assertTrue(com.touliao.app.core.storage.MsgCacheStore.normalize(listOf(burn)).isEmpty())
+    }
+    @Test fun partialForwardIsExplicit() {
+        val result = com.touliao.app.data.model.ForwardResult("partial_success", target_success_count = 1, target_failed_count = 1)
+        assertTrue(result.summary().contains("部分成功"))
+    }
 }

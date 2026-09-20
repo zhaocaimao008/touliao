@@ -122,4 +122,20 @@ final class ChatMessageMergeTests: XCTestCase {
 
         XCTAssertTrue(result.isEmpty, "清空后不得残留该消息")
     }
+
+    func testClearAndBurnEventsConvergeWithoutDeletingPending() {
+        let old = m(1, seq: 1), pending = m(2, seq: 0, local: "sending"), newer = m(3, seq: 5)
+        let clear = ConversationEvent(serverSequence: 4, eventType: "conversation_cleared", messageId: "c1", message: nil, payload: [:], batchId: nil, clientBatchId: nil)
+        XCTAssertEqual(ChatMessageMerge.applySyncEvents([old, pending, newer], [clear]).map { $0.id }, [pending.id, newer.id])
+        let burn = ConversationEvent(serverSequence: 6, eventType: "message_burn_started", messageId: newer.id, message: nil, payload: ["burn_read_at": "100", "burn_expires_at": "160"], batchId: nil, clientBatchId: nil)
+        XCTAssertEqual(ChatMessageMerge.applySyncEvents([newer], [burn])[0].burnExpiresAt, 160)
+    }
+    func testBurnBodiesCannotEnterControlledCache() {
+        var burn = m(1, seq: 1); burn.burnAfter = 60
+        XCTAssertTrue(MsgCacheStore.normalize([burn]).isEmpty)
+    }
+    func testForwardResultReportsPartialSuccess() throws {
+        let data = #"{"status":"partial_success","success_count":1,"failed_count":0,"target_success_count":1,"target_failed_count":1}"#.data(using: .utf8)!
+        XCTAssertTrue(try JSONDecoder().decode(ForwardResult.self, from: data).summary.contains("部分成功"))
+    }
 }

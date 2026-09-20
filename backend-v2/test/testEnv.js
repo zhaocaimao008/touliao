@@ -18,8 +18,12 @@
  */
 const path = require('path');
 
-const TEST_DB = path.join(__dirname, '.tmp-test-db.sqlite');
-const TEST_UPLOADS = path.join(__dirname, '.tmp-test-uploads');
+const fs = require('fs');
+const root = process.env.TOULIAO_TEST_ROOT || fs.mkdtempSync(path.join(require('os').tmpdir(), 'touliao-test-'));
+process.env.TOULIAO_TEST_ROOT = root;
+const TEST_DB = path.join(root, 'test.sqlite');
+const TEST_UPLOADS = path.join(root, 'uploads');
+process.env.LOG_DIR = path.join(root, 'logs');
 
 process.env.NODE_ENV          = 'test';
 process.env.DB_PATH           = TEST_DB;

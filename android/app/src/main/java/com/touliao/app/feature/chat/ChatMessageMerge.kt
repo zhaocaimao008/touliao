@@ -72,6 +72,10 @@ fun applySyncEvents(messages: List<Message>, events: List<ConversationEvent>): L
     val current = messages.toMutableList()
     events.sortedBy { it.server_sequence }.forEach { event ->
         when (event.event_type) {
+            "conversation_cleared" -> current.removeAll { it.localStatus == null && it.server_sequence < event.server_sequence }
+            "message_burn_started" -> current.indexOfFirst { it.id == event.message_id }.takeIf { it >= 0 }?.let { i ->
+                current[i] = current[i].copy(burn_read_at = event.payload["burn_read_at"]?.toLongOrNull(), burn_expires_at = event.payload["burn_expires_at"]?.toLongOrNull())
+            }
             "message_created" -> {
                 val msg = event.message ?: return@forEach
                 // 双向清空/撤回后的旧 message_created 补拉：message 字段是实时 join 的当前行，

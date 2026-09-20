@@ -13,7 +13,7 @@
 
 const { db } = require('../../db/connection');
 const { searchMessages, countMessages, searchMessagesInConversations, getSearchStats } = require('../../utils/ftsSearch');
-const { requireMember } = require('./shared');
+const { requireMember, canUseMessageCache } = require('./shared');
 const cache = require('../../utils/cache');
 
 /**
@@ -31,6 +31,7 @@ async function searchInConversation(conversationId, userId, query, options = {})
     return { results: [], total: 0, took: 0 };
   }
 
+  require('./burn.service').expireDueMessages();
   const startTime = Date.now();
   const { limit = 50, offset = 0, senderOnly = null } = options;
 
@@ -44,7 +45,7 @@ async function searchInConversation(conversationId, userId, query, options = {})
       const result = JSON.parse(cached);
       result.fromCache = true;
       result.took = Date.now() - startTime;
-      return result;
+      if (canUseMessageCache(result.results, userId)) return result;
     }
   } catch (err) {
     console.warn('[Search] 缓存查询失败:', err.message);
@@ -85,6 +86,7 @@ async function searchGlobal(userId, query, options = {}) {
     return { results: [], total: 0, conversations: {}, took: 0 };
   }
 
+  require('./burn.service').expireDueMessages();
   const startTime = Date.now();
   const { limit = 100, offset = 0 } = options;
 
@@ -97,7 +99,7 @@ async function searchGlobal(userId, query, options = {}) {
       const result = JSON.parse(cached);
       result.fromCache = true;
       result.took = Date.now() - startTime;
-      return result;
+      if (canUseMessageCache(result.results, userId)) return result;
     }
   } catch (err) {
     console.warn('[Search] 缓存查询失败:', err.message);

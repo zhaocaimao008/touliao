@@ -65,6 +65,12 @@ final class MsgCacheStore {
         writeItems(conversationId, clean)
     }
 
+    /// Sync must not acknowledge its cursor if the controlled cache did not commit.
+    func saveBeforeCursor(_ conversationId: String, _ msgs: [Message]) throws {
+        let data = try JSONEncoder().encode(Self.normalize(msgs).map { Cached(from: $0) })
+        try data.write(to: fileURL(conversationId), options: .atomic)
+    }
+
     /// 删除单条（撤回/删除）。
     func remove(_ conversationId: String, _ msgId: String) {
         guard !conversationId.isEmpty else { return }
@@ -97,7 +103,7 @@ final class MsgCacheStore {
         var map: [String: Message] = [:]
         var order: [String] = []                          // 保留插入序，后者覆盖同 id
         for m in msgs {
-            guard !m.id.isEmpty else { continue }
+            guard !m.id.isEmpty, m.burnAfter == 0 else { continue }
             if m.clientMsgId != nil || m.localStatus != nil { continue }   // 乐观/待发不入缓存
             if map[m.id] == nil { order.append(m.id) }
             map[m.id] = m
