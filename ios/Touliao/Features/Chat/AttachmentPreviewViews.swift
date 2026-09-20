@@ -3,20 +3,21 @@ import AVKit
 import PDFKit
 
 /// 全屏视频播放：SwiftUI 自带 AVKit.VideoPlayer，内置播放/暂停/进度条/全屏，App 内播放
-/// 不跳 Safari。url 已带 ?token= 鉴权（见 MediaUrlResolver），AVPlayer 直接用带参数的完整
+/// 不跳 Safari。播放器使用短期只读票据（见 MediaUrlResolver），AVPlayer 直接用带参数的完整
 /// URL 即可播放，服务端支持 Range 即可流式播放，不需要先整个下载。
 struct VideoPlayerOverlay: View {
     let url: String
     let filename: String?
     let onDismiss: () -> Void
+    @State private var player: AVPlayer?
     @State private var saving = false
     @State private var errorMsg: String?
 
     var body: some View {
         ZStack(alignment: .topLeading) {
             Color.black.ignoresSafeArea()
-            if let playerUrl = URL(string: url) {
-                VideoPlayer(player: AVPlayer(url: playerUrl))
+            if let player {
+                VideoPlayer(player: player)
                     .ignoresSafeArea()
             }
             HStack {
@@ -47,6 +48,17 @@ struct VideoPlayerOverlay: View {
                     .padding(.bottom, 40)
             }
         }
+        .task(id: url) { await loadPlayer() }
+        .onDisappear { player?.pause(); player = nil }
+    }
+
+    private func loadPlayer() async {
+        do {
+            let signed = try await MediaUrlResolver.ticket(url)
+            try Task.checkCancellation()
+            player = AVPlayer(url: signed)
+        } catch is CancellationError { }
+        catch { errorMsg = "视频加载失败，请稍后重试" }
     }
 
     private func saveVideo() {

@@ -34,6 +34,8 @@ class ConversationListViewModel @Inject constructor(
     private val mediaUrlResolver: MediaUrlResolver,
     private val draftStore: com.touliao.app.core.storage.DraftStore,
     private val notificationHelper: NotificationHelper,
+    private val accountStore: com.touliao.app.core.storage.AccountStore,
+    private val serverConfig: com.touliao.app.core.storage.ServerConfig,
 ) : ViewModel() {
 
     private val myId: String =
@@ -46,7 +48,7 @@ class ConversationListViewModel @Inject constructor(
             viewModelScope, SharingStarted.WhileSubscribed(5000), SocketStatus.DISCONNECTED,
         )
 
-    private val _uiState = MutableStateFlow(ConversationListUiState(loading = true))
+    private val _uiState = MutableStateFlow(ConversationListUiState(loading = true, conversations = accountStore.cachedConversations(serverConfig.baseUrl)))
     val uiState: StateFlow<ConversationListUiState> = _uiState.asStateFlow()
 
     init {
@@ -164,11 +166,18 @@ class ConversationListViewModel @Inject constructor(
 
     fun refresh() {
         _uiState.update { it.copy(loading = true, error = null) }
+        val owner = sessionManager.credentialSnapshot()
+        val origin = serverConfig.baseUrl
         viewModelScope.launch {
             // 拉全量（含归档）：主列表/归档列表本地分流，归档入口角标无需额外请求（对齐 Web）
             runCatching { chatRepository.loadConversations(includeArchived = true) }
-                .onSuccess { list -> _uiState.update { it.copy(loading = false, conversations = list) }; refreshDrafts() }
-                .onFailure { e -> _uiState.update { it.copy(loading = false, error = e.toUserMessage("加载会话失败")) } }
+                 .onSuccess { list ->
+                    if (sessionManager.isCredentialCurrent(owner) && sessionManager.currentUser?.id == myId && serverConfig.baseUrl == origin) {
+                        accountStore.cacheConversations(origin, myId, list)
+                        _uiState.update { it.copy(loading = false, conversations = list) }; refreshDrafts()
+                    }
+                }
+                .onFailure { e -> if (sessionManager.isCredentialCurrent(owner)) _uiState.update { it.copy(loading = false, error = e.toUserMessage("加载会话失败")) } }
         }
     }
 

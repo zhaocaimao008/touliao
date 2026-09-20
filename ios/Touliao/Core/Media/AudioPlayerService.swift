@@ -6,15 +6,20 @@ final class AudioPlayerService {
     static let shared = AudioPlayerService()
     private init() {}
 
+    private var loadTask: Task<Void, Never>?
     private var player: AVPlayer?
     private var endObserver: NSObjectProtocol?
 
     func play(urlString: String) {
-        guard let url = URL(string: urlString) else { return }
+
         // 通话进行中不改音频会话类别，避免把 .voiceChat 抢成 .playback 导致通话音频路由错乱。
         if CallManager.shared.state.stage != .idle && CallManager.shared.state.stage != .ended { return }
         if GroupCallManager.shared.state.stage != .idle && GroupCallManager.shared.state.stage != .ended { return }
         stop()
+        loadTask = Task { @MainActor in
+        do {
+        let url = try await MediaUrlResolver.ticket(urlString)
+        try Task.checkCancellation()
         try? AVAudioSession.sharedInstance().setCategory(.playback)
         try? AVAudioSession.sharedInstance().setActive(true)
         let item = AVPlayerItem(url: url)
@@ -24,9 +29,14 @@ final class AudioPlayerService {
         ) { [weak self] _ in self?.stop() }
         player = AVPlayer(playerItem: item)
         player?.play()
+        } catch is CancellationError { }
+        catch { stop() }
+        }
     }
 
     func stop() {
+        loadTask?.cancel()
+        loadTask = nil
         if let endObserver {
             NotificationCenter.default.removeObserver(endObserver)
             self.endObserver = nil

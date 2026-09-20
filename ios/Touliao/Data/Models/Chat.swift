@@ -1,7 +1,7 @@
 import Foundation
 
 /// 会话列表项 —— 对齐后端 listConversations 返回（与 Android Conversation 一致）
-struct Conversation: Decodable, Identifiable, Equatable, Hashable {
+struct Conversation: Codable, Identifiable, Equatable, Hashable {
     let id: String
     var type: String = "private"          // private | group | filehelper
     var name: String = ""
@@ -23,7 +23,7 @@ struct Conversation: Decodable, Identifiable, Equatable, Hashable {
     /// 私聊对端 id：优先 otherUser.id(可靠);群聊为 nil
     var peerId: String? { otherUser?.id }
 
-    struct OtherUser: Decodable, Equatable, Hashable {
+    struct OtherUser: Codable, Equatable, Hashable {
         let id: String
         var username: String = ""
         var avatar: String = ""

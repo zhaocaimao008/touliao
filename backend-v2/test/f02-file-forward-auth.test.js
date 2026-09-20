@@ -185,14 +185,14 @@ test('public category aliases cannot bypass private-file authority', async () =>
   expect(shares(f)).toHaveLength(0);
 });
 
-test('thumbnail, direct query URL and download ticket enforce the same private-file boundary', async () => {
+test('thumbnail, rejected login query URL and download ticket enforce the same private-file boundary', async () => {
   const f = fixture();
   const thumb = `/uploads/files/${f.prefix}_thumb.webp`;
   fs.writeFileSync(path.join(config.uploadsRoot, 'files', `${f.prefix}_thumb.webp`), 'synthetic thumbnail');
   registerFile({ path: thumb, ownerId: a.userId, conversationId: f.source, kind: 'files' });
   for (const url of [f.url, thumb]) {
-    expect((await request(app).get(`${url}?token=${c.token}`)).status).toBe(403);
-    expect((await request(app).get(`${url}?token=${b.token}`)).status).toBe(200);
+    expect((await request(app).get(`${url}?token=${c.token}`)).status).toBe(401);
+    expect((await request(app).get(`${url}?token=${b.token}`)).status).toBe(401);
     const ticket = async user => request(app).get(`/api/uploads/ticket?file=${encodeURIComponent(url)}`).set('Authorization', `Bearer ${user.token}`);
     const denied = await ticket(c);
     expect(denied.status).toBe(403);

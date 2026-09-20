@@ -1,37 +1,79 @@
 import Foundation
 import Kingfisher
 
-/// 把后端相对资源路径（/uploads/...）解析为可被 Kingfisher/播放器加载的绝对地址。
-/// 受保护的 /uploads 资源附加 ?token=（后端兜底鉴权，对齐 Web/Android 做法）。
+/// Account credentials only travel in same-origin request headers. Players receive read tickets.
 enum MediaUrlResolver {
-    static func resolve(_ url: String?) -> String? {
-        guard let url, !url.isEmpty else { return url }
-        if url.hasPrefix("http://") || url.hasPrefix("https://") || url.hasPrefix("data:") { return url }
-
-        let base = ServerConfig.shared.baseURL   // 已去尾部斜杠
-        var abs = url.hasPrefix("/") ? base + url : base + "/" + url
-
-        if let token = KeychainStore.shared.token, abs.contains("/uploads/") {
-            let encoded = token.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? token
-            abs += (abs.contains("?") ? "&" : "?") + "token=" + encoded
+    static func resolve(_ raw: String?) -> String? {
+        guard let raw, !raw.isEmpty else { return raw }
+        guard let base = URL(string: ServerConfig.shared.baseURL + "/"),
+              let url = URL(string: raw, relativeTo: base)?.absoluteURL,
+              var parts = URLComponents(url: url, resolvingAgainstBaseURL: true) else { return nil }
+        if url.path.hasPrefix("/uploads/") { parts.queryItems = parts.queryItems?.filter { $0.name.lowercased() != "token" } }
+        return parts.url?.absoluteString
+    }
+    static func protectedMedia(_ url: URL) -> Bool {
+        guard let base = URL(string: ServerConfig.shared.baseURL) else { return false }
+        return url.scheme == base.scheme && url.host == base.host && url.port == base.port && url.path.hasPrefix("/uploads/")
+    }
+    static func request(_ url: URL, owner: KeychainStore.Snapshot) -> URLRequest {
+        var request = URLRequest(url: url)
+        if protectedMedia(url), let token = owner.token { request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization") }
+        return request
+    }
+    private static let session = URLSession(configuration: .ephemeral, delegate: MediaRedirectDelegate(), delegateQueue: nil)
+    static func download(_ url: URL) async throws -> (URL, URLResponse) {
+        let owner = KeychainStore.shared.snapshot()
+        let result = try await session.download(for: request(url, owner: owner))
+        guard KeychainStore.shared.isCurrent(owner) else {
+            try? FileManager.default.removeItem(at: result.0)
+            throw CancellationError()
         }
-        return abs
+        return result
     }
-
-    /// 供 KFImage 使用：把【已解析】的绝对地址包成带稳定 cacheKey 的 Source。
-    /// /uploads 地址带 ?token=<JWT>，Kingfisher 默认以完整 URL 作缓存键，token 轮换
-    /// (刷新/重登)后所有头像/图片缓存全部失效→重新下载（观感/流量杀手）。这里用剥掉
-    /// query 的路径作 cacheKey，令缓存跨 token 存活；真正下载仍走带 token 的原地址。
-    static func kfSource(resolved s: String?) -> Source? {
-        guard let s, !s.isEmpty, let u = URL(string: s) else { return nil }
-        let cacheKey = s.components(separatedBy: "?").first ?? s
-        // 必须全限定 Kingfisher.ImageResource：iOS17 SDK 也有个 ImageResource(name:bundle:)
-        // (资产目录符号)，裸写会命中 SDK 那个导致类型不符。
-        return .network(Kingfisher.ImageResource(downloadURL: u, cacheKey: cacheKey))
+    static func ticket(_ raw: String) async throws -> URL {
+        guard let resolved = resolve(raw), let url = URL(string: resolved) else { throw APIError.network }
+        guard protectedMedia(url) else { return url }
+        let owner = KeychainStore.shared.snapshot()
+        var query = URLComponents()
+        query.queryItems = [URLQueryItem(name: "file", value: url.path)]
+        struct Ticket: Decodable { let url: String }
+        let ticket: Ticket = try await APIClient.shared.send("api/uploads/ticket?" + (query.percentEncodedQuery ?? ""), owner: owner)
+        guard KeychainStore.shared.isCurrent(owner),
+              let signed = URL(string: ticket.url, relativeTo: URL(string: ServerConfig.shared.baseURL))?.absoluteURL,
+              protectedMedia(signed), signed.path == url.path,
+              URLComponents(url: signed, resolvingAgainstBaseURL: true)?.queryItems?.contains(where: { $0.name == "token" && !($0.value ?? "").isEmpty }) == true
+        else { throw APIError.unauthorized }
+        return signed
     }
+    static func kfSource(resolved raw: String?) -> Source? {
+        guard let raw, let clean = resolve(raw), let url = URL(string: clean) else { return nil }
+        return .provider(MediaProvider(url: url, owner: KeychainStore.shared.snapshot(), account: AccountStore.shared.activeId() ?? "anonymous"))
+    }
+    static func kfSource(raw: String?) -> Source? { kfSource(resolved: resolve(raw)) }
 
-    /// 便捷：接收【原始】路径，先 resolve 再包成带稳定 cacheKey 的 Source。
-    static func kfSource(raw url: String?) -> Source? {
-        kfSource(resolved: resolve(url))
+    private struct MediaProvider: ImageDataProvider {
+        let url: URL
+        let owner: KeychainStore.Snapshot
+        let account: String
+        var cacheKey: String { account + ":" + url.absoluteString }
+        func data(handler: @escaping (Result<Data, Error>) -> Void) {
+            guard KeychainStore.shared.isCurrent(owner) else { handler(.failure(CancellationError())); return }
+            session.dataTask(with: request(url, owner: owner)) { data, response, error in
+                guard KeychainStore.shared.isCurrent(owner) else { handler(.failure(CancellationError())); return }
+                if let error { handler(.failure(error)); return }
+                guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode), let data else {
+                    handler(.failure(APIError.network)); return
+                }
+                handler(.success(data))
+            }.resume()
+        }
+    }
+}
+private final class MediaRedirectDelegate: NSObject, URLSessionTaskDelegate {
+    func urlSession(_ session: URLSession, task: URLSessionTask, willPerformHTTPRedirection response: HTTPURLResponse,
+                    newRequest request: URLRequest, completionHandler: @escaping (URLRequest?) -> Void) {
+        var clean = request
+        clean.setValue(nil, forHTTPHeaderField: "Authorization")
+        completionHandler(clean)
     }
 }

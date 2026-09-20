@@ -71,9 +71,9 @@ final class AuthRepository {
     }
 
     /// 启动时凭已存 token 校验会话
-    func restoreSession() async -> User? {
+    func restoreSession() async throws -> User? {
         guard KeychainStore.shared.isLoggedIn else { return nil }
-        return try? await api.send("api/auth/me")
+        return try await api.send("api/auth/me")
     }
 
     func logout() async -> KeychainStore.Snapshot? {

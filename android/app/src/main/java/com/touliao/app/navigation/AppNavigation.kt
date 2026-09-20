@@ -69,6 +69,7 @@ class AppViewModel @Inject constructor(
     private val updateChecker: UpdateChecker,
 ) : ViewModel() {
     val authState: StateFlow<AuthState> = sessionManager.state
+    val recovery = sessionManager.recovery
 
     // 后台功能开关（朋友圈/收藏）。默认全开，拉取失败不误伤已有功能。
     private val _features = MutableStateFlow(Features())
@@ -168,11 +169,15 @@ fun AppNavigation(appViewModel: AppViewModel = hiltViewModel()) {
     val features by appViewModel.features.collectAsStateWithLifecycle()
     val unreadTotal by appViewModel.unreadTotal.collectAsStateWithLifecycle()
 
+    val recovery by appViewModel.recovery.collectAsStateWithLifecycle()
+    androidx.compose.foundation.layout.Column {
+    if (recovery != null) Text(recovery!!)
     when (authState) {
         // 启动画面已全部移除：Loading 状态不渲染任何画面，等鉴权结果直接进主界面/登录页
-        is AuthState.Loading -> {}
+        is AuthState.Loading -> androidx.compose.material3.CircularProgressIndicator()
         is AuthState.Authenticated -> MainFlow(features, unreadTotal)
         is AuthState.Unauthenticated -> AuthFlow()
+    }
     }
 }
 

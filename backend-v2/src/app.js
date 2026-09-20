@@ -241,6 +241,13 @@ app.use('/uploads', async (req, res, next) => {
     }
   }
 
+  // URL credentials are exclusively short-lived, single-file read tickets.
+  // Old clients must upgrade; a login/admin credential is never accepted in a URL.
+  if ((req.query?.token !== undefined && (isAdmin || payload.purpose !== 'upload-read'))
+    || (payload.purpose === 'upload-read' && !['GET', 'HEAD'].includes(req.method))) {
+    return res.status(401).json({ error: '媒体鉴权已升级，请升级客户端' });
+  }
+
   try {
     if (await isBlacklisted(token)) return res.status(401).json({ error: '登录已失效，请重新登录' });
     if (isAdmin && !currentAdmin(payload)) return res.status(401).json({ error: '后台登录已过期' });
@@ -251,6 +258,7 @@ app.use('/uploads', async (req, res, next) => {
           || typeof payload.sub !== 'string' || !payload.sub
           || !/^credential:[a-f0-9]{64}$/.test(payload.credential || '')
           || !Number.isFinite(payload.credentialIat) || !Number.isFinite(payload.exp)
+          || !Number.isFinite(payload.iat) || payload.exp - payload.iat > 600
           || (payload.sessionId !== null && typeof payload.sessionId !== 'string')) {
           return res.status(401).json({ error: '未授权' });
         }
@@ -385,6 +393,7 @@ app.get('/api/uploads/ticket', auth, (req, res) => {
     sessionId: req.user.jti || null, credential: credentialKey(req.token), credentialIat: req.user.iat,
     exp: Math.min(Math.floor(Date.now() / 1000) + 600, req.user.exp),
   }, config.jwtSecret, { algorithm: 'HS256' });
+  res.setHeader('Cache-Control', 'no-store');
   res.json({ url: `${pathname}?token=${encodeURIComponent(token)}` });
 });
 

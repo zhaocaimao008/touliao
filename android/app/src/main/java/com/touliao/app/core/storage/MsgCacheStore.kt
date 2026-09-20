@@ -28,6 +28,8 @@ import javax.inject.Singleton
 @Singleton
 class MsgCacheStore @Inject constructor(
     @ApplicationContext context: Context,
+    private val accounts: AccountStore,
+    private val server: ServerConfig,
 ) {
     // 键名带 schema 版本前缀；破坏性变更时改 KEY_PREFIX 弃用旧键。
     private val prefs = EncryptedSharedPreferences.create(
@@ -54,7 +56,11 @@ class MsgCacheStore @Inject constructor(
     }
 
     /** 读取会话缓存（最近 50，created_at 升序）。任何异常 → 返回空。 */
-    fun load(conversationId: String): List<Message> {
+    private fun scopedKey(conversationId: String): String = "account-v3:${server.baseUrl}:${accounts.activeId() ?: "anonymous"}:$conversationId"
+
+    fun load(conversationId: String): List<Message> = loadKey(scopedKey(conversationId))
+
+    private fun loadKey(conversationId: String): List<Message> {
         if (conversationId.isBlank()) return emptyList()
         val raw = prefs.getString(conversationId, null) ?: return emptyList()
         return runCatching { json.decodeFromString(listSerializer, raw) }.getOrDefault(emptyList())
@@ -63,7 +69,8 @@ class MsgCacheStore @Inject constructor(
     /** 覆写会话缓存（内部 normalize：去乐观/焚毁、按 id 去重、升序、截断最近 50）。异常静默。 */
     fun save(conversationId: String, msgs: List<Message>) {
         if (conversationId.isBlank()) return
-        offload { saveInternal(conversationId, msgs) }
+        val key = scopedKey(conversationId)
+        offload { saveInternal(key, msgs) }
     }
 
     /**
@@ -85,12 +92,13 @@ class MsgCacheStore @Inject constructor(
 
     suspend fun saveBeforeCursor(conversationId: String, msgs: List<Message>) =
         kotlinx.coroutines.suspendCancellableCoroutine<Unit> { continuation ->
+            val key = scopedKey(conversationId)
             io.execute {
                 try {
                     val clean = normalize(msgs)
                     val editor = prefs.edit()
-                    if (clean.isEmpty()) editor.remove(conversationId)
-                    else editor.putString(conversationId, json.encodeToString(listSerializer, clean))
+                    if (clean.isEmpty()) editor.remove(key)
+                    else editor.putString(key, json.encodeToString(listSerializer, clean))
                     if (!editor.commit()) throw java.io.IOException("cache commit failed")
                     continuation.resumeWith(Result.success(Unit))
                 } catch (e: Exception) { continuation.resumeWith(Result.failure(e)) }
@@ -100,18 +108,20 @@ class MsgCacheStore @Inject constructor(
     /** 删除单条（撤回/删除）。 */
     fun remove(conversationId: String, msgId: String) {
         if (conversationId.isBlank()) return
+        val key = scopedKey(conversationId)
         offload {
-            val cur = load(conversationId)
+            val cur = loadKey(key)
             val next = cur.filterNot { it.id == msgId }
-            if (next.size != cur.size) saveInternal(conversationId, next)
+            if (next.size != cur.size) saveInternal(key, next)
         }
     }
 
     /** 清理：有 convId=清该会话；无参=清全部（登出/切账号，隐私红线）。 */
     fun clear(conversationId: String? = null) {
+        val key = conversationId?.let(::scopedKey)
         offload {
             prefs.edit().apply {
-                if (conversationId != null) remove(conversationId) else clear()
+                if (key != null) remove(key) else clear()
             }.apply()
         }
     }

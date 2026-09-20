@@ -1,4 +1,5 @@
 import { clientStorage as localStorage } from './utils/clientStorage';
+import { redact } from './utils/redactTelemetry';
 import './perf-monitor.js';   // 端到端性能打点（注入 window.__touliaoPerf，须在 App 之前）
 import React from 'react';
 import ReactDOM from 'react-dom/client';
@@ -24,6 +25,9 @@ if (import.meta.env.PROD && import.meta.env.VITE_SENTRY_DSN) {
       environment: import.meta.env.MODE,
       release: `touliao@${__APP_VERSION__}`,
       tracesSampleRate: 0.05,
+      beforeSend: event => redact(event),
+      beforeSendTransaction: event => redact(event),
+      beforeBreadcrumb: breadcrumb => redact(breadcrumb),
     });
   }).catch(() => {});
   if ('requestIdleCallback' in window) {

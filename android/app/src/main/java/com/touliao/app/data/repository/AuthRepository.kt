@@ -43,7 +43,7 @@ class AuthRepository @Inject constructor(
 
     suspend fun restoreSession(): User? {
         if (!tokenStore.isLoggedIn) return null
-        return runCatching { api.me() }.getOrNull()
+        return api.me()
     }
 
     suspend fun logout(): TokenStore.Snapshot? {

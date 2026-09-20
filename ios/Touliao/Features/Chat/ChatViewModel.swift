@@ -1042,6 +1042,7 @@ final class ChatViewModel: ObservableObject {
 
     /// 退出聊天：发送 read + stop_typing
     func onLeave() {
+        AudioPlayerService.shared.stop()
         repo.emitStopTyping(conversationId)
         markReadLatest()
     }

@@ -853,8 +853,18 @@ class ChatViewModel @Inject constructor(
     fun resolveMediaUrl(url: String?): String? = mediaUrlResolver.resolve(url)
 
     /** 播放语音消息 */
+    private var voiceLoad: kotlinx.coroutines.Job? = null
     fun playVoice(fileUrl: String) {
-        resolveMediaUrl(fileUrl)?.let(audioPlayer::play)
+        voiceLoad?.cancel()
+        val owner = captureAttempt() ?: return
+        voiceLoad = viewModelScope.launch {
+            try {
+                val url = mediaUrlResolver.ticket(fileUrl)
+                if (!currentAttempt(owner)) return@launch
+                audioPlayer.play(url) { error -> _uiState.update { it.copy(error = error) } }
+            } catch (e: kotlinx.coroutines.CancellationException) { throw e }
+            catch (_: Exception) { _uiState.update { it.copy(error = "语音加载失败，请检查网络后重试") } }
+        }
     }
 
     /**
@@ -1267,6 +1277,7 @@ class ChatViewModel @Inject constructor(
 
     fun startRecording() {
         if (_uiState.value.recording) return
+        audioPlayer.stop()
         if (audioRecorder.start()) {
             _uiState.update { it.copy(recording = true, error = null) }
         } else {

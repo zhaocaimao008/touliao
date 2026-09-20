@@ -6,6 +6,7 @@
 
 const winston = require('winston');
 const path = require('path');
+const { redact } = require('./redact');
 
 const logDir = process.env.NODE_ENV === 'test' && process.env.LOG_DIR
   ? process.env.LOG_DIR : path.join(__dirname, '../../logs');
@@ -14,6 +15,7 @@ const logDir = process.env.NODE_ENV === 'test' && process.env.LOG_DIR
 const jsonFormat = winston.format.combine(
   winston.format.timestamp({ format: 'YYYY-MM-DD HH:mm:ss' }),
   winston.format.errors({ stack: true }),
+  winston.format(info => Object.assign(info, redact(info)))(),
   winston.format.json()
 );
 

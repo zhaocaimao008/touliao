@@ -86,6 +86,13 @@ function signAll(distDir, privateKeyPath, onlyNames) {
       }
       continue;
     }
+    // Bind the Windows release context inside the signed bytes (never from an HTTP header).
+    if (name === 'latest.yml') {
+      const yaml = require('js-yaml');
+      const manifest = yaml.load(fs.readFileSync(ymlPath, 'utf8'));
+      manifest.touliao = { platform: 'win32', arch: 'x64', channel: 'latest' };
+      fs.writeFileSync(ymlPath, yaml.dump(manifest));
+    }
     const data = fs.readFileSync(ymlPath);
     const sig = crypto.sign(null, data, privateKey); // Ed25519：algorithm 传 null
     const sigPath = `${ymlPath}.sig`;

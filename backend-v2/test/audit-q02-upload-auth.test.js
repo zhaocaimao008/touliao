@@ -98,7 +98,7 @@ test.each(['delete', 'password', 'ban', 'durable-delete'])('%s denies API and or
   const expected = action === 'ban' ? 403 : 401;
   expect((await request(app).get('/api/auth/me').set('Authorization', `Bearer ${f.token}`)).status).toBe(expected);
   for (const transport of ['cookie', 'bearer', 'query']) {
-    expect((await getFile(f.file, f.token, transport)).status).toBe(expected);
+    expect((await getFile(f.file, f.token, transport)).status).toBe(transport === 'query' ? 401 : expected);
   }
   expect((await request(app).get('/api/uploads/ticket').query({ file: f.file }).set('Authorization', `Bearer ${f.token}`)).status).toBe(expected);
   if (action === 'ban') admin.setBanned(io, f.account.userId, false);

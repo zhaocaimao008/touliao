@@ -9,9 +9,10 @@ enum VideoThumbnailLoader {
     private static let cache = NSCache<NSString, UIImage>()
 
     static func thumbnail(for urlString: String) async -> UIImage? {
-        let key = urlString as NSString
+        let owner = KeychainStore.shared.snapshot()
+        let key = ((AccountStore.shared.activeId() ?? "anonymous") + ":" + urlString) as NSString
         if let cached = cache.object(forKey: key) { return cached }
-        guard let url = URL(string: urlString) else { return nil }
+        guard let url = try? await MediaUrlResolver.ticket(urlString) else { return nil }
         let asset = AVURLAsset(url: url)
         let generator = AVAssetImageGenerator(asset: asset)
         generator.appliesPreferredTrackTransform = true
@@ -20,6 +21,7 @@ enum VideoThumbnailLoader {
         do {
             let result = try await generator.image(at: CMTime(seconds: 0.1, preferredTimescale: 600))
             let image = UIImage(cgImage: result.image)
+            guard KeychainStore.shared.isCurrent(owner) else { return nil }
             cache.setObject(image, forKey: key)
             return image
         } catch {

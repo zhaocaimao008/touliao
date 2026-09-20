@@ -4,7 +4,7 @@ import Kingfisher
 
 /// 分享聊天媒体（图片/视频/文件/文档）到第三方软件。
 /// 做法：把资源下载到临时文件（图片走 Kingfisher 复用鉴权/缓存栈；其它走 URLSession，
-///   URL 已带 ?token= 鉴权，见 MediaUrlResolver），再交 UIActivityViewController 分享。
+///   资源请求使用 Bearer 请求头，见 MediaUrlResolver），再交 UIActivityViewController 分享。
 /// 直接分享 http 链接对方 App 拿不到鉴权、也不是「文件分享」体验，故必须落地成文件。
 enum FileShareHelper {
     enum ShareError: LocalizedError {
@@ -38,7 +38,7 @@ enum FileShareHelper {
         if isImage {
             // 图片：Kingfisher 取原图（复用鉴权/缓存），写 PNG/JPEG 到临时文件
             let image: UIImage = try await withCheckedThrowingContinuation { cont in
-                KingfisherManager.shared.retrieveImage(with: url) { result in
+                KingfisherManager.shared.retrieveImage(with: MediaUrlResolver.kfSource(resolved: url.absoluteString)!) { result in
                     switch result {
                     case .success(let value): cont.resume(returning: value.image)
                     case .failure: cont.resume(throwing: ShareError.downloadFailed)
@@ -50,8 +50,8 @@ enum FileShareHelper {
             guard let bytes = data else { throw ShareError.downloadFailed }
             try bytes.write(to: dest)
         } else {
-            // 视频/文件/文档：URLSession 下载（URL 已带 token）
-            let (tmp, resp) = try await URLSession.shared.download(from: url)
+            // 视频/文件/文档：URLSession 下载（资源请求带 Bearer 头）
+            let (tmp, resp) = try await MediaUrlResolver.download(url)
             if let http = resp as? HTTPURLResponse, !(200...299).contains(http.statusCode) {
                 throw ShareError.downloadFailed
             }

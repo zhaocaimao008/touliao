@@ -24,6 +24,7 @@ const crypto = require('crypto');
 const https = require('https');
 const { autoUpdater } = require('electron-updater');
 const log = require('electron-log');
+log.hooks.push(message => { message.data = require('./lib/redactTelemetry').redact(message.data); return message; });
 const Store = require('electron-store');
 const { validatePublicKeyPem } = require('./lib/validatePublicKeyPem');
 
@@ -93,14 +94,13 @@ autoUpdater.logger.transports.file.level = LOG_LEVELS.includes(envLogLevel)
   ? envLogLevel
   : (app.isPackaged ? 'error' : 'info');
 
-// 彻底禁用 electron-updater 的发布者签名校验（publisherName 验证）。
-// 根因：electron-builder 打包时把 publisherName:"vxin" 嵌入 app-update.yml，
-// updater 下载新 exe 后调用 verifyUpdateCodeSignature 验证 Windows 代码签名发布者，
-// 无签名证书的 exe → Status:2 "not digitally signed" → 报错拒绝安装。
-// 改 package.json 只影响新打的包，已装用户的旧 app-update.yml 不变，仍会触发验签。
-// 覆盖 verifyUpdateCodeSignature 为空实现后，新包里不再做发布者验证，
-// 从此次版本起更新不再报错。安全仍由 HTTPS + 我们的 Ed25519 二次验签保障。
-autoUpdater.verifyUpdateCodeSignature = () => Promise.resolve(null);
+// Keep electron-updater 6.8.9's built-in publisher verification enabled.
+const updateTrust = require('./lib/updateTrust');
+const updatePolicy = require('./update-policy.json');
+let trustedUpdate = null;
+let downloadedInstaller = null;
+let updateAttempt = 0;
+let installingUpdate = false;
 
 // 全局异常兜底：主进程未捕获异常/未处理 Promise 拒绝写入日志，避免静默崩溃且无痕迹。
 process.on('uncaughtException', (err) => {
@@ -109,14 +109,9 @@ process.on('uncaughtException', (err) => {
 process.on('unhandledRejection', (reason) => {
   log.error('[main] 未处理的 Promise 拒绝:', reason);
 });
-// 安全（优化）：autoInstallOnAppQuit = true 允许用户点"稍后"后，在下次正常退出 App 时
-// 自动完成覆盖安装，避免手动卸载重装的繁琐。这不降低安全性，因为：
-//   - 安装包已在 download 前通过 TLS + Ed25519 二次验签（见下方 autoDownload 逻辑），
-//     不是"无确认的任意代码落地"。
-//   - 退出时安装是 Electron 原生的覆盖安装流程，保留用户数据，不引入新的执行路径。
-//   - update-downloaded 事件仍保留确认弹框（立即重启安装），与"最终无感"互补。
-// ⚠️ 生产前必须对安装包做代码签名，详见 desktop-electron/SECURITY-RELEASE.md
-autoUpdater.autoInstallOnAppQuit = PROFILE === 1;
+// Windows installation is exclusively through the locked, verified helper below.
+autoUpdater.autoInstallOnAppQuit = process.platform !== 'win32' && PROFILE === 1;
+autoUpdater.disableWebInstaller = true;
 // 安全：关闭自动下载，改由 update-available 事件中先对更新元数据(latest.yml)做
 // Ed25519 二次验签，通过后再 downloadUpdate()。使更新真实性不单纯依赖 TLS。
 autoUpdater.autoDownload = false;
@@ -634,7 +629,7 @@ function fetchBuffer(url, { allowMissing = false } = {}) {
 // 任何一种情况一律阻止安装。此前的"公钥未配置则回退TLS"分支等于给攻击者一条
 // 现成的降级路径（只要让 .sig 拉取失败/让公钥文件不可读，就能绕过整条Ed25519防线），
 // 已删除。
-async function verifyUpdateSignature() {
+async function verifyUpdateSignature(info) {
   const pub = loadUpdatePublicKey();
   if (!pub) {
     log.error('更新验签：公钥缺失或仍为占位文本，已阻止安装（验签为强制项，不再回退TLS）');
@@ -659,7 +654,15 @@ async function verifyUpdateSignature() {
   }
   try {
     const ok = crypto.verify(null, ymlBuf, pub, sigBuf);
-    if (ok) { log.info('更新验签：元数据签名校验通过'); return 'ok'; }
+    if (ok) {
+      if (process.platform === 'win32') {
+        updateTrust.publishers(updatePolicy);
+        return updateTrust.bindManifest({ bytes: ymlBuf, signature: sigBuf,
+          publicKey: pub.export({ type: 'spki', format: 'pem' }), info, currentVersion: app.getVersion(),
+          platform: process.platform, arch: process.arch, channel: updatePolicy.channel });
+      }
+      return 'ok';
+    }
     log.error('更新验签：签名无效，疑似篡改，已阻止安装');
     return 'fail';
   } catch (e) {
@@ -673,13 +676,22 @@ function setupAutoUpdater() {
   autoUpdater.on('update-available', async (info) => {
     log.info('发现新版本:', info.version);
     mainWindow?.webContents.send('update:available', info);
-    const verdict = await verifyUpdateSignature();
-    if (verdict !== 'ok') {
+    if (installingUpdate) return;
+    const attempt = ++updateAttempt;
+    trustedUpdate = null;
+    downloadedInstaller = null;
+    const verdict = await verifyUpdateSignature(info);
+    if (attempt !== updateAttempt) return;
+    if (!verdict || verdict === 'fail') {
       log.error('更新已阻止：版本', info.version, '未通过签名校验，不下载');
       mainWindow?.webContents.send('update:error', '更新包校验失败，已阻止安装，请联系管理员');
       return;
     }
-    autoUpdater.downloadUpdate().catch((e) => log.error('下载更新失败:', e.message));
+    if (process.platform === 'win32') trustedUpdate = verdict;
+    autoUpdater.downloadUpdate().catch(() => {
+      if (attempt === updateAttempt) { trustedUpdate = null; downloadedInstaller = null; }
+      mainWindow?.webContents.send('update:error', '下载或发布者验证失败，已阻止安装');
+    });
   });
 
   autoUpdater.on('update-not-available', () => log.info('已是最新版本'));
@@ -689,12 +701,17 @@ function setupAutoUpdater() {
   });
 
   autoUpdater.on('update-downloaded', async (info) => {
-    log.info('更新已下载:', info.version);
-    // 渲染层 UpdateBanner 已有「立即重启安装」按钮，由它统一接管确认逻辑；
-    // 主进程不再弹原生 dialog，避免两套 UI 同时出现打架、且 dialog 阻塞事件循环。
-    // autoInstallOnAppQuit=true 兜底：用户不点 banner 时，退出 App 自动安装。
-    // 安全说明：能走到 update-downloaded 说明元数据已通过 Ed25519 验签（fail 会
-    // 在 update-available 阶段阻止 downloadUpdate），自动安装仅覆盖已验签的包。
+    if (process.platform === 'win32') {
+      try {
+        if (!trustedUpdate || info.version !== trustedUpdate.version) throw new Error('版本不匹配');
+        updateTrust.verifyFile(info.downloadedFile, trustedUpdate);
+        downloadedInstaller = info.downloadedFile;
+      } catch {
+        downloadedInstaller = null;
+        mainWindow?.webContents.send('update:error', '安装包校验失败，已阻止安装');
+        return;
+      }
+    }
     mainWindow?.webContents.send('update:downloaded', info);
   });
 
@@ -1076,10 +1093,30 @@ function setupIPC() {
   ipcMain.handle('system:getPlatform', () => process.platform);
 
   // 更新：用户在 UI 确认后主动触发安装
-  ipcMain.handle('update:install', (_e) => {
-    if (!isTrustedSender(_e) || PROFILE !== 1) return;
-    isQuitting = true;
-    autoUpdater.quitAndInstall();
+  ipcMain.handle('update:install', async (_e) => {
+    if (!isTrustedSender(_e) || PROFILE !== 1 || installingUpdate) return;
+    if (process.platform !== 'win32') { isQuitting = true; autoUpdater.quitAndInstall(); return; }
+    installingUpdate = true;
+    try {
+      await updateTrust.installVerified({ filename: downloadedInstaller, binding: trustedUpdate, policy: updatePolicy,
+        launch: ({ filename, sha512, publishers }) => new Promise((resolve, reject) => {
+          const shell = path.join(process.env.SystemRoot || 'C:\\Windows', 'System32', 'WindowsPowerShell', 'v1.0', 'powershell.exe');
+          // Script must be a real file outside app.asar (configured in extraResources).
+          const helper = path.join(process.resourcesPath, 'install-verified.ps1');
+          const child = require('child_process').spawn(shell, ['-NoProfile', '-NonInteractive', '-File', helper,
+            '-Installer', filename, '-ExpectedSha512', sha512, '-PublisherPins', publishers.join(',')],
+            { windowsHide: true, detached: true, stdio: ['ignore', 'pipe', 'pipe'] });
+          let output = '', started = false;
+          child.stdout.on('data', bytes => { output += bytes.toString(); if (!started && output.includes('STARTED')) { started = true; child.unref(); resolve(); } });
+          child.stderr.resume();
+          child.on('error', reject);
+          child.on('exit', () => { if (!started) reject(new Error('安装校验失败')); });
+        }) });
+      isQuitting = true;
+      app.quit();
+    } catch {
+      mainWindow?.webContents.send('update:error', '安装校验失败或发布者未配置，已阻止安装');
+    } finally { installingUpdate = false; }
   });
 
   // 更新：用户手动点「检查更新」按钮触发

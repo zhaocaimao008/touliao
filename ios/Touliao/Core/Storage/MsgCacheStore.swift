@@ -1,4 +1,5 @@
 import Foundation
+import CryptoKit
 
 /// 离线消息历史缓存（iOS · FileManager JSON，每会话一文件）。
 /// 契约见 docs/offline-message-cache-contract.md，语义 1:1 对齐 Web 参考实现
@@ -19,9 +20,11 @@ final class MsgCacheStore {
 
     private let fm = FileManager.default
     private let dir: URL
+    private let accountScope: () -> String
 
     /// 允许测试注入独立目录，避免污染真实缓存。
-    init(directory: URL? = nil) {
+    init(directory: URL? = nil, accountScope: (() -> String)? = nil) {
+        self.accountScope = accountScope ?? { directory == nil ? ServerConfig.shared.baseURL + ":" + (AccountStore.shared.activeId() ?? "anonymous") : "test" }
         if let directory {
             dir = directory
         } else {
@@ -131,7 +134,8 @@ final class MsgCacheStore {
         // 会话 id 可能含非法文件名字符，做百分号转义保证文件名安全。
         let safe = conversationId.addingPercentEncoding(
             withAllowedCharacters: .alphanumerics) ?? conversationId
-        return dir.appendingPathComponent("\(safe).json")
+        let scope = SHA256.hash(data: Data(accountScope().utf8)).map { String(format: "%02x", $0) }.joined()
+        return dir.appendingPathComponent("\(scope)-\(safe).json")
     }
 
     private func loadItems(_ conversationId: String) -> [Cached] {

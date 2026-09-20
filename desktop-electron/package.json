@@ -37,6 +37,7 @@
       }
     ],
     "afterPack": "scripts/afterPack.js",
+    "extraResources": [{ "from": "src/lib/install-verified.ps1", "to": "install-verified.ps1" }],
     "win": {
       "executableName": "touliao",
       "target": [
