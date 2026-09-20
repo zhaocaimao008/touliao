@@ -17,6 +17,9 @@ require('./testEnv');
 const request = require('supertest');
 const { app, makeUser, befriend, privateConversation } = require('./helpers');
 
+const { seedLegacyMedia, cleanupLegacyMedia } = require('./fixtures/legacy-media.cjs');
+afterAll(cleanupLegacyMedia);
+
 const PNG_1x1 = Buffer.from(
   'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==',
   'base64'
@@ -34,16 +37,15 @@ describe('附件生命周期（转发/撤回）访问权限', () => {
     convAB = await privateConversation(a, b);
     convAC = await privateConversation(a, c);
 
-    const up = await request(app)
-      .post(`/api/messages/${convAB}/upload`)
-      .set('Authorization', `Bearer ${a.token}`)
-      .attach('file', PNG_1x1, { filename: 'lifecycle.png', contentType: 'image/png' });
-    expect(up.status).toBe(200);
-    fileUrl = up.body.file_url;
-    uploadedMsgId = up.body.id;
+    const legacy = seedLegacyMedia({
+      ownerId: a.userId, conversationId: convAB,
+      filename: 'lifecycle.png', mime: 'image/png', bytes: PNG_1x1,
+    });
+    fileUrl = legacy.url;
+    uploadedMsgId = legacy.message.id;
   });
 
-  test('上传响应携带真实 file_mime/file_size（供前端渲染文件卡片）', () => {
+  test('存量附件夹具保留消息 ID（元数据由历史接口验证）', () => {
     expect(uploadedMsgId).toBeTruthy();
   });
 
@@ -100,13 +102,12 @@ describe('撤回后阻断访问（无其他活跃引用的干净场景）', () =
     await befriend(a, b);
     convAB = await privateConversation(a, b);
 
-    const up = await request(app)
-      .post(`/api/messages/${convAB}/upload`)
-      .set('Authorization', `Bearer ${a.token}`)
-      .attach('file', PNG_1x1, { filename: 'recallme.png', contentType: 'image/png' });
-    expect(up.status).toBe(200);
-    fileUrl = up.body.file_url;
-    msgId = up.body.id;
+    const legacy = seedLegacyMedia({
+      ownerId: a.userId, conversationId: convAB,
+      filename: 'recallme.png', mime: 'image/png', bytes: PNG_1x1,
+    });
+    fileUrl = legacy.url;
+    msgId = legacy.message.id;
   });
 
   test('撤回前 B 能正常访问', async () => {
@@ -137,13 +138,12 @@ describe('个人删除(deleteForMe)不影响文件访问', () => {
     await befriend(a, b);
     convAB = await privateConversation(a, b);
 
-    const up = await request(app)
-      .post(`/api/messages/${convAB}/upload`)
-      .set('Authorization', `Bearer ${a.token}`)
-      .attach('file', PNG_1x1, { filename: 'keepme.png', contentType: 'image/png' });
-    expect(up.status).toBe(200);
-    fileUrl = up.body.file_url;
-    msgId = up.body.id;
+    const legacy = seedLegacyMedia({
+      ownerId: a.userId, conversationId: convAB,
+      filename: 'keepme.png', mime: 'image/png', bytes: PNG_1x1,
+    });
+    fileUrl = legacy.url;
+    msgId = legacy.message.id;
   });
 
   test('A 个人删除该消息后：B 依然能正常访问文件（不是安全边界，只是A自己的可见性）', async () => {

@@ -146,7 +146,7 @@ describe('P1-03 上传磁盘耗尽防护', () => {
       .post(`/api/messages/${convId}/upload`)
       .set('Authorization', `Bearer ${u1.token}`)
       .field('reply_to_id', '')
-      .attach('file', Buffer.alloc(MAX + 1), 'huge.png');
+      .attach('file', Buffer.alloc(MAX + 1), 'huge.txt');
     expect(res.status).toBe(413);
     const after = require('fs').readdirSync(require('path').join(require('../src/config').uploadsRoot, 'files')).length;
     expect(after).toBe(before); // multer 超限自动清理已写部分
@@ -162,7 +162,7 @@ describe('P1-03 上传磁盘耗尽防护', () => {
           .post(`/api/messages/${convId}/upload`)
           .set('Authorization', `Bearer ${u1.token}`)
           .field('reply_to_id', '')
-          .attach('file', b, `par${i}.png`)
+          .attach('file', b, `par${i}.txt`)
       )
     );
     const statuses = results.map(r => r.status);
@@ -189,7 +189,7 @@ describe('P1-03 上传磁盘耗尽防护', () => {
         .post(`/api/messages/${convId}/upload`)
         .set('Authorization', `Bearer ${u1.token}`)
         .field('reply_to_id', '')
-        .attach('file', Buffer.alloc(1024 * 1024, i + 1), `done${i}.png`);
+        .attach('file', Buffer.alloc(1024 * 1024, i + 1), `done${i}.txt`);
       expect(r.status).toBe(200);
     }
     const bufs = Array.from({ length: MAX_CONCURRENT_UPLOADS }, (_, i) => Buffer.alloc(1024 * 1024, i + 9));
@@ -199,7 +199,7 @@ describe('P1-03 上传磁盘耗尽防护', () => {
           .post(`/api/messages/${convId}/upload`)
           .set('Authorization', `Bearer ${u1.token}`)
           .field('reply_to_id', '')
-          .attach('file', b, `parM1_${i}.png`)
+          .attach('file', b, `parM1_${i}.txt`)
       )
     );
     const statuses = results.map(r => r.status);
@@ -215,11 +215,26 @@ describe('P1-03 上传磁盘耗尽防护', () => {
     }
   });
 
-  test('background-upload 超大图片（>5MB）→ 413（已切回 5MB 图片上传器）', async () => {
-    const res = await request(app)
+  test('background-upload 停用保持 503；底层超大图片（>5MB）仍为 413', async () => {
+    const stopped = await request(app)
       .post(`/api/messages/conversation/${convId}/background-upload`)
       .set('Authorization', `Bearer ${u1.token}`)
       .attach('file', Buffer.alloc(6 * 1024 * 1024, 7), 'bg.png');
+    expect(stopped.status).toBe(503);
+    expect(stopped.body.error_code).toBe('MEDIA_MODERATION_UNAVAILABLE');
+
+    // 使用控制器导出的真实 5MB 上传链，只在独立测试 app 中隔离停用门禁。
+    const { bgUploadMiddleware } = require('../src/modules/messages/messages.controller');
+    const [diskGuard, policyGate, ...imageValidation] = bgUploadMiddleware;
+    expect(policyGate.name).toBe('rejectVisualUpload');
+    const validationApp = require('express')();
+    validationApp.post('/background', (req, _res, next) => { req.user = { id: u1.userId }; next(); },
+      diskGuard, ...imageValidation, (_req, res) => res.sendStatus(200));
+    const dir = require('path').join(require('../src/config').uploadsRoot, 'bg');
+    const before = require('fs').readdirSync(dir).sort();
+    const res = await request(validationApp).post('/background')
+      .attach('file', Buffer.alloc(6 * 1024 * 1024, 7), { filename: 'bg.png', contentType: 'image/png' });
     expect(res.status).toBe(413);
+    expect(require('fs').readdirSync(dir).sort()).toEqual(before);
   });
 });
