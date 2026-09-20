@@ -40,16 +40,28 @@ function lookupFile(path) {
   return getDb().prepare('SELECT * FROM file_registry WHERE path=?').get(path);
 }
 
-/**
- * 转发文件到新会话后的授权登记——只能由服务端 forward() 调用，传入的 conversationId
- * 必须是转发者已通过 requireMember 校验过的目标会话，绝不能接受客户端直接声称的值。
- * 幂等：同一 (path, conversationId) 重复调用不报错。
+// A readable message (or a historical share) does not establish ownership of its file.
+// Check the upload's registered owner or current ORIGINAL conversation membership.
+const referenceAccessSql = `SELECT 1 FROM file_registry r WHERE r.path=? AND
+  (r.owner_id=? OR EXISTS (SELECT 1 FROM conversation_members cm
+    WHERE cm.conversation_id=r.conversation_id AND cm.user_id=?))`;
+function canReferenceFile(path, userId) {
+  return !!getDb().prepare(referenceAccessSql).get(path, userId, userId);
+}
+
+/** Include this op in the SAME worker transaction as the message and sync event.
+ * Recheck current authority at commit time, including the destination membership.
+ * The NOT NULL constraint fails closed; only duplicate grants are ignored.
  */
-function shareFileToConversation(path, conversationId) {
-  if (!path || !conversationId) return;
-  getDb().prepare(
-    'INSERT OR IGNORE INTO file_registry_shares (path, conversation_id) VALUES (?, ?)'
-  ).run(path, conversationId);
+function fileShareOp(path, conversationId, userId) {
+  return {
+    sql: `INSERT INTO file_registry_shares (path, conversation_id) VALUES (?,
+      CASE WHEN EXISTS (${referenceAccessSql}) AND EXISTS
+        (SELECT 1 FROM conversation_members WHERE conversation_id=? AND user_id=?)
+      THEN ? ELSE NULL END)
+      ON CONFLICT(path, conversation_id) DO NOTHING`,
+    params: [path, path, userId, userId, conversationId, userId, conversationId],
+  };
 }
 
 /**
@@ -95,4 +107,4 @@ function backfillRegistry() {
   ).run();
 }
 
-module.exports = { registerFile, lookupFile, backfillRegistry, shareFileToConversation };
+module.exports = { registerFile, lookupFile, backfillRegistry, canReferenceFile, fileShareOp };

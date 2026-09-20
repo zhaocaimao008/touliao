@@ -15,7 +15,7 @@ const broadcaster = require('../../realtime/broadcaster');
 // 会话列表缓存失效：发消息/转发/撤回改变会话「最新消息/排序」，需失效该会话所有成员
 // (收发双方/群全员)的会话列表缓存。conversations.service 只 require messages/shared，无循环依赖。
 const convSvc = require('../conversations/conversations.service');
-const { shareFileToConversation } = require('../../utils/fileRegistry');
+const { canReferenceFile, fileShareOp } = require('../../utils/fileRegistry');
 const { appendConversationEvent, emitSyncAvailable } = require('./sync.service');
 const moderation = require('../moderation/moderation.service');
 
@@ -336,6 +336,9 @@ async function forward(io, userId, { msgId, msgIds, conversationIds, client_batc
     if (!m || !FORWARDABLE_TYPES.has(m.type)) { failedMessageIds.push(id); failureReasons.set(id, '消息不存在或不支持转发'); continue; }
     try { requireMember(m.conversation_id, userId, '无权转发该消息'); }
     catch { failedMessageIds.push(id); failureReasons.set(id, '无权转发该消息'); continue; }
+    if (m.file_url && !canReferenceFile(m.file_url, userId)) {
+      failedMessageIds.push(id); failureReasons.set(id, '无权转发该附件'); continue;
+    }
     msgs.push(m);
   }
 
@@ -366,11 +369,7 @@ async function forward(io, userId, { msgId, msgIds, conversationIds, client_batc
     allowedConvIds.forEach(convId => {
       const id = uuidv4();
       targets.push({ convId, id, source: msg });
-      // 转发者此刻已通过上面的 requireMember(m.conversation_id,...) 与 allowedConvIds 过滤，
-      // 即已合法持有该文件的原始访问权、且 convId 是转发者本人真实所在的会话——在此把
-      // (file_url, convId) 登记进 file_registry_shares，供 /uploads 授权判断识别"转发到的
-      // 新会话成员"，而不必信任 messages 表本身（登记动作只由服务端在这条已校验路径上触发）。
-      if (msg.file_url) shareFileToConversation(msg.file_url, convId);
+      // The share is committed below with the message, never ahead of it.
     });
   });
 
@@ -384,7 +383,7 @@ async function forward(io, userId, { msgId, msgIds, conversationIds, client_batc
         conversationId: convId, eventType: 'message_created', messageId: id, actorId: userId,
         batchId, clientBatchId,
         payload: { batch_id: batchId, client_batch_id: clientBatchId, source_message_id: source.id },
-        ops: [{
+        ops: [...(source.file_url ? [fileShareOp(source.file_url, convId, userId)] : []), {
           sql: 'INSERT INTO messages (id,conversation_id,sender_id,type,content,file_url,duration,batch_id,client_batch_id,server_sequence) VALUES (?,?,?,?,?,?,?,?,?,?)',
           params: [id, convId, userId, source.type, source.content, source.file_url || '', source.duration || 0, batchId, clientBatchId, SEQUENCE_PARAM],
         }],

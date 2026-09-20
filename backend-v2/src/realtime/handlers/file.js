@@ -8,7 +8,7 @@ const presence = require('../presence');
 const broadcaster = require('../broadcaster');
 const prodMetrics = require('../../utils/prodMetrics');
 const { privateSendGuard } = require('../../modules/messages/shared');
-const { lookupFile } = require('../../utils/fileRegistry');
+const { canReferenceFile, fileShareOp } = require('../../utils/fileRegistry');
 const { appendConversationEvent, emitSyncAvailable } = require('../../modules/messages/sync.service');
 
 const TYPE_FALLBACK = { image: '[图片]', voice: '[语音]', video: '[视频]', file: '[文件]' };
@@ -65,10 +65,9 @@ module.exports = function registerFileHandler(io, socket) {
       ack?.({ success: false, error: '文件 URL 非法：须为本站上传路径或已配置的云存储域名' }); return;
     }
 
-    // P1-02：本地文件必须已登记在 file_registry（上传流程写入），
-    // 防攻击者植入任意 /uploads/ URL 到消息行冒充自己的附件（planted-row 攻击）。
-    if (isLocalUrl && !lookupFile(file_url)) {
-      ack?.({ success: false, error: '文件不存在或已失效' }); return;
+    // F-02: existence alone cannot authorize a reference, including legacy CDN URLs.
+    if (!canReferenceFile(file_url, userId)) {
+      ack?.({ success: false, error: '无权使用该文件或文件已失效' }); return;
     }
 
     // ── 幂等性去重（fix: 防止弱网 ack 超时重发导致消息重复）──
@@ -122,7 +121,7 @@ module.exports = function registerFileHandler(io, socket) {
       if (!parent) { ack?.({ success: false, error: '被回复消息不存在' }); return; }
       const sequenced = await appendConversationEvent({
         conversationId, eventType: 'message_created', messageId: id, actorId: userId,
-        ops: [{
+        ops: [fileShareOp(file_url, conversationId, userId), {
           sql: 'INSERT INTO messages (id,conversation_id,sender_id,type,content,file_url,duration,reply_to_id,created_at,client_msg_id,server_sequence) VALUES (?,?,?,?,?,?,?,?,?,?,?)',
           params: [id, conversationId, userId, type, safeContent, file_url, duration, reply_to_id, created_at, clientMsgId || null, SEQUENCE_PARAM],
         }],
@@ -136,7 +135,7 @@ module.exports = function registerFileHandler(io, socket) {
     } else {
       const sequenced = await appendConversationEvent({
         conversationId, eventType: 'message_created', messageId: id, actorId: userId,
-        ops: [{
+        ops: [fileShareOp(file_url, conversationId, userId), {
           sql: 'INSERT INTO messages (id,conversation_id,sender_id,type,content,file_url,duration,reply_to_id,created_at,client_msg_id,server_sequence) VALUES (?,?,?,?,?,?,?,?,?,?,?)',
           params: [id, conversationId, userId, type, safeContent, file_url, duration, null, created_at, clientMsgId || null, SEQUENCE_PARAM],
         }],
