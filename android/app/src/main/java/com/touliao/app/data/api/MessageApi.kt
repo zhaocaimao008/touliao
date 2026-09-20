@@ -132,7 +132,7 @@ interface MessageApi {
 
     /** 转发消息到多个会话 */
     @POST("api/messages/forward")
-    suspend fun forward(@Body body: com.touliao.app.data.model.ForwardBody)
+    suspend fun forward(@Body body: com.touliao.app.data.model.ForwardBody): com.touliao.app.data.model.ForwardResult
 
     /**
      * HTTP 发消息（F4a 合并转发）：文本常规走 socket，此通道用于 type=merged
