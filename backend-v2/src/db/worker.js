@@ -32,6 +32,16 @@ let timer = null;
 const SEQUENCE_PARAM = '__TOULIAO_SERVER_SEQUENCE__';
 
 function runItem(item) {
+  if (!item.operationId) return applyItem(item);
+  const committed = stmt('SELECT result_json FROM writer_receipts WHERE operation_id=?').get(item.operationId);
+  if (committed) return JSON.parse(committed.result_json);
+  const result = applyItem(item);
+  stmt('INSERT INTO writer_receipts(operation_id,result_json) VALUES (?,?)')
+    .run(item.operationId, JSON.stringify(result));
+  return result;
+}
+
+function applyItem(item) {
   if (item.type === 'writeSequencedEvent') {
     const allocated = stmt(`
       INSERT INTO conversation_sequences (conversation_id,last_sequence) VALUES (?,1)
@@ -71,7 +81,7 @@ function flushBatch(batch) {
     for (const item of batch) {
       try {
         let result;
-        if (item.ops || item.type === 'writeSequencedEvent') result = db.transaction(() => runItem(item))();
+        if (item.operationId || item.ops || item.type === 'writeSequencedEvent') result = db.transaction(() => runItem(item))();
         else result = runItem(item);
         if (item.reqId != null) parentPort.postMessage({ type: 'ack', ids: [item.reqId], result });
       } catch (itemErr) {

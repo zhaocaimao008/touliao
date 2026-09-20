@@ -7,9 +7,12 @@
  *
  * 容错：worker 非零退出自动重启（500ms），重启窗口内写操作缓存 retryQueue；
  * writeAsync 未决操作记录 _pendingOps，崩溃后加入 retryQueue 重放，
- * 保证 Promise 最终 resolve（已入库的 INSERT 由 UNIQUE 冲突静默忽略）。
+ * 每个确认型写入携带稳定 operationId；worker 在同一事务写入持久化回执，
+ * 重放读取已提交结果，避免 UNIQUE 冲突或非幂等 UPDATE 再执行。
  */
 const { Worker } = require('worker_threads');
+const { randomUUID } = require('crypto');
+const writerSession = randomUUID();
 const { performance } = require('perf_hooks');
 const path = require('path');
 const config = require('../config');
@@ -75,9 +78,12 @@ function createWorker() {
     console.error('[dbWriter] Worker crashed (code %d), restarting in %dms …', code, RESTART_DELAY);
     isRestarting = true;
     // 未决操作（write / writeBatch）原样重新入队，待新 worker 起来后重放
-    for (const [, msg] of _pendingOps) {
-      retryQueue.unshift(msg);
-    }
+    // A request buffered during restart is already in _pendingOps. Deduplicate
+    // before replay, preserving request order even across a second crash.
+    const pending = new Map([..._pendingOps.values(), ...retryQueue]
+      .filter(msg => msg.reqId != null).map(msg => [msg.reqId, msg]));
+    const untracked = retryQueue.filter(msg => msg.reqId == null);
+    retryQueue.splice(0, retryQueue.length, ...[...pending.values()].sort((a,b) => a.reqId-b.reqId), ...untracked);
     _pendingOps.clear();
     setTimeout(() => {
       worker = createWorker();
@@ -122,7 +128,7 @@ function writeAsync(sql, params = []) {
     return Promise.reject(new Error('WRITE_QUEUE_OVERLOAD'));
   }
   const id = ++_reqId;
-  const msg = { type: 'write', sql, params, reqId: id };
+  const msg = { type: 'write', sql, params, reqId: id, operationId: `${writerSession}:${id}` };
   _pendingOps.set(id, msg);
   const t0 = performance.now();
   return new Promise((resolve, reject) => {
@@ -142,7 +148,7 @@ function writeBatch(ops) {
     return Promise.reject(new Error('WRITE_QUEUE_OVERLOAD'));
   }
   const id = ++_reqId;
-  const msg = { type: 'writeBatch', ops, reqId: id };
+  const msg = { type: 'writeBatch', ops, reqId: id, operationId: `${writerSession}:${id}` };
   _pendingOps.set(id, msg);
   const t0 = performance.now();
   return new Promise((resolve, reject) => {
@@ -165,7 +171,7 @@ function writeSequencedEvent({ conversationId, event, ops = [] }) {
     return Promise.reject(new Error('WRITE_QUEUE_OVERLOAD'));
   }
   const id = ++_reqId;
-  const msg = { type: 'writeSequencedEvent', conversationId, event, ops, reqId: id };
+  const msg = { type: 'writeSequencedEvent', conversationId, event, ops, reqId: id, operationId: `${writerSession}:${id}` };
   _pendingOps.set(id, msg);
   const t0 = performance.now();
   return new Promise((resolve, reject) => {
