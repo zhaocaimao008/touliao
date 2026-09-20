@@ -1,7 +1,6 @@
 import { useSocialRevision } from '../hooks/useSocialRevision';
 import { readAllDrafts } from '../utils/draftStore';
 import TouliaoIcon from '../ui-kit/Icon';
-import { clientStorage as localStorage } from '../utils/clientStorage';
 import React, { useState, useEffect, useCallback, memo, useMemo } from 'react';
 import axios from 'axios';
 import Avatar from './Avatar';
@@ -187,15 +186,18 @@ export default function ChatList({ onSelectConv, activeConvId, unread = {}, sear
     onSelectConv(conv);
   }, [onSelectConv]);
 
+  // eslint-disable-next-line react-hooks/set-state-in-effect -- Invalidation must clear private projections before the replacement GET resolves.
   useEffect(() => { fetchConvs(); }, [fetchConvs, socialRevision]);
 
   // 重连后刷新会话列表（补回未读数和最新消息预览）
   useEffect(() => {
     if (reconnectCount === 0) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- Invalidation must clear private projections before the replacement GET resolves.
     fetchConvs();
   }, [reconnectCount, fetchConvs]);
 
   // 好友通过 / new_conversation 事件触发时刷新
+  // eslint-disable-next-line react-hooks/set-state-in-effect -- Invalidation must clear private projections before the replacement GET resolves.
   useEffect(() => { fetchConvs(); }, [convRefreshKey, fetchConvs]);
 
   useEffect(() => {

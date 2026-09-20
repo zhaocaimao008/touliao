@@ -98,6 +98,7 @@ export default function ContactList({ onStartChat, searchQuery = '', addFriendRe
       .catch(() => setAiBots([])), []);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- Invalidation must clear private projections before the replacement GET resolves.
     setContacts([]); setBlockedUsers([]);
     fetchContacts(); fetchRequests(); fetchSent(); fetchBlocked(); fetchGroups(); fetchLabels(); fetchAiBots();
   }, [fetchContacts, fetchRequests, fetchSent, fetchBlocked, fetchGroups, fetchLabels, fetchAiBots, socialRevision]);

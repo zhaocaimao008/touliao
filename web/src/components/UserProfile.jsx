@@ -49,6 +49,7 @@ export default function UserProfile({ userId, onClose, onStartChat, onFriendAdde
 
   useEffect(() => {
     let alive = true;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- Invalidation must clear private projections before the replacement GET resolves.
     setUser(null); setLoading(true);
     axios.get(`/api/users/${userId}`).then(r => {
       if (!alive) return;

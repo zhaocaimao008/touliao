@@ -1,6 +1,5 @@
 import { readDraft, writeDraft, clearDraft } from '../utils/draftStore';
 import TouliaoIcon from '../ui-kit/Icon';
-import { clientStorage as localStorage } from '../utils/clientStorage';
 
 import React, { useState, useEffect, useRef, useCallback, useMemo, useReducer, lazy, Suspense } from 'react';
 import { createPortal } from 'react-dom';
@@ -269,6 +268,7 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
   const inputAreaRef = useRef(null);
   const { socket, reconnectCount, registerDelivered } = useSocket();
   const { user, outboxScope } = useAuth();
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- Capture a fresh owner when the account or conversation changes; delayed saves keep this captured owner.
   const draftOwner = useMemo(() => captureSession(), [outboxScope, conversation.id]);
   const [renderOwner, setRenderOwner] = useState(outboxScope);
   if (renderOwner !== outboxScope) {

@@ -313,6 +313,7 @@ export default function Moments() {
   // 初次挂载拉取：loading 初值已为 true，effect 内不做同步 setState（避免级联渲染）
   useEffect(() => {
     let alive = true;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- Invalidation must clear private projections before the replacement GET resolves.
     setList([]); setNotifList(null); setFriends([]); setNotifCount(0);
     axios.get('/api/moments')
       .then(r => { if (alive) { setList(r.data); setLoadError(false); } })

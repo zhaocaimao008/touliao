@@ -9,7 +9,7 @@ let a, b, outsider, conv, message, reply;
 beforeAll(async () => {
   a = await makeUser(); b = await makeUser(); outsider = await makeUser();
   await befriend(a, b); conv = await privateConversation(a, b);
-  message = (await auth(request(app).post(`/api/messages/${conv}`), a).send({type:'text',content:'SYNTHETIC_BURN_SECRET'})).body;
+  message = (await auth(request(app).post(`/api/messages/${conv}`), a).send({type:'text',content:'SYNTHETIC_BURN_SECRET @'+b.username})).body;
   reply = (await auth(request(app).post(`/api/messages/${conv}`), a).send({type:'text',content:'allowed reply',reply_to_id:message.id})).body;
 });
 afterEach(() => jest.restoreAllMocks());
@@ -21,6 +21,8 @@ test('legal pre-removal access; unauthorized deletion rejected; recipient remova
   expect(JSON.stringify((await auth(request(app).get(`/api/messages/${conv}`), a)).body)).toContain('SYNTHETIC_BURN_SECRET');
 });
 test.each([
+  ['mentions', () => '/api/messages/mentions/me'],
+  ['global search', () => '/api/messages/search?q=SYNTHETIC_BURN_SECRET'],
   ['history', () => `/api/messages/${conv}`],
   ['missed', () => '/api/messages/missed?after=1'],
   ['sync including older create events', () => `/api/messages/${conv}/sync?cursor=0`],
@@ -54,4 +56,51 @@ test('old file ticket is reauthorized; unrelated valid recipient retains attachm
   expect((await request(app).get(ticket.body.url)).status).toBe(403);
   expect((await auth(request(app).get(up.body.file_url),b)).status).toBe(403);
   expect((await auth(request(app).get(up.body.file_url),a)).status).toBe(200);
+  await befriend(a,outsider);
+  const group=await auth(request(app).post('/api/messages/conversation/group'),a).send({name:'synthetic permitted share',memberIds:[b.userId,outsider.userId]});
+  const forwarded=await auth(request(app).post('/api/messages/forward'),a).send({msgId:up.body.id,conversationIds:[group.body.conversationId]});
+  expect(forwarded.status).toBe(200);
+  expect((await auth(request(app).get(up.body.file_url),b)).status).toBe(200); // Independent, explicitly authorized reference remains live.
+});
+
+test('write failure can retry; replay is harmless and does not corrupt other users', async () => {
+  const m=await svc.send(null,conv,a.userId,{content:'SYNTHETIC retry',type:'text'});
+  db.exec(`CREATE TRIGGER synthetic_delete_failure BEFORE INSERT ON user_message_deletions BEGIN SELECT RAISE(ABORT,'synthetic failure'); END`);
+  try {
+    await expect(svc.remove(null,b.userId,m.id,false,false,true)).rejects.toThrow();
+    expect(db.prepare('SELECT 1 FROM user_message_deletions WHERE message_id=?').get(m.id)).toBeUndefined();
+  } finally { db.exec('DROP TRIGGER synthetic_delete_failure'); }
+  await svc.remove(null,b.userId,m.id,false,false,true);
+  await Promise.all([svc.remove(null,b.userId,m.id,false,false,true),svc.remove(null,b.userId,m.id,false,false,true)]);
+  expect(svc.history(conv,b.userId,{}).some(x=>x.id===m.id)).toBe(false);
+  expect(svc.history(conv,a.userId,{}).some(x=>x.id===m.id)).toBe(true);
+});
+
+test('fresh server process still denies removed history without an in-memory timer or cleanup worker', () => {
+  const {execFileSync}=require('child_process');
+  const script=`const svc=require('./src/modules/messages/messages.service');
+    const visible=svc.history(process.argv[1],process.argv[2],{});
+    console.log('SYNTHETIC_RESULT:'+JSON.stringify({present:visible.some(m=>m.id===process.argv[3]),quoted:JSON.stringify(visible).includes('SYNTHETIC_BURN_SECRET')}));process.exit(0);`;
+  const stdout=execFileSync(process.execPath,['-e',script,conv,b.userId,message.id],{cwd:require('path').resolve(__dirname,'..'),env:process.env,encoding:'utf8'});
+  const line=stdout.split('\n').find(x=>x.startsWith('SYNTHETIC_RESULT:'));
+  expect(JSON.parse(line.slice('SYNTHETIC_RESULT:'.length))).toEqual({present:false,quoted:false});
+});
+
+test('global removal clears old edit payloads as well as the authoritative body, idempotently', async () => {
+  const m=await svc.send(null,conv,a.userId,{content:'SYNTHETIC original',type:'text'});
+  await svc.edit(null,a.userId,m.id,'SYNTHETIC edited body');
+  expect(JSON.stringify(db.prepare('SELECT payload FROM conversation_events WHERE message_id=?').all(m.id))).toContain('SYNTHETIC edited body');
+  await svc.remove(null,a.userId,m.id,false,true,false);
+  await svc.remove(null,a.userId,m.id,false,true,false);
+  expect(db.prepare('SELECT content,file_url,deleted FROM messages WHERE id=?').get(m.id)).toEqual({content:'',file_url:'',deleted:2});
+  expect(JSON.stringify(db.prepare('SELECT payload FROM conversation_events WHERE message_id=?').all(m.id))).not.toContain('SYNTHETIC');
+  expect((await auth(request(app).get(`/api/messages/${conv}/sync?cursor=0`),b)).text).not.toContain('SYNTHETIC edited body');
+});
+
+test('authenticated attachment response is not made public immutable by CDN middleware', async () => {
+  const png=Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==','base64');
+  const up=await auth(request(app).post(`/api/messages/${conv}/upload`),a).attach('file',png,{filename:'synthetic.png',contentType:'image/png'});
+  expect(up.status).toBe(200);
+  const read=await auth(request(app).get(up.body.file_url),b);
+  expect(read.status).toBe(200);expect(read.headers['cache-control']).toBe('private, no-store');
 });

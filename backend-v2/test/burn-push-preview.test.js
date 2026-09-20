@@ -1,0 +1,25 @@
+'use strict';
+jest.mock('web-push', () => ({setVapidDetails:jest.fn(),sendNotification:jest.fn(async()=>({}))}));
+const {makeUser,befriend,privateConversation}=require('./helpers');
+const {db}=require('../src/db/connection');
+const messages=require('../src/modules/messages/messages.service');
+const conversations=require('../src/modules/conversations/conversations.service');
+const push=require('../src/utils/push');
+const transport=require('web-push');
+test('burn preview stays generic; deletion before push dispatch revokes the payload; ordinary preview is unchanged',async()=>{
+  const a=await makeUser(),b=await makeUser();await befriend(a,b);const conv=await privateConversation(a,b);
+  db.prepare('INSERT INTO push_subscriptions(id,user_id,endpoint,subscription) VALUES(?,?,?,?)').run('synthetic-'+b.userId,b.userId,'https://fcm.googleapis.com/synthetic',JSON.stringify({endpoint:'https://fcm.googleapis.com/synthetic',keys:{auth:'synthetic',p256dh:'synthetic'}}));
+  const m=await messages.send(null,conv,a.userId,{type:'text',content:'SYNTHETIC_PUSH_BODY'});
+  const notification={messageId:m.id,conversationId:conv,senderId:a.userId,senderName:'synthetic',content:m.content,type:'text',timestamp:m.created_at};
+  await push.pushNewMessage(notification);
+  expect(JSON.stringify(transport.sendNotification.mock.calls)).toContain('SYNTHETIC_PUSH_BODY');
+  transport.sendNotification.mockClear();
+  await conversations.setBurnAfter(b.userId,conv,60);
+  await push.pushNewMessage(notification);
+  expect(transport.sendNotification).toHaveBeenCalledTimes(1);
+  expect(JSON.stringify(transport.sendNotification.mock.calls)).not.toContain('SYNTHETIC_PUSH_BODY');
+  transport.sendNotification.mockClear();
+  await messages.remove(null,b.userId,m.id,false,false,true);
+  await push.pushNewMessage(notification);
+  expect(transport.sendNotification).not.toHaveBeenCalled();
+});

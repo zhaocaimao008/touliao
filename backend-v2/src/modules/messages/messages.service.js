@@ -19,7 +19,7 @@ const { shareFileToConversation } = require('../../utils/fileRegistry');
 const { appendConversationEvent, emitSyncAvailable } = require('./sync.service');
 const moderation = require('../moderation/moderation.service');
 
-const { canReadMessage, projectMessage, emitVisible } = require('./visibility');
+const { canReadMessage, projectReply, projectMessage, emitVisible } = require('./visibility');
 const MAX = config.limits.maxMsgLength;
 
 // ── 历史消息（批量 replyTo + reactions，群已读数 / 私聊送达）──────
@@ -122,7 +122,7 @@ function history(convId, userId, { before, after, limit, beforeId }) {
   }
 
   return messages.map(msg => {
-    msg.replyTo   = msg.reply_to_id ? (canReadMessage(userId, msg.reply_to_id) ? (replyMap.get(msg.reply_to_id) || null) : null) : null;
+    msg.replyTo   = msg.reply_to_id ? projectReply(userId, replyMap.get(msg.reply_to_id)) : null;
     msg.reactions = reactionsMap.get(msg.id) || [];
     if (conv?.type === 'private') {
       msg._delivered = deliverySet.has(msg.id);
@@ -189,7 +189,7 @@ function missed(io, userId, after) {
   }
 
   const enriched = messages.map(msg => {
-    msg.replyTo = msg.reply_to_id ? (canReadMessage(userId, msg.reply_to_id) ? (replyMap.get(msg.reply_to_id) || null) : null) : null;
+    msg.replyTo = msg.reply_to_id ? projectReply(userId, replyMap.get(msg.reply_to_id)) : null;
     msg.reactions = reactionsMap.get(msg.id) || [];
     return msg;
   });
@@ -996,7 +996,7 @@ function aroundMessage(convId, msgId, userId) {
 
   return {
     messages: messages.map(msg => {
-      msg.replyTo   = msg.reply_to_id ? (canReadMessage(userId, msg.reply_to_id) ? (replyMap.get(msg.reply_to_id) || null) : null) : null;
+      msg.replyTo   = msg.reply_to_id ? projectReply(userId, replyMap.get(msg.reply_to_id)) : null;
       msg.reactions = reactionsMap.get(msg.id) || [];
       return msg;
     }),
@@ -1214,6 +1214,8 @@ function getMentions(userId, { offset = 0, limit = 20, before, beforeId }) {
     JOIN conversation_members cm
          ON cm.conversation_id = m.conversation_id AND cm.user_id = ?
     WHERE m.deleted = 0
+      AND NOT EXISTS (SELECT 1 FROM user_message_deletions d WHERE d.message_id=m.id AND d.user_id=cm.user_id)
+      AND m.rowid>COALESCE((SELECT cleared_rowid FROM conversation_clears WHERE user_id=cm.user_id AND conversation_id=m.conversation_id),0)
       AND m.sender_id != ?
       AND instr(m.content, ?) > 0
   `;

@@ -176,6 +176,7 @@ export default function GroupInfo({ conversation, currentUserId, onClose, onLeav
   // 初次挂载 / 切换会话：loading 初值已为 true，effect 内不做同步 setState
   useEffect(() => {
     let alive = true;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- Invalidation must clear private projections before the replacement GET resolves.
     setInfo(null); setLoading(true);
     axios.get(`/api/messages/conversation/${conversation.id}/info`)
       .then(r => { if (alive) applyInfo(r.data); })

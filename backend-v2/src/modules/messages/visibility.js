@@ -13,9 +13,16 @@ function canReadMessage(userId, messageId) {
     .get(userId, messageId);
 }
 
+function projectReply(userId, reply) {
+  if (!reply) return null;
+  if (canReadMessage(userId, reply.id)) return reply;
+  const current = db.prepare('SELECT deleted FROM messages WHERE id=?').get(reply.id);
+  return current?.deleted ? { id: reply.id, type: reply.type, content: '', file_url: '', deleted: current.deleted, senderName: '' } : null;
+}
+
 function projectMessage(userId, message) {
   if (!message || !canReadMessage(userId, message.id)) return null;
-  return { ...message, replyTo: message.replyTo && canReadMessage(userId, message.replyTo.id) ? message.replyTo : null };
+  return { ...message, replyTo: projectReply(userId, message.replyTo) };
 }
 
 function projectEvent(userId, event, payload) {
@@ -36,4 +43,4 @@ function emitVisible(io, conversationId, event, payload) {
   }
 }
 
-module.exports = { canReadMessage, projectMessage, projectEvent, emitVisible };
+module.exports = { projectReply, canReadMessage, projectMessage, projectEvent, emitVisible };

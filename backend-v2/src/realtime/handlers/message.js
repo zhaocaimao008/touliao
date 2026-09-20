@@ -209,7 +209,7 @@ module.exports = function registerMessageHandler(io, socket) {
           io.to(`user_${userId}`).emit('message_delivered', { messageId: id, conversationId, deliveredCount: onlineRecipients.length });
         }
         pushNewMessage({
-          conversationId, senderId: userId, senderName: msg.senderName, content, type,
+          messageId: id, conversationId, senderId: userId, senderName: msg.senderName, content, type,
           timestamp: created_at, onlineUserIds: presence.onlineUserIdSet(), members,
         }).catch(() => {});
       } catch (err) {

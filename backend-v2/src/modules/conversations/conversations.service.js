@@ -224,6 +224,7 @@ async function listConversations(uid, { includeArchived = false, offset = 0, lim
         WHERE  mu.conversation_id = c.id
           AND  mu.sender_id      != ?
           AND  mu.deleted         = 0
+          AND NOT EXISTS (SELECT 1 FROM user_message_deletions d WHERE d.message_id=mu.id AND d.user_id=cm.user_id)
           AND  mu.created_at      > COALESCE(cs.last_read_at, 0)
           AND  mu.rowid > COALESCE((SELECT cleared_rowid FROM conversation_clears
                                               WHERE user_id=? AND conversation_id=c.id), 0)
@@ -234,6 +235,7 @@ async function listConversations(uid, { includeArchived = false, offset = 0, lim
         WHERE  mm.conversation_id = c.id
           AND  mm.sender_id      != ?
           AND  mm.deleted         = 0
+          AND NOT EXISTS (SELECT 1 FROM user_message_deletions d WHERE d.message_id=mm.id AND d.user_id=cm.user_id)
           AND  mm.created_at      > COALESCE(cs.last_read_at, 0)
           AND  c.type             = 'group'
           AND  ? != ''

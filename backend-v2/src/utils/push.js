@@ -216,7 +216,7 @@ function buildBody(type, content, lang) {
   return pushI18n.bodyForMessage(lang, type, content);
 }
 
-async function pushNewMessage({ conversationId, senderId, senderName, content, type, timestamp, onlineUserIds, members: cachedMembers }) {
+async function pushNewMessage({ messageId, conversationId, senderId, senderName, content, type, timestamp, onlineUserIds, members: cachedMembers }) {
   const members = cachedMembers ||
     db.prepare('SELECT user_id FROM conversation_members WHERE conversation_id=?').all(conversationId);
 
@@ -237,6 +237,7 @@ async function pushNewMessage({ conversationId, senderId, senderName, content, t
     SELECT u.id AS user_id,
       COALESCE(cs.last_read_at, 0) AS last_read_at,
       COALESCE(cs.muted, 0) AS muted,
+      COALESCE(cs.burn_after, 0) AS burn_after,
       COALESCE(us.message_notify, 1) AS message_notify,
       COALESCE(us.detail_preview, 1) AS detail_preview,
       COALESCE(us.sound, 1) AS sound,
@@ -272,6 +273,7 @@ async function pushNewMessage({ conversationId, senderId, senderName, content, t
   const unreadMap = new Map(unreadRows.map(r => [r.uid, Math.min(Number(r.cnt) || 0, 99)]));
 
   const pushPromises = targetUids.map(uid => {
+    if (messageId && !require('../modules/messages/visibility').canReadMessage(uid, messageId)) return null;
     const settings = settingsMap.get(uid) || defaultSettings;
     if (!Number(settings.message_notify)) return null;   // 全局关闭新消息通知
     if (Number(settings.muted)) return null;             // 该会话已设免打扰 → 不推送
@@ -281,7 +283,7 @@ async function pushNewMessage({ conversationId, senderId, senderName, content, t
     const lang = pushI18n.normalizeLang(settings.lang);
     return pushToUser(uid, {
       title:   senderName,
-      body:    Number(settings.detail_preview)
+      body:    Number(settings.detail_preview) && !Number(settings.burn_after)
         ? buildBody(type, content, lang)
         : pushI18n.t(lang, 'push.oneNewMessage'),
       lang,

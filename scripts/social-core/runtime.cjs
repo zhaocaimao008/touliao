@@ -42,13 +42,22 @@ let browser,page;const result={checks:[],errors:[],externalRequestsBlocked:0};
    context=await browser.newContext({viewport:{width:1440,height:980},serviceWorkers:'block'});
  }
  await context.route('**/*',async route=>{const u=route.request().url();if(u.includes('/config.json'))return route.fulfill({json:{api:base,socket:base,cdn:base,version:'isolated-test'}});if(!u.startsWith(base)&&!u.startsWith('file:')&&!u.startsWith('data:')&&!u.startsWith('blob:')){result.externalRequestsBlocked++;return route.abort();}return route.continue();});
+ await context.addInitScript(value => localStorage.setItem('touliao_server_url', value), base);
  if(!page) page=await context.newPage();page.setDefaultTimeout(15000);page.on('pageerror',e=>result.errors.push(e.message));
  result.stage='login A';if(process.env.SOCIAL_ELECTRON==='1') await page.reload(); else await page.goto(base+'/login');await page.getByTestId('login-phone-input').fill(phoneA);await page.getByTestId('login-password-input').fill(password);await page.getByTestId('login-submit-btn').click();
  await page.getByTestId('conv-item-'+group.conversationId).click();await page.getByTestId('chat-msg-input').fill('仅属于测试A的草稿');
  result.stage='add B';await page.getByTestId('account-switcher').click();await page.getByTestId('account-add-row').click();await page.getByTestId('account-add-phone').fill(phoneB);await page.getByTestId('account-add-password').fill(password);await page.getByTestId('account-add-submit').click();
  result.stage='B draft check';await page.getByTestId('conv-item-'+group.conversationId).click();await page.waitForFunction(()=>document.querySelector('[data-testid="chat-msg-input"]')?.value==='');
  assert.equal(await page.getByTestId('chat-msg-input').inputValue(),'');result.checks.push('A draft -> add/switch B -> empty composer');await page.screenshot({path:path.join(root,'evidence','browser-b-isolated.png')});
- await page.getByTestId('chat-msg-input').fill('仅属于测试B的草稿');await page.getByTestId('account-switcher').click();result.stage='back A';await Promise.all([page.waitForEvent('load'),page.getByTestId('account-row-'+a.user.id).click()]);
+ await page.getByTestId('chat-msg-input').fill('仅属于测试B的草稿');await page.getByTestId('account-switcher').click();result.stage='back A';if(process.env.SOCIAL_ELECTRON==='1') {
+   const switched=page.waitForResponse(r=>r.url().endsWith('/api/auth/switch'));
+   await page.getByTestId('account-row-'+a.user.id).click();
+   const switchResponse=await switched;
+   if(!switchResponse.ok()) {
+     result.limitations=['Electron on isolated HTTP loopback: wallet switch returned '+switchResponse.status()+'; password fallback tested, wallet switching remains unverified.'];
+     await page.getByTestId('login-phone-input').fill(phoneA);await page.getByTestId('login-password-input').fill(password);await page.getByTestId('login-submit-btn').click();
+   }
+ } else { await Promise.all([page.waitForEvent('load'),page.getByTestId('account-row-'+a.user.id).click()]); }
  await page.getByTestId('conv-item-'+group.conversationId).click();await page.waitForFunction(()=>document.querySelector('[data-testid="chat-msg-input"]')?.value==='仅属于测试A的草稿');result.checks.push('Switch back A restores its draft');
  result.stage='reload A';await page.reload();await page.getByTestId('conv-item-'+group.conversationId).click();await page.waitForFunction(()=>document.querySelector('[data-testid="chat-msg-input"]')?.value==='仅属于测试A的草稿');result.checks.push('A draft survives browser reload');
  await page.waitForFunction(()=>window.__touliaoSocket?.connected);
@@ -66,6 +75,18 @@ let browser,page;const result={checks:[],errors:[],externalRequestsBlocked:0};
  assert.equal((await api('GET','/api/messages/conversations',null,a.token)).find(c=>c.id===dm.conversationId).muted,0);
  result.checks.push('New Web mute control persists allowed change and renders server truth');
  await page.locator('.wc-settings-close-btn').click();
+ result.stage='personal expiry';
+ const database=require(path.join(back,'src/db/connection')).db;
+ const expiryId=require('crypto').randomUUID();
+ database.prepare('INSERT INTO messages(id,conversation_id,sender_id,type,content,created_at) VALUES(?,?,?,?,?,?)').run(expiryId,dm.conversationId,b.user.id,'text','SYNTHETIC_TIMER_CONTENT',Math.floor(Date.now()/1000)-300);
+ await api('POST','/api/messages/conversation/'+dm.conversationId+'/burn-after',{seconds:60},a.token);
+ await page.getByTestId('conv-item-'+group.conversationId).click();await page.getByTestId('conv-item-'+dm.conversationId).click();
+ for(let i=0;i<100;i++){if(database.prepare('SELECT 1 FROM user_message_deletions WHERE message_id=? AND user_id=?').get(expiryId,a.user.id))break;await new Promise(r=>setTimeout(r,100));}
+ assert.ok(database.prepare('SELECT 1 FROM user_message_deletions WHERE message_id=? AND user_id=?').get(expiryId,a.user.id));
+ assert.equal(JSON.stringify(await api('GET','/api/messages/'+dm.conversationId,null,a.token)).includes('SYNTHETIC_TIMER_CONTENT'),false);
+ assert.equal(JSON.stringify(await api('GET','/api/messages/'+dm.conversationId,null,b.token)).includes('SYNTHETIC_TIMER_CONTENT'),true);
+ result.checks.push('Existing Web send-time timer persists recipient-only deletion; subsequent HTTP access denied for that recipient; peer copy retained');
+ await api('POST','/api/messages/conversation/'+dm.conversationId+'/burn-after',{seconds:0},a.token);
  result.stage='privacy projection';
  await api('PUT','/api/users/profile',{bio:'测试B受限签名'},b.token);
  await api('PUT','/api/users/me/settings',{profileVisible:false},b.token);

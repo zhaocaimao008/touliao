@@ -22,6 +22,7 @@ export function useConvSettings(conversation, onConvUpdate) {
   const [saving, setSaving] = useState(false);
   const [mutationRevision, refreshAfterWrite] = useState(0);
   const onUpdate = useRef(onConvUpdate);
+  // eslint-disable-next-line react-hooks/refs -- Imperative response callback only; never read for rendering. Responses are separately fenced by identity/revision.
   onUpdate.current = onConvUpdate;
 
   useEffect(() => {

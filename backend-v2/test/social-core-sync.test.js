@@ -69,3 +69,20 @@ test('real Socket.IO call is revoked on HTTP blacklist mutation and legacy reque
  expect(await denied).toMatchObject({accepted:false,code:'CONTACT_BLOCKED'});
  expect(calls).toEqual([]);
 });
+
+test('SOCIAL-011: removed body cannot return through live edit, quoted broadcast or duplicate ACK', async () => {
+ const a=await makeUser(),b=await makeUser();await befriend(a,b);const conv=await privateConversation(a,b);
+ const sa=await connect(a),sb=await connect(b);
+ const packet={conversationId:conv,content:'SYNTHETIC_SOCKET_SECRET',type:'text',clientMsgId:require('crypto').randomUUID()};
+ const send=()=>new Promise(resolve=>sa.emit('send_message',packet,resolve));
+ const sent=await send();expect(sent.success).toBe(true);const mid=sent.message.id;
+ await auth(request(app).delete('/api/messages/'+mid),b).send({forMe:true});
+ const changed=[];sb.on('message_edited',x=>changed.push(x));
+ await auth(request(app).put('/api/messages/'+mid+'/edit'),a).send({content:'SYNTHETIC_EDITED_SECRET'});
+ await new Promise(r=>setTimeout(r,30));expect(changed).toEqual([]);
+ const quoted=new Promise(resolve=>sb.once('new_message',resolve));
+ await auth(request(app).post('/api/messages/'+conv),a).send({type:'text',content:'allowed reply',reply_to_id:mid});
+ expect((await quoted).replyTo).toBeNull();
+ await auth(request(app).delete('/api/messages/'+mid),a).send({forMe:true});
+ const retry=await send();expect(retry.success).toBe(true);expect(retry.message.content).toBe('');expect(retry.message.deleted).toBe(2);
+});
