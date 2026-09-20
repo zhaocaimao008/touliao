@@ -519,11 +519,16 @@ final class ChatViewModel: ObservableObject {
                     let payload = buildMergedPayload(msgs, title: mergedForwardTitle(count: min(msgs.count, mergedForwardMaxItems)))
                     let json = encodeMergedContent(payload)
                     var ok = 0
+                    var failed = 0
+                    var firstFailure: String?
                     for convId in conversationIds {
                         do { _ = try await repo.sendMergedForward(conversationId: convId, json: json); ok += 1 }
-                        catch { /* Count each rejected target; keep successful targets visible. */ }
+                        catch {
+                            failed += 1
+                            if firstFailure == nil { firstFailure = (error as? LocalizedError)?.errorDescription ?? "转发失败" }
+                        }
                     }
-                    error = ok == conversationIds.count ? "已合并转发" : "部分结果：成功 \(ok) 项，失败 \(conversationIds.count - ok) 项"
+                    error = failed == 0 ? "已合并转发" : "部分结果：成功 \(ok) 项，失败 \(failed) 项。\(firstFailure ?? "")"
                 } else {
                     error = try await repo.forwardMessages(msgIds: msgs.map { $0.id }, conversationIds: conversationIds).summary
                 }

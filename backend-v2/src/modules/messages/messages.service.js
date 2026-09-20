@@ -22,7 +22,7 @@ const moderation = require('../moderation/moderation.service');
 const MAX = config.limits.maxMsgLength;
 
 // ── 历史消息（批量 replyTo + reactions，群已读数 / 私聊送达）──────
-function history(convId, userId, { before, after, limit, beforeId }) {
+function history(convId, userId, { before, after, limit, beforeId }, io=null) {
   requireMember(convId, userId);
   require('./burn.service').expireDueMessages();
 
@@ -121,6 +121,7 @@ function history(convId, userId, { before, after, limit, beforeId }) {
     });
   }
 
+  require('./burn.service').recordDelivery(userId,messages,io);
   return messages.map(msg => {
     msg.replyTo   = msg.reply_to_id ? (replyMap.get(msg.reply_to_id) || null) : null;
     msg.reactions = reactionsMap.get(msg.id) || [];
@@ -211,17 +212,19 @@ function missed(io, userId, after) {
       });
     }
   }
+  require('./burn.service').recordDelivery(userId,enriched,io);
   return enriched;
 }
 
 // ── HTTP 发送（fallback）────────────────────────────────────────
 async function send(io, convId, userId, { content, type, reply_to_id }) {
-  // merged：合并转发，content 为服务端透传的 JSON（{title,items:[...]}），服务端不解析理解
+  // merged：保留快照协议，但服务端拒绝引用阅后即焚源消息。
   const ALLOWED_HTTP_TYPES = new Set(['text', 'contact_card', 'merged']);
   const safeType = ALLOWED_HTTP_TYPES.has(type) ? type : 'text';
   const maxLen = safeType === 'merged' ? config.limits.maxMergedLength : MAX;
   if (!content || typeof content !== 'string') throw badRequest('消息内容格式错误');
   if (content.length > maxLen) throw badRequest(`消息内容不能超过 ${maxLen} 个字符`);
+  if (safeType === 'merged') require('./burn.service').assertMergedForwardAllowed(content);
   moderation.assertClean(content);
   const member = db.prepare('SELECT role FROM conversation_members WHERE conversation_id=? AND user_id=?').get(convId, userId);
   if (!member) throw forbidden('无权发送');
@@ -282,10 +285,10 @@ async function saveUploadedFile(io, convId, userId, { type, content, fileUrl, re
   // 真实值(魔数校验后的mime、实际接收字节数)，不信任客户端可另外声称的值。
   const sequenced = await appendConversationEvent({
     conversationId: convId, eventType: 'message_created', messageId: id, actorId: userId,
-    ops: [{
+    ops: [fileShareOp(fileUrl, convId, userId), {
       sql: 'INSERT INTO messages (id,conversation_id,sender_id,type,content,file_url,reply_to_id,file_mime,file_size,duration,server_sequence) VALUES (?,?,?,?,?,?,?,?,?,?,?)',
       params: [id, convId, userId, type, content, fileUrl, reply_to_id || null, fileMime || null, fileSize || null, duration || 0, SEQUENCE_PARAM],
-    }, fileShareOp(fileUrl, convId, userId)],
+    }],
   });
   cache.delPattern(`search:*${userId}*`).catch(() => {});
   convSvc.invalidateConvCacheForConversation(convId);
@@ -330,7 +333,8 @@ async function forward(io, userId, { msgId, msgIds, conversationIds, client_batc
       success_count: existingBatch.success_count, failed_count: existingBatch.failed_count,
       failed_message_ids: JSON.parse(existingBatch.failed_message_ids || '[]'),
       retryable_message_ids: JSON.parse(existingBatch.retryable_message_ids || '[]'),
-      ...forwardTargetSummary(JSON.parse(existingBatch.target_results || '[]')),
+      ...(JSON.parse(existingBatch.target_results || '[]').length
+        ? forwardTargetSummary(JSON.parse(existingBatch.target_results)) : {}),
     };
   }
   const batchId = uuidv4();
@@ -1036,7 +1040,7 @@ function exportConversation(convId, userId) {
     SELECT m.created_at, m.type, m.content, m.file_url, m.deleted,
            COALESCE(u.username, '') AS senderName
     FROM messages m LEFT JOIN users u ON u.id=m.sender_id
-    WHERE m.conversation_id=? AND m.deleted=0
+    WHERE m.conversation_id=? AND m.deleted=0 AND m.burn_after=0
       AND m.rowid > COALESCE((SELECT cleared_rowid FROM conversation_clears
                                    WHERE user_id=? AND conversation_id=m.conversation_id), 0)
     ORDER BY m.created_at ASC, m.rowid ASC

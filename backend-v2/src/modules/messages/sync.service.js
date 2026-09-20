@@ -53,7 +53,7 @@ function parseNonNegativeInteger(value, fallback) {
   return n;
 }
 
-function syncConversation(conversationId, userId, query = {}) {
+function syncConversation(conversationId, userId, query = {}, io=null) {
   requireMember(conversationId, userId);
   require('./burn.service').expireDueMessages();
   const cursor = parseNonNegativeInteger(query.cursor, 0);
@@ -110,6 +110,8 @@ function syncConversation(conversationId, userId, query = {}) {
       batch_id: row.batch_id || null, client_batch_id: row.client_batch_id || null,
     };
   });
+
+  require('./burn.service').recordDelivery(userId,envelopes.map(e=>e.message).filter(Boolean),io);
 
   let nextCursor;
   let hasMore;

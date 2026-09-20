@@ -42,10 +42,36 @@ test('clear racing an enqueued send preserves every committed postclear message'
  const sending=messages.send(null,f.id,f.a,{content:'racing'});
  conv.clearAllConversations(null,f.b);
  const m=await sending;const page=sync.syncConversation(f.id,f.b,{});
- const clear=page.messages.find(e=>e.event_type==='conversation_cleared');
  const created=page.messages.find(e=>e.message_id===m.id);
- expect(created.message.deleted).toBe(m.server_sequence<clear.server_sequence?2:0);
+ const visible=messages.history(f.id,f.b,{}).some(row=>row.id===m.id);
+ expect(created.message.deleted).toBe(visible?0:2);
+ expect(messages.history(f.id,f.a,{}).map(row=>row.id)).toContain(m.id);
  const paged=[];let cursor=0,more=true;
  while(more){const p=sync.syncConversation(f.id,f.b,{cursor,limit:1});paged.push(...p.messages);cursor=p.next_cursor;more=p.has_more}
  expect(paged).toEqual(page.messages);
+});
+test('global clear erases original, edited and sent scheduled plaintext from every SQLite table',async()=>{
+ const f=fixture(),secrets=['f04-original-'+f.id,'f04-edited-'+f.id,'f04-scheduled-'+f.id];
+ const m=await messages.send(null,f.id,f.a,{content:secrets[0]});await messages.edit(null,f.a,m.id,secrets[1]);
+ const sched=require('../src/modules/messages/scheduled.service');
+ const task=sched.scheduleMessage(f.a,{conversation_id:f.id,content:secrets[2],send_at:Math.floor(Date.now()/1000)+3600});
+ db.prepare('UPDATE scheduled_messages SET send_at=1 WHERE id=?').run(task.id);await sched.sendDueMessages();
+ const future=sched.scheduleMessage(f.a,{conversation_id:f.id,content:'future retained',send_at:Math.floor(Date.now()/1000)+3600});
+ conv.clearConversation(null,f.a,f.id);
+ expect(require('./batch2-fixture.cjs').plaintextHits(secrets)).toEqual([]);
+ expect(sched.listScheduledMessages(f.a,'sent')[0].content).toBe('');
+ expect(sched.listScheduledMessages(f.a)[0]).toMatchObject({id:future.id,content:'future retained'});
+});
+test('cross-process clear/send order agrees with durable history and does not hide a later send',async()=>{
+ const f=fixture();await messages.send(null,f.id,f.a,{content:'before race'});
+ await require('./batch2-fixture.cjs').concurrentProcesses([
+  `await require(${JSON.stringify(require.resolve('../src/modules/messages/messages.service'))}).send(null,${JSON.stringify(f.id)},${JSON.stringify(f.a)},{content:'process race'})`,
+  `require(${JSON.stringify(require.resolve('../src/modules/conversations/conversations.service'))}).clearConversation(null,${JSON.stringify(f.a)},${JSON.stringify(f.id)})`,
+ ]);
+ const visible=db.prepare('SELECT id FROM messages WHERE conversation_id=? AND deleted=0').all(f.id).map(m=>m.id);
+ expect(messages.history(f.id,f.b,{}).map(m=>m.id)).toEqual(visible);
+ const replay=sync.syncConversation(f.id,f.b,{}).messages;
+ expect(replay.filter(e=>e.message?.deleted===0).map(e=>e.message_id)).toEqual(visible);
+ const after=await messages.send(null,f.id,f.a,{content:'after race'});
+ expect(messages.history(f.id,f.b,{}).map(m=>m.id)).toContain(after.id);
 });

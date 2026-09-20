@@ -531,9 +531,11 @@ function clearConversation(io, userId, convId) {
       ON CONFLICT(user_id, conversation_id) DO UPDATE SET cleared_at=excluded.cleared_at, cleared_rowid=excluded.cleared_rowid
     `).run(userId, convId, now, maxRowid);
     if (clearedIds.length) {
-      db.prepare(`UPDATE messages SET deleted=2, content='', file_url='' WHERE conversation_id=? AND rowid<=? AND deleted=0`)
+      db.prepare(`UPDATE messages SET deleted=2, content='', file_url='', transcript=NULL WHERE conversation_id=? AND rowid<=? AND deleted=0`)
         .run(convId, maxRowid);
     }
+    // Retain future tasks; erase only task bodies whose delivered message was cleared.
+    db.prepare("UPDATE scheduled_messages SET content='' WHERE conversation_id=? AND status='sent'").run(convId);
     // Fail closed: audit failure rolls back the message update and personal watermark.
     audit(clearedIds.length, maxRowid);
     // Same transaction as watermark, destructive update and permission audit.

@@ -3,7 +3,6 @@
 import { defineConfig } from 'vitest/config';
 
 export default defineConfig({
-  cacheDir: '/tmp/touliao-vitest-cache',
   test: {
     include: ['src/**/*.test.{js,jsx}'],
     environment: 'node',

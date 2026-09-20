@@ -131,7 +131,9 @@ export async function loadCache(convId) {
 export async function saveCache(convId, msgs, { strict = false } = {}) {
   if (!convId) return;
   const db = await openDB();
-  if (!db) { if (strict) throw new Error('message cache unavailable'); return; }
+  // No readable persistent cache exists in this session. Continue in memory;
+  // saveSyncCursor also becomes a no-op, so reconnect replays from zero.
+  if (!db) return;
   const clean = normalize(msgs || []);
   return new Promise((resolve, reject) => {
     try {

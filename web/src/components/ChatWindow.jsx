@@ -716,11 +716,13 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
             ? [...merged, ...inflight, ...confirmed]
             : merged;
         });
-        await saveCache(conversation.id, data, {strict:true});
+        let cacheCommitted = true;
+        try { await saveCache(conversation.id, data, {strict:true}); }
+        catch { cacheCommitted = false; } // Keep history/burn timers usable; replay cursor on retry.
         if (!isLoadCurrent()) return;
         const maxSequence = data.reduce((max, message) => Math.max(max, Number(message.server_sequence) || 0), 0);
         loadSyncCursor(user.id, conversation.id, isLoadCurrent).then(cursor => {
-          if (isLoadCurrent() && cursor === 0 && maxSequence > 0) return saveSyncCursor(user.id, conversation.id, maxSequence, isLoadCurrent);
+          if (cacheCommitted && isLoadCurrent() && cursor === 0 && maxSequence > 0) return saveSyncCursor(user.id, conversation.id, maxSequence, isLoadCurrent);
         }).catch(() => {});
         scheduleBurn(data);
         setHasMore(data.length === 40);
