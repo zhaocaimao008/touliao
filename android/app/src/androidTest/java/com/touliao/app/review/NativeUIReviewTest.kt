@@ -108,7 +108,11 @@ class NativeUIReviewTest {
             screen.value = "chat"
         }
         settle()
-        compose.onNodeWithTag("chat-msg-input").assertTextEquals("")
+        // The merged node also contains the placeholder. Assert the editable value itself.
+        compose.onNodeWithTag("chat-msg-input").assert(SemanticsMatcher.expectValue(
+            androidx.compose.ui.semantics.SemanticsProperties.EditableText,
+            androidx.compose.ui.text.AnnotatedString("")
+        ))
         drafts.set("review-chat", "LATE_A_MUST_NOT_WRITE", oldOwner)
         compose.onNodeWithTag("chat-msg-input").performTextReplacement("SOCIAL_B_DRAFT")
         compose.runOnIdle { screen.value = "login" }
