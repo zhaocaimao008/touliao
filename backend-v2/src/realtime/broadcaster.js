@@ -13,6 +13,8 @@
  * 语义保持：ack 仍由 handler 同步回执；广播延迟 ≤ BATCH_WINDOW_MS。FIFO 保序（数组内有序）。
  */
 const { info } = require('../utils/logger');
+const { db } = require('../db/connection');
+const { emitVisible } = require('../modules/messages/visibility');
 
 const BATCH_WINDOW_MS = 5;    // 5ms 合并窗口（降低延迟，保持高合并率）
 const MAX_BATCH       = 200;  // 单房间最多合并 200 条，提升批次效率
@@ -46,7 +48,7 @@ function setIo(io) { _io = io; }
 function broadcastMessage(room, msg) {
   stats.totalMessages++;
   // 压测对照开关：BCAST_IMMEDIATE=1 时退回逐条立即派发（不合并），用于 A/B
-  if (process.env.BCAST_IMMEDIATE === '1') { if (_io) { _io.to(room).emit('new_message', msg); stats.totalEmits++; } return; }
+  if (process.env.BCAST_IMMEDIATE === '1') { if (_io) { emitVisible(_io, room, 'new_message', msg); stats.totalEmits++; } return; }
   let slot = pending.get(room);
   if (!slot) { slot = { msgs: [] }; pending.set(room, slot); }
   slot.msgs.push(msg);
@@ -57,6 +59,15 @@ function broadcastMessage(room, msg) {
 function flushRoom(room, slot) {
   if (!_io) return;
   const msgs = slot.msgs;
+  if (!msgs.length) return;
+  // Reply snapshots and per-account removals require recipient authorization at
+  // flush time, not when the queued snapshot was constructed.
+  if (msgs.some(m => m.replyTo) || db.prepare(`SELECT 1 FROM user_message_deletions d
+      JOIN messages m ON m.id=d.message_id WHERE m.conversation_id=? LIMIT 1`).get(room)) {
+    emitVisible(_io, room, msgs.length === 1 ? 'new_message' : 'new_message_batch', msgs.length === 1 ? msgs[0] : msgs);
+    stats.totalEmits++;
+    return;
+  }
   // 超大户群降级：在线 socket 超过 NOTIFY_THRESHOLD 时，不推全量消息体，
   // 只推轻量通知（conversationId + 最新一条概要），客户端收到后调 GET /api/messages/:id 拉取。
   // 服务端只做 1 次轻量 emit，广播成本 O(1)（socket.io 内部对同一 room 的 emit 仍会复制到各连接，

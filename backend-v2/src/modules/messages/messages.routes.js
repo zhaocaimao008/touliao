@@ -12,6 +12,7 @@
  * 原版它被通配吃掉（死代码，前端也未调用），此处修正使其可达。
  */
 const router = require('express').Router();
+router.use((_req, res, next) => { res.setHeader('Cache-Control', 'private, no-store'); next(); });
 const auth = require('../../middleware/auth');
 const { sendMsgLimiter, reactLimiter, chunkInitLimiter, chunkUploadLimiter, joinGroupLimiter, rechargeLimiter } = require('../../middleware/rateLimiters');
 

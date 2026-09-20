@@ -1,3 +1,4 @@
+import { captureSession, isSessionCurrent } from '../utils/sessionContext';
 import TouliaoSwitch from '../ui-kit/Switch';
 import { SettingCell, SettingSection } from '../ui-kit/Settings';
 import { DangerButton } from '../ui-kit/Button';
@@ -49,10 +50,12 @@ export default function PrivateChatSettings({ conversation, onClose, onConvUpdat
 
   const changeBurnAfter = async (val) => {
     const s = parseInt(val) || 0;
-    setBurnAfter(s);
+    const scope = captureSession();
     try {
-      await axios.post(`/api/messages/conversation/${conversation.id}/burn-after`, { seconds: s });
-      onConvUpdate?.({ burn_after: s });
+      const { data } = await axios.post(`/api/messages/conversation/${conversation.id}/burn-after`, { seconds: s });
+      if (!isSessionCurrent(scope)) return;
+      setBurnAfter(data.burn_after);
+      onConvUpdate?.({ burn_after: data.burn_after });
     } catch { showToast(t('privateChat.setBurnFailed'), 'error'); }
   };
 

@@ -168,18 +168,21 @@ class ChatViewModel @Inject constructor(
     /** 一次性轻提示（复用 error 字段，Screen 统一 toast 透出）。 */
     fun showToast(message: String) = _uiState.update { it.copy(error = message) }
 
+    private var cachePolicyKnown = false
+    private val cachePolicyGuard = com.touliao.app.core.realtime.SocialReadGuard(
+        { tokenStore.snapshot().identityEpoch }, { socialSocket.socialRevision.value })
     private var lastTypingEmit = 0L
     private var typingClearJob: Job? = null
     private val json = Json { ignoreUnknownKeys = true }
 
     init {
         viewModelScope.launch { socialSocket.socialRevision.collect {
-            if (currentOwner()) { _uiState.update { state -> state.copy(groupMembers = emptyList()) }; if (isGroup) loadGroupMembers() }
+            if (currentOwner()) { cachePolicyKnown = false; loadBackground(); _uiState.update { state -> state.copy(groupMembers = emptyList()) }; if (isGroup) loadGroupMembers() }
         } }
 
         notificationHelper.clearConversationNotifications(conversationId)   // 进入会话即清理该会话的锁屏/通知栏聚合通知
         chatRepository.joinConversation(conversationId)
-        primeFromCache()    // 首屏占位：先渲染离线缓存历史，随后 loadHistory 拉取真相源覆盖
+        // Cache policy must be confirmed before restoring any disk history.
         loadHistory()
         loadBackground()
         observeIncoming()
@@ -485,14 +488,17 @@ class ChatViewModel @Inject constructor(
 
     // ── 聊天背景 ───────────────────────────────────────────
     private fun loadBackground() {
+        val stamp = cachePolicyGuard.begin() ?: return
         viewModelScope.launch {
             runCatching { chatRepository.loadConversations().firstOrNull { it.id == conversationId } }
                 .onSuccess { conv ->
-                    if (conv == null) return@onSuccess
+                    if (conv == null || !currentOwner() || !cachePolicyGuard.current(stamp)) return@onSuccess
                     _uiState.update { it.copy(
                         background = conv.background.ifEmpty { it.background },
                         burnAfter = conv.burnAfter,
                     ) }
+                    cachePolicyKnown = true
+                    if (conv.burnAfter > 0) msgCacheStore.clear(conversationId) else primeFromCache()
                 }
         }
     }
@@ -501,7 +507,12 @@ class ChatViewModel @Inject constructor(
     fun setBurnAfter(seconds: Int) {
         viewModelScope.launch {
             runCatching { chatRepository.setBurnAfter(conversationId, seconds) }
-                .onSuccess { _uiState.update { it.copy(burnAfter = seconds, error = if (seconds > 0) "已开启阅后即焚" else "已关闭阅后即焚") } }
+                .onSuccess {
+                    if (!currentOwner()) return@onSuccess
+                    cachePolicyKnown = false
+                    msgCacheStore.clear(conversationId)
+                    loadBackground() // Display server-normalized seconds, not the submitted value.
+                }
                 .onFailure { e -> _uiState.update { it.copy(error = e.toUserMessage("设置失败")) } }
         }
     }
@@ -866,7 +877,7 @@ class ChatViewModel @Inject constructor(
      */
     private fun primeFromCache() {
         if (!currentOwner()) return;
-        if (conversationId.isBlank() || uiBurnAfterEnabled()) return
+        if (!cachePolicyKnown || conversationId.isBlank() || uiBurnAfterEnabled()) return
         val cached = msgCacheStore.load(conversationId)
         val pending = outboxStore.load(conversationId, outboxOwner)
         val merged = mergeServerWithPending(cached, pending)
@@ -880,7 +891,7 @@ class ChatViewModel @Inject constructor(
     private fun persistCache(messages: List<Message>) {
         if (!currentOwner()) return
         if (conversationId.isBlank()) return
-        if (uiBurnAfterEnabled()) { msgCacheStore.clear(conversationId); return }  // 焚毁会话不落盘
+        if (!cachePolicyKnown || uiBurnAfterEnabled()) { msgCacheStore.clear(conversationId); return }  // 焚毁会话不落盘
         // save 内部 normalize 会剔除 clientMsgId/localStatus 的乐观/待发气泡。
         msgCacheStore.save(conversationId, messages)
     }

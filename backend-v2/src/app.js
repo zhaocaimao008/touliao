@@ -179,7 +179,13 @@ function resolveUploadAccess(userId, reqPath) {
 
     // 缩略图与原图共用同一条消息引用（消息负载没有单独的缩略图字段），
     // 故按 uuid 而非精确文件名比对，见上面 baseIdOf 注释。
-    const stillLive = db.prepare('SELECT 1 FROM messages WHERE file_url LIKE ? AND deleted != 2 LIMIT 1').get(`/uploads/files/${baseIdOf(file)}.%`);
+    const stillLive = db.prepare(`SELECT 1 FROM messages m
+      JOIN conversation_members cm ON cm.conversation_id=m.conversation_id AND cm.user_id=?
+      WHERE m.file_url LIKE ? AND m.deleted=0
+        AND (m.conversation_id=? OR EXISTS (SELECT 1 FROM file_registry_shares s WHERE s.path=? AND s.conversation_id=m.conversation_id))
+        AND NOT EXISTS (SELECT 1 FROM user_message_deletions d WHERE d.message_id=m.id AND d.user_id=cm.user_id)
+        AND m.rowid>COALESCE((SELECT cleared_rowid FROM conversation_clears WHERE user_id=cm.user_id AND conversation_id=m.conversation_id),0)
+      LIMIT 1`).get(userId, `/uploads/files/${baseIdOf(file)}.%`, reg.conversation_id, path);
     if (!stillLive) return { ok: false, status: 403 };
     return { ok: true };
   }
@@ -263,6 +269,8 @@ app.use('/uploads', async (req, res, next) => {
       if (!access.ok) return res.status(access.status || 403).json({ error: '无权访问' });
     }
 
+    if (req.path.startsWith('/files/')) res.setHeader('Cache-Control', 'private, no-store');
+
     // R2/云存储模式：file_registry 权限校验通过后，本地无此对象时生成短时 presigned GET 并 302。
     // 预签名 URL 属 bearer capability，不落日志、不持久化；未授权请求已在上面被拦截，绝拿不到 URL。
     if (cloudStorage.isConfigured()) {
@@ -284,11 +292,10 @@ app.use('/uploads', async (req, res, next) => {
     res.status(503).json({ error: '认证服务暂时不可用' });
   }
 }, uploadsCacheMiddleware, express.static(config.uploadsRoot, {
-  // uploads 均为 uuid 命名、内容永不变更 → 强缓存，消除每次加载的 304 回源往返，
-  // 头像/图片打开会话即从本地缓存秒出。private：内容经鉴权，禁止共享缓存(CDN/代理)存储，
-  // 只允许当前用户浏览器缓存（与该用户已被授权取得这些字节一致，无安全回归）。
+  // 聊天附件的访问可以撤销，不允许新的浏览器缓存绕过鉴权。
+  // 已下载的旧缓存/云存储直链不能靠此响应头追溯撤销；头像等原缓存策略保留。
   setHeaders: (res) => {
-    res.setHeader('Cache-Control', 'private, max-age=31536000, immutable');
+    res.setHeader('Cache-Control', res.req.path.startsWith('/files/') ? 'private, no-store' : 'private, max-age=31536000, immutable');
     // nosniff：禁止 MIME 嗅探（正确 Content-Type 由扩展名派生，不影响 PDF/图片等内联打开）。
     // 不再强制 attachment：能上传的都是常见安全格式（HTML/SVG/XML 等已被扩展名白名单挡在门外），
     // 故无需以附件下发，保留浏览器「直接打开」PDF 等的原有体验。

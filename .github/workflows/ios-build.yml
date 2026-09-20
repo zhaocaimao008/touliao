@@ -17,6 +17,11 @@ on:
       - 'ios/**'
       - '.github/workflows/ios-build.yml'
   workflow_dispatch:
+    inputs:
+      social_core_only:
+        description: Run social core integration tests without screenshot gallery
+        type: boolean
+        default: false
 
 jobs:
   build:
@@ -82,6 +87,10 @@ jobs:
         working-directory: ios
         run: |
           set -o pipefail
+          social_tests=(-only-testing:TouliaoTests)
+          if [ '${{ inputs.social_core_only }}' = 'true' ]; then
+            social_tests=(-only-testing:TouliaoTests/DraftIsolationTests -only-testing:TouliaoTests/SocialReadGuardTests -only-testing:TouliaoTests/CredentialIsolationTests -only-testing:TouliaoTests/OutboxIsolationTests -only-testing:TouliaoTests/MsgCacheStoreTests -only-testing:TouliaoTests/NativeUIReviewTests/testSocial001RealChatViewModelsKeepDraftOwners -only-testing:TouliaoTests/NativeUIReviewTests/testSocial008InvalidationRefreshesRealContactsViewModel -only-testing:TouliaoTests/NativeUIReviewTests/testSocial011CacheIsNotRenderedBeforePrivacyPolicy)
+          fi
           xcodebuild test \
             -project Touliao.xcodeproj \
             -scheme Touliao \
@@ -91,7 +100,7 @@ jobs:
             -test-timeouts-enabled YES \
             -default-test-execution-time-allowance 300 \
             -maximum-test-execution-time-allowance 300 \
-            -only-testing:TouliaoTests \
+            "${social_tests[@]}" \
             -resultBundlePath NativeReview.xcresult \
             CODE_SIGNING_ALLOWED=YES CODE_SIGNING_REQUIRED=YES \
             CODE_SIGN_IDENTITY=- CODE_SIGN_STYLE=Manual DEVELOPMENT_TEAM= \
@@ -109,7 +118,7 @@ jobs:
           if [ -d ios/NativeReview.xcresult ]; then
             xcrun xcresulttool export attachments --path ios/NativeReview.xcresult --output-path ios/NativeAttachments
           fi
-          if [ '${{ steps.native_tests.outcome }}' = 'success' ]; then
+          if [ '${{ steps.native_tests.outcome }}' = 'success' ] && [ '${{ inputs.social_core_only }}' != 'true' ]; then
             python3 - <<'PYREVIEW'
           import json
           from pathlib import Path

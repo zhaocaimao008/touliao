@@ -6,6 +6,7 @@ const { writeSequencedEvent } = require('../../db/writer');
 const { requireMember } = require('./shared');
 const { badRequest } = require('../../utils/http');
 
+const { canReadMessage } = require('./visibility');
 const EVENT_TYPES = new Set([
   'message_created', 'message_edited', 'message_recalled',
   'message_deleted_for_me', 'message_vanished',
@@ -85,11 +86,13 @@ function syncConversation(conversationId, userId, query = {}) {
   const envelopes = page.map(row => {
     let payload = {};
     try { payload = JSON.parse(row.payload || '{}'); } catch {}
+    const visible = canReadMessage(userId, row.message_id);
+    if (!visible) payload = {};
     let message = null;
-    if (row.m_id && !['message_recalled', 'message_deleted_for_me', 'message_vanished'].includes(row.event_type)) {
+    if ((visible || row.m_deleted) && row.m_id && !['message_recalled', 'message_deleted_for_me', 'message_vanished'].includes(row.event_type)) {
       message = {
         id: row.m_id, conversation_id: row.m_conversation_id, sender_id: row.m_sender_id,
-        type: row.m_type, content: row.m_content, file_url: row.m_file_url || '',
+        type: row.m_type, content: visible ? row.m_content : '', file_url: visible ? (row.m_file_url || '') : '',
         reply_to_id: row.m_reply_to_id || null, deleted: row.m_deleted, created_at: row.m_created_at,
         edited: row.m_edited, duration: row.m_duration, client_msg_id: row.m_client_msg_id,
         is_scheduled: row.m_is_scheduled,
@@ -99,7 +102,7 @@ function syncConversation(conversationId, userId, query = {}) {
       };
     }
     return {
-      server_sequence: row.server_sequence, event_type: row.event_type,
+      server_sequence: row.server_sequence, event_type: visible || row.m_deleted ? row.event_type : 'message_deleted_for_me',
       message_id: row.message_id, message, payload,
       batch_id: row.batch_id || null, client_batch_id: row.client_batch_id || null,
     };

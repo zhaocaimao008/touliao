@@ -110,7 +110,7 @@ describe('统一消息同步游标', () => {
       'message_created', 'message_edited', 'message_recalled',
     ]);
     expect(response.body.messages.map(event => event.server_sequence)).toEqual([start + 1, start + 2, start + 3]);
-    expect(response.body.messages[1].payload.content).toBe('after edit');
+    expect(response.body.messages[1].payload).toEqual({}); // revoked body must not survive in old edit payloads
   });
 
   // Q04 双向清空回归：clearConversation 现在真的清空内容(deleted=2)，对全体成员生效，

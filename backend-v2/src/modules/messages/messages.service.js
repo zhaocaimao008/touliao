@@ -19,6 +19,7 @@ const { shareFileToConversation } = require('../../utils/fileRegistry');
 const { appendConversationEvent, emitSyncAvailable } = require('./sync.service');
 const moderation = require('../moderation/moderation.service');
 
+const { canReadMessage, projectMessage, emitVisible } = require('./visibility');
 const MAX = config.limits.maxMsgLength;
 
 // ── 历史消息（批量 replyTo + reactions，群已读数 / 私聊送达）──────
@@ -121,7 +122,7 @@ function history(convId, userId, { before, after, limit, beforeId }) {
   }
 
   return messages.map(msg => {
-    msg.replyTo   = msg.reply_to_id ? (replyMap.get(msg.reply_to_id) || null) : null;
+    msg.replyTo   = msg.reply_to_id ? (canReadMessage(userId, msg.reply_to_id) ? (replyMap.get(msg.reply_to_id) || null) : null) : null;
     msg.reactions = reactionsMap.get(msg.id) || [];
     if (conv?.type === 'private') {
       msg._delivered = deliverySet.has(msg.id);
@@ -188,7 +189,7 @@ function missed(io, userId, after) {
   }
 
   const enriched = messages.map(msg => {
-    msg.replyTo = msg.reply_to_id ? (replyMap.get(msg.reply_to_id) || null) : null;
+    msg.replyTo = msg.reply_to_id ? (canReadMessage(userId, msg.reply_to_id) ? (replyMap.get(msg.reply_to_id) || null) : null) : null;
     msg.reactions = reactionsMap.get(msg.id) || [];
     return msg;
   });
@@ -231,7 +232,7 @@ async function send(io, convId, userId, { content, type, reply_to_id }) {
   if (conv?.mute_all && member.role === 'member') throw forbidden('全员禁言中，您没有发言权限');
   if (reply_to_id) {
     const ref = db.prepare('SELECT id FROM messages WHERE id=? AND conversation_id=?').get(reply_to_id, convId);
-    if (!ref) throw badRequest('被回复消息不存在');
+    if (!ref || !canReadMessage(userId, reply_to_id)) throw badRequest('被回复消息不存在');
   }
   const id = uuidv4();
   // P0-1：改走 worker 异步写，主线程不再同步抢 WAL 写锁；await 保证落库后再 buildMessage 读回
@@ -256,7 +257,7 @@ async function send(io, convId, userId, { content, type, reply_to_id }) {
   const aiAssistant = require('../ai-assistant/assistant.service');
   aiAssistant.maybeReply(io, convId, userId, msg).catch(() => {});
 
-  return msg;
+  return projectMessage(userId, msg);
 }
 
 // ── 文件消息（本地上传后入库 + 广播）───────────────────────────
@@ -270,7 +271,7 @@ async function saveUploadedFile(io, convId, userId, { type, content, fileUrl, re
   if (guardReason) throw forbidden(guardReason);
   if (reply_to_id) {
     const ref = db.prepare('SELECT id FROM messages WHERE id=? AND conversation_id=?').get(reply_to_id, convId);
-    if (!ref) throw badRequest('被回复消息不存在');
+    if (!ref || !canReadMessage(userId, reply_to_id)) throw badRequest('被回复消息不存在');
   }
   const id = uuidv4();
   // P0-1：worker 异步写，await 落库后再读回构建消息
@@ -294,7 +295,7 @@ async function saveUploadedFile(io, convId, userId, { type, content, fileUrl, re
     const aiAssistant = require('../ai-assistant/assistant.service');
     aiAssistant.maybeReply(io, convId, userId, msg).catch(() => {});
   }
-  return msg;
+  return projectMessage(userId, msg);
 }
 
 // ── 转发 ────────────────────────────────────────────────────────
@@ -333,7 +334,7 @@ async function forward(io, userId, { msgId, msgIds, conversationIds, client_batc
   const failureReasons = new Map();
   for (const id of ids) {
     const m = db.prepare('SELECT * FROM messages WHERE id=? AND deleted=0').get(id);
-    if (!m || !FORWARDABLE_TYPES.has(m.type)) { failedMessageIds.push(id); failureReasons.set(id, '消息不存在或不支持转发'); continue; }
+    if (!m || !canReadMessage(userId, id) || !FORWARDABLE_TYPES.has(m.type)) { failedMessageIds.push(id); failureReasons.set(id, '消息不存在或不支持转发'); continue; }
     try { requireMember(m.conversation_id, userId, '无权转发该消息'); }
     catch { failedMessageIds.push(id); failureReasons.set(id, '无权转发该消息'); continue; }
     msgs.push(m);
@@ -488,7 +489,8 @@ async function remove(io, userId, msgId, forEveryone, vanish, forMe) {
     broadcaster.purgeQueuedMessage(msg.conversation_id, msgId);
     const sequenced = await appendConversationEvent({
       conversationId: msg.conversation_id, eventType: 'message_vanished', messageId: msgId, actorId: userId,
-      ops: [{ sql: "UPDATE messages SET deleted=2, content='', file_url='' WHERE id=?", params: [msgId] }],
+      ops: [{ sql: "UPDATE messages SET deleted=2, content='', file_url='' WHERE id=?", params: [msgId] },
+        { sql: "UPDATE conversation_events SET payload='{}' WHERE message_id=?", params: [msgId] }],
     });
     cache.delPattern(`search:*${userId}*`).catch(() => {});
     convSvc.invalidateConvCacheForConversation(msg.conversation_id);
@@ -507,7 +509,7 @@ async function remove(io, userId, msgId, forEveryone, vanish, forMe) {
     const sequenced = await appendConversationEvent({
       conversationId: msg.conversation_id, eventType: 'message_deleted_for_me', messageId: msgId,
       actorId: userId, targetUserId: userId,
-      ops: [{ sql: 'INSERT INTO user_message_deletions (message_id, user_id) VALUES (?, ?)', params: [msgId, userId] }],
+      ops: [{ sql: 'INSERT OR IGNORE INTO user_message_deletions (message_id, user_id) VALUES (?, ?)', params: [msgId, userId] }],
     });
     cache.delPattern(`search:*${userId}*`).catch(() => {});
     convSvc.invalidateConvCacheForConversation(msg.conversation_id);
@@ -541,7 +543,8 @@ async function remove(io, userId, msgId, forEveryone, vanish, forMe) {
     // 撤回不限时间：任意时长的消息本人（或群管理员）均可撤回
     const sequenced = await appendConversationEvent({
       conversationId: msg.conversation_id, eventType: 'message_recalled', messageId: msgId, actorId: userId,
-      ops: [{ sql: "UPDATE messages SET deleted=2, content='', file_url='' WHERE id=?", params: [msgId] }],
+      ops: [{ sql: "UPDATE messages SET deleted=2, content='', file_url='' WHERE id=?", params: [msgId] },
+        { sql: "UPDATE conversation_events SET payload='{}' WHERE message_id=?", params: [msgId] }],
     });
     cache.delPattern(`search:*${userId}*`).catch(() => {});
     convSvc.invalidateConvCacheForConversation(msg.conversation_id);
@@ -574,7 +577,8 @@ async function adminRecall(io, msgId) {
   broadcaster.purgeQueuedMessage(msg.conversation_id, msgId); // 同 remove() forEveryone：见上方注释，须在 await 之前同步摘除
   const sequenced = await appendConversationEvent({
     conversationId: msg.conversation_id, eventType: 'message_recalled', messageId: msgId, actorId: msg.sender_id,
-    ops: [{ sql: "UPDATE messages SET deleted=2, content='', file_url='' WHERE id=?", params: [msgId] }],
+    ops: [{ sql: "UPDATE messages SET deleted=2, content='', file_url='' WHERE id=?", params: [msgId] },
+        { sql: "UPDATE conversation_events SET payload='{}' WHERE message_id=?", params: [msgId] }],
   });
   cache.delPattern(`search:*${msg.sender_id}*`).catch(() => {});
   convSvc.invalidateConvCacheForConversation(msg.conversation_id);
@@ -635,7 +639,7 @@ async function edit(io, userId, msgId, content) {
   });
   cache.delPattern(`search:*${userId}*`).catch(() => {});
   convSvc.invalidateConvCacheForConversation(msg.conversation_id);
-  if (io) io.to(msg.conversation_id).emit('message_edited', { msgId, content: trimmed, conversationId: msg.conversation_id });
+  emitVisible(io, msg.conversation_id, 'message_edited', { msgId, content: trimmed, conversationId: msg.conversation_id });
   emitSyncAvailable(io, msg.conversation_id, sequenced.server_sequence);
   return trimmed;
 }
@@ -743,7 +747,7 @@ async function searchGlobal(userId, { q, limit = 20, offset = 0, type, from, to,
 
   const cacheKey = `search:${userId}:${q}:${safeLimit}:${safeOffset}`;
   const cachedResult = await cache.get(cacheKey);
-  if (cachedResult) return cachedResult;
+  if (cachedResult && cachedResult.results.every(m => canReadMessage(userId, m.id))) return cachedResult;
 
   // trigram 分词器要求 token ≥ 3 字符；1~2 字（中文名/单字词极常见）FTS 无法命中，
   // 退化为 LIKE 精确子串匹配，避免短词全局搜索恒空（与 searchInConversation 一致）。
@@ -887,7 +891,7 @@ async function searchInConversation(convId, userId, q, filters = {}) {
   // P2 优化：尝试从缓存获取搜索结果（TTL: 10 分钟）
   const cacheKey = `search:${convId}:${userId}:${q}`;
   let cachedResult = await cache.get(cacheKey);
-  if (cachedResult) {
+  if (cachedResult && cachedResult.every(m => canReadMessage(userId, m.id))) {
     return cachedResult;
   }
 
@@ -947,7 +951,7 @@ function aroundMessage(convId, msgId, userId) {
     AND rowid > COALESCE((SELECT cleared_rowid FROM conversation_clears WHERE user_id=? AND conversation_id=?), 0
     )
   `).get(msgId, convId, userId, convId);
-  if (!target) return null;
+  if (!target || !canReadMessage(userId, msgId)) return null;
 
   const HALF = 25;
   const before = db.prepare(`
@@ -992,7 +996,7 @@ function aroundMessage(convId, msgId, userId) {
 
   return {
     messages: messages.map(msg => {
-      msg.replyTo   = msg.reply_to_id ? (replyMap.get(msg.reply_to_id) || null) : null;
+      msg.replyTo   = msg.reply_to_id ? (canReadMessage(userId, msg.reply_to_id) ? (replyMap.get(msg.reply_to_id) || null) : null) : null;
       msg.reactions = reactionsMap.get(msg.id) || [];
       return msg;
     }),
@@ -1012,11 +1016,12 @@ function exportConversation(convId, userId) {
            COALESCE(u.username, '') AS senderName
     FROM messages m LEFT JOIN users u ON u.id=m.sender_id
     WHERE m.conversation_id=? AND m.deleted=0
+      AND NOT EXISTS (SELECT 1 FROM user_message_deletions d WHERE d.message_id=m.id AND d.user_id=?)
       AND m.rowid > COALESCE((SELECT cleared_rowid FROM conversation_clears
                                    WHERE user_id=? AND conversation_id=m.conversation_id), 0)
     ORDER BY m.created_at ASC, m.rowid ASC
     LIMIT 10000
-  `).all(convId, userId);
+  `).all(convId, userId, userId);
 
   // 非文本消息的类型标注（transfer/red_packet 单独展开，见下方 formatBody）
   const typeLabel = {
@@ -1156,16 +1161,20 @@ function getConversationFiles(convId, userId, { type = 'all', offset = 0, limit 
     LEFT JOIN users u ON u.id = m.sender_id
     WHERE m.conversation_id = ? AND m.deleted = 0
       AND m.type IN (${ph})
+      AND NOT EXISTS (SELECT 1 FROM user_message_deletions d WHERE d.message_id=m.id AND d.user_id=?)
+      AND m.rowid>COALESCE((SELECT cleared_rowid FROM conversation_clears WHERE user_id=? AND conversation_id=m.conversation_id),0)
     ORDER BY m.created_at DESC, m.rowid DESC
     LIMIT ? OFFSET ?
-  `).all(convId, ...types, safeLimit, safeOffset);
+  `).all(convId, ...types, userId, userId, safeLimit, safeOffset);
 
   const { cnt: total } = db.prepare(`
     SELECT COUNT(*) AS cnt
     FROM messages m
     WHERE m.conversation_id = ? AND m.deleted = 0
       AND m.type IN (${ph})
-  `).get(convId, ...types);
+      AND NOT EXISTS (SELECT 1 FROM user_message_deletions d WHERE d.message_id=m.id AND d.user_id=?)
+      AND m.rowid>COALESCE((SELECT cleared_rowid FROM conversation_clears WHERE user_id=? AND conversation_id=m.conversation_id),0)
+  `).get(convId, ...types, userId, userId);
 
   return {
     items: rows.map(r => ({

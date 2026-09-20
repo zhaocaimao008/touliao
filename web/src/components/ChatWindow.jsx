@@ -412,18 +412,31 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
   const scheduleBurn = React.useCallback((msgs) => {
     const ba = conversation.burn_after || 0;
     if (!ba || !msgs.length) return;
+    const scope = captureSession();
+    const convId = conversation.id;
     const now = Date.now() / 1000;
     msgs.forEach(msg => {
       if (!msg?.id || burnTimersRef.current.has(msg.id)) return;
+      const expire = async () => {
+        if (!isSessionCurrent(scope) || convIdRef.current !== convId || !mountedRef.current) return;
+        try {
+          // This setting belongs to this account. It cannot authorize deletion
+          // of other members' copies. Server TTL/global retention is a separate contract.
+          await axios.delete(`/api/messages/${msg.id}`, { data: { forMe: true } });
+          if (!isSessionCurrent(scope) || convIdRef.current !== convId || !mountedRef.current) return;
+          setMessages(prev => prev.filter(m => m.id !== msg.id));
+          removeFromCache(convId, msg.id);
+          burnTimersRef.current.delete(msg.id);
+        } catch {
+          if (!isSessionCurrent(scope) || convIdRef.current !== convId || !mountedRef.current) return;
+          showToast('消息移除未同步，联网后将重试', 'error');
+          burnTimersRef.current.set(msg.id, setTimeout(expire, 30000));
+        }
+      };
       const remaining = Math.max(0, ba - (now - msg.created_at)) * 1000;
-      const handle = setTimeout(() => {
-        axios.delete(`/api/messages/${msg.id}`, { data: { vanish: true } }).catch(() => {});
-        setMessages(prev => prev.filter(m => m.id !== msg.id));
-        burnTimersRef.current.delete(msg.id);
-      }, remaining);
-      burnTimersRef.current.set(msg.id, handle);
+      burnTimersRef.current.set(msg.id, setTimeout(expire, remaining));
     });
-  }, [conversation.burn_after]);
+  }, [conversation.id, conversation.burn_after]);
 
   // 组件卸载（关闭会话/切换会话）时标记已读
   const convIdRef   = useRef(conversation.id);

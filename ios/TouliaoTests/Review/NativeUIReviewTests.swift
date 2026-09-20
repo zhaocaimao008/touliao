@@ -120,6 +120,67 @@ final class NativeUIReviewTests: XCTestCase {
         if let oldImageConfiguration { ImageDownloader.default.sessionConfiguration = oldImageConfiguration }
     }
 
+    func testSocial001RealChatViewModelsKeepDraftOwners() async throws {
+        await session.restoreSession()
+        let server = ServerConfig.shared.baseURL
+        let a = ChatViewModel(conversationId: "review-chat", title: "synthetic", myId: "review-me")
+        a.input = "SOCIAL_A_DRAFT"
+        KeychainStore.shared.token = "synthetic-account-b"
+        AccountStore.shared.upsertActive(StoredAccount(id: "social-b", username: "B", token: "synthetic-account-b"))
+        DraftStore.shared.activate(server: server, accountId: "social-b", identityEpoch: KeychainStore.shared.snapshot().identityEpoch)
+        defer { AccountStore.shared.remove("social-b") }
+        let b = ChatViewModel(conversationId: "review-chat", title: "synthetic", myId: "social-b")
+        XCTAssertEqual(b.input, "")
+        a.input = "LATE_A_MUST_NOT_WRITE"
+        b.input = "SOCIAL_B_DRAFT"
+        KeychainStore.shared.token = "native-ui-review-only"
+        AccountStore.shared.setActive("review-me")
+        DraftStore.shared.activate(server: server, accountId: "review-me", identityEpoch: KeychainStore.shared.snapshot().identityEpoch)
+        let restored = ChatViewModel(conversationId: "review-chat", title: "synthetic", myId: "review-me")
+        XCTAssertEqual(restored.input, "SOCIAL_A_DRAFT")
+        b.input = "LATE_B_MUST_NOT_WRITE"
+        XCTAssertEqual(restored.input, "SOCIAL_A_DRAFT")
+        restored.input = ""
+    }
+
+    func testSocial008InvalidationRefreshesRealContactsViewModel() async throws {
+        await session.restoreSession()
+        let vm = ContactsViewModel()
+        await vm.refresh()
+        XCTAssertFalse(vm.contacts.isEmpty)
+        var rows = try XCTUnwrap(ReviewURLProtocol.fixtures["/api/users/contacts"] as? [[String: Any]])
+        rows[0]["remark"] = "SOCIAL_SYNC_REMARK"
+        ReviewURLProtocol.fixtures["/api/users/contacts"] = rows
+        SocketService.shared.socialState.send(SocketService.shared.socialState.value + 1)
+        for _ in 0..<100 {
+            if vm.contacts.first?.remark == "SOCIAL_SYNC_REMARK" { break }
+            try await Task.sleep(nanoseconds: 20_000_000)
+        }
+        XCTAssertEqual(vm.contacts.first?.remark, "SOCIAL_SYNC_REMARK")
+        KeychainStore.shared.token = "synthetic-other-identity"
+        SocketService.shared.socialState.send(SocketService.shared.socialState.value + 1)
+        try await Task.sleep(nanoseconds: 100_000_000)
+        XCTAssertTrue(vm.contacts.isEmpty, "old account view must not load new account data")
+    }
+
+    func testSocial011CacheIsNotRenderedBeforePrivacyPolicy() async throws {
+        await session.restoreSession()
+        let values = try XCTUnwrap(ReviewURLProtocol.fixtures["/api/messages/review-chat"] as? [[String: Any]])
+        let history = try JSONDecoder().decode([Message].self, from: JSONSerialization.data(withJSONObject: values))
+        MsgCacheStore.shared.save("review-chat", history)
+        XCTAssertFalse(MsgCacheStore.shared.load("review-chat").isEmpty)
+        var rows = try XCTUnwrap(ReviewURLProtocol.fixtures["/api/messages/conversations"] as? [[String: Any]])
+        rows[0]["burn_after"] = 60
+        ReviewURLProtocol.fixtures["/api/messages/conversations"] = rows
+        let vm = ChatViewModel(conversationId: "review-chat", title: "synthetic", myId: "review-me")
+        XCTAssertTrue(vm.messages.isEmpty, "synchronous cache restore must wait for privacy policy")
+        await vm.loadBackground()
+        XCTAssertEqual(vm.burnAfter, 60)
+        XCTAssertTrue(MsgCacheStore.shared.load("review-chat").isEmpty)
+        await vm.loadHistory()
+        XCTAssertTrue(MsgCacheStore.shared.load("review-chat").isEmpty, "network history must not persist burn content")
+    }
+
     func testNativeScreenGallery() async throws {
         await session.restoreSession()
         XCTAssertEqual(try XCTUnwrap(session.currentUser).id, "review-me")
@@ -258,8 +319,8 @@ final class NativeUIReviewTests: XCTestCase {
 
     func testNativeComposerKeyboardChineseInputAndMultilineHeight() async throws {
         let oldDraft = DraftStore.shared.get("review-chat")
-        DraftStore.shared.clear("review-chat")
-        defer { DraftStore.shared.set("review-chat", oldDraft) }
+        DraftStore.shared.clear("review-chat", owner: DraftStore.shared.capture())
+        defer { DraftStore.shared.set("review-chat", oldDraft, owner: DraftStore.shared.capture()) }
         let scene = try XCTUnwrap(UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.first)
         let window = UIWindow(windowScene: scene)
         let view = NavigationStack {

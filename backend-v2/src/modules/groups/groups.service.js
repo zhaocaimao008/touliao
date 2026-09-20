@@ -1,3 +1,4 @@
+const { canReadMessage, emitVisible } = require('../messages/visibility');
 'use strict';
 const { projectProfiles, directInvitees } = require('../../utils/socialPrivacy');
 const { v4: uuidv4 } = require('uuid');
@@ -351,7 +352,7 @@ function pinMessage(io, convId, userId, msgId) {
   const role = memberRole(convId, userId);
   if (role === 'member') throw forbidden('仅群主和管理员可置顶消息');
   const msg = db.prepare('SELECT id,type,content,sender_id FROM messages WHERE id=? AND conversation_id=?').get(msgId, convId);
-  if (!msg) throw notFound('消息不存在');
+  if (!msg || !canReadMessage(userId, msgId)) throw notFound('消息不存在');
   db.transaction(() => {
     const pinCount = db.prepare('SELECT COUNT(*) AS n FROM pinned_messages WHERE conversation_id=?').get(convId).n;
     if (pinCount >= 20) throw badRequest('置顶消息已达上限 20 条，请先取消置顶');
@@ -359,7 +360,7 @@ function pinMessage(io, convId, userId, msgId) {
       .run(uuidv4(), convId, msgId, userId);
   })();
   const pinner = db.prepare('SELECT username FROM users WHERE id=?').get(userId);
-  if (io) io.to(convId).emit('message_pinned', { msgId, convId, pinnedBy: pinner?.username, content: msg.content, type: msg.type });
+  emitVisible(io, convId, 'message_pinned', { msgId, convId, pinnedBy: pinner?.username, content: msg.content, type: msg.type });
 }
 
 function unpinMessage(io, convId, userId, msgId) {
@@ -381,8 +382,10 @@ function listPinned(convId, userId) {
     JOIN messages m ON m.id=pm.message_id
     JOIN users u ON u.id=m.sender_id
     JOIN users pu ON pu.id=pm.pinned_by
-    WHERE pm.conversation_id=? ORDER BY pm.created_at DESC LIMIT 20
-  `).all(convId);
+    WHERE pm.conversation_id=? AND m.deleted=0
+      AND NOT EXISTS (SELECT 1 FROM user_message_deletions d WHERE d.message_id=m.id AND d.user_id=?)
+      AND m.rowid>COALESCE((SELECT cleared_rowid FROM conversation_clears WHERE user_id=? AND conversation_id=m.conversation_id),0) ORDER BY pm.created_at DESC LIMIT 20
+  `).all(convId, userId, userId);
 }
 
 module.exports = {

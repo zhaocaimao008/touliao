@@ -556,6 +556,7 @@ function media(userId, { type = 'image', limit, before }) {
     JOIN users u ON u.id=m.sender_id
     JOIN conversations c ON c.id=m.conversation_id
     WHERE m.type=? AND m.deleted=0 ${beforeClause}
+    AND NOT EXISTS (SELECT 1 FROM user_message_deletions d WHERE d.message_id=m.id AND d.user_id=cm.user_id)
     AND m.rowid > COALESCE((SELECT cleared_rowid FROM conversation_clears WHERE user_id=cm.user_id AND conversation_id=m.conversation_id), 0)
     ORDER BY m.created_at DESC LIMIT ?
   `).all(...params);

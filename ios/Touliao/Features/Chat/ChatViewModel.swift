@@ -106,6 +106,8 @@ final class ChatViewModel: ObservableObject {
     private let player = AudioPlayerService.shared
     private let draftOwner: DraftOwner?
     private var cancellables = Set<AnyCancellable>()
+    private var cachePolicyKnown = false
+    private let cachePolicyGuard = SocialReadGuard()
     private var lastTypingEmit = Date.distantPast
     private var typingClearTask: Task<Void, Never>?
 
@@ -132,6 +134,8 @@ final class ChatViewModel: ObservableObject {
         SocketService.shared.socialState.dropFirst().receive(on: DispatchQueue.main)
             .sink { [weak self] _ in Task { @MainActor in
                 guard let self, self.currentOwner else { return }
+                self.cachePolicyKnown = false
+                await self.loadBackground()
                 self.groupMembers = []
                 if self.isGroup { await self.loadGroupMembers() }
             } }.store(in: &cancellables)
@@ -262,7 +266,7 @@ final class ChatViewModel: ObservableObject {
         }
 
         repo.joinConversation(conversationId)
-        primeFromCache()                     // 首屏占位：先渲染离线缓存，随后 loadHistory 拉真相源覆盖
+        // Confirm current cache policy before restoring disk history.
         Task { await loadHistory(); await catchUp() }
         Task { await loadBackground() }
         if isGroup {
@@ -336,9 +340,13 @@ final class ChatViewModel: ObservableObject {
 
     // MARK: - 聊天背景
     func loadBackground() async {
+        guard let stamp = cachePolicyGuard.begin() else { return }
         if let conv = try? await repo.loadConversations().first(where: { $0.id == conversationId }) {
+            guard currentOwner, cachePolicyGuard.current(stamp) else { return }
             if !conv.background.isEmpty { background = conv.background }
             burnAfter = conv.burnAfter
+            cachePolicyKnown = true
+            if burnAfter > 0 { MsgCacheStore.shared.clear(conversationId) } else { primeFromCache() }
             if peerUserId == nil, let pid = conv.peerId { peerUserId = pid }  // 回填对端id,供通话用
         }
     }
@@ -348,8 +356,10 @@ final class ChatViewModel: ObservableObject {
         Task {
             do {
                 try await repo.setBurnAfter(conversationId, seconds: seconds)
-                burnAfter = seconds
-                error = seconds > 0 ? "已开启阅后即焚" : "已关闭阅后即焚"
+                guard currentOwner else { return }
+                cachePolicyKnown = false
+                MsgCacheStore.shared.clear(conversationId)
+                await loadBackground() // Use the normalized server value.
             } catch { self.error = (error as? LocalizedError)?.errorDescription ?? "设置失败" }
         }
     }
@@ -864,7 +874,7 @@ final class ChatViewModel: ObservableObject {
     /// 阅后即焚会话不读缓存（该会话本就不落盘）；已存在 outbox 待发消息也一并合并。
     private func primeFromCache() {
         guard currentOwner else { return }
-        guard !conversationId.isEmpty, burnAfter == 0 else { return }
+        guard cachePolicyKnown, !conversationId.isEmpty, burnAfter == 0 else { return }
         let cached = MsgCacheStore.shared.load(conversationId)
         guard messages.isEmpty else { return }   // 已被 loadHistory 抢先则不覆盖
         let pending = OutboxStore.shared.load(conversationId, owner: outboxOwner)
@@ -876,7 +886,7 @@ final class ChatViewModel: ObservableObject {
     private func persistCache() {
         guard currentOwner else { return }
         guard !conversationId.isEmpty else { return }
-        guard burnAfter == 0 else { MsgCacheStore.shared.clear(conversationId); return }
+        guard cachePolicyKnown, burnAfter == 0 else { MsgCacheStore.shared.clear(conversationId); return }
         MsgCacheStore.shared.save(conversationId, messages)
     }
 
@@ -901,7 +911,7 @@ final class ChatViewModel: ObservableObject {
             }
             reachedStart = list.count < 50
             // 离线缓存：server 覆盖旧缓存（含已编辑/已删同步），落盘最近 50。
-            if burnAfter == 0 {
+            if cachePolicyKnown && burnAfter == 0 {
                 let merged = MsgCacheStore.mergeById(MsgCacheStore.shared.load(conversationId), list)
                 MsgCacheStore.shared.save(conversationId, merged)
             } else {

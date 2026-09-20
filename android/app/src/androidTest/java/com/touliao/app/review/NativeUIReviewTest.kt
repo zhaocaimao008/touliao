@@ -57,9 +57,12 @@ class NativeUIReviewTest {
     @javax.inject.Inject lateinit var session: com.touliao.app.core.auth.SessionManager
     @javax.inject.Inject lateinit var socket: com.touliao.app.core.realtime.SocketManager
 
+    @javax.inject.Inject lateinit var drafts: com.touliao.app.core.storage.DraftStore
+    @javax.inject.Inject lateinit var accounts: com.touliao.app.core.storage.AccountStore
+    @javax.inject.Inject lateinit var cache: com.touliao.app.core.storage.MsgCacheStore
     @javax.inject.Inject lateinit var callManager: com.touliao.app.core.call.CallManager
 
-    @After fun cleanup() { socket.disconnect(); token.token = null }
+    @After fun cleanup() { ReviewModule.overrides.clear(); ReviewModule.delays.clear(); socket.disconnect(); token.token = null }
 
     @Before fun setup() {
         hilt.inject()
@@ -86,6 +89,66 @@ class NativeUIReviewTest {
                 }
             }
         }
+    }
+
+    @Test fun social001RealComposerAccountIsolation() {
+        compose.runOnIdle { screen.value = "chat" }
+        settle()
+        compose.onNodeWithTag("chat-msg-input").performTextReplacement("SOCIAL_A_DRAFT")
+        val oldOwner = drafts.capture()
+        val original = session.currentUser!!
+        compose.runOnIdle { screen.value = "login" }
+        settle()
+        val other = original.copy(id = "social-b", username = "B")
+        ReviewModule.overrides["/api/auth/me"] = "{\"id\":\"social-b\",\"username\":\"B\"}"
+        compose.runOnIdle {
+            accounts.upsertActive(com.touliao.app.data.model.Account(id="social-b", username="B", token="synthetic-b"))
+            token.token = "synthetic-b"
+            session.onAuthenticated(other)
+            screen.value = "chat"
+        }
+        settle()
+        compose.onNodeWithTag("chat-msg-input").assertTextEquals("")
+        drafts.set("review-chat", "LATE_A_MUST_NOT_WRITE", oldOwner)
+        compose.onNodeWithTag("chat-msg-input").performTextReplacement("SOCIAL_B_DRAFT")
+        compose.runOnIdle { screen.value = "login" }
+        settle()
+        ReviewModule.overrides["/api/auth/me"] = "{\"id\":\"review-me\",\"username\":\"A\"}"
+        compose.runOnIdle {
+            accounts.upsertActive(com.touliao.app.data.model.Account(id="review-me", token="native-ui-review-only"))
+            token.token = "native-ui-review-only"
+            session.onAuthenticated(original)
+            screen.value = "chat"
+        }
+        settle()
+        compose.onNodeWithTag("chat-msg-input").assertTextEquals("SOCIAL_A_DRAFT")
+        snapshot("social001-composer-account-restored")
+    }
+
+    @Test fun social008OpenContactsReconcileInvalidation() {
+        compose.runOnIdle { screen.value = "contacts" }
+        settle()
+        ReviewModule.overrides["/api/users/contacts"] = "[{\"id\":\"review-li\",\"username\":\"李明\",\"remark\":\"SOCIAL_SYNC_REMARK\",\"avatar\":\"\"}]"
+        val invalidate = socket.javaClass.getDeclaredMethod("invalidateSocial").apply { isAccessible = true }
+        compose.runOnIdle { invalidate.invoke(socket) }
+        compose.waitUntil(10000) { compose.onAllNodesWithText("SOCIAL_SYNC_REMARK").fetchSemanticsNodes().isNotEmpty() }
+        compose.onAllNodesWithText("SOCIAL_SYNC_REMARK").onFirst().assertExists()
+        snapshot("social008-contacts-invalidated")
+    }
+
+    @Test fun social011CacheWaitsForServerPolicy() {
+        val cached = com.touliao.app.data.model.Message(id="synthetic-cache", conversation_id="review-chat", sender_id="review-li", type="text", content="SYNTHETIC_BURN_CACHE", created_at=1700000000L)
+        cache.save("review-chat", listOf(cached))
+        compose.waitUntil(5000) { cache.load("review-chat").isNotEmpty() }
+        ReviewModule.overrides["/api/messages/review-chat"] = "[]"
+        ReviewModule.overrides["/api/messages/conversations"] = "[{\"id\":\"review-chat\",\"type\":\"private\",\"name\":\"B\",\"burn_after\":60}]"
+        ReviewModule.delays["/api/messages/review-chat"] = 3000
+        ReviewModule.delays["/api/messages/conversations"] = 3000
+        compose.runOnIdle { screen.value = "chat" }
+        compose.waitForIdle()
+        compose.onAllNodesWithText("SYNTHETIC_BURN_CACHE", substring=true).assertCountEquals(0)
+        compose.waitUntil(10000) { cache.load("review-chat").isEmpty() }
+        snapshot("social011-no-cached-burn-content")
     }
 
     @Test fun nativeScreenGallery() {

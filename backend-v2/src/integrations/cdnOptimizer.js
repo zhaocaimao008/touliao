@@ -34,7 +34,7 @@ function getCachePolicy(filePath) {
 
 // 将本地 /uploads/xxx 路径重写为 CDN URL
 function toCdnUrl(localUrl) {
-  if (!CDN_BASE || !localUrl) return localUrl;
+  if (!CDN_BASE || !localUrl || localUrl.startsWith('/uploads/files/')) return localUrl;
   if (localUrl.startsWith('http://') || localUrl.startsWith('https://')) return localUrl;
   const clean = localUrl.replace(/^\/uploads\//, '');
   return `${CDN_BASE.replace(/\/$/, '')}/uploads/${clean}`;
@@ -46,7 +46,7 @@ function rewriteUrlsInObject(obj) {
   if (!obj || typeof obj !== 'object') return obj;
 
   const str = JSON.stringify(obj);
-  const rewritten = str.replace(/\/uploads\//g, `${CDN_BASE.replace(/\/$/, '')}/uploads/`);
+  const rewritten = str.replace(/\/uploads\/(?!files\/)/g, `${CDN_BASE.replace(/\/$/, '')}/uploads/`);
   try {
     return JSON.parse(rewritten);
   } catch {
@@ -66,6 +66,9 @@ function uploadsCacheMiddleware(req, res, next) {
   const originalSetHeader = res.setHeader.bind(res);
   res.setHeader = function (name, value) {
     // 只覆盖 Cache-Control，其他保持原样
+    if (name.toLowerCase() === 'cache-control' && req.path?.startsWith('/files/')) {
+      return originalSetHeader('Cache-Control', 'private, no-store');
+    }
     if (name.toLowerCase() === 'cache-control' &&
         req.path && /\.(jpg|jpeg|png|gif|webp|avif|mp4|mp3|pdf|zip)$/i.test(req.path)) {
       return originalSetHeader('Cache-Control', CACHE_POLICIES.immutable);

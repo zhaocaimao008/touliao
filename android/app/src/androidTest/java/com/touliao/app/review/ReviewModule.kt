@@ -41,6 +41,8 @@ import javax.inject.Singleton
 @Module
 @TestInstallIn(components = [SingletonComponent::class], replaces = [AppModule::class])
 object ReviewModule {
+    val overrides = java.util.concurrent.ConcurrentHashMap<String, String>()
+    val delays = java.util.concurrent.ConcurrentHashMap<String, Long>()
     val requests = java.util.Collections.synchronizedList(mutableListOf<String>())
     private val fixtures by lazy {
         val assets = InstrumentationRegistry.getInstrumentation().context.assets
@@ -50,7 +52,8 @@ object ReviewModule {
         val request = chain.request()
         val path = request.url.encodedPath
         requests.add(request.method + " " + path)
-        val json = fixtures.opt(path)?.toString() ?: when {
+        delays[path]?.let { Thread.sleep(it) }
+        val json = overrides[path] ?: fixtures.opt(path)?.toString() ?: when {
             path.endsWith("/sync") -> "{\"messages\":[],\"cursor\":0,\"hasMore\":false}"
             path.endsWith("/read-states") -> "{\"states\":{}}"
             path.endsWith("/settings") -> "{}"

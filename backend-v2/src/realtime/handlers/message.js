@@ -10,6 +10,7 @@ const prodMetrics = require('../../utils/prodMetrics');
 const { privateSendGuard, memberRole } = require('../../modules/messages/shared');
 const { appendConversationEvent, emitSyncAvailable } = require('../../modules/messages/sync.service');
 const moderation = require('../../modules/moderation/moderation.service');
+const { canReadMessage, projectMessage } = require('../../modules/messages/visibility');
 
 // @所有人 的可识别 token（大小写不敏感）——仅群主/管理员使用时生效
 const MENTION_ALL_TOKENS = new Set(['所有人', '全体成员', 'all', 'everyone']);
@@ -126,7 +127,7 @@ module.exports = function registerMessageHandler(io, socket) {
           server_sequence: existing.server_sequence || 0,
           reactions: [], replyTo: null,
         };
-        ack?.({ success: true, message: msg });
+        ack?.({ success: true, message: projectMessage(userId, msg) || { id: msg.id, conversation_id: msg.conversation_id, sender_id: userId, type: msg.type, content: '', file_url: '', deleted: 2, created_at: msg.created_at, server_sequence: msg.server_sequence } });
         return;
       }
     }
@@ -160,7 +161,7 @@ module.exports = function registerMessageHandler(io, socket) {
       // 与 HTTP send / 文件发送路径一致：被回复消息必须存在且属于同一会话，
       // 否则拒绝，避免写入指向他会话或已不存在消息的悬空 reply_to_id。
       const parent = readDb.prepare('SELECT id FROM messages WHERE id=? AND conversation_id=?').get(reply_to_id, conversationId);
-      if (!parent) { ack?.({ success: false, error: '被回复消息不存在' }); return; }
+      if (!parent || !canReadMessage(userId, reply_to_id)) { ack?.({ success: false, error: '被回复消息不存在' }); return; }
       const sequenced = await appendConversationEvent({
         conversationId, eventType: 'message_created', messageId: id, actorId: userId,
         ops: [{
@@ -196,7 +197,7 @@ module.exports = function registerMessageHandler(io, socket) {
       console.error('[AI助手] socket 触发失败:', err.message);
     }
 
-    ack?.({ success: true, message: msg });
+    ack?.({ success: true, message: projectMessage(userId, msg) || { id: msg.id, conversation_id: msg.conversation_id, sender_id: userId, type: msg.type, content: '', file_url: '', deleted: 2, created_at: msg.created_at, server_sequence: msg.server_sequence } });
 
     setImmediate(() => {
       try {

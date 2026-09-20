@@ -66,6 +66,7 @@ exports.markUnread = asyncHandler(async (req, res) => {
 
 exports.setBurnAfter = asyncHandler(async (req, res) => {
   const r = await svc.setBurnAfter(req.user.id, req.params.convId, req.body.seconds);
+  invalidateSocial(io(req), [req.user.id], ['conversations']);
   res.json({ success: true, ...r });
 });
 
