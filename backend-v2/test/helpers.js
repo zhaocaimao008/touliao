@@ -19,7 +19,7 @@ async function makeUser(overrides = {}) {
     password: overrides.password || 'passw0rd123456',
     username: overrides.username || `u_${uniq}`,
     inviteCode: INVITE_CODE,
-    legalConsent: { accepted: true, privacyVersion: '2026-09-20', termsVersion: '2026-09-20' },
+    legalConsent: require('./legal-consent.cjs'),
   };
   const res = await request(app).post('/api/auth/register').send(user);
   if (res.status >= 400) {

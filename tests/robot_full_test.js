@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+const legalConsent = require('../backend-v2/test/legal-consent.cjs');
 /**
  * 投聊 全功能机器人测试
  * 覆盖：健康检查、注册、登录、消息、群组、搜索、安全、PWA资产
@@ -154,7 +155,7 @@ async function suiteAuth() {
   // ── 注册（测试账号已预建于 DB，此处验证接口注册流程）
   // 使用新手机号，可能受限流，容忍 429
   const testPhone = `189${TS.toString().slice(-8)}`;
-  const rReg = await post(`${BASE}/api/auth/register`, {
+  const rReg = await post(`${BASE}/api/auth/register`, { legalConsent,
     phone: testPhone, password: 'RobotTest@2026!', username: `Robot_${testPhone.slice(-4)}`, inviteCode: '411322',
   });
   [200, 201, 429].includes(rReg.status) 
@@ -162,7 +163,7 @@ async function suiteAuth() {
     : fail('注册接口', `${rReg.status}: ${JSON.stringify(rReg.body).slice(0, 80)}`);
 
   // ── 注册重复（期望 4xx）
-  const rDup = await post(`${BASE}/api/auth/register`, {
+  const rDup = await post(`${BASE}/api/auth/register`, { legalConsent,
     phone: BOT_A.phone, password: BOT_A.password, username: 'Dup', inviteCode: '411322',
   });
   rDup.status >= 400 && rDup.status < 500
@@ -170,11 +171,11 @@ async function suiteAuth() {
     : fail('重复注册', `期望 4xx，得 ${rDup.status}`);
   
   // ── 注册字段校验
-  const rBad = await post(`${BASE}/api/auth/register`, { phone: '', password: '' });
+  const rBad = await post(`${BASE}/api/auth/register`, { legalConsent, phone: '', password: '' });
   rBad.status >= 400 ? pass('空字段注册返回 4xx') : fail('空字段注册', `得 ${rBad.status}`);
   
   // ── 登录 Bot A
-  const rLogin = await post(`${BASE}/api/auth/login`, { phone: BOT_A.phone, password: BOT_A.password });
+  const rLogin = await post(`${BASE}/api/auth/login`, { legalConsent, phone: BOT_A.phone, password: BOT_A.password });
   [200, 201].includes(rLogin.status)
     ? pass(`Bot A 登录成功`) 
     : fail('Bot A 登录', `${rLogin.status}: ${JSON.stringify(rLogin.body).slice(0,80)}`);
@@ -192,7 +193,7 @@ async function suiteAuth() {
   BOT_A._id     = rLogin.body?.user?.id;
   
   // ── 登录 Bot B（429=已限流时降级为纯 Bearer 模式，不阻塞后续测试）
-  const rLoginB = await post(`${BASE}/api/auth/login`, { phone: BOT_B.phone, password: BOT_B.password });
+  const rLoginB = await post(`${BASE}/api/auth/login`, { legalConsent, phone: BOT_B.phone, password: BOT_B.password });
   if ([200, 201].includes(rLoginB.status)) {
     pass('Bot B 登录成功');
     const cookB = rLoginB.headers['set-cookie'] || [];
@@ -209,12 +210,12 @@ async function suiteAuth() {
   }
   
   // ── 错误密码（期望 401）
-  const rWrong = await post(`${BASE}/api/auth/login`, { phone: '19900001111', password: 'wrong_pwd_xyz' });
+  const rWrong = await post(`${BASE}/api/auth/login`, { legalConsent, phone: '19900001111', password: 'wrong_pwd_xyz' });
   [400, 429].includes(rWrong.status) ? pass(`错误密码返回 ${rWrong.status}（400=验证失败, 429=已限流）`) : fail('错误密码', `得 ${rWrong.status}`);
 
   // ── Logout + token 黑名单（用 Bot A 再次 cookie 登录，logout 后旧 token 应得 401）
   // 使用独立的 cookie 登录会话，不影响主流程使用的 BOT_A._auth（Bearer）
-  const rBLLogin = await post(`${BASE}/api/auth/login`, { phone: BOT_A.phone, password: BOT_A.password });
+  const rBLLogin = await post(`${BASE}/api/auth/login`, { legalConsent, phone: BOT_A.phone, password: BOT_A.password });
   if (rBLLogin.status === 429) {
     warn('Token 黑名单测试', 'Bot A 登录已限流（429），跳过（限流本身证明保护有效）');
   } else if (rBLLogin.status === 200) {
@@ -460,14 +461,14 @@ async function suiteSecurity() {
   console.log('    (快速登录失败测试，约 6 次...)');
   let rateLimited = false;
   for (let i = 0; i < 6; i++) {
-    const r = await post(`${BASE}/api/auth/login`, { phone: '19988887777', password: 'wrong' });
+    const r = await post(`${BASE}/api/auth/login`, { legalConsent, phone: '19988887777', password: 'wrong' });
     if (r.status === 429) { rateLimited = true; break; }
   }
   rateLimited ? pass('登录失败限流触发 429') : warn('登录限流', '6次未触发限速（限流阈值可能>6）');
   
   // 超大请求体（期望 413 或 400）
   const bigBody = { phone: BOT_A.phone, password: 'x'.repeat(5 * 1024 * 1024) };
-  const rBig = await post(`${BASE}/api/auth/login`, bigBody).catch(() => ({ status: 0 }));
+  const rBig = await post(`${BASE}/api/auth/login`, { ...bigBody, legalConsent }).catch(() => ({ status: 0 }));
   rBig.status === 413 || rBig.status === 400 || rBig.status === 0
     ? pass(`超大请求被拒（${rBig.status}）`) 
     : warn('大请求', `得 ${rBig.status}`);
@@ -482,8 +483,8 @@ async function suiteSecurity() {
   }
 
   // 登录时序保护：不存在的手机号与错误密码应返回相同错误信息（防手机号枚举）
-  const rNoUser  = await post(`${BASE}/api/auth/login`, { phone: '19900000001', password: 'WrongPass1x' });
-  const rNoUser2 = await post(`${BASE}/api/auth/login`, { phone: '19900000002', password: 'WrongPass2x' });
+  const rNoUser  = await post(`${BASE}/api/auth/login`, { legalConsent, phone: '19900000001', password: 'WrongPass1x' });
+  const rNoUser2 = await post(`${BASE}/api/auth/login`, { legalConsent, phone: '19900000002', password: 'WrongPass2x' });
   const errMsg1 = rNoUser.body?.error  || '';
   const errMsg2 = rNoUser2.body?.error || '';
   (errMsg1 === errMsg2 && errMsg1.length > 0 && rNoUser.status === 400 && rNoUser2.status === 400)

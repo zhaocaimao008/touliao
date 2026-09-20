@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+const operationalConsent = require('./legal-consent.cjs');
 'use strict';
 /**
  * full_test.js —— 全量功能 + 性能测试
@@ -75,13 +76,13 @@ async function main() {
   sec('1. 认证 (Auth)');
 
   // 主登录
-  const lgA = await req('POST', '/api/auth/login', { body: { phone: '13900009999', password: 'qwe64932' } });
+  const lgA = await req('POST', '/api/auth/login', { body: { legalConsent: operationalConsent(), phone: '13900009999', password: 'qwe64932' } });
   check(lgA, 'POST /api/auth/login (账号A)');
   const tokA = lgA.json && lgA.json.token;
   const uidA = lgA.json && lgA.json.user && lgA.json.user.id;
   if (!tokA) { console.log('❌ 账号A登录失败，中止'); process.exit(1); }
 
-  const lgB = await req('POST', '/api/auth/login', { body: { phone: '13900008888', password: 'qwe64932' } });
+  const lgB = await req('POST', '/api/auth/login', { body: { legalConsent: operationalConsent(), phone: '13900008888', password: 'qwe64932' } });
   check(lgB, 'POST /api/auth/login (账号B 如歌)');
   const tokB = lgB.json && lgB.json.token;
   const uidB = lgB.json && lgB.json.user && lgB.json.user.id;
@@ -90,7 +91,7 @@ async function main() {
   check(await req('GET', '/api/auth/sessions', { token: tokA }), 'GET /api/auth/sessions');
 
   // refresh 用独立登录的 token 测试，避免吊销 tokA
-  const lgTmp = await req('POST', '/api/auth/login', { body: { phone: '13900009999', password: 'qwe64932' } });
+  const lgTmp = await req('POST', '/api/auth/login', { body: { legalConsent: operationalConsent(), phone: '13900009999', password: 'qwe64932' } });
   const tokTmp = lgTmp.json && lgTmp.json.token;
   if (tokTmp) {
     const rfR = await req('POST', '/api/auth/refresh', { token: tokTmp });

@@ -16,7 +16,7 @@ test('anonymous report is rejected', async () => {
 });
 test('missing image moderation never claims approval', async () => {
   const Moderator = require('../src/utils/contentModerator');
-  expect((await new Moderator().moderateImage('synthetic-local-image')).status).not.toBe('approved');
+  expect(await new Moderator().moderateImage('synthetic-local-image')).toEqual({status:'unavailable',reason:'MEDIA_MODERATION_UNAVAILABLE'});
 });
 const jwt = require('jsonwebtoken');
 const config = require('../src/config');

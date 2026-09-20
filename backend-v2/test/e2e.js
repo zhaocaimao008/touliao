@@ -1,3 +1,4 @@
+const legalConsent = require('./legal-consent.cjs');
 'use strict';
 /**
  * backend-v2 端到端联调（模拟前端真实行为）。
@@ -64,8 +65,8 @@ const wait = ms => new Promise(r => setTimeout(r, ms));
 
 (async () => {
   console.log('\n━━━ 1. 注册 + 登录 ━━━');
-  let ra = await req('POST', '/api/auth/register', { body: { ...A, inviteCode: INVITE } });
-  let rb = await req('POST', '/api/auth/register', { body: { ...B, inviteCode: INVITE } });
+  let ra = await req('POST', '/api/auth/register', { body: { ...A, inviteCode: INVITE, legalConsent } });
+  let rb = await req('POST', '/api/auth/register', { body: { ...B, inviteCode: INVITE, legalConsent } });
   ok(ra.status === 200 && ra.body.user?.id, `用户A 注册成功 (${ra.body.user?.id?.slice(0,8)})`);
   ok(rb.status === 200 && rb.body.user?.id, `用户B 注册成功 (${rb.body.user?.id?.slice(0,8)})`);
   const a = { id: ra.body.user.id, token: ra.token, csrf: ra.csrf, vxinId: ra.body.user.wechat_id };

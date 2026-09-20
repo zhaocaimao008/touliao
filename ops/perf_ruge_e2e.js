@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+const operationalConsent = require('./legal-consent.cjs');
 /**
  * perf_ruge_e2e.js —— 端到端真实链路性能测试（Hermes 在服务器本机执行）
  *
@@ -57,7 +58,7 @@ const stats = (arr) => {
   console.log(`[健康] /health  ${h.status}  ${h.ms.toFixed(1)}ms  ${h.body.slice(0,60)}`);
 
   // 1) 登录
-  const lg = await req('POST', '/api/auth/login', { phone: PHONE, password: PASS });
+  const lg = await req('POST', '/api/auth/login', { legalConsent: operationalConsent(), phone: PHONE, password: PASS });
   if (lg.status !== 200) { console.log(`❌ 登录失败 ${lg.status}: ${lg.body.slice(0,200)}`); process.exit(1); }
   const lj = JSON.parse(lg.body); TOKEN = lj.token;
   console.log(`[登录] 200  ${lg.ms.toFixed(1)}ms  me=${lj.user?.id} ${lj.user?.username||''}`);

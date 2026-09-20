@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+const operationalConsent = require('./legal-consent.cjs');
 /**
  * test_friend_request.js —— 验证"加好友→对方在新的朋友看到验证请求"是否正常。
  * 由 Hermes 在服务器本机执行(直连后端 3002)。需先用 seed_test_users.js 播种 ≥2 账号。
@@ -38,7 +39,7 @@ function req(method, path, { body, jar, csrf } = {}) {
 }
 
 async function session(phone) {
-  const login = await req('POST', '/api/auth/login', { body: { phone, password: PASS } });
+  const login = await req('POST', '/api/auth/login', { body: { legalConsent: operationalConsent(), phone, password: PASS } });
   if (login.status !== 200) throw new Error(`登录失败 ${phone}: ${login.status} ${login.body}`);
   let jar = login.cookie;
   const me = await req('GET', '/api/auth/me', { jar });

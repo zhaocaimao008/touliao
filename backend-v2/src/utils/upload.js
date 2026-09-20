@@ -179,7 +179,7 @@ async function verifyChatFile(filePath, originalname, claimedMime = '') {
   // Keep the audio classification only when the declared and detected containers match.
   const claimedBase = claimedMime.split(';')[0].trim().toLowerCase();
   const audioContainer = (detected?.mime === 'video/webm' && claimedBase === 'audio/webm')
-    || (detected?.mime === 'video/mp4' && claimedBase === 'audio/mp4');
+    || (detected?.mime === 'video/mp4' && ['audio/mp4', 'audio/x-m4a'].includes(claimedBase));
   return { ok: true, ext: '.' + ext, detectedMime: detected?.mime || '', mime: audioContainer ? claimedBase : detected?.mime || claimedMime || 'application/octet-stream' };
 }
 

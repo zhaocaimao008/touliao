@@ -14,6 +14,16 @@ function unavailable() {
   return new ApiError(503,'图片/视频审核服务尚不可用，上传已暂停；请通过举报与客服联系管理员','MEDIA_MODERATION_UNAVAILABLE');
 }
 async function assertUploadAvailable(filePath,filename,mime,detectedMime) {
+  const claimed = mime.split(';')[0].trim().toLowerCase();
+  const ext = path.extname(filename).toLowerCase();
+  // Also inspect M4A-branded containers: an audio brand can hide a video track.
+  if (['video/mp4','audio/mp4','audio/x-m4a'].includes(detectedMime)
+      || ['audio/mp4','audio/x-m4a'].includes(claimed) || ext === '.m4a') {
+    if (['audio/mp4','audio/x-m4a'].includes(claimed) && ['.m4a','.mp4'].includes(ext)
+        && ['video/mp4','audio/mp4','audio/x-m4a'].includes(detectedMime)
+        && await require('./audioContainer').isAudioOnlyMp4(filePath)) return;
+    throw unavailable();
+  }
   if (mime.split(';')[0].trim().toLowerCase()==='audio/webm' && detectedMime==='video/webm'
       && path.extname(filename).toLowerCase()==='.webm'
       && await require('./audioContainer').isAudioOnlyWebm(filePath)) return;

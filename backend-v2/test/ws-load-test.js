@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+const legalConsent = require('./legal-consent.cjs');
 'use strict';
 /**
  * 1000 并发连接压测脚本 —— 验证 SQLite + WebSocket 在目标规模(1000人单机部署)下的真实表现。
@@ -143,6 +144,7 @@ async function registerUsersInBatches(n, batchSize) {
     const batch = [];
     for (let j = i; j < Math.min(i + batchSize, n); j++) {
       batch.push(httpPostJson(`${BASE_URL}/api/auth/register`, {
+        legalConsent,
         // 9位索引零填充，保证 CONNECTIONS<=999999999 范围内绝不与其它 j 冲突
         phone: `+86-139${String(j).padStart(8, '0')}`,
         password: 'loadtestPassw0rd',

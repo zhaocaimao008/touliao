@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+const operationalConsent = require('./legal-consent.cjs');
 /**
  * test_switch.js —— 验证"丝滑切换账号(免密)"。Hermes 在服务器本机执行(直连3002)。
  * 需先 seed ≥2 账号。流程：
@@ -33,14 +34,14 @@ function merge(jar, setCookie = []) { for (const c of setCookie) { const [p] = c
 (async () => {
   const jar = {};
   // 登录 A（首登会下发 wallet cookie）
-  let r = await req('POST', '/api/auth/login', { body: { phone: phoneA, password: PASS }, jar }); merge(jar, r.setCookie);
+  let r = await req('POST', '/api/auth/login', { body: { legalConsent: operationalConsent(), phone: phoneA, password: PASS }, jar }); merge(jar, r.setCookie);
   if (r.status !== 200) { console.log('❌ 登录A失败', r.status, r.body); process.exit(1); }
   let me = await req('GET', '/api/auth/me', { jar }); merge(jar, me.setCookie);
   const idA = JSON.parse(me.body).id;
   console.log(`登录 A: ${JSON.parse(me.body).username} (${idA})  wallet=${jar['vxin_wallet'] ? '已下发' : '无'}`);
 
   // 同一 wallet 登录 B
-  r = await req('POST', '/api/auth/login', { body: { phone: phoneB, password: PASS }, jar }); merge(jar, r.setCookie);
+  r = await req('POST', '/api/auth/login', { body: { legalConsent: operationalConsent(), phone: phoneB, password: PASS }, jar }); merge(jar, r.setCookie);
   me = await req('GET', '/api/auth/me', { jar }); merge(jar, me.setCookie);
   const idB = JSON.parse(me.body).id; const csrfB = me.csrf || jar['csrf_token'];
   console.log(`登录 B: ${JSON.parse(me.body).username} (${idB})  当前会话=${JSON.parse(me.body).username}`);

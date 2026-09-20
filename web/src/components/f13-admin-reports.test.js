@@ -2,6 +2,7 @@ import { expect, test, vi } from 'vitest';
 import fs from 'node:fs';
 import vm from 'node:vm';
 const html=fs.readFileSync(new URL('../../../admin/index.html',import.meta.url),'utf8');
+const escapeCode=html.slice(html.indexOf('function esc(s)'),html.indexOf('function fmtDate(ts)'));
 const code=html.slice(html.indexOf('const safetyState='),html.indexOf('// ── 安全 ──'));
 function element(tag='div') { return {tag,children:[],value:'',innerHTML:'',textContent:'',hidden:true,append(...nodes){this.children.push(...nodes);},setAttribute(){},querySelectorAll(){return [];}}; }
 function fixture() {
@@ -14,7 +15,7 @@ function fixture() {
     if(url==='/users/user-1/ban')return {success:true};
     throw new Error(`unexpected ${url}`);
   });
-  const context={$ ,api,document:{createElement:element},esc:v=>String(v??'').replace(/</g,'&lt;'),toast:vi.fn(),renderPage:vi.fn(),confirm:()=>true,encodeURIComponent};vm.createContext(context);vm.runInContext(code,context);
+  const context={$ ,api,document:{createElement:element},toast:vi.fn(),renderPage:vi.fn(),confirm:()=>true,encodeURIComponent};vm.createContext(context);vm.runInContext(escapeCode+code,context);
   return {context,$,api};
 }
 test('admin queue and detail use the real backend contract; note is required before state advances',async()=>{
@@ -34,4 +35,11 @@ test('admin enforcement button calls existing target endpoint before suggesting 
   const enforce=$('safety-detail').children.find(node=>node.textContent==='封禁用户');expect(enforce).toBeTruthy();
   await enforce.onclick();expect(api).toHaveBeenCalledWith('/users/user-1/ban',{method:'POST',body:{}});
   expect($('safety-detail').children.find(node=>node.tag==='textarea').value).toContain('已核实并执行');
+});
+
+test('production esc encodes all HTML delimiters, including ampersand and both quotes',()=>{
+  const {context}=fixture();
+  expect(context.esc(`&<>"'`)).toBe('&amp;&lt;&gt;&quot;&#39;');
+  expect(context.esc(null)).toBe('');
+  expect(context.esc('&lt;img&gt;')).toBe('&amp;lt;img&amp;gt;');
 });

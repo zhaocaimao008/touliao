@@ -43,7 +43,7 @@ function request(target) {
         res.write = chunk => { chunks.push(Buffer.from(chunk)); return true; };
         res.end = chunk => {
           if (chunk) chunks.push(Buffer.from(chunk));
-          res.finished = true; res.emit('finish'); socket.destroy();
+          res.finished = true; res.emit('finish'); socket.destroy(); res.emit('close');
           const text = Buffer.concat(chunks).toString();
           let parsed; try { parsed = JSON.parse(text); } catch { parsed = text; }
           resolve({ status: res.statusCode, body: parsed, text, headers: res.getHeaders() });
