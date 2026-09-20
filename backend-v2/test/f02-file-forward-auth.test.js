@@ -62,6 +62,28 @@ test('historical planted message cannot be forwarded into a download authorizati
   expect({ status: result.status, shares: shares(f), download: (await download(f, c)).status }).toEqual({ status: 'failed', shares: [], download: 403 });
   expect(result.retryable_message_ids).toEqual([]);
 });
+test.each(['source', 'attachment', 'target'])('missing source stays retryable alongside a %s permission denial, including batch replay', async denial => {
+  const f = fixture();
+  const user = denial === 'target' ? a : c;
+  const deniedId = denial === 'attachment' ? f.forged : f.original;
+  const missingId = `${f.prefix}-missing`;
+  const input = { msgIds: [deniedId, missingId], conversationIds: [denial === 'target' ? f.planted : f.target],
+    client_batch_id: `${f.prefix}-mixed-denial` };
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const result = await svc.forward(null, user.userId, input);
+    expect(result).toMatchObject({ status: 'failed', total: 2, success_count: 0, failed_count: 2,
+      retryable_message_ids: [missingId] });
+    expect(result.failed_message_ids.sort()).toEqual([deniedId, missingId].sort());
+    expect(shares(f)).toHaveLength(0);
+  }
+});
+test('unsupported source type retains the existing non-permission retry hint', async () => {
+  const f = fixture();
+  db.prepare('UPDATE messages SET type=? WHERE id=?').run('red_packet', f.original);
+  const result = await svc.forward(null, a.userId, { msgId: f.original, conversationIds: [f.target] });
+  expect(result).toMatchObject({ status: 'failed', failed_message_ids: [f.original], retryable_message_ids: [f.original] });
+  expect(shares(f)).toHaveLength(0);
+});
 test.each(['owner', 'original-member'])('%s may send and forward to another conversation', async role => {
   const f = fixture();
   const user = role === 'owner' ? a : b;

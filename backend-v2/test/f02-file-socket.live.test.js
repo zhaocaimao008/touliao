@@ -24,8 +24,8 @@ beforeAll(async () => {
   fs.mkdirSync(path.join(config.uploadsRoot, 'files'), { recursive: true });
   fs.writeFileSync(path.join(config.uploadsRoot, 'files/f02-live.txt'), 'synthetic live file');
   registerFile({ path: file, ownerId: owner.userId, conversationId: 'f02-live-source', kind: 'files' });
-  db.prepare('INSERT INTO messages(id,conversation_id,sender_id,type,file_url) VALUES (?,?,?,?,?)')
-    .run('f02-live-original', 'f02-live-source', owner.userId, 'file', file);
+  db.prepare('INSERT INTO messages(id,conversation_id,sender_id,type,content,file_url) VALUES (?,?,?,?,?,?)')
+    .run('f02-live-original', 'f02-live-source', owner.userId, 'file', 'synthetic live file', file);
   server = http.createServer(app); io = new Server(server);
   // Install the actual authentication middleware on real Socket.IO transport.
   realtime({ use: fn => io.use(fn), on() {} });

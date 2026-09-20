@@ -406,9 +406,9 @@ async function forward(io, userId, { msgId, msgIds, conversationIds, client_batc
   const uniqueFailedIds = [...new Set(failedMessageIds)];
   const successCount = ids.length - uniqueFailedIds.length;
   const status = successCount === ids.length ? 'success' : successCount > 0 ? 'partial_success' : 'failed';
-  // Retrying cannot repair a missing message or an authorization denial.
-  const retryableIds = uniqueFailedIds.filter(id => writeFailedSourceIds.has(id)
-    && failureReasons.get(id) !== '没有可用的目标会话');
+  // Preserve retry hints for non-permission failures, including missing source messages.
+  const nonRetryableReasons = new Set(['无权转发该消息', '无权转发该附件', '没有可用的目标会话']);
+  const retryableIds = uniqueFailedIds.filter(id => !nonRetryableReasons.has(failureReasons.get(id)));
   db.prepare(`UPDATE message_forward_batches SET status=?, success_count=?, failed_count=?,
     failed_message_ids=?, retryable_message_ids=?, updated_at=strftime('%s','now') WHERE batch_id=?`)
     .run(status, successCount, uniqueFailedIds.length, JSON.stringify(uniqueFailedIds), JSON.stringify(retryableIds), batchId);
