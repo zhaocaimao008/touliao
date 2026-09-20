@@ -57,6 +57,46 @@ function mainSlice(start, end) {
  assert(a>=0 && b>a, 'main entrypoint markers missing: '+start);
  return source.slice(a,b);
 }
+test('supplementary helper source contract binds locked handle, digest and publisher before launch and holds locks until exit', () => {
+ // IPC tests mock spawn; this checks helper source only, not Windows signature or lock behavior.
+ const source=fs.readFileSync(path.join(__dirname,'../src/lib/install-verified.ps1'),'utf8')
+   .replace(/^\s*#.*$/gm,'').replace(/\/\/[^\n]*/g,'');
+ const ordered=(scope,patterns)=>{
+   let cursor=0;
+   for(const pattern of patterns) {
+     const match=pattern.exec(scope.slice(cursor));
+     assert(match,'missing or out-of-order helper contract: '+pattern);
+     cursor+=match.index+match[0].length;
+   }
+ };
+ const open=source.match(/public static SafeFileHandle OpenInstaller\(string path\) \{([\s\S]*?)public static SafeFileHandle OpenDirectory/);
+ assert(open,'OpenInstaller implementation missing');
+ ordered(open[1],[
+   /var handle = CreateFile\(path, 0x80000000, 1, IntPtr.Zero, 3, 0x00200000, IntPtr.Zero\);/,
+   /if \(handle.IsInvalid\) \{ handle.Dispose\(\); throw new Win32Exception\(Marshal.GetLastWin32Error\(\)\); \}/,
+   /if \(!GetFileInformationByHandleEx\(handle, 9, out info, 8\) \|\| \(info.Attributes & 0x410\) != 0\) \{\s*handle.Dispose\(\); throw new InvalidOperationException\("Untrusted update file"\);\s*\}/,
+   /return handle;/,
+ ]);
+ const runtime=source.slice(source.indexOf('$fullPath ='));
+ ordered(runtime,[
+   /foreach \(\$directory in \$parents\) \{ \$directoryLocks.Add\(\[TouliaoUpdatePathLock\]::OpenDirectory\(\$directory\)\) \}/,
+   /\$pins = \$PublisherPins.Split\(','\)/,
+   /\$handle = \[TouliaoUpdatePathLock\]::OpenInstaller\(\$fullPath\)/,
+   /\$stream = New-Object IO.FileStream\(\$handle, \[IO.FileAccess\]::Read\)/,
+   /\$actual = \[BitConverter\]::ToString\(\$hash.ComputeHash\(\$stream\)\).Replace\('-', ''\).ToLowerInvariant\(\)/,
+   /if \(\$actual -cne \$ExpectedSha512\) \{ throw 'Installer digest mismatch' \}/,
+   /\$signature = Get-AuthenticodeSignature -LiteralPath \$fullPath/,
+   /if \(\$signature.Status -ne 'Valid' -or \$null -eq \$signature.SignerCertificate -or \$pins -cnotcontains \$signature.SignerCertificate.Thumbprint\) \{\s*throw 'Untrusted publisher or invalid Authenticode signature'\s*\}/,
+   /\$start.FileName = \$fullPath/,
+   /\$process = \[Diagnostics.Process\]::Start\(\$start\)/,
+   /\$process.WaitForExit\(\)/,
+   /exit \$process.ExitCode/,
+   /finally \{\s*if \(\$null -ne \$stream\) \{ \$stream.Dispose\(\) \}\s*foreach \(\$directoryLock in \$directoryLocks\) \{ \$directoryLock.Dispose\(\) \}\s*\}/,
+ ]);
+ assert.equal((runtime.match(/\[Diagnostics.Process\]::Start\(/g)||[]).length,1,'single verified launch');
+ assert.equal((runtime.match(/\$stream.Dispose\(\)/g)||[]).length,1,'file lock released only in final cleanup');
+ assert.equal((runtime.match(/\$directoryLock.Dispose\(\)/g)||[]).length,1,'directory locks released only in final cleanup');
+});
 test('actual main updater handlers reject mismatched metadata and tampered completed download', async () => {
  const vm=require('vm');const source=fs.readFileSync(path.join(__dirname,'../src/main.js'),'utf8');
  const verification=mainSlice('async function verifyUpdateSignature(info)', '// ── 自动更新');

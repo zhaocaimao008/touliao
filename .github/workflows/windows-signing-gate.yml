@@ -17,22 +17,58 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
-      - name: Verify trusted binary and reject unsigned or corrupted artifacts
+      - name: Reject wrong publishers, unsigned artifacts and corrupted signatures with test pins
         shell: pwsh
+        env:
+          # Synthetic test pin, deliberately unrelated to any release certificate.
+          SIGNING_TEST_PUBLISHER_PINS: AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
         run: |
-          $validator = './desktop-electron/scripts/verify-authenticode.ps1'
-          & $validator -Files (Join-Path $PSHOME 'pwsh.exe')
-          $fixture = Join-Path $env:RUNNER_TEMP 'publisher-fixture.exe'
-          Invoke-WebRequest 'https://touliao.cc/downloads/updates/touliao-8.1.23-setup.exe' -OutFile $fixture
-          $rejected = $false
-          try { & $validator -Files $fixture } catch { $rejected = $true }
-          if (!$rejected) { throw 'Unsigned production installer incorrectly passed publisher verification' }
-          Copy-Item (Join-Path $PSHOME 'pwsh.exe') $fixture -Force
-          $bytes = [IO.File]::ReadAllBytes($fixture)
-          $bytes[4096] = $bytes[4096] -bxor 1
-          [IO.File]::WriteAllBytes($fixture, $bytes)
-          $rejected = $false
-          try { & $validator -Files $fixture } catch { $rejected = $true }
-          if (!$rejected) { throw 'Corrupted signed binary incorrectly passed publisher verification' }
-          Remove-Item $fixture
-          Write-Host 'Trusted publisher accepted; unsigned and modified artifacts rejected.'
+          $ErrorActionPreference = 'Stop'
+          $pins = @($env:SIGNING_TEST_PUBLISHER_PINS -split ',' | ForEach-Object { $_.Trim() } | Where-Object { $_ })
+          if ($pins.Count -eq 0) {
+            $reason = 'SKIPPED: signature rejection cases require configured test publisher pins; no signature result was obtained.'
+            Write-Host "::warning::$reason"
+            Add-Content -LiteralPath $env:GITHUB_STEP_SUMMARY -Value $reason
+            exit 0
+          }
+          foreach ($pin in $pins) { if ($pin -cnotmatch '^[A-F0-9]{40}$') { throw 'Invalid test publisher pin' } }
+          # Exercise the unchanged release validator against an isolated test policy.
+          $root = Join-Path $env:RUNNER_TEMP ('publisher-gate-' + [guid]::NewGuid())
+          try {
+            New-Item -ItemType Directory -Path (Join-Path $root 'scripts'), (Join-Path $root 'src') | Out-Null
+            $validator = Join-Path $root 'scripts/verify-authenticode.ps1'
+            Copy-Item './desktop-electron/scripts/verify-authenticode.ps1' $validator
+            @{ publisherThumbprints = $pins } | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $root 'src/update-policy.json')
+            function Assert-Rejected([string]$File, [string]$ExpectedReason) {
+              $failure = $null
+              try { & $validator -Files $File } catch { $failure = $_.Exception.Message }
+              if (!$failure -or !$failure.StartsWith($ExpectedReason, [StringComparison]::Ordinal)) {
+                throw "Expected rejection '$ExpectedReason'; actual: '$failure'"
+              }
+              Write-Host "PASS expected rejection: $ExpectedReason"
+            }
+
+            $signed = Join-Path $PSHOME 'pwsh.exe'
+            $signature = Get-AuthenticodeSignature -LiteralPath $signed
+            if ($signature.Status -ne 'Valid' -or $signature.SignatureType -ne 'Authenticode' -or !$signature.SignerCertificate) {
+              throw 'Runner fixture must have a valid embedded Authenticode signature'
+            }
+            if ($pins -ccontains $signature.SignerCertificate.Thumbprint) { throw 'Test pins must exclude the runner publisher' }
+            Assert-Rejected $signed 'Artifact publisher does not match built-in update policy:'
+
+            $unsigned = Join-Path $root 'unsigned.ps1'
+            Set-Content -LiteralPath $unsigned -Value "Write-Output 'synthetic unsigned fixture; never executed'"
+            if ((Get-AuthenticodeSignature -LiteralPath $unsigned).Status -ne 'NotSigned') { throw 'Unsigned fixture precondition failed' }
+            Assert-Rejected $unsigned 'Untrusted Windows publisher signature:'
+
+            $corrupted = Join-Path $root 'corrupted.exe'
+            Copy-Item $signed $corrupted
+            $bytes = [IO.File]::ReadAllBytes($corrupted)
+            $bytes[4096] = $bytes[4096] -bxor 1
+            [IO.File]::WriteAllBytes($corrupted, $bytes)
+            if ((Get-AuthenticodeSignature -LiteralPath $corrupted).Status -ne 'HashMismatch') { throw 'Corrupted fixture precondition failed' }
+            Assert-Rejected $corrupted 'Untrusted Windows publisher signature:'
+            Add-Content -LiteralPath $env:GITHUB_STEP_SUMMARY -Value 'PASS: three rejection cases with configured synthetic pins (wrong publisher, unsigned, corrupted). Release acceptance is not tested.'
+          } finally {
+            if (Test-Path -LiteralPath $root) { Remove-Item -LiteralPath $root -Recurse -Force }
+          }

@@ -50,7 +50,7 @@ class AccountStore @Inject constructor(
     /** 移除账号，返回剩余账号 */
     fun remove(id: String): List<Account> {
         val next = accounts().filterNot { it.id == id }
-        prefs.edit().also { edit -> prefs.all.keys.filter { it.startsWith("conversations:") && it.endsWith(":$id") }.forEach { edit.remove(it) } }.apply()
+        prefs.edit().also { edit -> prefs.all.keys.filter { it.startsWith("conversations:") && it.endsWith(":$id") }.forEach { edit.remove(it) } }.commit()
         save(next)
         if (activeId() == id) prefs.edit().remove(KEY_ACTIVE).apply()
         return next
