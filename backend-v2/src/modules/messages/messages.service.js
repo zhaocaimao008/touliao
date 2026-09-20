@@ -455,7 +455,8 @@ async function batchDelete(io, userId, { msgIds, conversationId }) {
     broadcaster.purgeQueuedMessage(conversationId, id); // 同步摘除合并队列快照,防撤回后原文复活(与单条口径一致)
     const sequenced = await appendConversationEvent({
       conversationId, eventType: 'message_recalled', messageId: id, actorId: userId,
-      ops: [{ sql: "UPDATE messages SET deleted=2, content='', file_url='' WHERE id=?", params: [id] }],
+      ops: [{ sql: "UPDATE messages SET deleted=2, content='', file_url='' WHERE id=?", params: [id] },
+        { sql: "UPDATE conversation_events SET payload='{}' WHERE message_id=?", params: [id] }],
     });
     sequences.push(sequenced.server_sequence);
   }
@@ -654,6 +655,7 @@ async function collect(userId, msgId) {
   const msg = db.prepare('SELECT * FROM messages WHERE id=? AND deleted=0').get(msgId);
   if (!msg) throw notFound('消息不存在或已删除');
   requireMember(msg.conversation_id, userId, '无权操作');
+  if (!canReadMessage(userId, msgId)) throw notFound('消息不存在或已删除');
   const extra = { file_url: msg.file_url, source_msg_id: msg.id, source_conv_id: msg.conversation_id };
   const dedupKey = collectionDedupKey(msg.type, msg.content, extra);
   // 去重：同一内容已收藏则 409（唯一索引兜底竞态，避免重复行）

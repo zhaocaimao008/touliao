@@ -104,3 +104,23 @@ test('authenticated attachment response is not made public immutable by CDN midd
   const read=await auth(request(app).get(up.body.file_url),b);
   expect(read.status).toBe(200);expect(read.headers['cache-control']).toBe('private, no-store');
 });
+
+test('a disabled-by-default collection path cannot copy a personally removed source when enabled in the synthetic fixture', async () => {
+  const old = db.prepare('SELECT value FROM admin_settings WHERE key=?').get('feature_collect');
+  db.prepare('INSERT OR REPLACE INTO admin_settings(key,value) VALUES(?,?)').run('feature_collect','on');
+  try {
+    expect((await auth(request(app).post(`/api/messages/${message.id}/collect`),b).send({})).status).toBe(404);
+    expect(db.prepare('SELECT COUNT(*) AS n FROM collections WHERE user_id=?').get(b.userId).n).toBe(0);
+  } finally {
+    if (old) db.prepare('UPDATE admin_settings SET value=? WHERE key=?').run(old.value,'feature_collect');
+    else db.prepare('DELETE FROM admin_settings WHERE key=?').run('feature_collect');
+  }
+});
+
+test('existing batch removal clears old edit payloads too', async () => {
+  const m=await svc.send(null,conv,a.userId,{content:'SYNTHETIC_BATCH_ORIGINAL',type:'text'});
+  await svc.edit(null,a.userId,m.id,'SYNTHETIC_BATCH_EDIT');
+  await svc.batchDelete(null,a.userId,{msgIds:[m.id],conversationId:conv});
+  expect(db.prepare('SELECT content FROM messages WHERE id=?').get(m.id).content).toBe('');
+  expect(JSON.stringify(db.prepare('SELECT payload FROM conversation_events WHERE message_id=?').all(m.id))).not.toContain('SYNTHETIC_BATCH_EDIT');
+});
