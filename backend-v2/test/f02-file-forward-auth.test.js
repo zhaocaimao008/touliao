@@ -1,5 +1,9 @@
 'use strict';
 jest.mock('../src/utils/push', () => ({ pushNewMessage: () => Promise.resolve() }));
+jest.mock('../src/utils/cloudStorage', () => ({
+  ...jest.requireActual('../src/utils/cloudStorage'),
+  getPublicBase: () => 'https://cdn.fixture.invalid',
+}));
 const fs = require('fs');
 const path = require('path');
 const { app, request, makeUser } = require('./f02-inprocess-http.cjs');
@@ -56,6 +60,7 @@ test('historical planted message cannot be forwarded into a download authorizati
   expect((await download(f, c)).status).toBe(403);
   const result = await svc.forward(null, c.userId, { msgId: f.forged, conversationIds: [f.target] });
   expect({ status: result.status, shares: shares(f), download: (await download(f, c)).status }).toEqual({ status: 'failed', shares: [], download: 403 });
+  expect(result.retryable_message_ids).toEqual([]);
 });
 test.each(['owner', 'original-member'])('%s may send and forward to another conversation', async role => {
   const f = fixture();
@@ -81,11 +86,127 @@ test('failed message write cannot leave a share; same operation can retry after 
   try {
     const result = await svc.forward(null, a.userId, { msgId: f.original, conversationIds: [f.target] });
     expect(result.status).toBe('failed');
+    expect(result.retryable_message_ids).toEqual([f.original]);
     expect(shares(f)).toHaveLength(0);
     expect((await download(f, c)).status).toBe(403);
   } finally { db.exec('DROP TRIGGER f02_message_fail'); }
   expect((await svc.forward(null, a.userId, { msgId: f.original, conversationIds: [f.target] })).status).toBe('success');
   expect(shares(f)).toHaveLength(1);
+});
+
+test.each(['stickers', 'avatars'])('recipient can send and forward public %s without original membership', async category => {
+  const f = fixture();
+  f.url = `/uploads/${category}/${f.prefix}.png`;
+  fs.mkdirSync(path.join(config.uploadsRoot, category), { recursive: true });
+  fs.writeFileSync(path.join(config.uploadsRoot, category, `${f.prefix}.png`), 'synthetic public media');
+  registerFile({ path: f.url, ownerId: a.userId, kind: category });
+  db.prepare('UPDATE messages SET type=?,file_url=? WHERE id=?').run('image', f.url, f.forged);
+  expect((await download(f, c)).status).toBe(200);
+  expect((await request(app).get(f.url)).status).toBe(401);
+  expect((await send(f, c)).success).toBe(true);
+  const result = await svc.forward(null, c.userId, { msgId: f.forged, conversationIds: [f.target] });
+  expect(result.status).toBe('success');
+  expect(db.prepare('SELECT file_url FROM messages WHERE conversation_id=?').get(f.target).file_url).toBe(f.url);
+  // Public media still cannot bypass destination membership at commit time.
+  const op = fileShareOp(f.url, f.source, c.userId);
+  expect(() => db.transaction(() => db.prepare(op.sql).run(...op.params))()).toThrow(/NOT NULL/);
+});
+
+test('private moments media: owner can forward, planted reference cannot delegate visibility', async () => {
+  const f = fixture();
+  f.url = `/uploads/moments/${f.prefix}.png`;
+  fs.mkdirSync(path.join(config.uploadsRoot, 'moments'), { recursive: true });
+  fs.writeFileSync(path.join(config.uploadsRoot, 'moments', `${f.prefix}.png`), 'synthetic private moment');
+  registerFile({ path: f.url, ownerId: a.userId, kind: 'moments' });
+  db.prepare('INSERT INTO moments(id,user_id,content,images,visibility) VALUES (?,?,?,?,?)')
+    .run(f.prefix, a.userId, 'private', JSON.stringify([f.url]), 'private');
+  db.prepare('UPDATE messages SET type=?,file_url=? WHERE id IN (?,?)').run('image', f.url, f.original, f.forged);
+  expect((await download(f, a)).status).toBe(200);
+  expect((await download(f, c)).status).toBe(403);
+  expect((await svc.forward(null, c.userId, { msgId: f.forged, conversationIds: [f.target] })).retryable_message_ids).toEqual([]);
+  expect(shares(f)).toHaveLength(0);
+  expect((await svc.forward(null, a.userId, { msgId: f.original, conversationIds: [f.target] })).status).toBe('success');
+  expect((await download(f, c)).status).toBe(403); // A chat share must not expose a private moment.
+});
+
+test('second forward is allowed for original members but read-only recipients cannot mint another share', async () => {
+  const f = fixture();
+  expect((await svc.forward(null, a.userId, { msgId: f.original, conversationIds: [f.target] })).status).toBe('success');
+  const forwarded = db.prepare('SELECT id FROM messages WHERE conversation_id=?').get(f.target).id;
+  expect((await download(f, c)).status).toBe(200);
+  const result = await svc.forward(null, c.userId, { msgId: forwarded, conversationIds: [f.planted] });
+  expect(result).toMatchObject({ status: 'failed', failed_message_ids: [forwarded], retryable_message_ids: [] });
+  expect((await send(f, c)).success).toBe(false);
+  expect(shares(f).map(s => s.conversation_id)).toEqual([f.target]);
+  expect((await svc.forward(null, b.userId, { msgId: forwarded, conversationIds: [f.source] })).status).toBe('success');
+});
+
+test('CDN references require registered authority: registered owner allowed, stranger and unregistered denied', async () => {
+  const f = fixture();
+  f.url = `https://cdn.fixture.invalid/uploads/files/${f.prefix}.png`;
+  db.prepare('UPDATE messages SET file_url=? WHERE id IN (?,?)').run(f.url, f.original, f.forged);
+  expect((await send(f, a, f.target)).success).toBe(false);
+  expect((await svc.forward(null, a.userId, { msgId: f.original, conversationIds: [f.target] })).status).toBe('failed');
+  registerFile({ path: f.url, ownerId: a.userId, conversationId: f.source, kind: 'files' });
+  expect((await send(f, c)).success).toBe(false);
+  expect((await svc.forward(null, c.userId, { msgId: f.forged, conversationIds: [f.target] })).retryable_message_ids).toEqual([]);
+  expect(shares(f)).toHaveLength(0);
+  expect((await send(f, a, f.target)).success).toBe(true);
+  expect((await svc.forward(null, b.userId, { msgId: f.original, conversationIds: [f.target] })).status).toBe('success');
+});
+
+test('public category aliases cannot bypass private-file authority', async () => {
+  const f = fixture();
+  for (const url of [`/uploads/stickers/../files/${f.prefix}.txt`, `/uploads/avatars/%2e%2e%2ffiles%2f${f.prefix}.txt`, `${f.url}?category=stickers`, f.url.toUpperCase()]) {
+    expect((await send({ ...f, url }, c)).success).toBe(false);
+  }
+  expect(shares(f)).toHaveLength(0);
+});
+
+test('thumbnail, direct query URL and download ticket enforce the same private-file boundary', async () => {
+  const f = fixture();
+  const thumb = `/uploads/files/${f.prefix}_thumb.webp`;
+  fs.writeFileSync(path.join(config.uploadsRoot, 'files', `${f.prefix}_thumb.webp`), 'synthetic thumbnail');
+  registerFile({ path: thumb, ownerId: a.userId, conversationId: f.source, kind: 'files' });
+  for (const url of [f.url, thumb]) {
+    expect((await request(app).get(`${url}?token=${c.token}`)).status).toBe(403);
+    expect((await request(app).get(`${url}?token=${b.token}`)).status).toBe(200);
+    const ticket = async user => request(app).get(`/api/uploads/ticket?file=${encodeURIComponent(url)}`).set('Authorization', `Bearer ${user.token}`);
+    const denied = await ticket(c);
+    expect(denied.status).toBe(403);
+    const allowed = await ticket(b);
+    expect(allowed.status).toBe(200);
+    expect((await request(app).get(allowed.body.url)).status).toBe(200);
+    expect((await send({ ...f, url }, c)).success).toBe(false);
+  }
+  expect(shares(f)).toHaveLength(0);
+});
+
+test('collecting a private URL as a sticker cannot bypass the HTTP file-message entry', async () => {
+  const f = fixture();
+  const collect = await request(app).post('/api/stickers/collect').set('Authorization', `Bearer ${c.token}`).send({ url: f.url });
+  expect(collect.status).toBe(200); // Ownership of a saved bookmark is not ownership of its bytes.
+  const before = db.prepare('SELECT COUNT(*) AS n FROM messages WHERE conversation_id=?').get(f.planted).n;
+  const sent = await request(app).post('/api/stickers/send').set('Authorization', `Bearer ${c.token}`)
+    .send({ stickerId: collect.body.id, conversationId: f.planted });
+  expect(sent.status).toBe(403);
+  expect(db.prepare('SELECT COUNT(*) AS n FROM messages WHERE conversation_id=?').get(f.planted).n).toBe(before);
+  expect(shares(f)).toHaveLength(0);
+  expect((await download(f, c)).status).toBe(403);
+});
+
+test.each(['private-owner', 'public-recipient'])('HTTP sticker send permits %s and commits its reference atomically', async role => {
+  const f = fixture();
+  const user = role === 'private-owner' ? a : c;
+  if (role === 'public-recipient') f.url = `/uploads/stickers/${f.prefix}.png`;
+  const collected = await request(app).post('/api/stickers/collect').set('Authorization', `Bearer ${user.token}`).send({ url: f.url });
+  expect(collected.status).toBe(200);
+  const sent = await request(app).post('/api/stickers/send').set('Authorization', `Bearer ${user.token}`)
+    .send({ stickerId: collected.body.id, conversationId: f.target });
+  expect(sent.status).toBe(200);
+  expect(sent.body.file_url).toBe(f.url);
+  expect(shares(f).map(s => s.conversation_id)).toEqual([f.target]);
+  if (role === 'private-owner') expect((await download(f, c)).status).toBe(200);
 });
 test('parallel permitted forwarding is atomic and share uniqueness survives retries', async () => {
   const f = fixture();
@@ -94,11 +215,16 @@ test('parallel permitted forwarding is atomic and share uniqueness survives retr
   expect(shares(f)).toHaveLength(1);
   expect(db.prepare('SELECT COUNT(*) AS n FROM messages WHERE conversation_id=?').get(f.target).n).toBe(4);
 });
-test('sync-event failure rolls back both the message and its grant', async () => {
+test.each(['forward', 'upload'])('%s sync-event failure rolls back both the message and its grant', async entry => {
   const f = fixture();
   db.exec(`CREATE TRIGGER f02_event_fail BEFORE INSERT ON conversation_events WHEN NEW.conversation_id='${f.target}' BEGIN SELECT RAISE(ABORT, 'synthetic event failure'); END`);
   try {
-    expect((await svc.forward(null, a.userId, { msgId: f.original, conversationIds: [f.target] })).status).toBe('failed');
+    if (entry === 'forward') {
+      expect((await svc.forward(null, a.userId, { msgId: f.original, conversationIds: [f.target] })).status).toBe('failed');
+    } else {
+      await expect(svc.saveUploadedFile(null, f.target, a.userId, { type: 'file', content: 'synthetic', fileUrl: f.url }))
+        .rejects.toThrow('synthetic event failure');
+    }
     expect(shares(f)).toHaveLength(0);
     expect(db.prepare('SELECT 1 FROM messages WHERE conversation_id=?').get(f.target)).toBeUndefined();
     expect(db.prepare('SELECT 1 FROM conversation_sequences WHERE conversation_id=?').get(f.target)).toBeUndefined();

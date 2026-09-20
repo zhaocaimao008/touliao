@@ -263,6 +263,9 @@ async function send(io, convId, userId, { content, type, reply_to_id }) {
 async function saveUploadedFile(io, convId, userId, { type, content, fileUrl, reply_to_id, fileMime, fileSize, duration }) {
   const member = db.prepare('SELECT role FROM conversation_members WHERE conversation_id=? AND user_id=?').get(convId, userId);
   if (!member) throw forbidden('无权发送');
+  // Also used by sticker/send: a user's saved sticker URL can be client supplied.
+  // Owning that bookmark must not authorize somebody else's private attachment.
+  if (!canReferenceFile(fileUrl, userId)) throw forbidden('无权使用该文件或文件已失效');
   const conv = db.prepare('SELECT mute_all, type FROM conversations WHERE id=?').get(convId);
   if (conv?.mute_all && member.role === 'member') throw forbidden('全员禁言中，您没有发言权限');
   // 私聊守卫：黑名单 + 屏蔽陌生人合并校验（复用已取的 conv），防止陌生人用文件/图片/表情绕过设置骚扰
@@ -281,7 +284,7 @@ async function saveUploadedFile(io, convId, userId, { type, content, fileUrl, re
     ops: [{
       sql: 'INSERT INTO messages (id,conversation_id,sender_id,type,content,file_url,reply_to_id,file_mime,file_size,duration,server_sequence) VALUES (?,?,?,?,?,?,?,?,?,?,?)',
       params: [id, convId, userId, type, content, fileUrl, reply_to_id || null, fileMime || null, fileSize || null, duration || 0, SEQUENCE_PARAM],
-    }],
+    }, fileShareOp(fileUrl, convId, userId)],
   });
   cache.delPattern(`search:*${userId}*`).catch(() => {});
   convSvc.invalidateConvCacheForConversation(convId);
@@ -403,7 +406,9 @@ async function forward(io, userId, { msgId, msgIds, conversationIds, client_batc
   const uniqueFailedIds = [...new Set(failedMessageIds)];
   const successCount = ids.length - uniqueFailedIds.length;
   const status = successCount === ids.length ? 'success' : successCount > 0 ? 'partial_success' : 'failed';
-  const retryableIds = uniqueFailedIds.filter(id => failureReasons.has(id));
+  // Retrying cannot repair a missing message or an authorization denial.
+  const retryableIds = uniqueFailedIds.filter(id => writeFailedSourceIds.has(id)
+    && failureReasons.get(id) !== '没有可用的目标会话');
   db.prepare(`UPDATE message_forward_batches SET status=?, success_count=?, failed_count=?,
     failed_message_ids=?, retryable_message_ids=?, updated_at=strftime('%s','now') WHERE batch_id=?`)
     .run(status, successCount, uniqueFailedIds.length, JSON.stringify(uniqueFailedIds), JSON.stringify(retryableIds), batchId);

@@ -40,13 +40,18 @@ function lookupFile(path) {
   return getDb().prepare('SELECT * FROM file_registry WHERE path=?').get(path);
 }
 
+// These exact local categories are already visible to every authenticated user
+// in app.js. Do not extend this exception to moments, CDN URLs or path aliases.
+const isPublicReference = path => typeof path === 'string'
+  && /^\/uploads\/(?:stickers|avatars)\/[A-Za-z0-9_-]+\.[A-Za-z0-9]+$/.test(path);
+
 // A readable message (or a historical share) does not establish ownership of its file.
 // Check the upload's registered owner or current ORIGINAL conversation membership.
 const referenceAccessSql = `SELECT 1 FROM file_registry r WHERE r.path=? AND
   (r.owner_id=? OR EXISTS (SELECT 1 FROM conversation_members cm
     WHERE cm.conversation_id=r.conversation_id AND cm.user_id=?))`;
 function canReferenceFile(path, userId) {
-  return !!getDb().prepare(referenceAccessSql).get(path, userId, userId);
+  return isPublicReference(path) || !!getDb().prepare(referenceAccessSql).get(path, userId, userId);
 }
 
 /** Include this op in the SAME worker transaction as the message and sync event.
@@ -56,11 +61,11 @@ function canReferenceFile(path, userId) {
 function fileShareOp(path, conversationId, userId) {
   return {
     sql: `INSERT INTO file_registry_shares (path, conversation_id) VALUES (?,
-      CASE WHEN EXISTS (${referenceAccessSql}) AND EXISTS
+      CASE WHEN (?=1 OR EXISTS (${referenceAccessSql})) AND EXISTS
         (SELECT 1 FROM conversation_members WHERE conversation_id=? AND user_id=?)
       THEN ? ELSE NULL END)
       ON CONFLICT(path, conversation_id) DO NOTHING`,
-    params: [path, path, userId, userId, conversationId, userId, conversationId],
+    params: [path, Number(isPublicReference(path)), path, userId, userId, conversationId, userId, conversationId],
   };
 }
 
