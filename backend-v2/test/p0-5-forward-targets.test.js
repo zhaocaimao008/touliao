@@ -24,3 +24,9 @@ test('HTTP wrapper marks partial operation as unsuccessful and concurrent retry 
  expect(response.body).toMatchObject({success:false,status:'partial_success',target_success_count:1,target_failed_count:1});
  expect(db.prepare('SELECT * FROM messages WHERE batch_id=?').all(first.batch_id)).toHaveLength(1);
 });
+test.each(['success','processing'])('old %s batch without target cells omits unavailable target counts',async status=>{
+ const f=fixture(),clientId=require('crypto').randomUUID();
+ db.prepare('INSERT INTO message_forward_batches(batch_id,actor_id,client_batch_id,status,total,success_count,failed_count) VALUES (?,?,?,?,?,?,?)').run(clientId,f.a,clientId,status,2,1,1);
+ const result=await messages.forward(null,f.a,{msgIds:['old'],conversationIds:[f.id],client_batch_id:clientId});
+ expect(result).toMatchObject({status,success_count:1,failed_count:1});expect(result).not.toHaveProperty('target_success_count');expect(result).not.toHaveProperty('target_failed_count');
+});
