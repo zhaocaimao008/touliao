@@ -24,6 +24,9 @@ function connect(url, source, headers = {}) {
   });
 }
 beforeAll(async () => {
+  // Fail explicitly when the real proxy dependency is absent; never skip this gate.
+  try { fs.accessSync('/usr/sbin/nginx', fs.constants.X_OK); }
+  catch (error) { throw new Error(`F-01 live requires executable /usr/sbin/nginx: ${error.code}`); }
   db.prepare('INSERT INTO users(id,username,phone,password) VALUES (?,?,?,?)').run('f01-live-user', 'f01-live-user', 'f01-live-phone', 'synthetic');
   server = http.createServer();
   io = new Server(server);
@@ -49,7 +52,11 @@ proxy_set_header Upgrade $http_upgrade; proxy_set_header Connection "upgrade";
 proxy_set_header X-Real-IP $remote_addr; proxy_set_header X-Forwarded-For $remote_addr;
 } } }`);
   nginx = spawn('/usr/sbin/nginx', ['-p', dir, '-c', conf, '-g', 'daemon off;'], { stdio: 'ignore' });
+  let startupError;
+  nginx.once('error', error => { startupError = error; });
   for (let i = 0; i < 100; i++) {
+    if (startupError) throw startupError;
+    if (nginx.exitCode !== null || nginx.signalCode !== null) throw new Error('isolated nginx exited before ready');
     const ready = await new Promise(resolve => {
       const req = http.get(proxyUrl, res => { res.resume(); resolve(true); });
       req.on('error', () => resolve(false));
@@ -61,7 +68,7 @@ proxy_set_header X-Real-IP $remote_addr; proxy_set_header X-Forwarded-For $remot
 });
 beforeEach(() => { realtime._resetIpHandshake(); });
 afterAll(async () => {
-  if (nginx && nginx.exitCode == null) { const exited = new Promise(resolve => nginx.once('exit', resolve)); nginx.kill('SIGTERM'); await exited; }
+  if (nginx?.pid && nginx.exitCode === null && nginx.signalCode === null) { const exited = new Promise(resolve => nginx.once('exit', resolve)); nginx.kill('SIGTERM'); await exited; }
   if (io) await new Promise(resolve => io.close(resolve));
   await require('../src/db/writer').shutdown();
   if (dir) fs.rmSync(dir, { recursive: true, force: true });
