@@ -110,6 +110,11 @@ describe('SOCIAL-010 notification authorization and counts',()=>{
   });
 });
 describe('SOCIAL-004 actual signaling handler relationship gates',()=>{
+  test.each(['sender','recipient'])('deleted %s is unavailable when rechecking an active call', side=>{
+    const available=user(), missing=randomUUID();
+    const { privateContactDenial } = require('../src/utils/privateContactPolicy');
+    expect(privateContactDenial(side==='sender'?missing:available, side==='recipient'?missing:available)).toBe('ACCOUNT_UNAVAILABLE');
+  });
   test.each(['caller-block','callee-block','unknown'])('request does not ring after %s',reason=>{
     const a=user(),b=user();friends(a,b);conversations.getOrCreatePrivate(a,b);
     if(reason==='caller-block')contacts.block(a,b);

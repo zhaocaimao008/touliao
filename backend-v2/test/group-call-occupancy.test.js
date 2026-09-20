@@ -6,6 +6,7 @@ jest.mock('../src/db/connection', () => ({
       get: jest.fn(() => {
         if (sql.includes('admin_settings')) return undefined; // 未关闭 => groupCallAllowed() 返回 true
         if (sql.includes('FROM conversations')) return { type: 'group' };
+        if (sql.includes('FROM users')) return { banned: 0 }; // 本忙线夹具的双方账号均存在且可用
         // call.js 的 call:request 也会在这个文件的测试里被调用（跨通话忙线互斥），
         // 需要 blocked_users/conversation_members 两条查询都过：blocked 查不到即
         // 未拉黑（undefined 已经是期望值）；conversation_members 必须给个真值，
