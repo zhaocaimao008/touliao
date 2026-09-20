@@ -221,6 +221,7 @@ function deleteUser(io, id) {
       wallet.applyDeltaTx(id, -walletRow.balance, 'admin_delete_refund', null, '管理员删除用户·余额清零');
     }
 
+    db.prepare('DELETE FROM scheduled_messages WHERE sender_id=?').run(id);
     // 该用户发的消息及其衍生数据（用子查询避免 IN(?) 参数爆炸）
     db.prepare('DELETE FROM message_reactions WHERE message_id IN (SELECT id FROM messages WHERE sender_id=?)').run(id);
     db.prepare('DELETE FROM message_deliveries WHERE message_id IN (SELECT id FROM messages WHERE sender_id=?)').run(id);
@@ -265,6 +266,7 @@ function deleteUser(io, id) {
         db.prepare('DELETE FROM pinned_messages WHERE conversation_id=?').run(g.id);
         db.prepare('DELETE FROM red_packet_claims WHERE packet_id IN (SELECT id FROM red_packets WHERE conversation_id=?)').run(g.id);
         db.prepare('DELETE FROM red_packets WHERE conversation_id=?').run(g.id);
+        db.prepare('DELETE FROM scheduled_messages WHERE conversation_id=?').run(g.id);
         db.prepare('DELETE FROM messages WHERE conversation_id=?').run(g.id);
         db.prepare('DELETE FROM conversation_settings WHERE conversation_id=?').run(g.id);
         db.prepare('DELETE FROM conversation_clears WHERE conversation_id=?').run(g.id);

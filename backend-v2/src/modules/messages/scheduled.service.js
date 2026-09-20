@@ -45,13 +45,14 @@ function scheduleMessage(userId, { conversation_id, content, type = 'text', send
   return db.prepare('SELECT * FROM scheduled_messages WHERE id=?').get(id);
 }
 
-// ── 取消定时消息（仅发送者本人，仅 pending 可取消）────────────────
+// ── 取消定时消息（仅发送者本人，pending / recovery_required 可取消；取消歧义任务只停止重发，不撤回已提交消息）────────────────
 function cancelScheduledMessage(userId, id) {
   const row = db.prepare('SELECT * FROM scheduled_messages WHERE id=?').get(id);
   if (!row) throw notFound('定时消息不存在');
   if (row.sender_id !== userId) throw forbidden('只能取消自己的定时消息');
-  if (row.status !== 'pending') throw badRequest('该消息已发送或已取消，无法取消');
-  db.prepare("UPDATE scheduled_messages SET status='cancelled' WHERE id=? AND status='pending'").run(id);
+  if (!['pending', 'recovery_required'].includes(row.status)) throw badRequest('该消息已发送或已取消，无法取消');
+  const cancelled = db.prepare("UPDATE scheduled_messages SET status='cancelled' WHERE id=? AND status IN ('pending','recovery_required')").run(id);
+  if (!cancelled.changes) throw badRequest('发送状态已变化，请刷新后核对');
   return { success: true };
 }
 

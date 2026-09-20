@@ -21,4 +21,7 @@ module.exports = [
      UPDATE messages SET burn_after=COALESCE((SELECT burn_after FROM conversation_settings
        WHERE user_id=NEW.sender_id AND conversation_id=NEW.conversation_id),0) WHERE id=NEW.id;
    END`,
+ "CREATE INDEX IF NOT EXISTS idx_conversation_events_message ON conversation_events(message_id)",
+ "CREATE INDEX IF NOT EXISTS idx_pinned_messages_message ON pinned_messages(message_id)",
+ "CREATE INDEX IF NOT EXISTS idx_messages_burn_file ON messages(file_url) WHERE burn_after>0 AND deleted=0",
 ];

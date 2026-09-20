@@ -25,6 +25,7 @@ export default function ScheduleSendModal({ convId, defaultContent = '', onClose
   const [minDateTime, setMinDateTime] = useState('');
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
+  const [recoveryTasks, setRecoveryTasks] = useState([]);
   const inputRef = useRef(null);
 
   // 挂载时：读一次当前时间（副作用，不在 render 中调 Date.now，保证 render 纯净），
@@ -37,6 +38,21 @@ export default function ScheduleSendModal({ convId, defaultContent = '', onClose
     inputRef.current?.focus();
   }, []);
   /* eslint-enable react-hooks/set-state-in-effect */
+
+  useEffect(() => {
+    let current = true;
+    axios.get('/api/messages/schedule', { params: { status: 'recovery_required' } })
+      .then(({ data }) => { if (current) setRecoveryTasks(data.filter(item => item.conversation_id === convId)); })
+      .catch(err => { if (current) setError(err.response?.data?.error || t('ss.createFailed')); });
+    return () => { current = false; };
+  }, [convId, t]);
+
+  const cancelRecovery = async id => {
+    try {
+      await axios.delete(`/api/messages/schedule/${id}`);
+      setRecoveryTasks(items => items.filter(item => item.id !== id));
+    } catch (err) { setError(err.response?.data?.error || t('ss.createFailed')); }
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -93,6 +109,13 @@ export default function ScheduleSendModal({ convId, defaultContent = '', onClose
       >
         <h3 style={{ margin: '0 0 16px', fontSize: 'var(--text-lg)', fontWeight: 600 }}>{t('ss.title')}</h3>
 
+        {recoveryTasks.length > 0 && <div style={{ maxHeight: 160, overflowY: 'auto', marginBottom: 12 }}>
+          <p>以下消息发送结果待核对。取消会停止后续发送，已经送达的消息会保留。</p>
+          {recoveryTasks.map(item => <div key={item.id}>
+            <span>{item.content}</span>
+            <button type="button" onClick={() => cancelRecovery(item.id)}>{t('common.cancel')}</button>
+          </div>)}
+        </div>}
         {/* 内容 */}
         <label style={{ display: 'block', marginBottom: 12 }}>
           <span style={{ fontSize: 'var(--text-sm2)', color: 'var(--text-secondary)', display: 'block', marginBottom: 4 }}>

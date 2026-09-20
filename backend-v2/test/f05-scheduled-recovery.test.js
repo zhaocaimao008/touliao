@@ -64,3 +64,33 @@ test('old overdue pending is ambiguous, while never-due pending can safely adopt
  expect(db.prepare('SELECT status FROM scheduled_messages WHERE id=?').get(overdue).status).toBe('recovery_required');
  expect(db.prepare('SELECT status,delivery_version FROM scheduled_messages WHERE id=?').get(future)).toEqual({status:'pending',delivery_version:1});
 });
+test('admin deleteUser removes all sender task states without violating foreign keys',()=>{
+ const f=fixture();for(const s of ['pending','sending','sent','cancelled','recovery_required'])task(f,s);
+ require('../src/modules/admin/admin.service').deleteUser(null,f.a);
+ expect(db.prepare('SELECT id FROM users WHERE id=?').get(f.a)).toBeUndefined();
+ expect(db.prepare('SELECT * FROM scheduled_messages WHERE sender_id=?').all(f.a)).toEqual([]);
+ expect(db.pragma('foreign_key_check')).toEqual([]);
+});
+test('admin deleting a lone owner dissolves tasks left by a departed sender',()=>{
+ const f=fixture();db.prepare('UPDATE conversations SET owner_id=? WHERE id=?').run(f.a,f.id);
+ const id=task(f);db.prepare('UPDATE scheduled_messages SET sender_id=? WHERE id=?').run(f.b,id);
+ db.prepare('DELETE FROM conversation_members WHERE conversation_id=? AND user_id=?').run(f.id,f.b);
+ require('../src/modules/admin/admin.service').deleteUser(null,f.a);
+ expect(db.prepare('SELECT id FROM conversations WHERE id=?').get(f.id)).toBeUndefined();
+ expect(db.prepare('SELECT * FROM scheduled_messages WHERE id=?').get(id)).toBeUndefined();
+ expect(db.pragma('foreign_key_check')).toEqual([]);
+});
+test('ambiguous recovery task can be cancelled only by its sender; retry never sends it',async()=>{
+ const f=fixture(),id=task(f,'recovery_required',0);
+ expect(()=>sched.cancelScheduledMessage(f.b,id)).toThrow('只能取消');
+ expect(sched.cancelScheduledMessage(f.a,id)).toEqual({success:true});await sched.sendDueMessages();
+ expect(sched.listScheduledMessages(f.a).map(x=>x.id)).not.toContain(id);
+ expect(db.prepare('SELECT * FROM messages WHERE conversation_id=?').all(f.id)).toEqual([]);
+});
+test('two simultaneous OS processes and another retry deliver each task once',async()=>{
+ const f=fixture();const ids=Array.from({length:4},()=>task(f));
+ const code=`await require(${JSON.stringify(require.resolve('../src/modules/messages/scheduled.service'))}).sendDueMessages()`;
+ await require('./batch2-fixture.cjs').concurrentProcesses([code,code]);await sched.sendDueMessages();
+ expect(db.prepare('SELECT id FROM messages WHERE conversation_id=? ORDER BY id').all(f.id).map(m=>m.id)).toEqual(ids.map(id=>'scheduled:'+id).sort());
+ expect(db.prepare("SELECT COUNT(*) AS n FROM conversation_events WHERE conversation_id=? AND event_type='message_created'").get(f.id).n).toBe(4);
+});

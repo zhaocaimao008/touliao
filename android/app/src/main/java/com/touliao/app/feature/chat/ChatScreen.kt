@@ -1893,7 +1893,7 @@ private fun ScheduledMessagesDialog(
                                     fontSize = com.touliao.app.ui.theme.VxinTextSize.xs, color = Color(0xFF888888),
                                 )
                             }
-                            TextButton(enabled = msg.status == "pending", onClick = { onCancel(msg.id) }) {
+                            TextButton(enabled = msg.status == "pending" || msg.status == "recovery_required", onClick = { onCancel(msg.id) }) {
                                 Text("取消", color = Color(0xFFFA5151), fontSize = com.touliao.app.ui.theme.VxinTextSize.sm)
                             }
                         }
