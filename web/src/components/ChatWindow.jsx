@@ -419,13 +419,15 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
       if (!msg?.id || burnTimersRef.current.has(msg.id)) return;
       const expire = async () => {
         if (!isSessionCurrent(scope) || convIdRef.current !== convId || !mountedRef.current) return;
+        // Preserve the existing local expiry even during an outage. This is not
+        // confirmation of server removal: failed persistence is reported and retried.
+        setMessages(prev => prev.filter(m => m.id !== msg.id));
+        removeFromCache(convId, msg.id);
         try {
           // This setting belongs to this account. It cannot authorize deletion
           // of other members' copies. Server TTL/global retention is a separate contract.
           await axios.delete(`/api/messages/${msg.id}`, { data: { forMe: true } });
           if (!isSessionCurrent(scope) || convIdRef.current !== convId || !mountedRef.current) return;
-          setMessages(prev => prev.filter(m => m.id !== msg.id));
-          removeFromCache(convId, msg.id);
           burnTimersRef.current.delete(msg.id);
         } catch {
           if (!isSessionCurrent(scope) || convIdRef.current !== convId || !mountedRef.current) return;

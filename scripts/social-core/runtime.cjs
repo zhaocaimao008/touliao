@@ -79,9 +79,19 @@ let browser,page;const result={checks:[],errors:[],externalRequestsBlocked:0};
  const database=require(path.join(back,'src/db/connection')).db;
  const expiryId=require('crypto').randomUUID();
  database.prepare('INSERT INTO messages(id,conversation_id,sender_id,type,content,created_at) VALUES(?,?,?,?,?,?)').run(expiryId,dm.conversationId,b.user.id,'text','SYNTHETIC_TIMER_CONTENT',Math.floor(Date.now()/1000)-300);
+ let failExpiryRequests=true;
+ await page.route('**/api/messages/'+expiryId,async route=>{
+   if(route.request().method()==='DELETE' && failExpiryRequests)return route.fulfill({status:503,json:{error:'synthetic temporary unavailability'}});
+   return route.continue();
+ });
  await api('POST','/api/messages/conversation/'+dm.conversationId+'/burn-after',{seconds:60},a.token);
  await page.getByTestId('conv-item-'+group.conversationId).click();await page.getByTestId('conv-item-'+dm.conversationId).click();
- for(let i=0;i<100;i++){if(database.prepare('SELECT 1 FROM user_message_deletions WHERE message_id=? AND user_id=?').get(expiryId,a.user.id))break;await new Promise(r=>setTimeout(r,100));}
+ await page.getByText('消息移除未同步，联网后将重试',{exact:true}).waitFor({timeout:30000});
+ await page.getByTestId('msg-bubble-'+expiryId).waitFor({state:'hidden',timeout:5000});
+ assert.equal(database.prepare('SELECT 1 FROM user_message_deletions WHERE message_id=? AND user_id=?').get(expiryId,a.user.id),undefined);
+ result.checks.push('Local timer hides the bubble during a failed request and reports unsynchronized removal; no false persisted-success claim');
+ failExpiryRequests=false;
+ for(let i=0;i<400;i++){if(database.prepare('SELECT 1 FROM user_message_deletions WHERE message_id=? AND user_id=?').get(expiryId,a.user.id))break;await new Promise(r=>setTimeout(r,100));}
  assert.ok(database.prepare('SELECT 1 FROM user_message_deletions WHERE message_id=? AND user_id=?').get(expiryId,a.user.id));
  assert.equal(JSON.stringify(await api('GET','/api/messages/'+dm.conversationId,null,a.token)).includes('SYNTHETIC_TIMER_CONTENT'),false);
  assert.equal(JSON.stringify(await api('GET','/api/messages/'+dm.conversationId,null,b.token)).includes('SYNTHETIC_TIMER_CONTENT'),true);
