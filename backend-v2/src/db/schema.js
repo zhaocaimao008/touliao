@@ -694,6 +694,7 @@ function applySchema(db) {
       created_at INTEGER NOT NULL DEFAULT (strftime('%s','now')),
       PRIMARY KEY (actor_id, operation, idempotency_key)
     )`,
+    ...require('./migrations/batch2'),
   ];
 
   // ── 迁移执行：版本追踪 + 错误分级 ────────────────────────────────

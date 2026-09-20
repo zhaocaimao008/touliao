@@ -1581,6 +1581,7 @@ private struct ScheduledListSheet: View {
 
     private func scheduledStatusLabel(_ status: String) -> String {
         switch status {
+        case "recovery_required": return "发送结果待核对"
         case "pending": return "待发送"
         case "sent": return "已发送"
         case "cancelled": return "已取消"

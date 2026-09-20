@@ -1886,13 +1886,14 @@ private fun ScheduledMessagesDialog(
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
                             Column(Modifier.weight(1f)) {
+                                if (msg.status == "recovery_required") Text("发送结果待核对", color = Color(0xFFFA5151))
                                 Text(msg.content, maxLines = 2, overflow = TextOverflow.Ellipsis, fontSize = com.touliao.app.ui.theme.VxinTextSize.base)
                                 Text(
                                     "⏰ ${sdf.format(java.util.Date(msg.send_at * 1000))}",
                                     fontSize = com.touliao.app.ui.theme.VxinTextSize.xs, color = Color(0xFF888888),
                                 )
                             }
-                            TextButton(onClick = { onCancel(msg.id) }) {
+                            TextButton(enabled = msg.status == "pending", onClick = { onCancel(msg.id) }) {
                                 Text("取消", color = Color(0xFFFA5151), fontSize = com.touliao.app.ui.theme.VxinTextSize.sm)
                             }
                         }
