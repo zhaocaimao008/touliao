@@ -46,6 +46,8 @@ function rewriteUrlsInObject(obj) {
   if (!obj || typeof obj !== 'object') return obj;
 
   const str = JSON.stringify(obj);
+  // Ephemeral attachments must stay behind the authenticated origin.
+  if (/"burn_after":(?:[1-9][0-9]*)/.test(str)) return obj;
   const rewritten = str.replace(/\/uploads\//g, `${CDN_BASE.replace(/\/$/, '')}/uploads/`);
   try {
     return JSON.parse(rewritten);
@@ -65,6 +67,7 @@ function computeEtag(content) {
 function uploadsCacheMiddleware(req, res, next) {
   const originalSetHeader = res.setHeader.bind(res);
   res.setHeader = function (name, value) {
+    if (name.toLowerCase() === 'cache-control' && res.locals?.burnAttachment) return originalSetHeader(name, 'private, no-store');
     // 只覆盖 Cache-Control，其他保持原样
     if (name.toLowerCase() === 'cache-control' &&
         req.path && /\.(jpg|jpeg|png|gif|webp|avif|mp4|mp3|pdf|zip)$/i.test(req.path)) {

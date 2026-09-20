@@ -37,8 +37,10 @@ exports.missed = asyncHandler(async (req, res) =>
 exports.send = asyncHandler(async (req, res) =>
   res.json(await svc.send(io(req), req.params.conversationId, req.user.id, req.body)));
 
-exports.forward = asyncHandler(async (req, res) =>
-  res.json({ success: true, ...await svc.forward(io(req), req.user.id, req.body) }));
+exports.forward = asyncHandler(async (req, res) => {
+  const result = await svc.forward(io(req), req.user.id, req.body);
+  res.json({ ...result, success: result.status === 'success' });
+});
 
 exports.batchDelete = asyncHandler(async (req, res) =>
   res.json({ success: true, deleted: await svc.batchDelete(io(req), req.user.id, req.body) }));
@@ -134,7 +136,7 @@ exports.uploadHandle = asyncHandler(async (req, res) => {
 
   pushNewMessage({
     conversationId, senderId: req.user.id, senderName: msg.senderName,
-    content: safeOriginalName, type, timestamp: msg.created_at,
+    content: msg.burn_after ? '[阅后即焚消息]' : safeOriginalName, type, timestamp: msg.created_at,
     onlineUserIds: req.app.get('onlineUsers') || new Set(),
   }).catch(() => {});
 

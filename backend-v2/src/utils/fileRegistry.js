@@ -48,6 +48,7 @@ const isPublicReference = path => typeof path === 'string'
 // A readable message (or a historical share) does not establish ownership of its file.
 // Check the upload's registered owner or current ORIGINAL conversation membership.
 const referenceAccessSql = `SELECT 1 FROM file_registry r WHERE r.path=? AND
+  NOT EXISTS (SELECT 1 FROM revoked_burn_files b WHERE b.path=r.path) AND
   (r.owner_id=? OR EXISTS (SELECT 1 FROM conversation_members cm
     WHERE cm.conversation_id=r.conversation_id AND cm.user_id=?))`;
 function canReferenceFile(path, userId) {

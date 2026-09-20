@@ -133,6 +133,7 @@ function baseIdOf(file) {
 // 解析 /uploads/<category>/<file>，校验当前用户是否可访问该资源。
 // 返回 { ok: true } 放行；{ ok: false, status } 拒绝；null 表示资源不存在/未知类别。
 function resolveUploadAccess(userId, reqPath) {
+  require('./modules/messages/burn.service').expireDueMessages();
   const m = String(reqPath || '').match(/^\/([^/]+)\/([^/]+)$/);
   if (!m) return null;
   const category = m[1];
@@ -149,6 +150,8 @@ function resolveUploadAccess(userId, reqPath) {
 
   // 其余类别一律以 file_registry 为准：文件必须真实登记过且归属权匹配
   const path = `/uploads/${category}/${file}`;
+  const revoked = db.prepare("SELECT 1 FROM revoked_burn_files WHERE path=? OR path LIKE ? LIMIT 1").get(path, `/uploads/${category}/${baseIdOf(file)}.%`);
+  if (revoked) return { ok: false, status: 403 };
   const reg = lookupFile(path);
   if (!reg) return null; // 未登记 = 不存在（含已删除消息的文件）
 
@@ -206,6 +209,10 @@ function resolveUploadAccess(userId, reqPath) {
   return null; // 未知类别
 }
 
+app.use((req, res, next) => {
+  try { require('./modules/messages/burn.service').expireDueMessages(req.app.get('io')); next(); } catch (e) { next(e); }
+});
+
 app.use('/uploads', async (req, res, next) => {
   // Explicit media credentials take precedence over a different account's shared cookie.
   const bearer = (req.headers.authorization || '').replace(/^Bearer\s+/i, '') || null;
@@ -256,6 +263,16 @@ app.use('/uploads', async (req, res, next) => {
       if (denied) return res.status(denied.status).json({ error: denied.error });
     }
 
+    const attachmentPath = `/uploads${req.path}`;
+    const basePath = attachmentPath.replace(/_thumb\.webp$/, '').replace(/\.[a-zA-Z0-9]+$/, '');
+    if (db.prepare('SELECT 1 FROM revoked_burn_files WHERE path=? OR path LIKE ?').get(attachmentPath, `${basePath}.%`)) {
+      return res.status(403).json({ error: '附件已到期' });
+    }
+    const burnFile = db.prepare('SELECT MIN(burn_expires_at) AS expires_at, MIN(burn_after) AS seconds FROM messages WHERE burn_after>0 AND deleted=0 AND (file_url=? OR file_url LIKE ?)')
+      .get(attachmentPath, `${basePath}.%`);
+    res.locals.burnAttachment = !!burnFile?.seconds;
+    if (res.locals.burnAttachment) res.setHeader('Cache-Control', 'private, no-store');
+
     // P1-02：管理员放行全部；普通用户按资源类别做所有权/权限校验
     if (!isAdmin) {
       const access = resolveUploadAccess(issuer.id, req.path);
@@ -270,7 +287,8 @@ app.use('/uploads', async (req, res, next) => {
       if (!fs.existsSync(localFile)) {
         try {
           const key = `uploads${req.path}`; // /uploads/files/x.png → uploads/files/x.png
-          const signed = await cloudStorage.getPresignedGetUrl(key, 600);
+          const signed = await cloudStorage.getPresignedGetUrl(key, res.locals.burnAttachment
+            ? Math.max(1, Math.min(60, burnFile.expires_at ? burnFile.expires_at-Math.floor(Date.now()/1000) : 60)) : 600);
           return res.redirect(302, signed);
         } catch (e) {
           console.error('[uploads] presigned GET 生成失败:', e.message);

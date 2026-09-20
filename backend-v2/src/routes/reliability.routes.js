@@ -90,6 +90,9 @@ router.post('/ack/read', auth, async (req, res, next) => {
     // 持久化到 SQLite（三态展示的最终态；Redis 仅实时缓存，TTL 过期不丢）
     db.prepare('INSERT OR IGNORE INTO message_reads (message_id, user_id) VALUES (?, ?)').run(messageId, userId);
 
+    const rowid = db.prepare('SELECT rowid AS rid FROM messages WHERE id=?').get(messageId)?.rid;
+    if (rowid != null) require('../modules/messages/burn.service').recordRead(req.app.get('io'), userId, msg.conversation_id, rowid, messageId);
+
     // 向发送者实时广播精确回执（消息气泡 蓝双勾 即时流转）
     if (msg && msg.sender_id !== userId) {
       req.app.get('io')?.to(`user_${msg.sender_id}`).emit('message:read', {
