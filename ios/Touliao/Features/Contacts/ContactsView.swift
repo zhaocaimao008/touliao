@@ -23,6 +23,7 @@ struct ContactsView: View {
     @State private var remarkText = ""
     @State private var deleteTarget: Contact?
     @State private var blockTarget: Contact?
+    @State private var reportTarget: SafetyTarget?
 
     var body: some View {
         List {
@@ -115,12 +116,14 @@ struct ContactsView: View {
                     }
                     .contextMenu {
                         Button("设置备注") { remarkText = contact.remark ?? ""; remarkTarget = contact }
+                        Button("举报用户") { reportTarget = SafetyTarget(type: "user", targetId: contact.id) }
                         Button("加入黑名单", role: .destructive) { blockTarget = contact }
                         Button("删除好友", role: .destructive) { deleteTarget = contact }
                     }
                 }
             }
         }
+        .sheet(item: $reportTarget) { SafetyReportView(target: $0) }
         .listStyle(.plain)
         .alert("设置备注", isPresented: .constant(remarkTarget != nil)) {
             TextField("留空恢复默认昵称", text: $remarkText)
@@ -137,7 +140,7 @@ struct ContactsView: View {
             Button("取消", role: .cancel) { blockTarget = nil }
             Button("加入", role: .destructive) { if let c = blockTarget { vm.block(c) }; blockTarget = nil }
         } message: {
-            Text("加入黑名单后，将不再收到「\(blockTarget?.displayName ?? "")」的消息。")
+            Text("加入黑名单后，将阻止与「\(blockTarget?.displayName ?? "")」的私聊及好友申请，双方动态不可见；共同群聊和已有历史仍可能可见。")
         }
         .navigationTitle("通讯录")
         .navigationBarTitleDisplayMode(.inline)

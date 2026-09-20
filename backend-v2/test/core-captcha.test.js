@@ -46,7 +46,7 @@ describe('图形验证码', () => {
   test('开关关闭（默认）：登录不带验证码字段也能成功', async () => {
     setLoginCaptchaRequired(false);
     const u = await makeUser({ username: 'cap_off' });
-    const res = await request(app).post('/api/auth/login').send({ phone: u.phone, password: u.password });
+    const res = await request(app).post('/api/auth/login').send({ ...({ phone: u.phone, password: u.password }), legalConsent: require('./legal-consent.cjs') });
     expect(res.status).toBe(200);
     expect(res.body.token).toBeTruthy();
   });
@@ -54,7 +54,7 @@ describe('图形验证码', () => {
   test('开关开启：登录不带验证码 → 400', async () => {
     setLoginCaptchaRequired(true);
     const u = await makeUser({ username: 'cap_on_missing' });
-    const res = await request(app).post('/api/auth/login').send({ phone: u.phone, password: u.password });
+    const res = await request(app).post('/api/auth/login').send({ ...({ phone: u.phone, password: u.password }), legalConsent: require('./legal-consent.cjs') });
     expect(res.status).toBe(400);
     expect(res.body.error).toMatch(/验证码/);
   });
@@ -64,7 +64,7 @@ describe('图形验证码', () => {
     const u = await makeUser({ username: 'cap_on_wrong' });
     const { captchaId } = await captchaUtil.generate();
     const res = await request(app).post('/api/auth/login')
-      .send({ phone: u.phone, password: u.password, captchaId, captchaText: 'zzzzz' });
+      .send({ ...({ phone: u.phone, password: u.password, captchaId, captchaText: 'zzzzz' }), legalConsent: require('./legal-consent.cjs') });
     expect(res.status).toBe(400);
     expect(res.body.error).toMatch(/验证码/);
   });
@@ -76,13 +76,13 @@ describe('图形验证码', () => {
     const text = await captchaUtil._peekTextForTests(captchaId);
 
     const ok = await request(app).post('/api/auth/login')
-      .send({ phone: u.phone, password: u.password, captchaId, captchaText: text });
+      .send({ ...({ phone: u.phone, password: u.password, captchaId, captchaText: text }), legalConsent: require('./legal-consent.cjs') });
     expect(ok.status).toBe(200);
     expect(ok.body.token).toBeTruthy();
 
     // 同一 captchaId+text 再试一次（模拟重放攻击）应该失败，因为已被核销
     const replay = await request(app).post('/api/auth/login')
-      .send({ phone: u.phone, password: u.password, captchaId, captchaText: text });
+      .send({ ...({ phone: u.phone, password: u.password, captchaId, captchaText: text }), legalConsent: require('./legal-consent.cjs') });
     expect(replay.status).toBe(400);
     expect(replay.body.error).toMatch(/验证码/);
   });

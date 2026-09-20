@@ -83,6 +83,9 @@ struct LoginView: View {
                     .accessibilityIdentifier("auth-error-text")
             }
 
+            LegalLinks()
+            Toggle("我已阅读并同意隐私政策和用户协议", isOn: $vm.legalAccepted).font(.footnote)
+
             Button(action: vm.login) {
                 ZStack {
                     if vm.loading { ProgressView().tint(.white) }

@@ -43,6 +43,10 @@ exports.credential = asyncHandler(async (req, res) => {
     throw badRequest('不支持的内容类型');
   }
 
+  // Direct cloud PUT bypasses byte inspection, including disguised images.
+  // Keep it closed until a verified quarantine/scan workflow exists.
+  require('../moderation/mediaPolicy').assertCloudUploadAvailable();
+
   const ext = safeExt(filename, contentType);
   // R2 key 与本站访问路径一一对应（去前导斜杠），保证 /uploads 下载侧可直接映射；
   // file_url 保持本站路径格式（前端零改动），下载时经 file_registry 权限校验后 302 到短时 presigned GET。

@@ -34,7 +34,7 @@ afterAll(async () => {
 
 async function login(account, password = account.password) {
   const res = await request(app).post('/api/auth/login').set('User-Agent', 'Android Q02')
-    .send({ phone: account.phone, password });
+    .send({ ...({ phone: account.phone, password }), legalConsent: require('./legal-consent.cjs') });
   expect(res.status).toBe(200);
   return res.body.token;
 }

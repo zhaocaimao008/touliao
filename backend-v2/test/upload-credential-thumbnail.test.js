@@ -27,43 +27,18 @@ function makeRes() {
   return res;
 }
 
-describe('POST /api/upload/credential 缩略图预签名', () => {
-  beforeEach(() => getPresignedPutUrl.mockClear());
-
-  test('图片文件名（.jpg）：响应带 thumbUploadUrl，key 与原图同 uuid + _thumb.webp', async () => {
-    const req = { user: { id: 'u1' }, body: { filename: 'photo.jpg', contentType: 'image/jpeg', conversationId: 'c1' } };
-    const res = makeRes();
-    await credential(req, res, jest.fn());
-
-    expect(res.json).toHaveBeenCalledTimes(1);
-    const body = res.json.mock.calls[0][0];
-    expect(body.thumbUploadUrl).toBeTruthy();
-
-    // publicUrl: /uploads/files/<uuid>.jpg —— 缩略图 key 须用同一个 uuid + _thumb.webp
-    const uuid = body.publicUrl.match(/\/uploads\/files\/([^.]+)\.jpg$/)[1];
-    const thumbCall = getPresignedPutUrl.mock.calls.find(([key]) => key.includes('_thumb.webp'));
-    expect(thumbCall).toBeTruthy();
-    expect(thumbCall[0]).toBe(`uploads/files/${uuid}_thumb.webp`);
-    expect(thumbCall[1]).toBe('image/webp');
-  });
-
-  test('非图片文件名（.pdf）：不发缩略图预签名请求，响应无 thumbUploadUrl', async () => {
-    const req = { user: { id: 'u1' }, body: { filename: 'doc.pdf', contentType: 'application/pdf', conversationId: 'c1' } };
-    const res = makeRes();
-    await credential(req, res, jest.fn());
-
-    const body = res.json.mock.calls[0][0];
-    expect(body.thumbUploadUrl).toBeUndefined();
-    expect(getPresignedPutUrl).toHaveBeenCalledTimes(1); // 只有原图那一次
-  });
-
-  test('GIF：不发缩略图预签名请求（与本地路径 THUMBNAIL_MIMES 跳过 GIF 同口径）', async () => {
-    const req = { user: { id: 'u1' }, body: { filename: 'anim.gif', contentType: 'image/gif', conversationId: 'c1' } };
-    const res = makeRes();
-    await credential(req, res, jest.fn());
-
-    const body = res.json.mock.calls[0][0];
-    expect(body.thumbUploadUrl).toBeUndefined();
-    expect(getPresignedPutUrl).toHaveBeenCalledTimes(1);
+// F-13 changes the endpoint contract: byte-unchecked cloud PUT is closed until
+// quarantine/scanning is available. Keep all three format cases and assert no
+// original/thumbnail credentials or registry grants escape the gate.
+describe('POST /api/upload/credential 审核不可用时拒绝预签名', () => {
+  beforeEach(() => { getPresignedPutUrl.mockClear(); require('../src/utils/fileRegistry').registerFile.mockClear(); });
+  test.each([['photo.jpg','image/jpeg'],['doc.pdf','application/pdf'],['anim.gif','image/gif']])('%s cannot bypass scanning with a claimed MIME', async (filename,contentType) => {
+    const req = {user:{id:'u1'},body:{filename,contentType,conversationId:'c1'}};
+    const res = makeRes(); const next=jest.fn();
+    await credential(req,res,next);
+    expect(next).toHaveBeenCalledWith(expect.objectContaining({status:503,code:'MEDIA_MODERATION_UNAVAILABLE'}));
+    expect(res.json).not.toHaveBeenCalled();
+    expect(getPresignedPutUrl).not.toHaveBeenCalled();
+    expect(require('../src/utils/fileRegistry').registerFile).not.toHaveBeenCalled();
   });
 });

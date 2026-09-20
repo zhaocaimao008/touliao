@@ -695,6 +695,7 @@ function applySchema(db) {
       PRIMARY KEY (actor_id, operation, idempotency_key)
     )`,
     ...require('./migrations/batch2'),
+    ...require('./migrations/batch4'),
   ];
 
   // ── 迁移执行：版本追踪 + 错误分级 ────────────────────────────────

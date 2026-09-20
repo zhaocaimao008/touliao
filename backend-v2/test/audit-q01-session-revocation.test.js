@@ -26,7 +26,7 @@ function tokenFrom(res) {
 async function login(account, ua = UA, wallet, password = account.password) {
   let req = request(app).post('/api/auth/login').set('User-Agent', ua);
   if (wallet) req = req.set('Cookie', wallet);
-  const res = await req.send({ phone: account.phone, password });
+  const res = await req.send({ phone: account.phone, password, legalConsent: require('./legal-consent.cjs') });
   expect(res.status).toBe(200);
   return { token: tokenFrom(res), wallet: cookie(res, config.walletCookie) || wallet, ua };
 }
@@ -254,7 +254,7 @@ test('old-password login cannot create a session after an administrator reset du
     await release.promise;
     return matches;
   });
-  const pending = request(app).post('/api/auth/login').send({ phone: account.phone, password: account.password }).then(res => res);
+  const pending = request(app).post('/api/auth/login').send({ ...({ phone: account.phone, password: account.password }), legalConsent: require('./legal-consent.cjs') }).then(res => res);
   await entered.promise;
   await admin.resetPassword(io, account.userId, NEW_PASSWORD);
   release.resolve();

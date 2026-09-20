@@ -7,6 +7,7 @@ const jwt = require('jsonwebtoken');
 const { db } = require('../src/db/connection');
 const config = require('../src/config');
 const app = require('../src/app');
+const fixtureRun = require('crypto').randomUUID();
 let serial = 0;
 async function makeUser({ username }) {
   const id = `${username}-${++serial}`;
@@ -16,10 +17,17 @@ async function makeUser({ username }) {
 function request(target) {
   const method = name => url => {
     const headers = {};
-    let body;
+    let body; const parts = []; const boundary = "synthetic-batch4-boundary";
     const chain = {
       set(key, value) { headers[key.toLowerCase()] = value; return chain; },
       send(value) { body = value; return chain; },
+      query(value) { url += (url.includes('?') ? '&' : '?') + new URLSearchParams(value); return chain; },
+      field(key,value) { parts.push(Buffer.from(`--${boundary}\r\nContent-Disposition: form-data; name="${key}"\r\n\r\n${value}\r\n`)); return chain; },
+      attach(key,bytes,options={}) {
+        if (typeof bytes==='string') bytes=require('fs').readFileSync(bytes);
+        parts.push(Buffer.from(`--${boundary}\r\nContent-Disposition: form-data; name="${key}"; filename="${options.filename || 'synthetic.bin'}"\r\nContent-Type: ${options.contentType || 'application/octet-stream'}\r\n\r\n`),bytes,Buffer.from('\r\n'));
+        return chain;
+      },
       then(resolve, reject) { return dispatch().then(resolve, reject); },
     };
     function dispatch() {
@@ -28,8 +36,8 @@ function request(target) {
         socket.remoteAddress = '127.0.0.1';
         const req = new IncomingMessage(socket);
         req.method = name; req.url = url; req.headers = { host: 'fixture.invalid', ...headers };
-        const bytes = body === undefined ? null : Buffer.from(JSON.stringify(body));
-        if (bytes) { req.headers['content-type'] = 'application/json'; req.headers['content-length'] = String(bytes.length); }
+        const bytes = parts.length ? Buffer.concat([...parts,Buffer.from(`--${boundary}--\r\n`)]) : body === undefined ? null : Buffer.isBuffer(body) ? body : Buffer.from(JSON.stringify(body));
+        if (bytes) { req.headers['content-type'] = parts.length ? `multipart/form-data; boundary=${boundary}` : req.headers['content-type'] || (Buffer.isBuffer(body) ? 'application/octet-stream' : 'application/json'); req.headers['content-length'] = String(bytes.length); }
         const res = new ServerResponse(req);
         const chunks = [];
         res.write = chunk => { chunks.push(Buffer.from(chunk)); return true; };
@@ -43,19 +51,20 @@ function request(target) {
         };
         res.on('error', reject);
         if (bytes) req.push(bytes);
+        req.complete = true;
         req.push(null);
         target(req, res);
       });
     }
     return chain;
   };
-  return { get: method('GET'), head: method('HEAD'), post: method('POST'), delete: method('DELETE') };
+  return { get: method('GET'), head: method('HEAD'), put: method('PUT'), patch: method('PATCH'), post: method('POST'), delete: method('DELETE') };
 }
 async function befriend(a, b) {
-  for (const [u, v] of [[a, b], [b, a]]) db.prepare('INSERT INTO contacts(id,user_id,contact_id) VALUES (?,?,?)').run(`fixture-contact-${++serial}`, u.userId, v.userId);
+  for (const [u, v] of [[a, b], [b, a]]) db.prepare('INSERT INTO contacts(id,user_id,contact_id) VALUES (?,?,?)').run(`fixture-contact-${fixtureRun}-${++serial}`, u.userId, v.userId);
 }
 async function privateConversation(a, b) {
-  const id = `fixture-private-${++serial}`;
+  const id = `fixture-private-${fixtureRun}-${++serial}`;
   db.prepare('INSERT INTO conversations(id,type) VALUES (?,?)').run(id, 'private');
   for (const u of [a, b]) db.prepare('INSERT INTO conversation_members(conversation_id,user_id) VALUES (?,?)').run(id, u.userId);
   return id;

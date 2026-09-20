@@ -1,3 +1,4 @@
+import ReportButton from './ReportDialog';
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import Avatar from './Avatar';
@@ -164,6 +165,8 @@ export default function UserProfile({ userId, onClose, onStartChat, onFriendAdde
           </div>
         </div>
 
+        {userId !== currentUser?.id && <ReportButton targetType="user" targetId={userId} label="举报用户" />}
+        <p className="safety-links">黑名单阻止双方私聊和好友申请，并隐藏双方动态；共同群聊与已有历史仍可能可见。</p>
         {/* 名字 + ID */}
         <div className="up-identity">
           <div className="up-name">{displayName}</div>

@@ -13,7 +13,7 @@ describe('通话记录 call-logs', () => {
   let cookies;
 
   beforeAll(async () => {
-    const res = await request(app).post('/api/auth/login').send(testUser);
+    const res = await request(app).post('/api/auth/login').send({ ...(testUser), legalConsent: require('./legal-consent.cjs') });
     if (res.status >= 400 || !res.headers['set-cookie']) return;
     cookies = res.headers['set-cookie'];
   });

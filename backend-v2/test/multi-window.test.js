@@ -12,7 +12,7 @@ async function login(user, cookies, independent = true) {
   let req = request(app).post('/api/auth/login');
   if (cookies) req = req.set('Cookie', cookies);
   if (independent) req = isolated(req);
-  const response = await req.send({ phone: user.phone, password: user.password });
+  const response = await req.send({ phone: user.phone, password: user.password, legalConsent: require('./legal-consent.cjs') });
   expect(response.status).toBe(200);
   return response;
 }

@@ -1,6 +1,6 @@
 /**
  * P9.4: 内容安全审核
- * AI 驱动的违规内容检测
+ * 本地文本示例；图片能力未配置时明确返回 unavailable。
  */
 
 class ContentModerator {
@@ -46,12 +46,11 @@ class ContentModerator {
   }
 
   /**
-   * 检测图片内容 (占位: 实际需要 CV 模型)
+   * 检测图片内容：未配置服务，绝不返回虚假通过
    */
   async moderateImage(imageUrl) {
     this.stats.checked++;
-    // 实际实现需要调用 Google Vision API 或类似
-    return { status: 'approved', severity: 'none' };
+    return { status: 'unavailable', reason: 'MEDIA_MODERATION_UNAVAILABLE' };
   }
 
   /**

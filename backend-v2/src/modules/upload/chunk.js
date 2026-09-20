@@ -125,7 +125,16 @@ async function finish(req, res) {
   if (got !== m.size) return res.status(400).json({ error: `文件不完整 (${got}/${m.size})，请续传`, received: got });
 
   // 常见格式校验（扩展名白名单 + 魔数反可执行伪装）
-  const check = await verifyChatFile(part, m.filename, m.mime);
+  let check;
+  try {
+    check = await verifyChatFile(part, m.filename, m.mime);
+    if (check.ok) await require('../moderation/mediaPolicy').assertUploadAvailable(part,m.filename,m.mime,check.detectedMime);
+  }
+  catch (err) {
+    meta.delete(uploadId);
+    await Promise.all([part,metaPath(uploadId)].map(p => fs.promises.unlink(p).catch(() => {})));
+    throw err;
+  }
   if (!check.ok) { fs.unlink(part, () => {}); meta.delete(uploadId); return res.status(400).json({ error: `400 Invalid File Type: ${check.reason}` }); }
 
   // hash 完整性校验（流式读取，避免大文件全量载入内存）

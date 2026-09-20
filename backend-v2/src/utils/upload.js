@@ -180,7 +180,7 @@ async function verifyChatFile(filePath, originalname, claimedMime = '') {
   const claimedBase = claimedMime.split(';')[0].trim().toLowerCase();
   const audioContainer = (detected?.mime === 'video/webm' && claimedBase === 'audio/webm')
     || (detected?.mime === 'video/mp4' && claimedBase === 'audio/mp4');
-  return { ok: true, ext: '.' + ext, mime: audioContainer ? claimedBase : detected?.mime || claimedMime || 'application/octet-stream' };
+  return { ok: true, ext: '.' + ext, detectedMime: detected?.mime || '', mime: audioContainer ? claimedBase : detected?.mime || claimedMime || 'application/octet-stream' };
 }
 
 function handleMulterError(err, req, res, next) {
@@ -358,15 +358,22 @@ function makeChatMagicMiddleware() {
   return async (req, res, next) => {
     const files = req.files || (req.file ? [req.file] : []);
     if (!files.length) return next();
+    try {
     for (const file of files) {
+      if (file.size === 0) throw require('./http').badRequest('文件为空，请重新选择');
       const result = await verifyChatFile(file.path, file.originalname, file.mimetype);
       if (!result.ok) {
         fs.unlink(file.path, () => {});
         return res.status(400).json({ error: `400 Invalid File Type: ${result.reason}` });
       }
+      await require('../modules/moderation/mediaPolicy').assertUploadAvailable(file.path, file.originalname, file.mimetype, result.detectedMime);
       if (result.mime) file.mimetype = result.mime;
     }
     next();
+    } catch (err) {
+      await Promise.all(files.map(file => fs.promises.unlink(file.path).catch(() => {})));
+      next(err);
+    }
   };
 }
 
@@ -440,8 +447,10 @@ function makeVideoUploader(dest, fieldName = 'video', maxSize = MAX_UPLOAD_BYTES
     storage,
     limits: { fileSize: maxSize, fields: 32, fieldSize: 65536, fieldNestingDepth: 8, fieldArrayIndexLimit: 100 },
   }).single(fieldName));
-  return [makeUploadGuard(dest), multerMw, makeVideoMagicMiddleware()];
+  return [rejectVisualUpload, makeUploadGuard(dest), multerMw, makeVideoMagicMiddleware()];
 }
+
+function rejectVisualUpload(req,res,next) { next(require('../modules/moderation/mediaPolicy').unavailable()); }
 
 function makeImageUploader(dest, fieldName = 'image', maxCount = 1, maxSize = 5 * 1024 * 1024) {
   fs.mkdirSync(dest, { recursive: true });
@@ -460,7 +469,7 @@ function makeImageUploader(dest, fieldName = 'image', maxCount = 1, maxSize = 5 
     },
   });
   const middleware = maxCount === 1 ? m.single(fieldName) : m.array(fieldName, maxCount);
-  return [wrapUpload(middleware), makeMagicBytesMiddleware(ALLOWED_IMAGE_MIMES), makeExifStripMiddleware()];
+  return [rejectVisualUpload, wrapUpload(middleware), makeMagicBytesMiddleware(ALLOWED_IMAGE_MIMES), makeExifStripMiddleware()];
 }
 
 // 浏览器会内联渲染/执行的危险 MIME（html/xml/svg/js）。云直传对象的 Content-Type 由客户端

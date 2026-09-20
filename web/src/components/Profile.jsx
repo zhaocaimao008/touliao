@@ -1,3 +1,5 @@
+import LegalConsent from './LegalConsent';
+import ReportButton from './ReportDialog';
 import { clientStorage as localStorage } from '../utils/clientStorage';
 import React, { useEffect, useState, useRef, useCallback } from 'react';
 import axios from 'axios';
@@ -1401,6 +1403,8 @@ export default function Profile({ isMobile = false }) {
 
   return (
     <PageBg>
+      <LegalConsent />
+      <ReportButton label="举报与客服 / 我的工单" />
       {/* ── 个人信息头部 ── */}
       <div className="wc-me-header" role="button" tabIndex={0} onClick={() => setSubPage('profile-detail')} onKeyDown={activateOnKey(() => setSubPage('profile-detail'))}>
         <div className="wc-me-avatar-wrap">

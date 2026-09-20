@@ -78,12 +78,15 @@ describe('屏蔽陌生人消息：文本与文件一致拦截（round43 回归�
     expect(res.body.error).toMatch(/屏蔽陌生人/);
   });
 
-  test('重新加好友后文件恢复可发（200）', async () => {
+  test('重新加好友后普通文件恢复可发，图片仍由审核门禁拒绝', async () => {
     await befriend(u1, u2);
     const res = await request(app).post(`/api/messages/${conversationId}/upload`)
       .set('Authorization', `Bearer ${u1.token}`)
-      .attach('file', PNG_1x1, { filename: 'y.png', contentType: 'image/png' });
+      .attach('file', Buffer.from('synthetic document'), { filename: 'y.txt', contentType: 'text/plain' });
     expect(res.status).toBe(200);
-    expect(res.body.type).toBe('image');
+    expect(res.body.type).toBe('file');
+    const image = await request(app).post(`/api/messages/${conversationId}/upload`).set('Authorization', `Bearer ${u1.token}`).attach('file', PNG_1x1, { filename: 'y.png', contentType: 'image/png' });
+    expect(image.status).toBe(503);
+    expect(image.body.error_code).toBe('MEDIA_MODERATION_UNAVAILABLE');
   });
 });

@@ -1,3 +1,4 @@
+import { ReportDialog } from './ReportDialog';
 import { clientStorage as localStorage } from '../utils/clientStorage';
 import React, { useState, useEffect, useRef, useCallback, useMemo, useReducer, useLayoutEffect, lazy, Suspense } from 'react';
 import { createPortal } from 'react-dom';
@@ -244,6 +245,7 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
   const [forwardMsgs, setForwardMsgs] = useState(null); // 多条转发：消息数组 | null
   const [showRedPacket, setShowRedPacket] = useState(false);
   const [showTransfer,  setShowTransfer]  = useState(false);
+  const [reportTarget, setReportTarget] = useState(null);
   const [ctxMenu, setCtxMenu] = useState(null);
   const [readStatus, setReadStatus] = useState(null);
   // 多选模式
@@ -3010,9 +3012,11 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
 
 
 
+      {reportTarget && createPortal(<div className="safety-overlay"><ReportDialog key={user.id} targetType="message" targetId={reportTarget} onClose={() => setReportTarget(null)} /></div>, document.body)}
       {/* Context menu：CtxMenuPortal 实测菜单尺寸后 clamp 定位（根因修复：不再用硬编码 220×280） */}
       {ctxMenu && createPortal(
         <CtxMenuPortal key={ctxMenu.msg.id} anchor={ctxMenu.anchor} onClose={closeCtx}>
+          {!ctxMenu.msg._tempId && !ctxMenu.msg.deleted && <button type="button" className="wc-ctx-item" onClick={() => { setReportTarget(ctxMenu.msg.id); closeCtx(); }}>举报消息</button>}
           {/* 复制：文字全端可用；图片/表情写系统剪贴板（web 走 Clipboard API，桌面走主进程原生剪贴板）。
               出货移动端是原生 Kotlin/Swift App，其"复制图片"在原生侧实现，不经本组件。 */}
           {(ctxMenu.msg.type === 'text' ||

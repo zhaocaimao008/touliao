@@ -226,7 +226,7 @@ fun ContactsScreen(
         AlertDialog(
             onDismissRequest = { blockTarget = null },
             title = { Text("加入黑名单") },
-            text = { Text("加入黑名单后，将不再收到「${target.displayName}」的消息。") },
+            text = { Text("加入黑名单后，将阻止与「${target.displayName}」的私聊及好友申请，双方动态不可见；共同群聊和已有历史仍可能可见。") },
             confirmButton = { TextButton(onClick = { viewModel.block(target); blockTarget = null }) { Text("加入", color = Color(0xFFFA5151)) } },
             dismissButton = { TextButton(onClick = { blockTarget = null }) { Text("取消") } },
         )
@@ -354,6 +354,8 @@ private fun ContactRow(
     onBlock: () -> Unit = {},
     onDelete: () -> Unit = {},
 ) {
+    var showReport by remember { mutableStateOf(false) }
+    if (showReport) com.touliao.app.feature.safety.SafetyReportDialog("user", contact.id, onClose = { showReport = false })
     var menuOpen by remember { mutableStateOf(false) }
     val haptic = androidx.compose.ui.platform.LocalHapticFeedback.current
     Box {
@@ -396,6 +398,7 @@ private fun ContactRow(
     }
         DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
             DropdownMenuItem(text = { Text("设置备注") }, onClick = { onRemark(); menuOpen = false })
+            DropdownMenuItem(text = { Text("举报用户") }, onClick = { showReport = true; menuOpen = false })
             DropdownMenuItem(text = { Text("加入黑名单") }, onClick = { onBlock(); menuOpen = false })
             DropdownMenuItem(text = { Text("删除好友", color = Color(0xFFFA5151)) }, onClick = { onDelete(); menuOpen = false })
         }

@@ -422,6 +422,8 @@ app.post('/api/metrics/vitals', express.text({ type: 'text/plain', limit: '10kb'
 app.get('/api/metrics/vitals/recent', adminAuth, (req, res) => res.json(vitalsBuffer.slice(-100)));
 
 // ── 路由 ────────────────────────────────────────────────────────
+app.use('/api/legal', require('./modules/legal/legal.routes'));
+app.use('/api/reports', require('./modules/reports/reports.routes'));
 app.use('/api/auth',          require('./modules/auth/auth.routes'));
 app.use('/api/users',         require('./modules/users/users.routes'));
 // 后台登录备用路径（绕过 CF WAF /api/admin/* 限流），复用 admin.routes 的防护中间件

@@ -441,6 +441,12 @@ router.put('/features', adminAuth, c.setFeatures);
 router.get('/top-inviters', adminAuth, c.topInviters);
 
 // ── 朋友圈举报队列（MO6）──────────────────────────────────────────
+// User/message/group reports and support tickets share the existing admin boundary.
+const safetyReports = require('../reports/reports.service');
+const safetyHandler = require('../../utils/http').asyncHandler;
+router.get('/safety-reports', adminAuth, safetyHandler(async (req,res) => res.json(safetyReports.list(null,req.query,true))));
+router.get('/safety-reports/:id', adminAuth, safetyHandler(async (req,res) => res.json(safetyReports.detail(null,req.params.id,true))));
+router.post('/safety-reports/:id/resolve', adminAuth, safetyHandler(async (req,res) => res.json(safetyReports.resolve(req.params.id,req.body,req.admin.username))));
 router.get ('/reports',             adminAuth, c.listReports);
 router.post('/reports/:id/resolve', adminAuth, c.resolveReport);
 

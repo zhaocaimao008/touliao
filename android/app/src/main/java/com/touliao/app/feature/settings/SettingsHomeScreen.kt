@@ -144,6 +144,8 @@ fun SettingsHomeScreen(
     ) { padding ->
         Box(Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.TopCenter) {
             Column(Modifier.widthIn(max = 600.dp).fillMaxWidth().verticalScroll(rememberScrollState())) {
+                com.touliao.app.feature.safety.LegalLinks()
+                com.touliao.app.feature.safety.SafetyReportButton()
                 Spacer(Modifier.height(16.dp))
                 SettingsGroupCard(Modifier.padding(horizontal = 16.dp)) {
                     HubRow(TouliaoIcons.Bell, "消息通知", onClick = onOpenNotifications)

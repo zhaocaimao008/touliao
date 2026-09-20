@@ -1,0 +1,11 @@
+'use strict';
+const router = require('express').Router();
+const auth = require('../../middleware/auth');
+const { reactLimiter } = require('../../middleware/rateLimiters');
+const { asyncHandler } = require('../../utils/http');
+const svc = require('./reports.service');
+router.use(auth);
+router.post('/',reactLimiter,asyncHandler(async(req,res)=>res.status(201).json(svc.create(req.user.id,req.body))));
+router.get('/',asyncHandler(async(req,res)=>res.json(svc.list(req.user.id,req.query))));
+router.get('/:id',asyncHandler(async(req,res)=>res.json(svc.detail(req.user.id,req.params.id))));
+module.exports = router;

@@ -1,3 +1,4 @@
+import ReportButton from './ReportDialog';
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import axios from 'axios';
 import { FixedSizeList } from 'react-window';
@@ -498,6 +499,7 @@ export default function GroupInfo({ conversation, currentUserId, onClose, onLeav
       </div>
 
       <div className="gi-body">
+        <ReportButton targetType="group" targetId={conversation.id} label="举报群" />
 
         {/* 群名称 + 头像 */}
         <div className="gi-avinfo">

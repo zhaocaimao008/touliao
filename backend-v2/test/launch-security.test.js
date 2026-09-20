@@ -192,11 +192,11 @@ describe('launch audit: authorization boundaries', () => {
   });
 
   test.each([{ phone: {} }, { phone: ['123456'] }, { password: {} }, { password: ['passw0rd123'] }])('login rejects malformed credentials: %j', async fields => {
-    expect((await request(app).post('/api/auth/login').send({ phone: a.phone, password: a.password, ...fields })).status).toBe(400);
+    expect((await request(app).post('/api/auth/login').send({ ...({ phone: a.phone, password: a.password, ...fields }), legalConsent: require('./legal-consent.cjs') })).status).toBe(400);
   });
 
   test.each([{ password: ['passw0rd123'] }, { inviteCode: ['123456'] }])('registration rejects malformed credentials: %j', async fields => {
-    expect((await request(app).post('/api/auth/register').send({ username: 'launch_malformed', phone: '1234567890', password: 'passw0rd123', inviteCode: '123456', ...fields })).status).toBe(400);
+    expect((await request(app).post('/api/auth/register').send({ ...({ username: 'launch_malformed', phone: '1234567890', password: 'passw0rd123', inviteCode: '123456', ...fields }), legalConsent: require('./legal-consent.cjs') })).status).toBe(400);
   });
 
   test('administrator credentials must be strings', async () => {
