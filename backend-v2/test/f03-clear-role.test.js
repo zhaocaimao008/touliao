@@ -20,6 +20,11 @@ test('ordinary member is denied and everyone else retains the original body', as
   const before = message(id);
   const result = await clear(id, member);
   expect({ status: result.status, message: message(id) }).toEqual({ status: 403, message: before });
+  const audit = db.prepare("SELECT user_id,event_type,status,details FROM audit_logs WHERE resource_id=? AND action='clear_conversation'").all(id);
+  expect(audit).toHaveLength(1);
+  expect(audit[0]).toMatchObject({ user_id: member.userId, event_type: 'permission_denied', status: 'denied' });
+  expect(JSON.parse(audit[0].details)).toEqual({ role: 'member', deleted: 0, cleared_rowid: null });
+  expect(db.prepare('SELECT 1 FROM conversation_clears WHERE conversation_id=?').get(id)).toBeUndefined();
 });
 test.each(['owner', 'admin'])('%s can clear and the operation is durably audited', async role => {
   const id = fixture();
