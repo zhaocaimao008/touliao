@@ -157,6 +157,7 @@ final class NativeUIReviewTests: XCTestCase {
             try await Task.sleep(nanoseconds: 20_000_000)
         }
         XCTAssertEqual(vm.contacts.first?.remark, "SOCIAL_SYNC_REMARK")
+        KeychainStore.shared.beginIdentityChange()
         KeychainStore.shared.token = "synthetic-other-identity"
         SocketService.shared.socialState.send(SocketService.shared.socialState.value + 1)
         try await Task.sleep(nanoseconds: 100_000_000)
@@ -175,6 +176,11 @@ final class NativeUIReviewTests: XCTestCase {
         let vm = ChatViewModel(conversationId: "review-chat", title: "synthetic", myId: "review-me")
         XCTAssertTrue(vm.messages.isEmpty, "synchronous cache restore must wait for privacy policy")
         await vm.loadBackground()
+        // The initializer also refreshes policy; wait for the newest guarded GET.
+        for _ in 0..<100 {
+            if vm.burnAfter == 60 { break }
+            try await Task.sleep(nanoseconds: 20_000_000)
+        }
         XCTAssertEqual(vm.burnAfter, 60)
         XCTAssertTrue(MsgCacheStore.shared.load("review-chat").isEmpty)
         await vm.loadHistory()

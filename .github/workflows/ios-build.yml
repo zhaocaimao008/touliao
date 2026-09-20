@@ -81,6 +81,34 @@ jobs:
           xcrun simctl bootstatus '${{ steps.sim.outputs.udid }}' -b
           xcrun simctl list devices booted -j > ios/native-simulator.json
 
+      - name: Reproduce cache leak on audited baseline in isolated runner
+        if: inputs.social_core_only
+        working-directory: ios
+        run: |
+          set -uo pipefail
+          original_file=$(mktemp)
+          cp Touliao/Features/Chat/ChatViewModel.swift "$original_file"
+          trap 'cp "$original_file" Touliao/Features/Chat/ChatViewModel.swift; rm -f "$original_file"' EXIT
+          git show 9254f66b814f689810e995e5aa7d1fa4acb3749b:ios/Touliao/Features/Chat/ChatViewModel.swift > Touliao/Features/Chat/ChatViewModel.swift
+          xcodebuild test -project Touliao.xcodeproj -scheme Touliao \
+            -destination "platform=iOS Simulator,id=${{ steps.sim.outputs.udid }}" \
+            -configuration Debug -parallel-testing-enabled NO \
+            -only-testing:TouliaoTests/NativeUIReviewTests/testSocial011CacheIsNotRenderedBeforePrivacyPolicy \
+            CODE_SIGNING_ALLOWED=YES CODE_SIGNING_REQUIRED=YES CODE_SIGN_IDENTITY=- \
+            CODE_SIGN_STYLE=Manual DEVELOPMENT_TEAM= PROVISIONING_PROFILE_SPECIFIER= \
+            CODE_SIGN_ENTITLEMENTS="$GITHUB_WORKSPACE/scripts/native-review/Simulator.entitlements" \
+            > social-cache-baseline.log 2>&1
+          result=$?
+          cp "$original_file" Touliao/Features/Chat/ChatViewModel.swift
+          python3 - "$result" <<'PYBASELINE'
+          import sys
+          from pathlib import Path
+          text = Path('social-cache-baseline.log').read_text()
+          assert int(sys.argv[1]) != 0, 'Old cache behavior unexpectedly passed'
+          assert 'synchronous cache restore must wait for privacy policy' in text, 'Failure must be the privacy assertion, not a build/environment error'
+          print('Audited baseline reproduced the cache privacy failure; current source restored.')
+          PYBASELINE
+
       # 单测门禁：含离线消息缓存 MsgCacheStore 语义基线（与 Web vitest / Android JUnit 三端对齐）。
       - name: Unit tests (TouliaoTests, iOS Simulator)
         id: native_tests
@@ -138,6 +166,7 @@ jobs:
           path: |
             ios/xcodebuild.log
             ios/xcodebuild-test.log
+            ios/social-cache-baseline.log
             ios/native-validation.json
             ios/NativeAttachments/
             ios/native-simulator.json
