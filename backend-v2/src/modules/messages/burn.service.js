@@ -29,11 +29,15 @@ function expireDueMessages(io=null, now=Math.floor(Date.now()/1000)) {
   return rows.map(m=>{
    const sequence=require('./sync.service').appendConversationEventTx({conversationId:m.conversation_id,eventType:'message_vanished',messageId:m.id,actorId:m.sender_id,
     payload:{reason:'burn_expired'},apply:()=>{
-     if(m.file_url) db.prepare('INSERT OR IGNORE INTO revoked_burn_files(path,message_id,revoked_at) VALUES (?,?,?)').run(m.file_url,m.id,now);
+     if(m.file_url) {
+      const revoke=db.prepare('INSERT OR IGNORE INTO revoked_burn_files(path,message_id,revoked_at) VALUES (?,?,?)');
+      revoke.run(m.file_url,m.id,now);
+      revoke.run(m.file_url.replace(/\.[a-zA-Z0-9]+$/, '')+'_thumb.webp',m.id,now);
+     }
      db.prepare("UPDATE messages SET deleted=2,content='',file_url='',transcript=NULL WHERE id=?").run(m.id);
      db.prepare("UPDATE conversation_events SET payload='{}' WHERE message_id=?").run(m.id);
      db.prepare('DELETE FROM pinned_messages WHERE message_id=?').run(m.id);
-     db.prepare("UPDATE scheduled_messages SET content='' WHERE 'scheduled:'||id=?").run(m.id);
+     if (m.id.startsWith('scheduled:')) db.prepare("UPDATE scheduled_messages SET content='' WHERE id=?").run(m.id.slice(10));
     }});
    return {...m,sequence};
   });
@@ -47,6 +51,26 @@ function expireDueMessages(io=null, now=Math.floor(Date.now()/1000)) {
  }
  return expired.length;
 }
+// A body delivered by REST is a read for burn purposes, even without an ack.
+// Callers already selected visible rows; recordRead rechecks tombstones under lock.
+function recordDelivery(userId, messages, io=null) {
+ const candidates=messages.filter(m=>m && m.id && m.burn_after>0 && !m.deleted && m.sender_id!==userId);
+ if (!candidates.length) return;
+ for (const m of candidates) {
+   if (!m.burn_expires_at) recordRead(io,userId,m.conversation_id,Number.MAX_SAFE_INTEGER,m.id);
+   const state=db.prepare('SELECT burn_read_at,burn_expires_at FROM messages WHERE id=?').get(m.id);
+   Object.assign(m,state);
+ }
+}
+function assertMergedForwardAllowed(content) {
+ let payload;
+ try { payload=JSON.parse(content); } catch { return; } // Preserve existing non-burn payload compatibility.
+ for (const item of Array.isArray(payload?.items) ? payload.items : []) {
+  if (item?.burn_after>0 || (typeof item?.mid==='string' && db.prepare('SELECT 1 FROM messages WHERE id=? AND burn_after>0').get(item.mid))) {
+   throw require('../../utils/http').forbidden('阅后即焚消息不能合并转发');
+  }
+ }
+}
 let timer;
 function startBurnExpiry(io) {
  if(timer) return timer;
@@ -54,4 +78,4 @@ function startBurnExpiry(io) {
  timer=setInterval(()=>{try{expireDueMessages(io)}catch(e){console.error('[burn] expiry failed:',e.message)}},1000);
  timer.unref?.();return timer;
 }
-module.exports={recordRead,expireDueMessages,startBurnExpiry};
+module.exports={assertMergedForwardAllowed,recordRead,recordDelivery,expireDueMessages,startBurnExpiry};

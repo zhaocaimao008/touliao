@@ -20,10 +20,10 @@ const bgUploader = makeImageUploader(path.join(config.uploadsRoot, 'bg'), 'file'
 const bgUploadGuard = makeUploadGuard(path.join(config.uploadsRoot, 'bg'));
 
 exports.history = asyncHandler(async (req, res) =>
-  res.json(svc.history(req.params.conversationId, req.user.id, req.query)));
+  res.json(svc.history(req.params.conversationId, req.user.id, req.query, io(req))));
 
 exports.sync = asyncHandler(async (req, res) =>
-  res.json(syncSvc.syncConversation(req.params.conversationId, req.user.id, req.query)));
+  res.json(syncSvc.syncConversation(req.params.conversationId, req.user.id, req.query, io(req))));
 
 exports.aroundMessage = asyncHandler(async (req, res) => {
   const result = svc.aroundMessage(req.params.convId, req.params.msgId, req.user.id);

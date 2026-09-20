@@ -84,7 +84,7 @@ module.exports = function registerMessageHandler(io, socket) {
     try {
     const { conversationId, content, reply_to_id, clientMsgId } = data;
     // 允许文本/名片(contact_card)/合并转发(merged)；名片的 content 是被分享用户的 JSON 快照，
-    // merged 的 content 是服务端透传的 JSON（{title,items:[...]}），服务端不解析理解其内容。
+    // merged 的源消息由服务端复核，禁止引用阅后即焚消息。
     const type = ['text', 'contact_card', 'merged'].includes(data.type) ? data.type : 'text';
     const maxLen = type === 'merged' ? MAX_MERGED : MAX;
 
@@ -101,6 +101,10 @@ module.exports = function registerMessageHandler(io, socket) {
     }
     if (content.length > maxLen) {
       ack?.({ success: false, error: `消息内容不能超过 ${maxLen} 个字符` }); return;
+    }
+    if (type === 'merged') {
+      try { require('../../modules/messages/burn.service').assertMergedForwardAllowed(content); }
+      catch (err) { ack?.({ success: false, error: err.message }); return; }
     }
     const hitWord = moderation.firstMatch(content);
     if (hitWord) {

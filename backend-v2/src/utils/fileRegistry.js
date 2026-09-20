@@ -49,10 +49,15 @@ const isPublicReference = path => typeof path === 'string'
 // Check the upload's registered owner or current ORIGINAL conversation membership.
 const referenceAccessSql = `SELECT 1 FROM file_registry r WHERE r.path=? AND
   NOT EXISTS (SELECT 1 FROM revoked_burn_files b WHERE b.path=r.path) AND
+  NOT EXISTS (SELECT 1 FROM messages m WHERE m.file_url>=? AND m.file_url<? AND m.burn_after>0 AND m.deleted=0) AND
   (r.owner_id=? OR EXISTS (SELECT 1 FROM conversation_members cm
     WHERE cm.conversation_id=r.conversation_id AND cm.user_id=?))`;
+function burnFileRange(path) {
+  const base=path.replace(/_thumb\.webp$/, '').replace(/\.[a-zA-Z0-9]+$/, '');
+  return [`${base}.`, `${base}/`];
+}
 function canReferenceFile(path, userId) {
-  return isPublicReference(path) || !!getDb().prepare(referenceAccessSql).get(path, userId, userId);
+  return isPublicReference(path) || !!getDb().prepare(referenceAccessSql).get(path, ...burnFileRange(path), userId, userId);
 }
 
 /** Include this op in the SAME worker transaction as the message and sync event.
@@ -66,7 +71,7 @@ function fileShareOp(path, conversationId, userId) {
         (SELECT 1 FROM conversation_members WHERE conversation_id=? AND user_id=?)
       THEN ? ELSE NULL END)
       ON CONFLICT(path, conversation_id) DO NOTHING`,
-    params: [path, Number(isPublicReference(path)), path, userId, userId, conversationId, userId, conversationId],
+    params: [path, Number(isPublicReference(path)), path, ...burnFileRange(path), userId, userId, conversationId, userId, conversationId],
   };
 }
 

@@ -150,7 +150,7 @@ function resolveUploadAccess(userId, reqPath) {
 
   // 其余类别一律以 file_registry 为准：文件必须真实登记过且归属权匹配
   const path = `/uploads/${category}/${file}`;
-  const revoked = db.prepare("SELECT 1 FROM revoked_burn_files WHERE path=? OR path LIKE ? LIMIT 1").get(path, `/uploads/${category}/${baseIdOf(file)}.%`);
+  const revoked = db.prepare("SELECT 1 FROM revoked_burn_files WHERE path=? OR (path>=? AND path<?) LIMIT 1").get(path, `/uploads/${category}/${baseIdOf(file)}.`, `/uploads/${category}/${baseIdOf(file)}/`);
   if (revoked) return { ok: false, status: 403 };
   const reg = lookupFile(path);
   if (!reg) return null; // 未登记 = 不存在（含已删除消息的文件）
@@ -182,7 +182,7 @@ function resolveUploadAccess(userId, reqPath) {
 
     // 缩略图与原图共用同一条消息引用（消息负载没有单独的缩略图字段），
     // 故按 uuid 而非精确文件名比对，见上面 baseIdOf 注释。
-    const stillLive = db.prepare('SELECT 1 FROM messages WHERE file_url LIKE ? AND deleted != 2 LIMIT 1').get(`/uploads/files/${baseIdOf(file)}.%`);
+    const stillLive = db.prepare("SELECT 1 FROM messages WHERE file_url!='' AND file_url>=? AND file_url<? AND deleted != 2 LIMIT 1").get(`/uploads/files/${baseIdOf(file)}.`, `/uploads/files/${baseIdOf(file)}/`);
     if (!stillLive) return { ok: false, status: 403 };
     return { ok: true };
   }
@@ -265,11 +265,11 @@ app.use('/uploads', async (req, res, next) => {
 
     const attachmentPath = `/uploads${req.path}`;
     const basePath = attachmentPath.replace(/_thumb\.webp$/, '').replace(/\.[a-zA-Z0-9]+$/, '');
-    if (db.prepare('SELECT 1 FROM revoked_burn_files WHERE path=? OR path LIKE ?').get(attachmentPath, `${basePath}.%`)) {
+    if (db.prepare('SELECT 1 FROM revoked_burn_files WHERE path=? OR (path>=? AND path<?)').get(attachmentPath, `${basePath}.`, `${basePath}/`)) {
       return res.status(403).json({ error: '附件已到期' });
     }
-    const burnFile = db.prepare('SELECT MIN(burn_expires_at) AS expires_at, MIN(burn_after) AS seconds FROM messages WHERE burn_after>0 AND deleted=0 AND (file_url=? OR file_url LIKE ?)')
-      .get(attachmentPath, `${basePath}.%`);
+    const burnFile = db.prepare('SELECT MIN(burn_expires_at) AS expires_at, MIN(burn_after) AS seconds FROM messages WHERE burn_after>0 AND deleted=0 AND file_url>=? AND file_url<?')
+      .get(`${basePath}.`, `${basePath}/`);
     res.locals.burnAttachment = !!burnFile?.seconds;
     if (res.locals.burnAttachment) res.setHeader('Cache-Control', 'private, no-store');
 

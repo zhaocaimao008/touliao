@@ -181,7 +181,7 @@ async function startServer() {
   //   启动即扫一次，实现服务重启后 pending 未到期消息的定时器自动恢复。
   const { startScheduler } = require('./modules/messages/scheduled.service');
   startScheduler(io);
-require('./modules/messages/burn.service').startBurnExpiry(io);
+  require('./modules/messages/burn.service').startBurnExpiry(io);
   setInterval(() => {
     try {
       const now = Math.floor(Date.now() / 1000);
