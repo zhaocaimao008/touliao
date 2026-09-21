@@ -266,7 +266,7 @@ class AuditLogger {
       } catch (err) {
         error('审计日志清理失败', { error: err.message });
       }
-    }, 24 * 60 * 60 * 1000);
+    }, 24 * 60 * 60 * 1000).unref();
   }
 
   /**

@@ -296,7 +296,7 @@ const tracing = new DistributedTracing();
 // 定期清理内存追踪
 setInterval(() => {
   tracing.clearInMemorySpans();
-}, 60000);
+}, 60000).unref();
 
 module.exports = {
   tracing,

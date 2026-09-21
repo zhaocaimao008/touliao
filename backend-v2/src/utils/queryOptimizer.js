@@ -70,7 +70,7 @@ class QueryCache {
           this.cache.delete(key);
         }
       }
-    }, 60000); // 每分钟清理一次
+    }, 60000).unref(); // 每分钟清理一次
   }
 
   getStats() {

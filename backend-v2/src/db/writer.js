@@ -60,6 +60,7 @@ function pruneAcknowledged(w) {
 
 function createWorker() {
   const w = new Worker(WORKER_SCRIPT, { workerData: WORKER_DATA });
+  w.unref();
 
   w.on('message', msg => {
     if (msg.type === 'ack') {
