@@ -73,7 +73,8 @@ function flushBatch(batch) {
     const results = new Map();
     db.transaction(() => {
       for (const item of batch) results.set(item.reqId, runItem(item));
-    })();
+    }).immediate(); // Acquire the write lock before reading receipts; a deferred
+    // read-to-write upgrade can fail immediately despite the busy timeout.
     const acks = batch.filter(b => b.reqId != null);
     for (const item of acks) parentPort.postMessage({ type: 'ack', ids: [item.reqId], result: results.get(item.reqId) });
   } catch (e) {
@@ -81,7 +82,7 @@ function flushBatch(batch) {
     for (const item of batch) {
       try {
         let result;
-        if (item.operationId || item.ops || item.type === 'writeSequencedEvent') result = db.transaction(() => runItem(item))();
+        if (item.operationId || item.ops || item.type === 'writeSequencedEvent') result = db.transaction(() => runItem(item)).immediate();
         else result = runItem(item);
         if (item.reqId != null) parentPort.postMessage({ type: 'ack', ids: [item.reqId], result });
       } catch (itemErr) {
