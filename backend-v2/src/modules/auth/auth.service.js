@@ -294,6 +294,9 @@ async function changePassword(userId, { oldPassword, newPassword, currentToken }
   const user = db.prepare('SELECT id,username,password,banned FROM users WHERE id=?').get(userId);
   if (!user) throw notFound('用户不存在');
   if (!await bcrypt.compare(oldPassword, user.password)) throw badRequest('当前密码错误');
+  // 授权点已通过:立即断开该用户全部 socket,避免慢速 bcrypt.hash(rounds=12,数百毫秒)把断连推过调用方的 1s 预算。
+  // 事务提交后 auth.controller 仍会再次 disconnectSockets(true) 作为最终保证(窗口内重连的 socket 也会被清掉)。
+  req?.app?.get?.('io')?.in(`user_${userId}`).disconnectSockets(true);
   const hash = await bcrypt.hash(newPassword, 12);
   const now = Math.floor(Date.now() / 1000);
   const jti = db.transaction(() => {

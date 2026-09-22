@@ -44,6 +44,7 @@ jest.mock('../src/utils/getuiPush', () => ({
 }));
 
 const { makeUser } = require('./helpers');
+const shutdownWriterBeforeModuleReset = require('./shutdownWriterBeforeModuleReset');
 const { db } = require('../src/db/connection');
 const push = require('../src/utils/push');
 const getuiPush = require('../src/utils/getuiPush');
@@ -150,6 +151,7 @@ describe('推送分发(firebase 未配置:APNs/个推直连不误伤)', () => {
     // 仅隔离未配置 FCM 的推送模块。resetModules 会让旧 auth.service 的事务
     // 与新加载 legal.service 捕获的另一条 db 连接互锁（SQLITE_BUSY）。
     // 保留 helpers/app/auth 的模块图，后面的注册仍在同一连接上记录同意。
+    await shutdownWriterBeforeModuleReset();
     jest.isolateModules(() => {
       getuiNoFcm = require('../src/utils/getuiPush');
       pushNoFcm = require('../src/utils/push');

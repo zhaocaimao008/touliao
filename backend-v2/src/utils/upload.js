@@ -134,10 +134,15 @@ async function readMagic(filePath) {
     fh = await fs.promises.open(filePath, 'r');
     await fh.read(buf, 0, len, 0);
     await fh.close(); fh = null;
+    let detected = null;
     try {
       const { fileTypeFromBuffer } = await import('file-type');
-      return await fileTypeFromBuffer(buf);
-    } catch { return null; }
+      detected = (await fileTypeFromBuffer(buf)) || null;
+    } catch {
+      // 受限运行时(Jest CJS VM / 打包环境)无法加载 ESM 检测器:不再静默失去魔数识别能力
+      detected = null;
+    }
+    return detected || require('./magicBytes').detectMagicBytes(buf);
   } catch {
     return null;
   } finally {

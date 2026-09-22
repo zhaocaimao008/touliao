@@ -40,13 +40,17 @@ const MAX_QUEUE_SIZE   = 30000;  // 提升至 30k（适配峰值流量）
 const HIGH_WATER_MARK  = 22000;  // 进入过载阈值
 const LOW_WATER_MARK   = 8000;   // 退出过载阈值（更宽松，减少抖动）
 let _overloaded = false;
-const backpressure = { rejected: 0, droppedWrites: 0, overloadedEnters: 0, get queueDepth() { return _pending.size; }, get overloaded() { return _overloaded; } };
+const backpressure = { rejected: 0, droppedWrites: 0, shutdownDiscardedOps: 0, overloadedEnters: 0, get queueDepth() { return _pending.size; }, get overloaded() { return _overloaded; } };
 function updateOverload() {
   if (!_overloaded && _pending.size >= HIGH_WATER_MARK) { _overloaded = true; backpressure.overloadedEnters++; }
   else if (_overloaded && _pending.size <= LOW_WATER_MARK) { _overloaded = false; }
 }
 
 let worker        = null;
+let lifecycle     = 'RUNNING'; // RUNNING → STOPPING → STOPPED
+let restartTimer  = null;
+let shutdownPromise = null;
+let warnedStoppedWrite = false;
 let _reqId        = 0;
 const _pending    = new Map();   // reqId → handler(err)
 const _pendingOps = new Map();   // reqId → 原始外发消息对象（write 或 writeBatch），崩溃重启时原样重放
@@ -59,8 +63,10 @@ function pruneAcknowledged(w) {
 }
 
 function createWorker() {
+  if (lifecycle !== 'RUNNING') return null;
   const w = new Worker(WORKER_SCRIPT, { workerData: WORKER_DATA });
-  w.unref();
+  // Worker 生命周期由 shutdown() 显式管理（RUNNING → STOPPING → STOPPED），不再依赖 unref()。
+  // 测试必须在 resetModules 前显式关闭；不引入 unref 兜底。
 
   w.on('message', msg => {
     if (msg.type === 'ack') {
@@ -83,7 +89,8 @@ function createWorker() {
   w.on('error', e => console.error('[dbWriter] Worker error:', e.message));
 
   w.on('exit', code => {
-    if (code === 0) return;
+    if (worker === w) worker = null;
+    if (lifecycle !== 'RUNNING' || code === 0) return;
     console.error('[dbWriter] Worker crashed (code %d), restarting in %dms …', code, RESTART_DELAY);
     isRestarting = true;
     // 未决操作（write / writeBatch）原样重新入队，待新 worker 起来后重放
@@ -94,7 +101,9 @@ function createWorker() {
     const untracked = retryQueue.filter(msg => msg.reqId == null);
     retryQueue.splice(0, retryQueue.length, ...[...pending.values()].sort((a,b) => a.reqId-b.reqId), ...untracked);
     _pendingOps.clear();
-    setTimeout(() => {
+    restartTimer = setTimeout(() => {
+      restartTimer = null;
+      if (lifecycle !== 'RUNNING') return;
       worker = createWorker();
       pruneAcknowledged(worker);
       isRestarting = false;
@@ -114,11 +123,23 @@ function createWorker() {
 worker = createWorker();
 
 function postMsg(msg) {
-  if (isRestarting) retryQueue.push(msg);
+  if (isRestarting || worker == null) retryQueue.push(msg);
   else worker.postMessage(msg);
 }
 
+function stoppedError() {
+  return new Error('[dbWriter] Writer is stopped or closing');
+}
+
 function write(sql, params = []) {
+  if (lifecycle !== 'RUNNING') {
+    backpressure.droppedWrites++;
+    if (!warnedStoppedWrite) {
+      warnedStoppedWrite = true;
+      console.warn('[dbWriter] Writer is stopped or closing; write discarded');
+    }
+    return;
+  }
   // 测试同步模式:立即落库,确定性可断言(见文件头 FORCE_SYNC 说明)
   if (FORCE_SYNC) {
     try { syncDb.prepare(sql).run(...params); }
@@ -131,6 +152,7 @@ function write(sql, params = []) {
 }
 
 function writeAsync(sql, params = []) {
+  if (lifecycle !== 'RUNNING') return Promise.reject(stoppedError());
   updateOverload();
   // 背压：未决写达到上限即快速失败，禁止 Promise 无限堆积
   if (_pending.size >= MAX_QUEUE_SIZE) {
@@ -142,7 +164,7 @@ function writeAsync(sql, params = []) {
   _pendingOps.set(id, msg);
   const t0 = performance.now();
   return new Promise((resolve, reject) => {
-    _pending.set(id, (err) => { prodMetrics.recordSqliteWrite(performance.now() - t0); if (err) reject(err); else resolve(); });
+    _pending.set(id, (err) => { if (err) reject(err); else resolve(); prodMetrics.recordSqliteWrite(performance.now() - t0); });
     postMsg(msg);
   });
 }
@@ -152,6 +174,7 @@ function writeAsync(sql, params = []) {
  * 全部提交后 Promise resolve。用于"多条写必须原子"的场景（转发、发红包消息+记录）。
  */
 function writeBatch(ops) {
+  if (lifecycle !== 'RUNNING') return Promise.reject(stoppedError());
   updateOverload();
   if (_pending.size >= MAX_QUEUE_SIZE) {
     backpressure.rejected++;
@@ -162,7 +185,7 @@ function writeBatch(ops) {
   _pendingOps.set(id, msg);
   const t0 = performance.now();
   return new Promise((resolve, reject) => {
-    _pending.set(id, (err) => { prodMetrics.recordSqliteWrite(performance.now() - t0); if (err) reject(err); else resolve(); });
+    _pending.set(id, (err) => { if (err) reject(err); else resolve(); prodMetrics.recordSqliteWrite(performance.now() - t0); });
     postMsg(msg);
   });
 }
@@ -175,6 +198,7 @@ const SEQUENCE_PARAM = '__TOULIAO_SERVER_SEQUENCE__';
  * params are replaced by the allocated integer in the worker transaction.
  */
 function writeSequencedEvent({ conversationId, event, ops = [] }) {
+  if (lifecycle !== 'RUNNING') return Promise.reject(stoppedError());
   updateOverload();
   if (_pending.size >= MAX_QUEUE_SIZE) {
     backpressure.rejected++;
@@ -186,23 +210,62 @@ function writeSequencedEvent({ conversationId, event, ops = [] }) {
   const t0 = performance.now();
   return new Promise((resolve, reject) => {
     _pending.set(id, (err, result) => {
-      prodMetrics.recordSqliteWrite(performance.now() - t0);
       if (err) reject(err); else resolve(result);
+      prodMetrics.recordSqliteWrite(performance.now() - t0);
     });
     postMsg(msg);
   });
 }
 
 // 可等待的优雅关闭：resolve 于 worker 真正退出（'exit' 事件），而非发消息即返回。
-// 修复：旧版 fire-and-forget 导致测试反复 require 本模块时 worker 无法被确认关闭，
-// 累积成 Jest MaxListenersExceededWarning / open handle（须 --forceExit 收尾）。
+// 先禁止重启和新写入；重复关闭复用同一个 Promise。
 function shutdown() {
-  if (!worker) return Promise.resolve();
-  const w = worker;
-  return new Promise(resolve => {
-    w.once('exit', () => resolve());
+  if (shutdownPromise) return shutdownPromise;
+  lifecycle = 'STOPPING';
+  clearTimeout(restartTimer);
+  restartTimer = null;
+  isRestarting = false;
+  shutdownPromise = new Promise(resolve => {
+    const stopped = () => {
+      worker = null;
+      lifecycle = 'STOPPED';
+      try {
+        // A tracked operation can be in both buffers; count its reqId once.
+        // This counts abandoned replay state, not proven database data loss.
+        const tracked = new Set(_pendingOps.keys());
+        let untracked = 0;
+        for (const msg of retryQueue) {
+          if (msg.reqId == null) untracked++;
+          else tracked.add(msg.reqId);
+        }
+        const discarded = tracked.size + untracked;
+        backpressure.shutdownDiscardedOps += discarded;
+        backpressure.droppedWrites += untracked;
+        const handlers = [..._pending.values()];
+        _pending.clear();
+        _pendingOps.clear();
+        retryQueue.length = 0;
+        let handlerError;
+        for (const handler of handlers) {
+          try { handler(stoppedError()); }
+          catch (err) { handlerError = err; } // Settle the other writes even if metrics throws.
+        }
+        if (discarded) console.warn(
+          '[dbWriter] Writer stopped; discarded %d buffered ops (%d tracked, %d untracked)',
+          discarded, tracked.size, untracked,
+        );
+        if (handlerError) throw handlerError;
+      } catch (err) {
+        console.error('[dbWriter] Shutdown cleanup failed:', err.message);
+      } finally {
+        resolve();
+      }
+    };
+    if (!worker) { stopped(); return; }
+    worker.once('exit', stopped);
     postMsg({ type: 'shutdown' });
   });
+  return shutdownPromise;
 }
 
 // 监控：未决写数量（writeAsync/writeBatch 尚未收到 worker ack）作为 Worker 队列深度代理

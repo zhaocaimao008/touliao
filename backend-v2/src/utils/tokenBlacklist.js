@@ -91,7 +91,7 @@ async function initRedis() {
 
   // 启动时清理 SQLite 过期条目，之后每小时一次
   purgeSqliteExpired();
-  setInterval(purgeSqliteExpired, 3600 * 1000);
+  setInterval(purgeSqliteExpired, 3600 * 1000).unref();
 }
 
 /**

@@ -1,6 +1,7 @@
 'use strict';
 const fs=require('fs'),path=require('path'),crypto=require('crypto');
 const sharp=require('sharp');
+const shutdownWriterBeforeModuleReset=require('./shutdownWriterBeforeModuleReset');
 const {app,request,makeUser,privateConversation,befriend}=require('./f02-inprocess-http.cjs');
 const {db}=require('../src/db/connection');
 const config=require('../src/config');
@@ -45,20 +46,6 @@ test('chunk completion refuses disguised image, clears partial files and never c
   expect(fs.existsSync(path.join(config.uploadsRoot,'chunks',id+'.part'))).toBe(false);
   expect(fs.existsSync(path.join(config.uploadsRoot,'chunks',id+'.meta.json'))).toBe(false);
 });
-test('even a configured cloud provider cannot issue a PUT URL before quarantine/scanning exists',async()=>{
-  const cloud=require('../src/utils/cloudStorage');
-  const configured=jest.spyOn(cloud,'isConfigured').mockReturnValue(true);
-  const sign=jest.spyOn(cloud,'getPresignedPutUrl').mockRejectedValue(new Error('synthetic signer must not be called'));
-  // Controller destructures the provider exports; load it after the synthetic configuration spy.
-  jest.resetModules();
-  jest.doMock('../src/utils/cloudStorage',()=>({...cloud,isConfigured:()=>true,getPresignedPutUrl:sign}));
-  const controller=require('../src/modules/upload/upload.controller');
-  let error;
-  await new Promise(resolve=>controller.credential({body:{filename:'synthetic.txt',contentType:'text/plain',conversationId:cid},user:{id:a.userId}}, {},err=>{error=err;resolve();}));
-  expect(error?.status).toBe(503);expect(sign).not.toHaveBeenCalled();
-  configured.mockRestore();sign.mockRestore();jest.dontMock('../src/utils/cloudStorage');
-});
-
 describe('MP4/M4A audio containers are inspected beyond MIME and brand',()=>{
   const {mp4,box}=require('./fixtures/audio-mp4.cjs');
   const upload=(bytes,filename='voice.m4a',contentType='audio/mp4')=>auth(request(app).post(`/api/messages/${cid}/upload`)).attach('file',bytes,{filename,contentType});
@@ -103,4 +90,20 @@ describe('MP4/M4A audio containers are inspected beyond MIME and brand',()=>{
     expect(db.prepare('SELECT COUNT(*) n FROM messages WHERE conversation_id=?').get(cid).n).toBe(before+(video?0:1));
     for(const ext of ['.part','.meta.json'])expect(fs.existsSync(path.join(config.uploadsRoot,'chunks',id+ext))).toBe(false);
   });
+});
+
+// Reset only after every upload test has finished using the top-level app's writer.
+test('even a configured cloud provider cannot issue a PUT URL before quarantine/scanning exists',async()=>{
+  const cloud=require('../src/utils/cloudStorage');
+  const configured=jest.spyOn(cloud,'isConfigured').mockReturnValue(true);
+  const sign=jest.spyOn(cloud,'getPresignedPutUrl').mockRejectedValue(new Error('synthetic signer must not be called'));
+  // Controller destructures the provider exports; load it after the synthetic configuration spy.
+  await shutdownWriterBeforeModuleReset();
+  jest.resetModules();
+  jest.doMock('../src/utils/cloudStorage',()=>({...cloud,isConfigured:()=>true,getPresignedPutUrl:sign}));
+  const controller=require('../src/modules/upload/upload.controller');
+  let error;
+  await new Promise(resolve=>controller.credential({body:{filename:'synthetic.txt',contentType:'text/plain',conversationId:cid},user:{id:a.userId}}, {},err=>{error=err;resolve();}));
+  expect(error?.status).toBe(503);expect(sign).not.toHaveBeenCalled();
+  configured.mockRestore();sign.mockRestore();jest.dontMock('../src/utils/cloudStorage');
 });
