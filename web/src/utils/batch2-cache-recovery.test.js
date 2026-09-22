@@ -4,7 +4,7 @@ afterEach(() => { vi.unstubAllGlobals(); vi.restoreAllMocks(); });
 test('without IndexedDB, history initialization and paged sync keep running; reconnect replays from zero', async () => {
  vi.resetModules(); vi.stubGlobal('indexedDB', undefined);
  const cache=await import('./msgCache');
- let current=[{id:'old',content:'old-secret',server_sequence:1}],historyReady=false;
+ let current=[{id:'old',content:'old-secret',server_sequence:1}],historyReady;
  await cache.saveCache('conv',current,{strict:true});historyReady=true;
  expect(historyReady).toBe(true);
  const requested=[];
