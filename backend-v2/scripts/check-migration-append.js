@@ -32,6 +32,7 @@ const baseSha = arg('--base');
 const curFile = arg('--cur-file') || path.join(__dirname, '..', 'src', 'db', 'schema.js');
 const baseFile = arg('--base-file');
 const REL = 'backend-v2/src/db/schema.js';
+const sandboxRequire = require('module').createRequire(path.resolve(curFile));
 
 // 用 vm 执行提取数组字面量（与 scripts/schema-audit.js 同法，实测可靠）。
 function extract(src) {
@@ -39,7 +40,7 @@ function extract(src) {
   if (start < 0) return [];                       // 数组不存在（首次引入）→ 视为空 base
   const end = src.indexOf('];', start);
   if (end < 0) throw new Error('无法定位 migrations 数组结束标记 "];"');
-  const sandbox = {};
+  const sandbox = { require: sandboxRequire };
   vm.createContext(sandbox);
   return vm.runInContext(src.slice(start, end + 2) + '; migrations', sandbox);
 }

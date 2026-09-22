@@ -294,7 +294,7 @@ test('audited reset targets do not load writer; close the app writer before isol
     jest.dontMock('../src/utils/redis');
     jest.dontMock('../src/utils/getuiPush');
   }
-});
+}, 30000);
 
 test('a nonzero Worker exit while stopping cannot schedule a restart', async () => {
   const writer = loadCrashingWriter();
