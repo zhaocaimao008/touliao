@@ -33,6 +33,7 @@ function diskSafe() {
 }
 
 const meta = new Map(); // uploadId -> {userId,convId,filename,size,mime,hash,createdAt}
+const finishing = new Set(); // Freeze the staged bytes while screening/publishing.
 const metaPath = (id) => path.join(CHUNK_DIR, id + '.meta.json');
 const partPath = (id) => path.join(CHUNK_DIR, id + '.part');
 
@@ -77,6 +78,7 @@ function init(req, res) {
     return res.status(400).json({ error: `不支持的文件格式（${ext ? '.' + ext : '无扩展名'}）；仅支持常见图片/音视频/文档/压缩包` });
   }
   const id = makeId(req.user.id, conversationId, hash);
+  if (finishing.has(id)) return res.status(409).json({ error: '文件正在审核，请等待上传完成' });
   const m = { userId: req.user.id, convId: conversationId, filename, size: total, mime: mime || '', hash, createdAt: Date.now() };
   meta.set(id, m);
   fs.writeFileSync(metaPath(id), JSON.stringify(m));
@@ -99,6 +101,7 @@ function status(req, res) {
 async function chunk(req, res) {
   const { uploadId } = req.params;
   if (!validateUploadId(uploadId)) return res.status(400).json({ error: '无效的上传ID' });
+  if (finishing.has(uploadId)) return res.status(409).json({ error: '文件正在审核，请等待上传完成' });
   const m = loadMeta(uploadId);
   if (!m || m.userId !== req.user.id) return res.status(404).json({ error: '上传会话不存在或已过期，请重新 init' });
   const offset = parseInt(req.query.offset, 10) || 0;
@@ -116,6 +119,7 @@ async function chunk(req, res) {
 async function finish(req, res) {
   const { conversationId, uploadId } = req.params;
   if (!validateUploadId(uploadId)) return res.status(400).json({ error: '无效的上传ID' });
+  if (finishing.has(uploadId)) return res.status(409).json({ error: '文件正在审核，请等待上传完成' });
   const m = loadMeta(uploadId);
   if (!m || m.userId !== req.user.id) return res.status(404).json({ error: '上传会话不存在' });
   if (conversationId !== m.convId) return res.status(400).json({ error: '会话不匹配' });
@@ -123,6 +127,9 @@ async function finish(req, res) {
   const part = partPath(uploadId);
   const got = received(uploadId);
   if (got !== m.size) return res.status(400).json({ error: `文件不完整 (${got}/${m.size})，请续传`, received: got });
+
+  finishing.add(uploadId);
+  try {
 
   // 常见格式校验（扩展名白名单 + 魔数反可执行伪装）
   let check;
@@ -176,6 +183,7 @@ async function finish(req, res) {
     fileMime: mime, fileSize: m.size,
   });
   return res.json(msg);
+  } finally { finishing.delete(uploadId); }
 }
 
 // 清理 24h 前的残留分片

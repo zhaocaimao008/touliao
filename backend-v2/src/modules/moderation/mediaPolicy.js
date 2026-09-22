@@ -2,12 +2,14 @@
 const path = require('path');
 const { ApiError } = require('../../utils/http');
 const visualExtensions = new Set('jpg jpeg jpe png gif webp bmp avif heic heif tif tiff svg ico mp4 m4v mov webm mkv avi wmv flv mpg mpeg 3gp 3g2 ogv'.split(' '));
-// No verified provider is configured. Do not fabricate a safe verdict or let a
-// client-selected MIME/extension turn an unreviewed image into a document.
-function assertMediaAvailable({mime='',filename='',detectedMime=''}={}) {
+// Classification is based on bytes as well as client declarations. Approval
+// requires the configured scanner; changing an extension never skips screening.
+async function assertMediaAvailable({filePath,mime='',filename='',detectedMime=''}={}) {
   const ext = path.extname(filename).slice(1).toLowerCase();
   if (/^(image|video)\//i.test(mime) || /^(image|video)\//i.test(detectedMime) || visualExtensions.has(ext)) {
-    throw unavailable();
+    const video = /^video\//i.test(detectedMime || mime)
+      || /\.(mp4|m4v|mov|webm|mkv|avi|wmv|flv|mpg|mpeg|3gp|3g2|ogv)$/i.test(filename);
+    return require('./localMediaScanner').assertAccepted(filePath, video ? 'video' : 'image');
   }
 }
 function unavailable() {
@@ -22,12 +24,16 @@ async function assertUploadAvailable(filePath,filename,mime,detectedMime) {
     if (['audio/mp4','audio/x-m4a'].includes(claimed) && ['.m4a','.mp4'].includes(ext)
         && ['video/mp4','audio/mp4','audio/x-m4a'].includes(detectedMime)
         && await require('./audioContainer').isAudioOnlyMp4(filePath)) return;
-    throw unavailable();
+    // A declared audio upload must actually be audio-only. Do not turn a hidden
+    // video into a voice message even if its sampled visual content is accepted.
+    if (['audio/mp4','audio/x-m4a'].includes(claimed) || ext === '.m4a') throw unavailable();
+    return require('./localMediaScanner').assertAccepted(filePath, 'video');
   }
   if (mime.split(';')[0].trim().toLowerCase()==='audio/webm' && detectedMime==='video/webm'
       && path.extname(filename).toLowerCase()==='.webm'
       && await require('./audioContainer').isAudioOnlyWebm(filePath)) return;
-  assertMediaAvailable({mime,filename,detectedMime});
+  if (claimed === 'audio/webm' && detectedMime === 'video/webm') throw unavailable();
+  return assertMediaAvailable({filePath,mime,filename,detectedMime});
 }
 function assertCloudUploadAvailable() { throw unavailable(); }
 module.exports = { assertMediaAvailable, assertUploadAvailable, assertCloudUploadAvailable, unavailable };

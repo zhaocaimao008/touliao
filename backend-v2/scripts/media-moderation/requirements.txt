@@ -1,0 +1,8 @@
+# CPU-only screening runtime; the 320n ONNX weights are included in NudeNet.
+nudenet==3.4.2
+numpy==2.5.3
+onnxruntime==1.30.0
+opencv-python-headless==5.0.0.93
+flatbuffers==25.12.19
+packaging==26.3
+protobuf==7.36.2

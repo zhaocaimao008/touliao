@@ -210,8 +210,11 @@ function wrapUpload(multerMiddleware) {
 // 直传 multer diskStorage 边收边落盘，无此守卫可被并行大文件流式耗尽磁盘。
 // 内存 Map 计数：请求进入 +1，响应完成/中断 -1（res close/finish 均触发）。
 const activeDirectUploads = new Map(); // userId -> 进行中的直传数
+const uploadGuardApplied = Symbol('uploadGuardApplied');
 function makeUploadGuard(dest) {
   return (req, res, next) => {
+    // Some controllers also install this guard around a reusable uploader.
+    if (req[uploadGuardApplied]) return next();
     // 磁盘阈值：低于 MIN_DISK_FREE_BYTES 拒绝新上传（探测失败放行，不误伤）
     try {
       if (typeof fs.statfsSync === 'function') {
@@ -230,6 +233,7 @@ function makeUploadGuard(dest) {
       return res.status(429).json({ error: `同时进行中的上传过多（上限 ${MAX_CONCURRENT_UPLOADS}），请先完成或等待清理` });
     }
     activeDirectUploads.set(uid, active + 1);
+    req[uploadGuardApplied] = true;
     // 只监听 close 释放（finish 之后必触发 close），避免 finish+close 双触发导致计数漂移
     let released = false;
     const release = () => {
@@ -340,21 +344,48 @@ function makeMagicBytesMiddleware(allowedMimes) {
   return async (req, res, next) => {
     const files = req.files || (req.file ? [req.file] : []);
     if (!files.length) return next();
+    try {
     for (const file of files) {
       const origExt = path.extname(file.originalname).toLowerCase();
       if (BLOCKED_EXTENSIONS.has(origExt)) {
-        fs.unlink(file.path, () => {});
-        return res.status(400).json({ error: `400 Invalid File Type: 禁止上传 ${origExt} 类型文件` });
+        throw require('./http').badRequest(`400 Invalid File Type: 禁止上传 ${origExt} 类型文件`);
       }
       const result = await verifyMagicBytes(file.path, allowedMimes, file.mimetype);
       if (!result.ok) {
-        fs.unlink(file.path, () => {});
-        return res.status(400).json({ error: `400 Invalid File Type: ${result.reason}` });
+        throw require('./http').badRequest(`400 Invalid File Type: ${result.reason}`);
       }
       // 用真实检测到的 MIME 覆盖客户端声明的 Content-Type，确保消息类型正确
       if (result.mime) file.mimetype = result.mime;
     }
     next();
+    } catch (err) {
+      await Promise.all(files.map(file => fs.promises.unlink(file.path).catch(() => {})));
+      next(err);
+    }
+  };
+}
+
+// Images/video remain outside served paths until every file in the request has
+// passed screening. A failure in one image removes the whole multipart batch.
+function makeMediaReviewMiddleware(dest) {
+  return async (req, res, next) => {
+    const files = req.files || (req.file ? [req.file] : []);
+    try {
+      for (const file of files) {
+        await require('../modules/moderation/mediaPolicy').assertUploadAvailable(
+          file.path, file.originalname, file.mimetype, file.mimetype);
+      }
+      for (const file of files) {
+        const target = path.join(dest, file.filename);
+        await fs.promises.rename(file.path, target);
+        file.path = target;
+        file.destination = dest;
+      }
+      next();
+    } catch (err) {
+      await Promise.all(files.map(file => fs.promises.unlink(file.path).catch(() => {})));
+      next(err);
+    }
   };
 }
 
@@ -444,23 +475,30 @@ function makeVideoMagicMiddleware() {
 // 不做 EXIF 剥离/缩略图（sharp 只处理图片，视频跳过）。
 function makeVideoUploader(dest, fieldName = 'video', maxSize = MAX_UPLOAD_BYTES) {
   fs.mkdirSync(dest, { recursive: true });
+  const pending = path.join(dest, '..', '.media-pending');
+  fs.mkdirSync(pending, { recursive: true, mode: 0o700 });
   const storage = multer.diskStorage({
-    destination: dest,
+    destination: pending,
     filename: (req, file, cb) => cb(null, uuidv4() + safeExt(file.originalname, file.mimetype)),
   });
   const multerMw = wrapUpload(multer({
     storage,
     limits: { fileSize: maxSize, fields: 32, fieldSize: 65536, fieldNestingDepth: 8, fieldArrayIndexLimit: 100 },
   }).single(fieldName));
-  return [rejectVisualUpload, makeUploadGuard(dest), multerMw, makeVideoMagicMiddleware()];
+  return [requireVisualScanner, makeUploadGuard(dest), multerMw, makeVideoMagicMiddleware(), makeMediaReviewMiddleware(dest)];
 }
 
-function rejectVisualUpload(req,res,next) { next(require('../modules/moderation/mediaPolicy').unavailable()); }
+function requireVisualScanner(req,res,next) {
+  try { require('../modules/moderation/localMediaScanner').assertConfigured(); next(); }
+  catch (err) { next(err); }
+}
 
 function makeImageUploader(dest, fieldName = 'image', maxCount = 1, maxSize = 5 * 1024 * 1024) {
   fs.mkdirSync(dest, { recursive: true });
+  const pending = path.join(dest, '..', '.media-pending');
+  fs.mkdirSync(pending, { recursive: true, mode: 0o700 });
   const storage = multer.diskStorage({
-    destination: dest,
+    destination: pending,
     filename: (req, file, cb) => cb(null, uuidv4() + (MIME_TO_EXT[file.mimetype] || '.jpg')),
   });
   const m = multer({
@@ -474,7 +512,7 @@ function makeImageUploader(dest, fieldName = 'image', maxCount = 1, maxSize = 5 
     },
   });
   const middleware = maxCount === 1 ? m.single(fieldName) : m.array(fieldName, maxCount);
-  return [rejectVisualUpload, wrapUpload(middleware), makeMagicBytesMiddleware(ALLOWED_IMAGE_MIMES), makeExifStripMiddleware()];
+  return [requireVisualScanner, makeUploadGuard(dest), wrapUpload(middleware), makeMagicBytesMiddleware(ALLOWED_IMAGE_MIMES), makeMediaReviewMiddleware(dest), makeExifStripMiddleware()];
 }
 
 // 浏览器会内联渲染/执行的危险 MIME（html/xml/svg/js）。云直传对象的 Content-Type 由客户端

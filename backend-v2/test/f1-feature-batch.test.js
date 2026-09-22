@@ -145,7 +145,7 @@ describe('#1 朋友圈发视频', () => {
       .set(authOf(a)).send({ video: 'http://evil.example/x.mp4' });
     expect(badUrl.status).toBe(400);
 
-    // 路由已停用，先锁定 503；在同一真实上传器的下一层继续验证魔数拒绝 400。
+    // 未配置审核时仍为 503；在同一真实上传器的下一层验证魔数拒绝 400。
     const stopped = await request(app).post('/api/moments/video')
       .set(authOf(a)).attach('video', MP4, 'v.mp4');
     expect(stopped.status).toBe(503);
@@ -153,7 +153,8 @@ describe('#1 朋友圈发视频', () => {
     const { makeVideoUploader } = require('../src/utils/upload');
     const config = require('../src/config');
     const [policyGate, ...videoValidation] = makeVideoUploader(require('path').join(config.uploadsRoot, 'moments'));
-    expect(policyGate.name).toBe('rejectVisualUpload');
+    const denied = jest.fn(); policyGate({}, {}, denied);
+    expect(denied).toHaveBeenCalledWith(expect.objectContaining({ status: 503, code: 'MEDIA_MODERATION_UNAVAILABLE' }));
     const validationApp = require('express')();
     validationApp.post('/video', ...videoValidation, (_req, res) => res.sendStatus(200));
     const fake = await request(validationApp).post('/video')

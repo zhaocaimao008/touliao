@@ -46,11 +46,15 @@ class ContentModerator {
   }
 
   /**
-   * 检测图片内容：未配置服务，绝不返回虚假通过
+   * 本机裸露内容筛查；调用者传入本地文件，不接受远程 URL。
    */
-  async moderateImage(imageUrl) {
+  async moderateImage(filePath) {
     this.stats.checked++;
-    return { status: 'unavailable', reason: 'MEDIA_MODERATION_UNAVAILABLE' };
+    try {
+      return await require('../modules/moderation/localMediaScanner').scanFile(filePath, 'image');
+    } catch {
+      return { status: 'unavailable', reason: 'MEDIA_MODERATION_UNAVAILABLE' };
+    }
   }
 
   /**

@@ -11,6 +11,17 @@ const config = {
   // backend-v2 验证期跑 3003，避免与生产 3002 冲突；上线切换时改回 3002
   port: parseInt(process.env.PORT_V2 || process.env.PORT, 10) || 3003,
 
+  // Local media screening; no credentials or user media leave this server.
+  // An unconfigured provider still fails closed.
+  mediaModeration: {
+    provider: process.env.MEDIA_MODERATION_PROVIDER || '',
+    python: process.env.MEDIA_MODERATION_PYTHON || '',
+    timeoutMs: 60_000,
+    maxConcurrent: 2,
+    maxFrames: 32,
+    minScore: 0.6,
+  },
+
   // ── 数据库 ──────────────────────────────────────────────────
   dbPath: process.env.DB_PATH || path.resolve(__dirname, '../../wechat.db'),
 

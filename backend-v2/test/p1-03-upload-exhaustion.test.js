@@ -215,7 +215,7 @@ describe('P1-03 上传磁盘耗尽防护', () => {
     }
   });
 
-  test('background-upload 停用保持 503；底层超大图片（>5MB）仍为 413', async () => {
+  test('background-upload 未配置审核保持 503；底层超大图片（>5MB）仍为 413', async () => {
     const stopped = await request(app)
       .post(`/api/messages/conversation/${convId}/background-upload`)
       .set('Authorization', `Bearer ${u1.token}`)
@@ -226,7 +226,8 @@ describe('P1-03 上传磁盘耗尽防护', () => {
     // 使用控制器导出的真实 5MB 上传链，只在独立测试 app 中隔离停用门禁。
     const { bgUploadMiddleware } = require('../src/modules/messages/messages.controller');
     const [diskGuard, policyGate, ...imageValidation] = bgUploadMiddleware;
-    expect(policyGate.name).toBe('rejectVisualUpload');
+    const denied = jest.fn(); policyGate({}, {}, denied);
+    expect(denied).toHaveBeenCalledWith(expect.objectContaining({ status: 503, code: 'MEDIA_MODERATION_UNAVAILABLE' }));
     const validationApp = require('express')();
     validationApp.post('/background', (req, _res, next) => { req.user = { id: u1.userId }; next(); },
       diskGuard, ...imageValidation, (_req, res) => res.sendStatus(200));
