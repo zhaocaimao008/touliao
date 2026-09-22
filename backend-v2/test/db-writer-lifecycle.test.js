@@ -22,6 +22,10 @@ beforeEach(() => {
 });
 
 afterEach(async () => {
+  // 让晚到的 Worker 'exit' 回调先把崩溃重启定时器排进「即将被丢弃的旧假时钟」,
+  // 否则它会排进下一个用例新装的假时钟,污染该用例的 jest.getTimerCount()。
+  // setImmediate 未被 fake(doNotFake 列表内),单次宏任务轮转,非 sleep/非重试。
+  await new Promise(resolve => setImmediate(resolve));
   await shutdownWriterBeforeModuleReset();
   jest.resetModules();
   jest.dontMock('../src/config');
@@ -298,9 +302,15 @@ test('audited reset targets do not load writer; close the app writer before isol
 
 test('a nonzero Worker exit while stopping cannot schedule a restart', async () => {
   const writer = loadCrashingWriter();
+  // 同文件更早用例的 writer 实例(模块级实例状态、跨 module registry 互不可见)其崩溃退出回调可能晚到,
+  // 并把重启定时器排进本用例的假时钟(CI 已用创建栈证实:src/db/writer.js:104),
+  // 那是跨实例污染、与本用例实例无关。先给一个宏任务轮转让其结算,再取基准,
+  // 之后仍严格断言「本用例不得新增任何待触发定时器」——产品若真在 stopping 期间排了重启,计数必然上升,依然判红。
+  await new Promise(resolve => setImmediate(resolve));
+  const before = jest.getTimerCount();
   await writer.shutdown();
   expectExited(0, 1);
-  expect(jest.getTimerCount()).toBe(0);
+  expect(jest.getTimerCount()).toBeLessThanOrEqual(before);
   jest.advanceTimersByTime(500);
   expect(constructed).toHaveBeenCalledTimes(1);
   expectNoMessagePorts();
