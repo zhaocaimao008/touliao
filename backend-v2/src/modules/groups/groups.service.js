@@ -119,7 +119,7 @@ function joinByToken(io, userId, token) {
     if (userGroupCount >= 1000) throw badRequest('已达最大群数量上限 1000 个');
     db.prepare('INSERT OR IGNORE INTO conversation_members (conversation_id,user_id,role) VALUES (?,?,?)')
       .run(invite.conversation_id, userId, 'member');
-  })();
+  }).immediate();
   invalidateConv(invite.conversation_id); // 入群后立即可见（isMember 5s 缓存失效）
   if (alreadyMember) {
     // 幂等返回已在群，同时带回群信息（客户端要能直接跳转会话）
