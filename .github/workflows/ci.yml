@@ -100,8 +100,8 @@ jobs:
       - name: 安装 backend 依赖
         working-directory: backend-v2
         run: npm ci
-      - name: Install Redis binary for isolated restart regression
-        run: sudo apt-get update -qq && sudo apt-get install -y redis-server
+      - name: Install Redis and nginx for isolated integration regressions
+        run: sudo apt-get update -qq && sudo apt-get install -y redis-server nginx
       - name: Jest（全套 + 覆盖率下限）
         working-directory: backend-v2
         env:

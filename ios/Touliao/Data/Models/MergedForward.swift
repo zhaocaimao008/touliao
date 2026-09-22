@@ -29,7 +29,7 @@ private let forwardableTypes: Set<String> = ["text", "image", "voice", "video", 
 let mergedForwardMaxItems = 30
 
 func isForwardableMessage(_ msg: Message) -> Bool {
-    msg.deleted == 0 && forwardableTypes.contains(msg.type)
+    msg.deleted == 0 && msg.burnAfter == 0 && forwardableTypes.contains(msg.type)
 }
 
 /// 容错解码 merged content：坏 JSON/缺字段返回空结构，气泡降级显示「聊天记录」

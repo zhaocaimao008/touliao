@@ -44,6 +44,7 @@ final class AccountStore {
     func setActive(_ id: String) { UserDefaults.standard.set(id, forKey: activeKey) }
 
     func remove(_ id: String) {
+        ConversationCache.remove(id)
         save(accounts().filter { $0.id != id })
         if activeId() == id { UserDefaults.standard.removeObject(forKey: activeKey) }
     }

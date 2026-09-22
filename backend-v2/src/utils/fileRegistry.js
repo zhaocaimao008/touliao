@@ -40,16 +40,39 @@ function lookupFile(path) {
   return getDb().prepare('SELECT * FROM file_registry WHERE path=?').get(path);
 }
 
-/**
- * 转发文件到新会话后的授权登记——只能由服务端 forward() 调用，传入的 conversationId
- * 必须是转发者已通过 requireMember 校验过的目标会话，绝不能接受客户端直接声称的值。
- * 幂等：同一 (path, conversationId) 重复调用不报错。
+// These exact local categories are already visible to every authenticated user
+// in app.js. Do not extend this exception to moments, CDN URLs or path aliases.
+const isPublicReference = path => typeof path === 'string'
+  && /^\/uploads\/(?:stickers|avatars)\/[A-Za-z0-9_-]+\.[A-Za-z0-9]+$/.test(path);
+
+// A readable message (or a historical share) does not establish ownership of its file.
+// Check the upload's registered owner or current ORIGINAL conversation membership.
+const referenceAccessSql = `SELECT 1 FROM file_registry r WHERE r.path=? AND
+  NOT EXISTS (SELECT 1 FROM revoked_burn_files b WHERE b.path=r.path) AND
+  NOT EXISTS (SELECT 1 FROM messages m WHERE m.file_url>=? AND m.file_url<? AND m.burn_after>0 AND m.deleted=0) AND
+  (r.owner_id=? OR EXISTS (SELECT 1 FROM conversation_members cm
+    WHERE cm.conversation_id=r.conversation_id AND cm.user_id=?))`;
+function burnFileRange(path) {
+  const base=path.replace(/_thumb\.webp$/, '').replace(/\.[a-zA-Z0-9]+$/, '');
+  return [`${base}.`, `${base}/`];
+}
+function canReferenceFile(path, userId) {
+  return isPublicReference(path) || !!getDb().prepare(referenceAccessSql).get(path, ...burnFileRange(path), userId, userId);
+}
+
+/** Include this op in the SAME worker transaction as the message and sync event.
+ * Recheck current authority at commit time, including the destination membership.
+ * The NOT NULL constraint fails closed; only duplicate grants are ignored.
  */
-function shareFileToConversation(path, conversationId) {
-  if (!path || !conversationId) return;
-  getDb().prepare(
-    'INSERT OR IGNORE INTO file_registry_shares (path, conversation_id) VALUES (?, ?)'
-  ).run(path, conversationId);
+function fileShareOp(path, conversationId, userId) {
+  return {
+    sql: `INSERT INTO file_registry_shares (path, conversation_id) VALUES (?,
+      CASE WHEN (?=1 OR EXISTS (${referenceAccessSql})) AND EXISTS
+        (SELECT 1 FROM conversation_members WHERE conversation_id=? AND user_id=?)
+      THEN ? ELSE NULL END)
+      ON CONFLICT(path, conversation_id) DO NOTHING`,
+    params: [path, Number(isPublicReference(path)), path, ...burnFileRange(path), userId, userId, conversationId, userId, conversationId],
+  };
 }
 
 /**
@@ -95,4 +118,4 @@ function backfillRegistry() {
   ).run();
 }
 
-module.exports = { registerFile, lookupFile, backfillRegistry, shareFileToConversation };
+module.exports = { registerFile, lookupFile, backfillRegistry, canReferenceFile, fileShareOp };

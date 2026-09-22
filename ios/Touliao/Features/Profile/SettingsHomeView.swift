@@ -10,6 +10,8 @@ struct SettingsHomeView: View {
     var body: some View {
         ScrollView {
             VStack(spacing: 12) {
+                LegalLinks()
+                SafetyReportButton(label: "举报与客服 / 我的工单")
                 HubCard {
                     NavigationLink(destination: NotificationSettingsView()) {
                         HubRow(icon: "bell", title: "消息通知")

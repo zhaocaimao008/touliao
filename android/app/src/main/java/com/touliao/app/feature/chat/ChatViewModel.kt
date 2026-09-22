@@ -171,6 +171,13 @@ class ChatViewModel @Inject constructor(
     private val json = Json { ignoreUnknownKeys = true }
 
     init {
+        viewModelScope.launch {
+            while (true) {
+                delay(1000)
+                val now = System.currentTimeMillis() / 1000
+                _uiState.update { state -> state.copy(messages = state.messages.filter { (it.burn_expires_at ?: Long.MAX_VALUE) > now }) }
+            }
+        }
         notificationHelper.clearConversationNotifications(conversationId)   // 进入会话即清理该会话的锁屏/通知栏聚合通知
         chatRepository.joinConversation(conversationId)
         primeFromCache()    // 首屏占位：先渲染离线缓存历史，随后 loadHistory 拉取真相源覆盖
@@ -796,7 +803,7 @@ class ChatViewModel @Inject constructor(
         if (conversationIds.isEmpty()) return
         viewModelScope.launch {
             runCatching { chatRepository.forward(msg.id, conversationIds) }
-                .onSuccess { _uiState.update { it.copy(error = "已转发") } }
+                .onSuccess { result -> _uiState.update { it.copy(error = result.summary()) } }
                 .onFailure { e -> _uiState.update { it.copy(error = e.toUserMessage("转发失败")) } }
         }
     }
@@ -842,12 +849,22 @@ class ChatViewModel @Inject constructor(
         }
     }
 
-    /** /uploads 相对路径 → 带 token 的绝对地址，供 Coil/播放器加载 */
+    /** /uploads 相对路径 → 不含登录凭据的绝对地址，供 Coil/播放器加载 */
     fun resolveMediaUrl(url: String?): String? = mediaUrlResolver.resolve(url)
 
     /** 播放语音消息 */
+    private var voiceLoad: kotlinx.coroutines.Job? = null
     fun playVoice(fileUrl: String) {
-        resolveMediaUrl(fileUrl)?.let(audioPlayer::play)
+        voiceLoad?.cancel()
+        val owner = captureAttempt() ?: return
+        voiceLoad = viewModelScope.launch {
+            try {
+                val url = mediaUrlResolver.ticket(fileUrl)
+                if (!currentAttempt(owner)) return@launch
+                audioPlayer.play(url) { error -> _uiState.update { it.copy(error = error) } }
+            } catch (e: kotlinx.coroutines.CancellationException) { throw e }
+            catch (_: Exception) { _uiState.update { it.copy(error = "语音加载失败，请检查网络后重试") } }
+        }
     }
 
     /**
@@ -893,14 +910,17 @@ class ChatViewModel @Inject constructor(
                     pending.filterNot { it in stillPending }.forEach { outboxStore.remove(conversationId, it.id, outboxOwner) }
                     val merged = mergeServerWithPending(list, stillPending)
                     _uiState.update { it.copy(loading = false, messages = merged, reachedStart = list.size < HISTORY_PAGE) }
+                    if (runCatching { msgCacheStore.saveBeforeCursor(conversationId, if (uiBurnAfterEnabled()) emptyList() else list) }.isFailure) {
+                        _uiState.update { it.copy(error = "消息缓存更新失败，请重试同步") }
+                        return@onSuccess
+                    }
+                    if (!currentAttempt(credential)) return@onSuccess
                     if (syncCursorStore.load(myId, conversationId) == 0L) {
                         list.maxOfOrNull { it.server_sequence }?.takeIf { it > 0 }?.let {
                             syncCursorStore.save(myId, conversationId, it)
                         }
                     }
                     catchUp()
-                    // 离线缓存：server 覆盖旧缓存（含已编辑/已删同步），再落盘最近 50。
-                    persistCache(com.touliao.app.core.storage.MsgCacheStore.mergeById(msgCacheStore.load(conversationId), list))
                     markReadLatest()   // 打开会话即标记已读
                     healFailedMessages()   // 连线且有失败气泡 → 进会话自动重发一次
                 }
@@ -1036,12 +1056,15 @@ class ChatViewModel @Inject constructor(
                     // 由 ChatMessageMergeTest 红灯锁定后第 2 步修复）。
                     state.copy(messages = applySyncEvents(state.messages, page.messages))
                   }
+                  msgCacheStore.saveBeforeCursor(conversationId, _uiState.value.messages)
                   syncCursorStore.save(myId, conversationId, page.next_cursor)
                   if (!page.has_more || page.next_cursor == cursor) break
                   cursor = page.next_cursor
                 } while (true)
               } while (syncRequested)
               persistCache(_uiState.value.messages)
+            } catch (e: Exception) {
+                if (currentAttempt(credential)) _uiState.update { it.copy(error = "消息缓存更新失败，请重试同步") }
             } finally { syncRunning = false }
         }
     }
@@ -1255,6 +1278,7 @@ class ChatViewModel @Inject constructor(
 
     fun startRecording() {
         if (_uiState.value.recording) return
+        audioPlayer.stop()
         if (audioRecorder.start()) {
             _uiState.update { it.copy(recording = true, error = null) }
         } else {

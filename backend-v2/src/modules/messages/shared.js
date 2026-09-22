@@ -126,7 +126,7 @@ function buildMessage(id) {
 
   if (msg.reply_to_id) {
     msg.replyTo = db.prepare(`
-      SELECT m.id, m.type, m.content, m.file_url, m.deleted, u.username as senderName
+      SELECT m.id, m.type, CASE WHEN m.burn_after>0 THEN '' ELSE m.content END AS content, CASE WHEN m.burn_after>0 THEN '' ELSE m.file_url END AS file_url, m.deleted, u.username as senderName
       FROM messages m JOIN users u ON u.id=m.sender_id WHERE m.id=? AND m.conversation_id=?
     `).get(msg.reply_to_id, msg.conversation_id) || null;
   }
@@ -136,6 +136,22 @@ function buildMessage(id) {
   `).all(id);
   msg.reactions = reactions.map(r => ({ emoji: r.emoji, count: r.count, userIds: r.userIds.split(',') }));
   return msg;
+}
+
+// Cache invalidation is asynchronous. Never serve an expired/cleared body from
+// an earlier snapshot while invalidation is in flight or Redis is unavailable.
+function canUseMessageCache(rows, userId) {
+  if (!Array.isArray(rows)) return false;
+  if (!rows.length) return true;
+  const ids = [...new Set(rows.map(row => row.id))];
+  const live = db.prepare(`SELECT m.id,m.content FROM messages m
+    JOIN conversation_members cm ON cm.conversation_id=m.conversation_id AND cm.user_id=?
+    WHERE m.id IN (${ids.map(()=>'?').join(',')}) AND m.deleted=0
+    AND m.rowid>COALESCE((SELECT cleared_rowid FROM conversation_clears WHERE user_id=? AND conversation_id=m.conversation_id),0)
+    AND NOT EXISTS(SELECT 1 FROM user_message_deletions d WHERE d.message_id=m.id AND d.user_id=?)`)
+    .all(userId,...ids,userId,userId);
+  const contents = new Map(live.map(row=>[row.id,row.content]));
+  return rows.every(row=>contents.has(row.id) && contents.get(row.id)===row.content);
 }
 
 // 彻底清除一个会话及其全部衍生数据（消息/表情/送达/FTS/置顶/红包/成员/设置/邀请令牌）。
@@ -158,6 +174,9 @@ function purgeConversation(id) {
     db.prepare('DELETE FROM pinned_messages WHERE conversation_id=?').run(id);
     db.prepare('DELETE FROM red_packet_claims WHERE packet_id IN (SELECT id FROM red_packets WHERE conversation_id=?)').run(id);
     db.prepare('DELETE FROM red_packets WHERE conversation_id=?').run(id);
+    // Dissolution cancels/removes every task state under the same SQLite write lock
+    // used by scheduled delivery. The FK remains enabled.
+    db.prepare('DELETE FROM scheduled_messages WHERE conversation_id=?').run(id);
     db.prepare('DELETE FROM messages WHERE conversation_id=?').run(id);
     db.prepare('DELETE FROM conversation_settings WHERE conversation_id=?').run(id);
     db.prepare('DELETE FROM group_invite_tokens WHERE conversation_id=?').run(id);
@@ -166,4 +185,4 @@ function purgeConversation(id) {
   })();
 }
 
-module.exports = { isMember, requireMember, memberRole, buildMessage, purgeConversation, privateSendGuard, invalidateConv, invalidateBlocked };
+module.exports = { canUseMessageCache, isMember, requireMember, memberRole, buildMessage, purgeConversation, privateSendGuard, invalidateConv, invalidateBlocked };

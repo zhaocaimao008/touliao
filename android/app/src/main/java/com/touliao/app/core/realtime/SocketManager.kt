@@ -82,6 +82,7 @@ data class GroupCallEndedEvent(val callId: String, val reason: String)  // æœåŠ
 class SocketManager @Inject constructor(
     private val tokenStore: TokenStore,
     private val serverConfig: ServerConfig,
+    private val msgCacheStore: com.touliao.app.core.storage.MsgCacheStore,
     private val json: Json,
 ) {
     private var socket: Socket? = null
@@ -320,7 +321,9 @@ class SocketManager @Inject constructor(
             }
         }
         s.on("conversation_messages_cleared") { args ->
-            (args.firstOrNull() as? JSONObject)?.optString("conversationId")?.takeIf { it.isNotEmpty() }?.let(_conversationCleared::tryEmit)
+            (args.firstOrNull() as? JSONObject)?.optString("conversationId")?.takeIf { it.isNotEmpty() }?.let {
+                if (tokenStore.isCurrent(credential)) { msgCacheStore.clear(it); _conversationCleared.tryEmit(it) }
+            }
         }
         s.on("message_reaction") { args ->
             (args.firstOrNull() as? JSONObject)?.let { o ->

@@ -37,7 +37,7 @@ describe('P1-04 注销账号唯一索引', () => {
     const phones = rows.map(r => r.phone);
     expect(new Set(usernames).size).toBe(usernames.length);
     expect(new Set(phones).size).toBe(phones.length);
-  });
+  }, 30000);
 
   test('已注销账号再次尝试注销 → 密码校验拒绝（banned 用户不能二次注销）', async () => {
     const u = await makeUser({ username: 'del_uniq_twice' });

@@ -132,3 +132,19 @@
   残留风险为渲染层 XSS，不可触达 Node。
 - 构建请**固定从 `desktop-electron/` 根目录执行**（使用根 `package.json`）；`src/package.json`
   的冗余 `build` 段已删除，避免从错误目录构建产出错配安装包。
+
+## F-12 更新与旧客户端迁移门禁（2026-09-20，以本节为准）
+
+Windows 新链路绑定已签名清单、updater 解析结果和最终文件摘要；最终安装器由随包 helper 在持锁期间验证 Authenticode 与内置指纹。**当前 `publisherThumbprints` 为空，Windows 自动更新不可用。** 没有 `publisherName` 时 updater 6.8.9 自带发布者检查返回空结果；不能把“未覆盖其函数”说成这层检查已经生效。CI 的既有 `Verify trusted Windows publisher and timestamp` 步骤现在还必须通过内置 `src/update-policy.json` 指纹检查，空策略、无效签名、错证书或无可信时间戳都会阻断正式发布。不得把从更新响应取得的证书/公钥作为信任锚。
+
+macOS/Linux 暂停自动下载和自动安装，检查更新时显示需要从可信渠道取得完整包；仍可构建供独立验证后手工分发的安装包。恢复自动更新之前必须分别完成签名清单绑定、实际文件和最终安装边界验收。
+
+PowerShell 使用 `-NoProfile -NonInteractive -ExecutionPolicy Bypass -File`，只为当前 helper 进程指定执行策略，不更改机器/用户策略；组策略仍可阻断。默认客户端 Restricted 下旧 `-File` 可能无法执行。相关依据：[Microsoft 执行策略](https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.core/about/about_execution_policies?view=powershell-5.1)。目录和文件用不跟随重解析点的句柄打开并检查，文件句柄保持到安装子进程退出；[CreateFile 共享与重解析点语义](https://learn.microsoft.com/en-us/windows/win32/api/fileapi/nf-fileapi-createfilea)。这些是设计依据，Windows 10/11、组策略、UAC、junction、证书链/吊销和 NSIS 兼容仍必须实机执行。
+
+旧版客户端不能通过其旧 OTA 验签建立新信任。实施顺序：
+
+1. 通过已认证的企业分发/MDM、可信商店或线下管理渠道预置发布者证书及离线签名验证公钥；不得与待验包一起从同一未知更新源获取。
+2. 停止旧 feed 继续分发安装包，提前发布迁移说明；在独立渠道提供修复完整包、版本和摘要。无独立可信渠道则迁移 BLOCKED。
+3. 离线校验最终包签名与预置信任锚，再覆盖安装；Windows 核对签名包内公钥、内置指纹、helper、版本。实际签名证书必须同时通过 CI 指纹门禁。
+4. 在隔离 Windows VM 验证正常安装、错/缺签名、错清单、错发布者、缓存替换、文件/父目录替换、进程异常/重启、受限策略/UAC。记录最终文件摘要及安装进程证据后，才恢复新客户端 feed。
+5. 失败保持阻断，用独立渠道完整包修复；不恢复仅验证第二份清单的旧逻辑。已受恶意更新影响的终端应独立恢复，升级本身不证明其原状态可信。

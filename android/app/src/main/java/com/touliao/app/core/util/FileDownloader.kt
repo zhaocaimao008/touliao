@@ -19,6 +19,7 @@ import dagger.hilt.android.EntryPointAccessors
 import dagger.hilt.components.SingletonComponent
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.launch
 import okhttp3.OkHttpClient
 
 /**
@@ -29,6 +30,9 @@ import okhttp3.OkHttpClient
 @InstallIn(SingletonComponent::class)
 internal interface DownloadClientEntryPoint {
     @DownloadHttpClient fun downloadHttpClient(): OkHttpClient
+    fun mediaUrlResolver(): MediaUrlResolver
+    fun accountStore(): com.touliao.app.core.storage.AccountStore
+    fun tokenStore(): com.touliao.app.core.storage.TokenStore
 }
 
 internal fun downloadHttpClient(context: Context): OkHttpClient =
@@ -37,10 +41,18 @@ internal fun downloadHttpClient(context: Context): OkHttpClient =
 
 /**
  * 文件/视频：用系统 DownloadManager 后台下载到「下载」目录，完成后通知栏可直接点开对应应用。
- * 不用 ACTION_VIEW 打开 http 链接（那会跳浏览器/弹网页下载）。URL 需已带 ?token= 鉴权（见 MediaUrlResolver）。
+ * 不用 ACTION_VIEW 打开 http 链接（那会跳浏览器/弹网页下载）。下载管理器使用短期只读票据（见 MediaUrlResolver）。
  * 供聊天窗口与收藏等处共用。
  */
 fun downloadFile(context: Context, url: String?, filename: String?) {
+    if (url.isNullOrBlank()) return
+    kotlinx.coroutines.CoroutineScope(Dispatchers.Main).launch {
+        try { enqueueDownload(context, mediaResolver(context).ticket(url), filename) }
+        catch (_: Exception) { Toast.makeText(context, "下载授权失败，请重试", Toast.LENGTH_SHORT).show() }
+    }
+}
+internal fun mediaResolver(context: Context): MediaUrlResolver = EntryPointAccessors.fromApplication(context.applicationContext, DownloadClientEntryPoint::class.java).mediaUrlResolver()
+private fun enqueueDownload(context: Context, url: String?, filename: String?) {
     if (url.isNullOrBlank()) return
     runCatching {
         val uri = Uri.parse(url)
@@ -68,7 +80,7 @@ fun downloadFile(context: Context, url: String?, filename: String?) {
  * 保存聊天图片到系统相册（Pictures/vxin）。
  * 用 MediaStore Insert API，Android 10+（scoped storage）无需 WRITE_EXTERNAL_STORAGE 权限即可写公共相册；
  * Android 9 及以下 MediaStore 同样可用（走传统路径由系统处理）。
- * url 需已带 ?token= 鉴权（见 MediaUrlResolver）。
+ * 资源下载使用鉴权请求（见 MediaUrlResolver）。
  */
 suspend fun saveImageToGallery(context: Context, url: String?, filename: String? = null) {
     if (url.isNullOrBlank()) return
@@ -123,7 +135,7 @@ suspend fun saveImageToGallery(context: Context, url: String?, filename: String?
 /**
  * 保存聊天视频到系统相册（Movies/touliao）。
  * 做法与 saveImageToGallery 对齐：MediaStore Video Insert API，Android 10+ 无需
- * WRITE_EXTERNAL_STORAGE 权限；字节走 OkHttp 流式下载(url 已带 ?token= 鉴权)直接写入
+ * WRITE_EXTERNAL_STORAGE 权限；字节走 OkHttp 流式下载(播放器使用短期只读票据)直接写入
  * MediaStore 的 OutputStream，不在内存里攒完整视频（大文件也不会 OOM）。
  * 2026-08-29 补：此前只有 saveImageToGallery，没有视频版本，视频只能靠系统
  * DownloadManager 下到「下载」目录，用户在相册 App 里找不到。
@@ -177,7 +189,7 @@ suspend fun saveVideoToGallery(context: Context, url: String?, filename: String?
  * 做法：Coil 取原图(走应用鉴权栈) → PNG 落 cache/clipboard → FileProvider 授出 content:// URI →
  * ClipData.newUri 写剪贴板，并附 grantUriPermission 让接收方可读。
  * 直接写 file:// 或 bitmap 是不行的：Android 剪贴板跨应用只认 content:// 且需授权。
- * url 需已带 ?token= 鉴权（见 MediaUrlResolver）。
+ * 资源下载使用鉴权请求（见 MediaUrlResolver）。
  */
 suspend fun copyImageToClipboard(context: Context, url: String?) {
     if (url.isNullOrBlank()) return
@@ -233,7 +245,7 @@ suspend fun copyImageToClipboard(context: Context, url: String?) {
 /**
  * 分享到第三方软件（微信/QQ/邮件等）：图片/视频/文件/文档。
  * 做法：先把资源落到 cache/share（图片走 Coil 复用鉴权栈；其它走 OkHttp 流式下载，
- *   url 需已带 ?token= 鉴权），再用 FileProvider 授出 content:// URI，
+ *   资源下载使用鉴权请求），再用 FileProvider 授出 content:// URI，
  *   最后 Intent.ACTION_SEND 拉起系统分享面板。
  * 不能直接分享 http 链接（对方 App 拿不到鉴权、也不是「文件分享」体验）。
  *

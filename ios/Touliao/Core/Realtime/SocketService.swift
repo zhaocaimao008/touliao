@@ -253,6 +253,7 @@ final class SocketService {
         }
         sock.on("conversation_messages_cleared") { [weak self] data, _ in
             if let convId = (data.first as? [String: Any])?["conversationId"] as? String, !convId.isEmpty {
+                MsgCacheStore.shared.clear(convId)
                 self?.conversationCleared.send(convId)
             }
         }

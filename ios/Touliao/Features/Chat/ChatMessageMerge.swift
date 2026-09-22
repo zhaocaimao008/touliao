@@ -74,6 +74,13 @@ enum ChatMessageMerge {
         var result = messages
         for event in events.sorted(by: { $0.serverSequence < $1.serverSequence }) {
             switch event.eventType {
+            case "conversation_cleared":
+                result.removeAll { $0.localStatus == nil && $0.serverSequence < event.serverSequence }
+            case "message_burn_started":
+                if let i = result.firstIndex(where: { $0.id == event.messageId }) {
+                    result[i].burnReadAt = Double(event.payload["burn_read_at"] ?? "")
+                    result[i].burnExpiresAt = Double(event.payload["burn_expires_at"] ?? "")
+                }
             case "message_created":
                 if let message = event.message {
                     // 双向清空/撤回后的旧 message_created 补拉：message 字段是实时 join 的当前行，

@@ -6,6 +6,7 @@
 
 const Sentry = require('@sentry/node');
 const config = require('../config');
+const { redact } = require('./redact');
 
 const SENSITIVE_BODY_KEYS = new Set(['password', 'oldpassword', 'newpassword', 'token', 'secret', 'code', 'totp']);
 function redactBody(body) {
@@ -31,6 +32,8 @@ function initSentry() {
     dsn: config.sentry.dsn,
     environment: config.nodeEnv || 'development',
     tracesSampleRate: config.sentry.tracesSampleRate || 0.1,
+    beforeBreadcrumb: breadcrumb => redact(breadcrumb),
+    beforeSendTransaction: event => redact(event),
     beforeSend: (event, hint) => {
       if (event.request?.cookies) delete event.request.cookies;
       if (event.request?.headers?.authorization) delete event.request.headers.authorization;
@@ -38,7 +41,7 @@ function initSentry() {
         const message = hint.originalException.message || '';
         if (message.includes('404') || message.includes('Not Found')) return null;
       }
-      return event;
+      return redact(event);
     },
   });
 
@@ -74,7 +77,7 @@ function attachSentryErrorHandler(app) {
  */
 function captureException(error, context = {}) {
   if (!config.sentry || !config.sentry.dsn) {
-    console.error('Error:', error);
+    console.error('Error:', redact({ message: error.message, stack: error.stack }));
     return;
   }
 
@@ -110,7 +113,7 @@ function captureException(error, context = {}) {
  */
 function captureMessage(message, level = 'info', extra = {}) {
   if (!config.sentry || !config.sentry.dsn) {
-    console.log(`[${level.toUpperCase()}] ${message}`);
+    console.log(redact(`[${level.toUpperCase()}] ${message}`));
     return;
   }
 

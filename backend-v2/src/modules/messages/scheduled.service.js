@@ -1,21 +1,12 @@
 'use strict';
-/**
- * 定时消息服务：创建 + 取消 + 列表 + 进程内调度器。
- *
- * 设计要点（对齐任务书硬性约束）：
- *   1) 定时消息存 scheduled_messages 表（pending/sending/sent/cancelled）。
- *   2) 调度器每 30s 扫一次到期(pending 且 send_at<=now)消息，用 CAS 抢占 status
- *      防重复发送，再复用普通发消息核心逻辑（写 messages + 广播 + 推送）发出。
- *   3) 服务重启后 pending 未到期消息保留在库；startScheduler() 启动即扫一次并注册
- *      30s 定时器，实现重启后自动恢复（无需持久化定时器句柄）。
- *   4) 发出的消息带 is_scheduled=1，供前端渲染「定时」标记。
- *
- * 与红包过期回收(startExpiryReclaim)保持同一「启动首扫 + setInterval + unref」风格。
+/** Durable scheduler. Delivery, sequence event and sent state share one immediate
+ * transaction. A stable task-derived message ID identifies committed work.
+ * Notification errors never requeue committed messages; offline devices sync.
+ * Legacy random-ID sending rows are exposed as recovery_required.
  */
 const { v4: uuidv4 } = require('uuid');
 const { db } = require('../../db/connection');
-const { writeAsync, SEQUENCE_PARAM } = require('../../db/writer');
-const { appendConversationEvent, emitSyncAvailable } = require('./sync.service');
+const { appendConversationEventTx, emitSyncAvailable } = require('./sync.service');
 const config = require('../../config');
 const { badRequest, forbidden, notFound } = require('../../utils/http');
 const { requireMember, buildMessage, privateSendGuard } = require('./shared');
@@ -48,100 +39,88 @@ function scheduleMessage(userId, { conversation_id, content, type = 'text', send
 
   const id = uuidv4();
   db.prepare(
-    'INSERT INTO scheduled_messages (id,conversation_id,sender_id,content,type,send_at) VALUES (?,?,?,?,?,?)'
+    'INSERT INTO scheduled_messages (id,conversation_id,sender_id,content,type,send_at,delivery_version) VALUES (?,?,?,?,?,?,1)'
   ).run(id, conversation_id, userId, content.trim(), type, sendAt);
 
   return db.prepare('SELECT * FROM scheduled_messages WHERE id=?').get(id);
 }
 
-// ── 取消定时消息（仅发送者本人，仅 pending 可取消）────────────────
+// ── 取消定时消息（仅发送者本人，pending / recovery_required 可取消；取消歧义任务只停止重发，不撤回已提交消息）────────────────
 function cancelScheduledMessage(userId, id) {
   const row = db.prepare('SELECT * FROM scheduled_messages WHERE id=?').get(id);
   if (!row) throw notFound('定时消息不存在');
   if (row.sender_id !== userId) throw forbidden('只能取消自己的定时消息');
-  if (row.status !== 'pending') throw badRequest('该消息已发送或已取消，无法取消');
-  db.prepare("UPDATE scheduled_messages SET status='cancelled' WHERE id=? AND status='pending'").run(id);
+  if (!['pending', 'recovery_required'].includes(row.status)) throw badRequest('该消息已发送或已取消，无法取消');
+  const cancelled = db.prepare("UPDATE scheduled_messages SET status='cancelled' WHERE id=? AND status IN ('pending','recovery_required')").run(id);
+  if (!cancelled.changes) throw badRequest('发送状态已变化，请刷新后核对');
   return { success: true };
 }
 
 // ── 我的定时消息列表（默认只看 pending，按发送时间升序）────────────
 function listScheduledMessages(userId, status = 'pending') {
-  const safeStatus = ['pending', 'sent', 'cancelled'].includes(status) ? status : 'pending';
+  const safeStatus = ['pending', 'sent', 'cancelled', 'recovery_required'].includes(status) ? status : 'pending';
   return db.prepare(
-    'SELECT * FROM scheduled_messages WHERE sender_id=? AND status=? ORDER BY send_at ASC LIMIT 100'
-  ).all(userId, safeStatus);
+    "SELECT * FROM scheduled_messages WHERE sender_id=? AND (status=? OR (?='pending' AND status='recovery_required')) ORDER BY send_at ASC LIMIT 100"
+  ).all(userId, safeStatus, safeStatus);
 }
 
-// ── 发送一条到期定时消息（复用普通发消息落库+广播+推送逻辑）────────
-async function deliverOne(sched, io = null) {
-  const msgId = uuidv4();
-  // is_scheduled=1 标记来源，供前端渲染「定时」气泡
-  const sequenced = await appendConversationEvent({
-    conversationId: sched.conversation_id, eventType: 'message_created', messageId: msgId, actorId: sched.sender_id,
-    ops: [{ sql: 'INSERT INTO messages (id,conversation_id,sender_id,type,content,is_scheduled,server_sequence) VALUES (?,?,?,?,?,1,?)',
-      params: [msgId, sched.conversation_id, sched.sender_id, sched.type, sched.content, SEQUENCE_PARAM] }],
-  });
-  cache.delPattern(`search:*${sched.sender_id}*`).catch(() => {});
-  convSvc.invalidateConvCacheForConversation(sched.conversation_id);
-
-  const msg = buildMessage(msgId);
-  if (msg) {
-    broadcaster.broadcastMessage(sched.conversation_id, msg);
-    emitSyncAvailable(io, sched.conversation_id, sequenced.server_sequence);
-    const sender = db.prepare('SELECT username FROM users WHERE id=?').get(sched.sender_id);
-    // 定时消息到点也走推送（勿扰时段由 push 层判断），送达离线成员
-    pushNewMessage({
-      conversationId: sched.conversation_id,
-      senderId: sched.sender_id,
-      senderName: sender?.username || '',
-      content: sched.content,
-      type: sched.type,
-      timestamp: msg.created_at,
-      onlineUserIds: new Set(),
-    }).catch(() => {});
-  }
-  return msg;
-}
-
-// ── 扫描并发送所有到期的 pending 消息 ────────────────────────────
+// A synchronous immediate transaction serializes delivery against dissolution and
+// other schedulers. There is no committed claim/commit gap for new deliveries.
 async function sendDueMessages(io = null) {
   const now = Math.floor(Date.now() / 1000);
-  const dues = db.prepare(
-    "SELECT * FROM scheduled_messages WHERE status='pending' AND send_at<=? ORDER BY send_at ASC LIMIT 50"
-  ).all(now);
-
+  // Old binaries used random message IDs, so an old sending row cannot prove
+  // whether its message committed. Old overdue pending can also be a postcommit
+  // retry from the old catch block. Expose both for reconciliation; never blind replay.
+  db.prepare("UPDATE scheduled_messages SET delivery_version=1 WHERE status='pending' AND delivery_version=0 AND send_at>?").run(now);
+  db.prepare("UPDATE scheduled_messages SET status='recovery_required' WHERE delivery_version=0 AND (status='sending' OR (status='pending' AND send_at<=?))").run(now);
+  const dues = db.prepare("SELECT id FROM scheduled_messages WHERE status IN ('pending','sending') AND send_at<=? ORDER BY send_at,id LIMIT 50").all(now);
   let sent = 0;
-  for (const sched of dues) {
-    // CAS 抢占 status，防止定时器重入/多进程并发重复发送
-    const upd = db.prepare(
-      "UPDATE scheduled_messages SET status='sending' WHERE id=? AND status='pending'"
-    ).run(sched.id);
-    if (upd.changes === 0) continue;
-
+  for (const { id } of dues) {
+    let delivery;
     try {
-      // 发送前二次校验：与普通发送一致，复查成员身份、全员禁言及私聊守卫。
-      // 授权已失效属于确定性拒绝，直接 cancelled，避免每轮扫描无限重试。
-      const stillMember = db.prepare(
-        'SELECT role FROM conversation_members WHERE conversation_id=? AND user_id=?'
-      ).get(sched.conversation_id, sched.sender_id);
-      if (!stillMember) {
-        db.prepare("UPDATE scheduled_messages SET status='cancelled' WHERE id=?").run(sched.id);
-        continue;
-      }
-      const conv = db.prepare('SELECT mute_all, type FROM conversations WHERE id=?').get(sched.conversation_id);
-      const guardReason = privateSendGuard(sched.conversation_id, sched.sender_id, conv);
-      if (!conv || guardReason || (conv.mute_all && stillMember.role === 'member')) {
-        db.prepare("UPDATE scheduled_messages SET status='cancelled' WHERE id=?").run(sched.id);
-        continue;
-      }
-      await deliverOne(sched, io);
-      db.prepare("UPDATE scheduled_messages SET status='sent' WHERE id=?").run(sched.id);
-      sent += 1;
-    } catch (e) {
-      console.error('[scheduled] 发送失败，恢复 pending 待重试:', sched.id, e.message);
-      // 失败恢复 pending，避免永久卡在 sending
-      db.prepare("UPDATE scheduled_messages SET status='pending' WHERE id=? AND status='sending'").run(sched.id);
+      delivery = db.transaction(() => {
+        const sched = db.prepare("SELECT * FROM scheduled_messages WHERE id=? AND status IN ('pending','sending')").get(id);
+        if (!sched) return null;
+        const msgId = `scheduled:${sched.id}`;
+        const existing = db.prepare('SELECT id FROM messages WHERE id=?').get(msgId);
+        if (existing) {
+          db.prepare("UPDATE scheduled_messages SET status='sent',delivery_version=1 WHERE id=?").run(id);
+          return null;
+        }
+        const member = db.prepare('SELECT role FROM conversation_members WHERE conversation_id=? AND user_id=?').get(sched.conversation_id,sched.sender_id);
+        const conv = db.prepare('SELECT type,mute_all FROM conversations WHERE id=?').get(sched.conversation_id);
+        if (!member || !conv || privateSendGuard(sched.conversation_id,sched.sender_id,conv) || (conv.mute_all && member.role==='member')) {
+          db.prepare("UPDATE scheduled_messages SET status='cancelled' WHERE id=?").run(id);
+          return null;
+        }
+        const sequence = appendConversationEventTx({
+          conversationId:sched.conversation_id,eventType:'message_created',messageId:msgId,actorId:sched.sender_id,
+          apply: seq => {
+            db.prepare('INSERT INTO messages(id,conversation_id,sender_id,type,content,is_scheduled,server_sequence) VALUES (?,?,?,?,?,1,?)')
+              .run(msgId,sched.conversation_id,sched.sender_id,sched.type,sched.content,seq);
+            db.prepare("UPDATE scheduled_messages SET status='sent',delivery_version=1 WHERE id=?").run(id);
+          },
+        });
+        return { sched, msgId, sequence };
+      }).immediate();
+    } catch (error) {
+      console.error('[scheduled] transaction rolled back:', id, error.message);
+      continue;
     }
+    if (!delivery) continue;
+    sent++;
+    const { sched, msgId, sequence } = delivery;
+    // Notification failure cannot change a durable sent result. Offline clients sync.
+    try {
+      const msg=buildMessage(msgId);
+      cache.delPattern(`search:*${sched.sender_id}*`).catch(()=>{});
+      convSvc.invalidateConvCacheForConversation(sched.conversation_id);
+      broadcaster.broadcastMessage(sched.conversation_id,msg);
+      emitSyncAvailable(io,sched.conversation_id,sequence);
+      const sender=db.prepare('SELECT username FROM users WHERE id=?').get(sched.sender_id);
+      await pushNewMessage({conversationId:sched.conversation_id,senderId:sched.sender_id,senderName:sender?.username||'',
+        content:msg.burn_after ? '[阅后即焚消息]' : sched.content,type:sched.type,timestamp:msg.created_at,onlineUserIds:new Set()});
+    } catch (error) { console.error('[scheduled] committed; notification failed:', id, error.message); }
   }
   return sent;
 }

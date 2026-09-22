@@ -27,10 +27,10 @@ describe('专属邀请码与邀请关系', () => {
 
     // 新用户用 inviter 的专属码注册
     const u = uniq();
-    const reg = await request(app).post('/api/auth/register').send({
+    const reg = await request(app).post('/api/auth/register').send({ ...({
       username: 'invitee_' + u, phone: `+86-14${u}`.slice(0, 18),
       password: 'passw0rd123456', inviteCode: code,
-    });
+    }), legalConsent: require('./legal-consent.cjs') });
     expect(reg.status).toBe(200);
 
     const after = (await authGet('/api/users/me/invite', inviter.token)).body;
@@ -40,10 +40,10 @@ describe('专属邀请码与邀请关系', () => {
 
   test('管理员全局码仍可注册，且不产生邀请关系', async () => {
     const u = uniq();
-    const reg = await request(app).post('/api/auth/register').send({
+    const reg = await request(app).post('/api/auth/register').send({ ...({
       username: 'global_' + u, phone: `+86-15${u}`.slice(0, 18),
       password: 'passw0rd123456', inviteCode: INVITE_CODE,
-    });
+    }), legalConsent: require('./legal-consent.cjs') });
     expect(reg.status).toBe(200);
     // 全局码注册者：登录后查自己的 invite，invitedCount=0（没人被它邀请），且自己有专属码
     const me = (await authGet('/api/users/me/invite', reg.body.token)).body;
@@ -57,10 +57,10 @@ describe('专属邀请码与邀请关系', () => {
     const { code } = (await authGet('/api/users/me/invite', inviter.token)).body;
     for (let i = 0; i < 2; i += 1) {
       const u = uniq();
-      await request(app).post('/api/auth/register').send({
+      await request(app).post('/api/auth/register').send({ ...({
         username: `ranked_${u}`, phone: `+86-17${u}`.slice(0, 18),
         password: 'passw0rd123456', inviteCode: code,
-      });
+      }), legalConsent: require('./legal-consent.cjs') });
     }
     const top = topInviters({ limit: 100 });
     const row = top.inviters.find(x => x.id === inviter.userId);
@@ -71,10 +71,10 @@ describe('专属邀请码与邀请关系', () => {
 
   test('无效邀请码仍被拒', async () => {
     const u = uniq();
-    const reg = await request(app).post('/api/auth/register').send({
+    const reg = await request(app).post('/api/auth/register').send({ ...({
       username: 'bad_' + u, phone: `+86-16${u}`.slice(0, 18),
       password: 'passw0rd123456', inviteCode: '000001',
-    });
+    }), legalConsent: require('./legal-consent.cjs') });
     expect(reg.status).toBe(400);
     expect(reg.body.error).toMatch(/邀请码/);
   });

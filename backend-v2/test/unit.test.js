@@ -18,7 +18,7 @@ beforeAll(async () => { user = await makeUser({ username: 'unit_user' }); });
 describe('认证模块', () => {
   test('正确凭证登录返回 user 与 token', async () => {
     const res = await request(app).post('/api/auth/login')
-      .send({ phone: user.phone, password: user.password });
+      .send({ ...({ phone: user.phone, password: user.password }), legalConsent: require('./legal-consent.cjs') });
     expect(res.status).toBe(200);
     expect(res.body).toHaveProperty('user');
     expect(res.body.user).toHaveProperty('id');
@@ -28,13 +28,13 @@ describe('认证模块', () => {
 
   test('错误凭证返回 400', async () => {
     const res = await request(app).post('/api/auth/login')
-      .send({ phone: user.phone, password: 'wrong-password-x' });
+      .send({ ...({ phone: user.phone, password: 'wrong-password-x' }), legalConsent: require('./legal-consent.cjs') });
     expect(res.status).toBe(400);
     expect(res.body).toHaveProperty('error');
   });
 
   test('缺少参数返回 400', async () => {
-    const res = await request(app).post('/api/auth/login').send({ phone: user.phone });
+    const res = await request(app).post('/api/auth/login').send({ ...({ phone: user.phone }), legalConsent: require('./legal-consent.cjs') });
     expect(res.status).toBe(400);
   });
 });
@@ -57,7 +57,7 @@ describe('Token 黑名单', () => {
 
   test('logout 后旧 cookie 被拒', async () => {
     const login = await request(app).post('/api/auth/login')
-      .send({ phone: user.phone, password: user.password });
+      .send({ ...({ phone: user.phone, password: user.password }), legalConsent: require('./legal-consent.cjs') });
     const cookie = login.headers['set-cookie'];
 
     const logout = await request(app).post('/api/auth/logout').set('Cookie', cookie);
@@ -73,7 +73,7 @@ describe('限流', () => {
     let lastStatus;
     for (let i = 0; i < 6; i++) {
       const res = await request(app).post('/api/auth/login')
-        .send({ phone: user.phone, password: 'wrong-password-x' });
+        .send({ ...({ phone: user.phone, password: 'wrong-password-x' }), legalConsent: require('./legal-consent.cjs') });
       lastStatus = res.status;
     }
     expect(lastStatus).toBe(429);
@@ -91,7 +91,7 @@ describe('安全', () => {
     // A004 修复后 logout 会拉黑会话 jti（正确安全行为），beforeAll 的 register token
     // 可能已被前面 logout 测试拉黑（同 device/platform 复用同一 session），故重新登录取新 token。
     const fresh = await request(app).post('/api/auth/login')
-      .send({ phone: user.phone, password: user.password });
+      .send({ ...({ phone: user.phone, password: user.password }), legalConsent: require('./legal-consent.cjs') });
     const res = await request(app).get('/api/messages/search')
       .query({ q: '你好' })
       .set('Authorization', `Bearer ${fresh.body.token}`);
@@ -102,7 +102,7 @@ describe('安全', () => {
 
   test('登录使用 httpOnly cookie', async () => {
     const res = await request(app).post('/api/auth/login')
-      .send({ phone: user.phone, password: user.password });
+      .send({ ...({ phone: user.phone, password: user.password }), legalConsent: require('./legal-consent.cjs') });
     const cookies = res.headers['set-cookie'];
     expect(cookies).toBeDefined();
     expect(cookies.join(';')).toMatch(/httponly/i);

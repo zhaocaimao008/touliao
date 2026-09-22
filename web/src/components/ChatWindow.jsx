@@ -1,3 +1,4 @@
+import { ReportDialog } from './ReportDialog';
 import { clientStorage as localStorage } from '../utils/clientStorage';
 import React, { useState, useEffect, useRef, useCallback, useMemo, useReducer, useLayoutEffect, lazy, Suspense } from 'react';
 import { createPortal } from 'react-dom';
@@ -244,6 +245,7 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
   const [forwardMsgs, setForwardMsgs] = useState(null); // 多条转发：消息数组 | null
   const [showRedPacket, setShowRedPacket] = useState(false);
   const [showTransfer,  setShowTransfer]  = useState(false);
+  const [reportTarget, setReportTarget] = useState(null);
   const [ctxMenu, setCtxMenu] = useState(null);
   const [readStatus, setReadStatus] = useState(null);
   // 多选模式
@@ -359,7 +361,11 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
             });
             return data;
           },
-          applyPage: async events => setMessages(previous => isCurrent() ? applySyncEvents(previous, events) : previous),
+          applyPage: async events => {
+            // Drop persisted snapshots before advancing the durable cursor.
+            if (events.some(e => ['conversation_cleared','message_vanished','message_deleted_for_me'].includes(e.event_type))) await saveCache(conversation.id, [], {strict:true});
+            if (isCurrent()) setMessages(previous => applySyncEvents(previous, events));
+          },
         });
       } while (isCurrent() && flight.requested);
     })().finally(() => { if (syncInFlightRef.current === flight) syncInFlightRef.current = null; });
@@ -457,20 +463,20 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
   // 阅后即焚：Map msgId → setTimeout handle，切换会话时统一取消
   const burnTimersRef = useRef(new Map());
   const scheduleBurn = React.useCallback((msgs) => {
-    const ba = conversation.burn_after || 0;
-    if (!ba || !msgs.length) return;
-    const now = Date.now() / 1000;
     msgs.forEach(msg => {
-      if (!msg?.id || burnTimersRef.current.has(msg.id)) return;
-      const remaining = Math.max(0, ba - (now - msg.created_at)) * 1000;
+      if (!msg?.id || !msg.burn_expires_at || burnTimersRef.current.has(msg.id)) return;
+      const remaining = Math.max(0, Number(msg.burn_expires_at) * 1000 - Date.now());
       const handle = setTimeout(() => {
-        axios.delete(`/api/messages/${msg.id}`, { data: { vanish: true } }).catch(() => {});
+        // Local controlled memory expires at the server deadline, including offline.
+        // Server destruction is independent; no privileged DELETE request is needed.
         setMessages(prev => prev.filter(m => m.id !== msg.id));
+        removeFromCache(conversation.id, msg.id).catch(() => {});
         burnTimersRef.current.delete(msg.id);
       }, remaining);
       burnTimersRef.current.set(msg.id, handle);
     });
-  }, [conversation.burn_after]);
+  }, [conversation.id]);
+  useEffect(() => { scheduleBurn(messages); }, [messages, scheduleBurn]);
 
   // 组件卸载（关闭会话/切换会话）时标记已读
   const convIdRef   = useRef(conversation.id);
@@ -660,7 +666,7 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
     });
 
     fetchMessages(null, ac.signal)
-      .then(data => {
+      .then(async data => {
         if (!isSessionCurrent(loadScope) || ac.signal.aborted) return; // 会话已切走，丢弃结果
         // 合并本地待发件箱：上次「发送失败」且未成功的文本消息，切回本会话仍在
         const pending = loadOutbox(conversation.id, outboxScope);
@@ -712,9 +718,13 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
             ? [...merged, ...inflight, ...confirmed]
             : merged;
         });
+        let cacheCommitted = true;
+        try { await saveCache(conversation.id, data, {strict:true}); }
+        catch { cacheCommitted = false; } // Keep history/burn timers usable; replay cursor on retry.
+        if (!isLoadCurrent()) return;
         const maxSequence = data.reduce((max, message) => Math.max(max, Number(message.server_sequence) || 0), 0);
         loadSyncCursor(user.id, conversation.id, isLoadCurrent).then(cursor => {
-          if (isLoadCurrent() && cursor === 0 && maxSequence > 0) return saveSyncCursor(user.id, conversation.id, maxSequence, isLoadCurrent);
+          if (cacheCommitted && isLoadCurrent() && cursor === 0 && maxSequence > 0) return saveSyncCursor(user.id, conversation.id, maxSequence, isLoadCurrent);
         }).catch(() => {});
         scheduleBurn(data);
         setHasMore(data.length === 40);
@@ -1123,9 +1133,10 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
         return changed ? n : prev;
       });
     };
-    const onCleared = ({ conversationId }) => {
+    const onCleared = ({ conversationId, server_sequence }) => {
+      clearCache(conversationId).catch(() => {});
       if (conversationId !== convIdRef.current) return;
-      setMessages([]);
+      setMessages(prev => server_sequence ? applySyncEvents(prev, [{event_type:'conversation_cleared',server_sequence}]) : []);
       setPinnedMessages([]);
       // 会话被清空：多选态里的所有 id 均已失效
       setSelectedMsgs(prev => (prev.size ? new Set() : prev));
@@ -3001,9 +3012,11 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
 
 
 
+      {reportTarget && createPortal(<div className="safety-overlay"><ReportDialog key={user.id} targetType="message" targetId={reportTarget} onClose={() => setReportTarget(null)} /></div>, document.body)}
       {/* Context menu：CtxMenuPortal 实测菜单尺寸后 clamp 定位（根因修复：不再用硬编码 220×280） */}
       {ctxMenu && createPortal(
         <CtxMenuPortal key={ctxMenu.msg.id} anchor={ctxMenu.anchor} onClose={closeCtx}>
+          {!ctxMenu.msg._tempId && !ctxMenu.msg.deleted && <button type="button" className="wc-ctx-item" onClick={() => { setReportTarget(ctxMenu.msg.id); closeCtx(); }}>举报消息</button>}
           {/* 复制：文字全端可用；图片/表情写系统剪贴板（web 走 Clipboard API，桌面走主进程原生剪贴板）。
               出货移动端是原生 Kotlin/Swift App，其"复制图片"在原生侧实现，不经本组件。 */}
           {(ctxMenu.msg.type === 'text' ||

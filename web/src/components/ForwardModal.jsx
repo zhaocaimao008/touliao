@@ -1,3 +1,4 @@
+import { normalizeForwardResult } from '../utils/forwardResult';
 import React, { useState, useEffect, useMemo } from 'react';
 import axios from 'axios';
 import Avatar from './Avatar';
@@ -164,7 +165,7 @@ export default function ForwardModal({ message, messages, sourceConversationName
       if (msgList.length > 1) payload.msgIds = msgList.map(m => m.id);
       else payload.msgId = msgList[0].id;
       const { data } = await axios.post('/api/messages/forward', payload);
-      setResult(data);
+      setResult(normalizeForwardResult(data));
       setDone(true);
       setTimeout(onClose, 3000);
     } catch (e) {
@@ -211,7 +212,7 @@ export default function ForwardModal({ message, messages, sourceConversationName
             <div className="fwd-done-sub">
               {result?.forwardMode === 'merged' && !result?.failed_count
                 ? t('fwd.forwardedToTemplate').replace('{count}', result?.success_count || 0)
-                : t('fwd.resultSummaryTemplate').replace('{success}', result?.success_count || 0).replace('{failed}', result?.failed_count || 0)}
+                : t('fwd.resultSummaryTemplate').replace('{success}', result?.target_success_count ?? result?.success_count ?? 0).replace('{failed}', result?.target_failed_count ?? result?.failed_count ?? 0)}
             </div>
             {result?.retryable_message_ids?.length > 0 && (
               <div className="fwd-done-sub">{t('fwd.retryableHint')}</div>

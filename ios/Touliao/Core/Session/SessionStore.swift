@@ -21,17 +21,22 @@ final class SessionStore: ObservableObject {
     /// ForEach 不重渲染 → 被移除的账号仍显示在列表里（iOS 移除账户 UI 不刷新的 bug）。
     @Published private(set) var accountList: [StoredAccount] = AccountStore.shared.accounts()
 
+    private var restoreGeneration = 0
+    @Published private(set) var recoveryMessage: String?
     private let repo = AuthRepository.shared
     private var observer: NSObjectProtocol?
     private var socketAuthCancellable: AnyCancellable?
 
     private func clearIdentityResources() {
+        AudioPlayerService.shared.stop()
         CallManager.shared.resetForAccountChange()
         GroupCallManager.shared.resetForAccountChange()
         PushManager.shared.clearDisplayedNotifications()
     }
 
     private func beginIdentityChange() {
+        restoreGeneration += 1
+        recoveryMessage = nil
         clearIdentityResources()
         KeychainStore.shared.beginIdentityChange()
     }
@@ -79,16 +84,56 @@ final class SessionStore: ObservableObject {
     }
 
     func restoreSession() async {
+        restoreGeneration += 1
+        let generation = restoreGeneration
         let credential = KeychainStore.shared.snapshot()
-        let user = await repo.restoreSession()
-        KeychainStore.shared.withCurrent(credential) {
-            if let user {
-                SocketService.shared.connect()
-                PushManager.shared.requestAuthorizationAndRegister()
-                state = .authenticated(user)
-            } else {
-                state = .unauthenticated
+        guard let token = credential.token, !token.isEmpty else { state = .unauthenticated; return }
+        let cached = AccountStore.shared.accounts().first { $0.id == AccountStore.shared.activeId() && $0.token == token }
+        if let cached { state = .authenticated(User(id: cached.id, username: cached.username, avatar: cached.avatar)) }
+        var delay: UInt64 = 1_000_000_000
+        while KeychainStore.shared.isCurrent(credential) && generation == restoreGeneration && !Task.isCancelled {
+            do {
+                guard let user = try await repo.restoreSession() else { return }
+                guard generation == restoreGeneration else { return }
+                KeychainStore.shared.withCurrent(credential) {
+                    if let cached, cached.id != user.id { MsgCacheStore.shared.clear() }
+                    AccountStore.shared.upsertActive(StoredAccount(id: user.id, username: user.username, avatar: user.avatar, token: token))
+                    recoveryMessage = nil
+                    state = .authenticated(user)
+                    refreshAccounts()
+                    SocketService.shared.connect()
+                    PushManager.shared.requestAuthorizationAndRegister()
+                }
+                return
+            } catch is CancellationError { return }
+            catch {
+                guard KeychainStore.shared.isCurrent(credential), generation == restoreGeneration else { return }
+                if case APIError.unauthorized = error {
+                    beginIdentityChange()
+                    SocketService.shared.disconnect()
+                    if let id = AccountStore.shared.activeId() { AccountStore.shared.remove(id) }
+                    KeychainStore.shared.clear()
+                    MsgCacheStore.shared.clear()
+                    refreshAccounts()
+                    state = .unauthenticated
+                    return
+                }
+                if case APIError.server(403, let message) = error {
+                    clearIdentityResources()
+                    SocketService.shared.disconnect()
+                    recoveryMessage = message ?? "账号访问被拒绝或已封禁，请联系管理员"
+                    lastAuthError = recoveryMessage
+                    state = .unauthenticated
+                    return
+                }
+                switch error {
+                case APIError.timeout: recoveryMessage = "连接超时，正在重试"
+                case APIError.network: recoveryMessage = "网络不可用，正在重试"
+                default: recoveryMessage = "服务暂时不可用，正在重试"
+                }
             }
+            do { try await Task.sleep(nanoseconds: delay) } catch { return }
+            delay = min(delay * 2, 30_000_000_000)
         }
     }
 
@@ -137,8 +182,6 @@ final class SessionStore: ObservableObject {
                 AccountStore.shared.setActive(id)
                 KeychainStore.shared.token = token
                 MsgCacheStore.shared.clear()
-                SocketService.shared.connect()
-                PushManager.shared.requestAuthorizationAndRegister()
                 refreshAccounts()
             }) else { return }
             await restoreSession()

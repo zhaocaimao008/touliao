@@ -70,9 +70,11 @@ async function refreshToken(axios) {
     })
     .catch(err => {
       if (err.config?._sessionStale || !isOperationCurrent(scope)) throw staleRequest(err.config || { _sessionContext: scope });
-      // 刷新失败，清除认证状态
+      // Rotation is a one-use POST: never retry an uncertain response. Preserve
+      // the credential on transport/5xx failures so a later request can recover;
+      // only a definitive authentication rejection invalidates it locally.
       console.error('[axios] Token refresh failed:', err);
-      if (isBearerClient()) {
+      if (isBearerClient() && [401, 403].includes(err.response?.status)) {
         localStorage.removeItem('touliao_electron_token');
         delete axios.defaults.headers.common['Authorization'];
       }
@@ -92,6 +94,8 @@ async function refreshToken(axios) {
  */
 function shouldRetry(error) {
   if (!error.config || error.config.__retryCount >= 3) return false;
+  if (error.config.skipRetry || error.code === 'ERR_CANCELED' || error.config.signal?.aborted) return false;
+  if (!/^(get|head|options)$/i.test(error.config.method || 'get')) return false;
   if (error.response?.data?.error_code === 'CLOUD_STORAGE_UNCONFIGURED') return false;
   
   // 网络错误或 5xx 服务器错误才重试
@@ -164,6 +168,8 @@ export function setupAxiosInterceptors(axios) {
       // 401 未授权 + 非登录接口 → 尝试刷新 token
       if (error.response?.status === 401 && 
           originalRequest && 
+          !originalRequest.skipRetry &&
+          error.code !== 'ERR_CANCELED' && !originalRequest.signal?.aborted &&
           !originalRequest._retry && 
           !originalRequest.url?.includes('/auth/login') &&
           !originalRequest.url?.includes('/auth/refresh')) {

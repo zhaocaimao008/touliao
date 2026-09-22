@@ -29,7 +29,7 @@ enum ImageSaver {
         }
 
         let image: UIImage = try await withCheckedThrowingContinuation { continuation in
-            KingfisherManager.shared.retrieveImage(with: url) { result in
+            KingfisherManager.shared.retrieveImage(with: MediaUrlResolver.kfSource(resolved: url.absoluteString)!) { result in
                 switch result {
                 case .success(let value):
                     continuation.resume(returning: value.image)
@@ -65,7 +65,7 @@ enum ImageSaver {
               let url = URL(string: resolved) else {
             throw SaveError.downloadFailed
         }
-        let (tmpUrl, response) = try await URLSession.shared.download(from: url)
+        let (tmpUrl, response) = try await MediaUrlResolver.download(url)
         guard (response as? HTTPURLResponse)?.statusCode == 200 else {
             throw SaveError.downloadFailed
         }
@@ -104,7 +104,7 @@ enum ImageSaver {
         }
 
         let image: UIImage = try await withCheckedThrowingContinuation { continuation in
-            KingfisherManager.shared.retrieveImage(with: url) { result in
+            KingfisherManager.shared.retrieveImage(with: MediaUrlResolver.kfSource(resolved: url.absoluteString)!) { result in
                 switch result {
                 case .success(let value):
                     continuation.resume(returning: value.image)

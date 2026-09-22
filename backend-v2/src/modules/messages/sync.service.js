@@ -8,7 +8,7 @@ const { badRequest } = require('../../utils/http');
 
 const EVENT_TYPES = new Set([
   'message_created', 'message_edited', 'message_recalled',
-  'message_deleted_for_me', 'message_vanished',
+  'message_deleted_for_me', 'message_vanished', 'conversation_cleared', 'message_burn_started',
 ]);
 
 async function appendConversationEvent({ conversationId, eventType, messageId, actorId, targetUserId = null, payload = {}, batchId = null, clientBatchId = null, ops = [] }) {
@@ -53,8 +53,9 @@ function parseNonNegativeInteger(value, fallback) {
   return n;
 }
 
-function syncConversation(conversationId, userId, query = {}) {
+function syncConversation(conversationId, userId, query = {}, io=null) {
   requireMember(conversationId, userId);
+  require('./burn.service').expireDueMessages();
   const cursor = parseNonNegativeInteger(query.cursor, 0);
   const requestedLimit = parseNonNegativeInteger(query.limit, 100);
   const limit = Math.min(Math.max(requestedLimit, 1), 500);
@@ -62,7 +63,10 @@ function syncConversation(conversationId, userId, query = {}) {
     .get(conversationId)?.last_sequence || 0;
 
   const rows = db.prepare(`
-    SELECT e.*, m.id AS m_id, m.conversation_id AS m_conversation_id,
+    SELECT e.*, m.rowid AS m_rowid,
+           COALESCE((SELECT cleared_rowid FROM conversation_clears WHERE conversation_id=e.conversation_id AND user_id=?),0) AS cleared_rowid,
+           EXISTS(SELECT 1 FROM user_message_deletions d WHERE d.message_id=m.id AND d.user_id=?) AS personally_deleted,
+           m.burn_after, m.burn_read_at, m.burn_expires_at, m.id AS m_id, m.conversation_id AS m_conversation_id,
            m.sender_id AS m_sender_id, m.type AS m_type, m.content AS m_content,
            m.file_url AS m_file_url, m.reply_to_id AS m_reply_to_id,
            m.deleted AS m_deleted, m.created_at AS m_created_at, m.edited AS m_edited,
@@ -78,21 +82,23 @@ function syncConversation(conversationId, userId, query = {}) {
       AND (e.target_user_id IS NULL OR e.target_user_id=?)
     ORDER BY e.server_sequence ASC
     LIMIT ?
-  `).all(conversationId, cursor, userId, limit + 1);
+  `).all(userId, userId, conversationId, cursor, userId, limit + 1);
 
   const page = rows.slice(0, limit);
   const hasMoreVisible = rows.length > limit;
   const envelopes = page.map(row => {
     let payload = {};
     try { payload = JSON.parse(row.payload || '{}'); } catch {}
+    const hidden = row.personally_deleted || (row.m_rowid != null && row.m_rowid <= row.cleared_rowid);
+    if (hidden || row.m_deleted === 2) payload = {};
     let message = null;
     if (row.m_id && !['message_recalled', 'message_deleted_for_me', 'message_vanished'].includes(row.event_type)) {
       message = {
         id: row.m_id, conversation_id: row.m_conversation_id, sender_id: row.m_sender_id,
-        type: row.m_type, content: row.m_content, file_url: row.m_file_url || '',
-        reply_to_id: row.m_reply_to_id || null, deleted: row.m_deleted, created_at: row.m_created_at,
+        type: row.m_type, content: hidden ? '' : row.m_content, file_url: hidden ? '' : row.m_file_url || '',
+        reply_to_id: row.m_reply_to_id || null, deleted: hidden ? 2 : row.m_deleted, created_at: row.m_created_at,
         edited: row.m_edited, duration: row.m_duration, client_msg_id: row.m_client_msg_id,
-        is_scheduled: row.m_is_scheduled,
+        is_scheduled: row.m_is_scheduled, burn_after: row.burn_after, burn_read_at: row.burn_read_at, burn_expires_at: row.burn_expires_at,
         file_mime: row.m_file_mime, file_size: row.m_file_size,
         server_sequence: row.m_server_sequence, senderName: row.senderName || '',
         senderAvatar: row.senderAvatar || '', reactions: [], replyTo: null,
@@ -100,10 +106,12 @@ function syncConversation(conversationId, userId, query = {}) {
     }
     return {
       server_sequence: row.server_sequence, event_type: row.event_type,
-      message_id: row.message_id, message, payload,
+      message_id: row.message_id, message, payload: hidden ? {} : payload,
       batch_id: row.batch_id || null, client_batch_id: row.client_batch_id || null,
     };
   });
+
+  require('./burn.service').recordDelivery(userId,envelopes.map(e=>e.message).filter(Boolean),io);
 
   let nextCursor;
   let hasMore;

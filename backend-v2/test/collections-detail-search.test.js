@@ -16,7 +16,7 @@ describe('收藏详情 + 搜索 (CO5/CO6)', () => {
   let collectionId;
 
   beforeAll(async () => {
-    const res = await request(app).post('/api/auth/login').send(testUser);
+    const res = await request(app).post('/api/auth/login').send({ ...(testUser), legalConsent: require('./legal-consent.cjs') });
     if (res.status >= 400 || !res.headers['set-cookie']) return;
     cookies = res.headers['set-cookie'];
     const c = await request(app)

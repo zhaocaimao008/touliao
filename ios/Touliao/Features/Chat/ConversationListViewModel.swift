@@ -3,7 +3,7 @@ import Combine
 
 @MainActor
 final class ConversationListViewModel: ObservableObject {
-    @Published var conversations: [Conversation] = []
+    @Published var conversations: [Conversation] = ConversationCache.load()
     @Published var drafts: [String: String] = [:]   // convId → 未发送草稿(用于「[草稿]」前缀)
     @Published var loading = false
     @Published var error: String?
@@ -191,13 +191,20 @@ final class ConversationListViewModel: ObservableObject {
     }
 
     func refresh() async {
+        let owner = KeychainStore.shared.snapshot()
+        let account = AccountStore.shared.activeId()
+        let origin = ServerConfig.shared.baseURL
         loading = true
         error = nil
         do {
             // F5 归档：一次性拉全量（includeArchived=1），主/归档列表按 archived 标记本地分流
-            conversations = try await repo.loadConversations(includeArchived: true)
+            let list = try await repo.loadConversations(includeArchived: true)
+            guard KeychainStore.shared.isCurrent(owner), AccountStore.shared.activeId() == account, ServerConfig.shared.baseURL == origin else { return }
+            conversations = list
+            if let account { ConversationCache.save(list, id: account, origin: origin) }
             refreshDrafts()
         } catch {
+            guard KeychainStore.shared.isCurrent(owner) else { return }
             self.error = (error as? LocalizedError)?.errorDescription ?? "加载会话失败"
         }
         loading = false

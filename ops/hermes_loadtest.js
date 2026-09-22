@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+const operationalConsent = require('./legal-consent.cjs');
 /**
  * hermes_loadtest.js —— 投聊 压力测试（Hermes 在服务器本机执行）
  *
@@ -81,7 +82,7 @@ const pct = (arr, p) => { if (!arr.length) return 0; const s = [...arr].sort((a,
 
 async function makeSession(i) {
   const jar = {};
-  let r = await req('POST', '/api/auth/login', { body: { phone: phoneFor(i), password: PASS }, jar });
+  let r = await req('POST', '/api/auth/login', { body: { legalConsent: operationalConsent(), phone: phoneFor(i), password: PASS }, jar });
   if (r.status !== 200) return { ok: false, status: r.status };
   mergeCookies(jar, r.setCookie);
   const me = await req('GET', '/api/auth/me', { jar });

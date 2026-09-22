@@ -91,8 +91,10 @@ object AppModule {
     @Provides
     @Singleton
     @DownloadHttpClient
-    fun provideDownloadOkHttpClient(): OkHttpClient {
+    fun provideDownloadOkHttpClient(mediaAuth: com.touliao.app.core.network.MediaAuthInterceptor): OkHttpClient {
         return OkHttpClient.Builder()
+            .addInterceptor(mediaAuth)
+            .addNetworkInterceptor(mediaAuth)
             .connectTimeout(20, TimeUnit.SECONDS)
             .readTimeout(60, TimeUnit.SECONDS)
             .writeTimeout(60, TimeUnit.SECONDS)

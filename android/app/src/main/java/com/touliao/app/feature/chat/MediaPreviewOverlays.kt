@@ -36,7 +36,7 @@ import java.io.File
 
 /**
  * 全屏视频播放：ExoPlayer + PlayerView，App 内播放不跳系统播放器/浏览器。
- * url 已带 ?token= 鉴权（见 MediaUrlResolver），ExoPlayer 直接用带参数的完整URL即可播放，
+ * 播放器使用短期只读票据（见 MediaUrlResolver），ExoPlayer 直接用带参数的完整URL即可播放，
  * 不需要额外定制 DataSource 加 Header（后端鉴权本就走查询参数，不是 Header）。
  */
 @Composable
@@ -44,11 +44,16 @@ fun VideoPlayerOverlay(url: String, filename: String?, onDismiss: () -> Unit) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val exoPlayer = remember {
-        ExoPlayer.Builder(context).build().apply {
-            setMediaItem(MediaItem.fromUri(url))
-            prepare()
-            playWhenReady = true
-        }
+        ExoPlayer.Builder(context).build()
+    }
+    LaunchedEffect(url) {
+        try {
+            val ticket = com.touliao.app.core.util.mediaResolver(context).ticket(url)
+            exoPlayer.setMediaItem(MediaItem.fromUri(ticket))
+            exoPlayer.prepare()
+            exoPlayer.playWhenReady = true
+        } catch (e: kotlinx.coroutines.CancellationException) { throw e }
+        catch (_: Exception) { android.widget.Toast.makeText(context, "视频授权失败，请重试", android.widget.Toast.LENGTH_SHORT).show() }
     }
     DisposableEffect(Unit) {
         onDispose { exoPlayer.release() }

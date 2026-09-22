@@ -11,6 +11,7 @@ const { badRequest, forbidden, notFound } = require('../../utils/http');
 const { isMember, requireMember } = require('../messages/shared');
 const cache = require('../../utils/cache');
 const broadcaster = require('../../realtime/broadcaster');
+require('../../utils/auditLogger'); // Initialize the existing durable audit table.
 
 // ── 私聊会话：取或建 ────────────────────────────────────────────
 const _findPrivate = db.prepare(`
@@ -458,6 +459,7 @@ async function markRead(io, userId, convId, messageId) {
         .run(userId, readAt, convId, readRowid);
     }
   }
+  if (readRowid != null) require('../messages/burn.service').recordRead(io, userId, convId, readRowid);
   return { readAt, lastReadMessageId: readMsgId };
 }
 
@@ -504,33 +506,54 @@ function invalidateSearchCaches(userIds, convIds) {
 }
 
 function clearConversation(io, userId, convId) {
-  requireMember(convId, userId, '无权操作该会话');
-  const now = Math.floor(Date.now() / 1000);
-  // 精确水位线：该会话当前最大消息 rowid（rowid 单调递增，无同秒歧义）
-  const maxRowid = db.prepare('SELECT COALESCE(MAX(rowid), 0) AS r FROM messages WHERE conversation_id=?').get(convId).r;
-  const memberIds = db.prepare('SELECT user_id FROM conversation_members WHERE conversation_id=?')
-    .all(convId).map(m => m.user_id);
-  const clearedIds = db.prepare('SELECT id FROM messages WHERE conversation_id=? AND rowid<=? AND deleted=0')
-    .all(convId, maxRowid).map(m => m.id);
-
-  db.transaction(() => {
+  // Read the current role under the same write lock as the destructive update.
+  // Membership caches must not authorize a recently demoted or removed member.
+  const result = db.transaction(() => {
+    const member = db.prepare(`SELECT cm.role, c.type FROM conversation_members cm
+      JOIN conversations c ON c.id=cm.conversation_id
+      WHERE cm.conversation_id=? AND cm.user_id=?`).get(convId, userId);
+    const denied = !member || (member.type === 'group' && !['owner', 'admin'].includes(member.role));
+    const audit = (deleted, maxRowid) => db.prepare(`INSERT INTO audit_logs
+      (id,event_type,risk_level,user_id,resource_type,resource_id,action,details,status)
+      VALUES (?,?,?,?,?,?,?,?,?)`).run(uuidv4(), denied ? 'permission_denied' : 'data_delete',
+      'high', userId, 'conversation', convId, 'clear_conversation',
+      JSON.stringify({ role: member?.role || null, deleted, cleared_rowid: maxRowid }), denied ? 'denied' : 'success');
+    if (denied) { audit(0, null); return { denied: true }; }
+    const now = Math.floor(Date.now() / 1000);
+    const maxRowid = db.prepare('SELECT COALESCE(MAX(rowid), 0) AS r FROM messages WHERE conversation_id=?').get(convId).r;
+    const memberIds = db.prepare('SELECT user_id FROM conversation_members WHERE conversation_id=?')
+      .all(convId).map(m => m.user_id);
+    const clearedIds = db.prepare('SELECT id FROM messages WHERE conversation_id=? AND rowid<=? AND deleted=0')
+      .all(convId, maxRowid).map(m => m.id);
     db.prepare(`
       INSERT INTO conversation_clears (user_id, conversation_id, cleared_at, cleared_rowid)
       VALUES (?, ?, ?, ?)
       ON CONFLICT(user_id, conversation_id) DO UPDATE SET cleared_at=excluded.cleared_at, cleared_rowid=excluded.cleared_rowid
     `).run(userId, convId, now, maxRowid);
     if (clearedIds.length) {
-      db.prepare(`UPDATE messages SET deleted=2, content='', file_url='' WHERE conversation_id=? AND rowid<=? AND deleted=0`)
+      db.prepare(`UPDATE messages SET deleted=2, content='', file_url='', transcript=NULL WHERE conversation_id=? AND rowid<=? AND deleted=0`)
         .run(convId, maxRowid);
     }
-  })();
-  // 摘除还没发出去的批量合并快照，避免清空后原文冒出来复活（同 remove() forEveryone 的 race）
+    // Retain future tasks; erase only task bodies whose delivered message was cleared.
+    db.prepare("UPDATE scheduled_messages SET content='' WHERE conversation_id=? AND status='sent'").run(convId);
+    // Fail closed: audit failure rolls back the message update and personal watermark.
+    audit(clearedIds.length, maxRowid);
+    // Same transaction as watermark, destructive update and permission audit.
+    const sequence = require('../messages/sync.service').appendConversationEventTx({
+      conversationId: convId, eventType: 'conversation_cleared', messageId: convId,
+      actorId: userId, payload: { scope: 'everyone' }, apply: () => {},
+    });
+    db.prepare("UPDATE conversation_events SET payload='{}' WHERE conversation_id=? AND message_id IN (SELECT id FROM messages WHERE conversation_id=? AND rowid<=?)")
+      .run(convId, convId, maxRowid);
+    return { maxRowid, memberIds, clearedIds, sequence };
+  }).immediate();
+  if (result.denied) throw forbidden('仅群主或管理员可清空全员聊天记录');
+  const { maxRowid, memberIds, clearedIds } = result;
   broadcaster.purgeRoomQueue(convId);
-
   invalidateSearchCaches(memberIds, [convId]);
   invalidateConvCacheForConversation(convId);
-  // 广播到整个会话房间（不再只发操作者自己的设备）：对方/群内其他成员在线时立即同步清空
-  if (io) io.to(convId).emit('conversation_messages_cleared', { conversationId: convId, clearedBy: userId, clearedRowid: maxRowid });
+  if (io) io.to(convId).emit('conversation_messages_cleared', { conversationId: convId, clearedBy: userId, clearedRowid: maxRowid, server_sequence: result.sequence });
+  require('../messages/sync.service').emitSyncAvailable(io, convId, result.sequence);
   return clearedIds.length;
 }
 
@@ -543,10 +566,19 @@ function clearAllConversations(io, userId) {
     VALUES (?, ?, ?, (SELECT COALESCE(MAX(rowid), 0) FROM messages WHERE conversation_id=?))
     ON CONFLICT(user_id, conversation_id) DO UPDATE SET cleared_at=excluded.cleared_at, cleared_rowid=excluded.cleared_rowid
   `);
-  db.transaction(() => { for (const { conversation_id } of convs) upsert.run(userId, conversation_id, now, conversation_id); })();
+  db.transaction(() => { for (const item of convs) {
+    const { conversation_id } = item;
+    upsert.run(userId, conversation_id, now, conversation_id);
+    item.sequence = require('../messages/sync.service').appendConversationEventTx({
+      conversationId: conversation_id, eventType: 'conversation_cleared', messageId: conversation_id,
+      actorId: userId, targetUserId: userId, payload: { scope: 'personal' }, apply: () => {},
+    });
+  } }).immediate();
+  invalidateConvCacheForUser(userId);
   invalidateSearchCaches([userId], convs.map(c => c.conversation_id));
-  if (io) for (const { conversation_id } of convs) {
-    io.to(`user_${userId}`).emit('conversation_messages_cleared', { conversationId: conversation_id, clearedBy: userId });
+  if (io) for (const { conversation_id, sequence } of convs) {
+    io.to(`user_${userId}`).emit('conversation_messages_cleared', { conversationId: conversation_id, clearedBy: userId, server_sequence: sequence });
+    io.to(`user_${userId}`).emit('conversation_sync_available', { conversationId: conversation_id, server_sequence: sequence });
   }
   return { conversations: convs.length, deleted: convs.length };
 }

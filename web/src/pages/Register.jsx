@@ -1,3 +1,4 @@
+import LegalConsent from '../components/LegalConsent';
 import './auth.css';
 import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
@@ -17,6 +18,7 @@ export default function Register() {
     } catch { /* SSR/无 window 时忽略 */ }
     return { username: '', phone: '', password: '', inviteCode };
   });
+  const [legalConsent, setLegalConsent] = useState(null);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [focusedField, setFocusedField] = useState(null);
@@ -34,6 +36,7 @@ export default function Register() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (!legalConsent?.accepted) { setError('请先阅读并同意隐私政策和用户协议'); return; }
     if (loading) return; // 防连点/回车重复提交（避免重复注册）
     setError(''); setLoading(true);
 
@@ -52,7 +55,7 @@ export default function Register() {
     }
 
     try {
-      const { data } = await axios.post('/api/auth/register', form);
+      const { data } = await axios.post('/api/auth/register', { ...form, legalConsent });
       login(data.user, data.token);
       navigate('/');
     } catch (err) {
@@ -104,6 +107,7 @@ export default function Register() {
         </div>
 
         <form className="auth-form" onSubmit={handleSubmit}>
+          <LegalConsent value={legalConsent} onChange={setLegalConsent} />
           {inviteRequired && (
             <div className="auth-note">
               {t('auth.inviteCodeHint')}
@@ -159,7 +163,7 @@ export default function Register() {
             </div>
           )}
 
-          <button type="submit" data-testid="register-submit-btn" className="auth-submit" disabled={loading || !form.username || !form.phone || !form.password || (inviteRequired && !form.inviteCode)}>
+          <button type="submit" data-testid="register-submit-btn" className="auth-submit" disabled={loading || !legalConsent?.accepted || !form.username || !form.phone || !form.password || (inviteRequired && !form.inviteCode)}>
             {loading ? <span className="auth-spinner" /> : t('auth.registerBtn')}
           </button>
         </form>

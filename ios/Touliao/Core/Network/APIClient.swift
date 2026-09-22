@@ -4,6 +4,7 @@ enum APIError: LocalizedError {
     case unauthorized
     case server(Int, String?)
     case network
+    case timeout
     case decoding
     // 2026-08-29新增：源文件本身有问题(拷贝/映射得到空文件、读取失败)，与真实网络故障区分开，
     // 避免用户看到"网络异常"却误以为是WiFi问题——本轮视频上传失败排查缺乏真机数据，
@@ -14,6 +15,7 @@ enum APIError: LocalizedError {
         switch self {
         case .unauthorized: return "手机号或密码错误"
         case .server(_, let msg): return msg ?? "服务器开小差了，请稍后再试"
+        case .timeout: return "请求超时，请稍后重试"
         case .network: return "网络异常，请检查网络连接"
         case .decoding: return "数据解析失败"
         case .invalidSourceFile(let reason): return reason
@@ -67,6 +69,8 @@ final class APIClient {
         }
         let (data, response): (Data, URLResponse)
         do { (data, response) = try await session.data(for: request) }
+        catch let error as URLError where error.code == .timedOut { throw APIError.timeout }
+        catch is CancellationError { throw CancellationError() }
         catch { throw APIError.network }
         return try handle(data: data, response: response, credential: credential, path: path)
     }
@@ -77,6 +81,8 @@ final class APIClient {
         let request = try makeRequest(path: path, method: "GET", authorized: true, credential: credential)
         let (data, response): (Data, URLResponse)
         do { (data, response) = try await session.data(for: request) }
+        catch let error as URLError where error.code == .timedOut { throw APIError.timeout }
+        catch is CancellationError { throw CancellationError() }
         catch { throw APIError.network }
         guard let http = response as? HTTPURLResponse else { throw APIError.network }
         switch http.statusCode {
@@ -119,6 +125,8 @@ final class APIClient {
 
         let (data, response): (Data, URLResponse)
         do { (data, response) = try await session.upload(for: request, from: body) }
+        catch let error as URLError where error.code == .timedOut { throw APIError.timeout }
+        catch is CancellationError { throw CancellationError() }
         catch { throw APIError.network }
         return try handle(data: data, response: response, credential: credential, path: path)
     }
@@ -151,7 +159,9 @@ final class APIClient {
         let (data, response): (Data, URLResponse)
         do {
             (data, response) = try await session.upload(for: request, fromFile: envelopeURL, delegate: delegate)
-        } catch { throw APIError.network }
+        } catch let error as URLError where error.code == .timedOut { throw APIError.timeout }
+        catch is CancellationError { throw CancellationError() }
+        catch { throw APIError.network }
         return try handle(data: data, response: response, credential: credential, path: path)
     }
 

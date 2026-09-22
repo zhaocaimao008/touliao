@@ -133,6 +133,7 @@ function baseIdOf(file) {
 // 解析 /uploads/<category>/<file>，校验当前用户是否可访问该资源。
 // 返回 { ok: true } 放行；{ ok: false, status } 拒绝；null 表示资源不存在/未知类别。
 function resolveUploadAccess(userId, reqPath) {
+  require('./modules/messages/burn.service').expireDueMessages();
   const m = String(reqPath || '').match(/^\/([^/]+)\/([^/]+)$/);
   if (!m) return null;
   const category = m[1];
@@ -149,6 +150,8 @@ function resolveUploadAccess(userId, reqPath) {
 
   // 其余类别一律以 file_registry 为准：文件必须真实登记过且归属权匹配
   const path = `/uploads/${category}/${file}`;
+  const revoked = db.prepare("SELECT 1 FROM revoked_burn_files WHERE path=? OR (path>=? AND path<?) LIMIT 1").get(path, `/uploads/${category}/${baseIdOf(file)}.`, `/uploads/${category}/${baseIdOf(file)}/`);
+  if (revoked) return { ok: false, status: 403 };
   const reg = lookupFile(path);
   if (!reg) return null; // 未登记 = 不存在（含已删除消息的文件）
 
@@ -179,7 +182,7 @@ function resolveUploadAccess(userId, reqPath) {
 
     // 缩略图与原图共用同一条消息引用（消息负载没有单独的缩略图字段），
     // 故按 uuid 而非精确文件名比对，见上面 baseIdOf 注释。
-    const stillLive = db.prepare('SELECT 1 FROM messages WHERE file_url LIKE ? AND deleted != 2 LIMIT 1').get(`/uploads/files/${baseIdOf(file)}.%`);
+    const stillLive = db.prepare("SELECT 1 FROM messages WHERE file_url!='' AND file_url>=? AND file_url<? AND deleted != 2 LIMIT 1").get(`/uploads/files/${baseIdOf(file)}.`, `/uploads/files/${baseIdOf(file)}/`);
     if (!stillLive) return { ok: false, status: 403 };
     return { ok: true };
   }
@@ -206,7 +209,15 @@ function resolveUploadAccess(userId, reqPath) {
   return null; // 未知类别
 }
 
+app.use((req, res, next) => {
+  try { require('./modules/messages/burn.service').expireDueMessages(req.app.get('io')); next(); } catch (e) { next(e); }
+});
+
 app.use('/uploads', async (req, res, next) => {
+  if (req.query?.access_token !== undefined || req.query?.refresh_token !== undefined
+    || (req.query?.token !== undefined && (typeof req.query.token !== 'string' || !req.query.token))) {
+    return res.status(401).json({ error: '媒体鉴权已升级，请升级客户端', code: 'MEDIA_CLIENT_UPGRADE_REQUIRED' });
+  }
   // Explicit media credentials take precedence over a different account's shared cookie.
   const bearer = (req.headers.authorization || '').replace(/^Bearer\s+/i, '') || null;
   const token = req.query?.token || bearer || req.cookies?.[config.cookieName] || req.cookies?.[config.admin.cookieName];
@@ -234,6 +245,13 @@ app.use('/uploads', async (req, res, next) => {
     }
   }
 
+  // URL credentials are exclusively short-lived, single-file read tickets.
+  // Old clients must upgrade; a login/admin credential is never accepted in a URL.
+  if ((req.query?.token !== undefined && (isAdmin || payload.purpose !== 'upload-read'))
+    || (payload.purpose === 'upload-read' && !['GET', 'HEAD'].includes(req.method))) {
+    return res.status(401).json({ error: '媒体鉴权已升级，请升级客户端', code: 'MEDIA_CLIENT_UPGRADE_REQUIRED' });
+  }
+
   try {
     if (await isBlacklisted(token)) return res.status(401).json({ error: '登录已失效，请重新登录' });
     if (isAdmin && !currentAdmin(payload)) return res.status(401).json({ error: '后台登录已过期' });
@@ -244,6 +262,7 @@ app.use('/uploads', async (req, res, next) => {
           || typeof payload.sub !== 'string' || !payload.sub
           || !/^credential:[a-f0-9]{64}$/.test(payload.credential || '')
           || !Number.isFinite(payload.credentialIat) || !Number.isFinite(payload.exp)
+          || !Number.isFinite(payload.iat) || payload.exp - payload.iat > 600
           || (payload.sessionId !== null && typeof payload.sessionId !== 'string')) {
           return res.status(401).json({ error: '未授权' });
         }
@@ -255,6 +274,16 @@ app.use('/uploads', async (req, res, next) => {
       const denied = await userAuthorizationError(issuer);
       if (denied) return res.status(denied.status).json({ error: denied.error });
     }
+
+    const attachmentPath = `/uploads${req.path}`;
+    const basePath = attachmentPath.replace(/_thumb\.webp$/, '').replace(/\.[a-zA-Z0-9]+$/, '');
+    if (db.prepare('SELECT 1 FROM revoked_burn_files WHERE path=? OR (path>=? AND path<?)').get(attachmentPath, `${basePath}.`, `${basePath}/`)) {
+      return res.status(403).json({ error: '附件已到期' });
+    }
+    const burnFile = db.prepare('SELECT MIN(burn_expires_at) AS expires_at, MIN(burn_after) AS seconds FROM messages WHERE burn_after>0 AND deleted=0 AND file_url>=? AND file_url<?')
+      .get(`${basePath}.`, `${basePath}/`);
+    res.locals.burnAttachment = !!burnFile?.seconds;
+    if (res.locals.burnAttachment) res.setHeader('Cache-Control', 'private, no-store');
 
     // P1-02：管理员放行全部；普通用户按资源类别做所有权/权限校验
     if (!isAdmin) {
@@ -270,7 +299,8 @@ app.use('/uploads', async (req, res, next) => {
       if (!fs.existsSync(localFile)) {
         try {
           const key = `uploads${req.path}`; // /uploads/files/x.png → uploads/files/x.png
-          const signed = await cloudStorage.getPresignedGetUrl(key, 600);
+          const signed = await cloudStorage.getPresignedGetUrl(key, res.locals.burnAttachment
+            ? Math.max(1, Math.min(60, burnFile.expires_at ? burnFile.expires_at-Math.floor(Date.now()/1000) : 60)) : 600);
           return res.redirect(302, signed);
         } catch (e) {
           console.error('[uploads] presigned GET 生成失败:', e.message);
@@ -367,6 +397,7 @@ app.get('/api/uploads/ticket', auth, (req, res) => {
     sessionId: req.user.jti || null, credential: credentialKey(req.token), credentialIat: req.user.iat,
     exp: Math.min(Math.floor(Date.now() / 1000) + 600, req.user.exp),
   }, config.jwtSecret, { algorithm: 'HS256' });
+  res.setHeader('Cache-Control', 'no-store');
   res.json({ url: `${pathname}?token=${encodeURIComponent(token)}` });
 });
 
@@ -391,6 +422,8 @@ app.post('/api/metrics/vitals', express.text({ type: 'text/plain', limit: '10kb'
 app.get('/api/metrics/vitals/recent', adminAuth, (req, res) => res.json(vitalsBuffer.slice(-100)));
 
 // ── 路由 ────────────────────────────────────────────────────────
+app.use('/api/legal', require('./modules/legal/legal.routes'));
+app.use('/api/reports', require('./modules/reports/reports.routes'));
 app.use('/api/auth',          require('./modules/auth/auth.routes'));
 app.use('/api/users',         require('./modules/users/users.routes'));
 // 后台登录备用路径（绕过 CF WAF /api/admin/* 限流），复用 admin.routes 的防护中间件

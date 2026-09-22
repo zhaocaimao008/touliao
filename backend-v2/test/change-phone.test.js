@@ -27,13 +27,13 @@ describe('换绑手机号', () => {
     // 换绑后旧手机号无法登录
     const loginOld = await request(app)
       .post('/api/auth/login')
-      .send({ phone: user.phone, password: user.password });
+      .send({ ...({ phone: user.phone, password: user.password }), legalConsent: require('./legal-consent.cjs') });
     expect(loginOld.status).toBe(400); // 手机号已变，登录失败
 
     // 新手机号可以登录
     const loginNew = await request(app)
       .post('/api/auth/login')
-      .send({ phone: newPhone, password: user.password });
+      .send({ ...({ phone: newPhone, password: user.password }), legalConsent: require('./legal-consent.cjs') });
     expect(loginNew.status).toBe(200);
 
     // 更新 user.phone 以便后续测试使用

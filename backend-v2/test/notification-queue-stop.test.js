@@ -25,6 +25,19 @@ function mockRedis(rpop) {
 
 const flush = (ms) => new Promise(r => setTimeout(r, ms));
 
+async function waitForStopped(q, getCalls, timeoutMs = 5000) {
+  const started = performance.now();
+  while (q.processing || getCalls() < 5) {
+    if (performance.now() - started >= timeoutMs) {
+      throw new Error(`NotificationQueue stop timeout: ${JSON.stringify({
+        calls: getCalls(), processing: q.processing, stopped: q.stopped,
+        consecutiveErrors: q._consecutiveErrors, elapsedMs: performance.now() - started,
+      })}`);
+    }
+    await flush(5);
+  }
+}
+
 describe('NotificationQueue 轮询', () => {
   afterEach(() => { jest.resetModules(); jest.restoreAllMocks(); });
 
@@ -34,13 +47,17 @@ describe('NotificationQueue 轮询', () => {
     const NotificationQueue = mockRedis(rpop);
     // 失败重试间隔调到 1ms，让上限逻辑在测试里几毫秒内跑完
     const q = new NotificationQueue({ retryDelayMs: 1 });
-    q.startProcessing();
-    await flush(300);
-    const settled = calls;
-    expect(settled).toBeLessThanOrEqual(5);   // 上限 MAX_CONSECUTIVE_ERRORS
-    expect(q.processing).toBe(false);          // 已自行停止
-    await flush(200);
-    expect(calls).toBe(settled);               // 停了就是停了，不再增加
+    try {
+      q.startProcessing();
+      await waitForStopped(q, () => calls);
+      const settled = calls;
+      expect(settled).toBe(5);                 // 恰好达到 MAX_CONSECUTIVE_ERRORS
+      expect(q.processing).toBe(false);       // 已自行停止
+      await flush(200);
+      expect(calls).toBe(settled);             // 停了就是停了，不再增加
+    } finally {
+      q.stop();                              // 超时/断言失败也清理轮询
+    }
   }, 15000);
 
   test('stop() 之后不再轮询（优雅退出路径）', async () => {

@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+const operationalConsent = require('./legal-consent.cjs');
 /**
  * smoke_test.js —— 功能冒烟测试：登录一个账号，打一圈主要接口，
  * 标记任何 5xx 或可疑的空 {}(列表接口本应返回数组)。Hermes 在服务器本机执行。
@@ -39,7 +40,7 @@ function shape(body) {
 }
 
 (async () => {
-  const login = await req('POST', '/api/auth/login', { body: { phone, password: PASS } });
+  const login = await req('POST', '/api/auth/login', { body: { legalConsent: operationalConsent(), phone, password: PASS } });
   if (login.status !== 200) { console.log('❌ 登录失败', login.status, login.body); process.exit(1); }
   let jar = login.cookie || login.setCookie.map(c => c.split(';')[0]).join('; ');
   const me0 = await req('GET', '/api/auth/me', { jar });

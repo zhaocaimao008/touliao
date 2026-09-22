@@ -15,11 +15,21 @@ data class User(
 )
 
 @Serializable
+data class LegalConsentData(
+    val accepted: Boolean,
+    val privacyVersion: String,
+    val termsVersion: String,
+) {
+    constructor(accepted: Boolean) : this(accepted, com.touliao.app.feature.safety.LegalDocuments.version, com.touliao.app.feature.safety.LegalDocuments.version)
+}
+
+@Serializable
 data class LoginRequest(
     val phone: String,
     val password: String,
     val captchaId: String? = null,
     val captchaText: String? = null,
+    val legalConsent: LegalConsentData? = null,
 )
 
 /** GET /api/auth/captcha 响应：captchaId 提交登录时回传，svgDataUrl 直接当图片显示。 */
@@ -35,6 +45,7 @@ data class RegisterRequest(
     val password: String,
     val username: String,
     val inviteCode: String,
+    val legalConsent: LegalConsentData? = null,
 )
 
 /** POST /api/auth/login | /register 的响应 */

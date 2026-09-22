@@ -10,6 +10,8 @@ const { defaultResource, resourceFromAttributes } = require('@opentelemetry/reso
 const { SEMRESATTRS_SERVICE_NAME, SEMRESATTRS_SERVICE_VERSION, SEMRESATTRS_DEPLOYMENT_ENVIRONMENT } = require('@opentelemetry/semantic-conventions');
 const { BatchSpanProcessor } = require('@opentelemetry/sdk-trace-base');
 const opentelemetry = require('@opentelemetry/api');
+const { redact } = require('../utils/redact');
+const { RedactingSpanExporter } = require('./redactingSpanExporter');
 
 class DistributedTracing {
   constructor() {
@@ -70,7 +72,7 @@ class DistributedTracing {
       });
 
       // 配置批处理器（更激进的导出策略）
-      const spanProcessor = new BatchSpanProcessor(traceExporter, {
+      const spanProcessor = new BatchSpanProcessor(new RedactingSpanExporter(traceExporter), {
         maxQueueSize: 2048,
         maxExportBatchSize: 128,  // 减小批次以更快导出
         scheduledDelayMillis: 2000,  // 2秒导出一次
@@ -112,6 +114,8 @@ class DistributedTracing {
    * 开始一个新的 Span
    */
   startSpan(name, attributes = {}) {
+    name = redact(name);
+    attributes = redact(attributes);
     if (!this.isEnabled || !this.tracer) {
       // 降级：使用简单的内存追踪
       const spanId = `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
@@ -292,7 +296,7 @@ const tracing = new DistributedTracing();
 // 定期清理内存追踪
 setInterval(() => {
   tracing.clearInMemorySpans();
-}, 60000);
+}, 60000).unref();
 
 module.exports = {
   tracing,

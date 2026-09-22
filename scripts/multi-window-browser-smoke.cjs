@@ -1,6 +1,7 @@
 'use strict';
 // Run against a disposable database and a prebuilt web directory, never production.
 const assert = require('node:assert/strict');
+const legalConsent = require('../backend-v2/test/legal-consent.cjs');
 const fs = require('node:fs');
 const path = require('node:path');
 const os = require('node:os');
@@ -52,7 +53,7 @@ setupRealtime(io, app);
       const credentials = { phone: `1380000000${i}`, username: `window_${i}`, password: 'passw0rd123456', inviteCode: '123456' };
       const response = await fetch(`${base}/api/auth/register`, {
         method: 'POST', headers: { 'content-type': 'application/json', 'X-Touliao-Session': 'isolated' },
-        body: JSON.stringify(credentials),
+        body: JSON.stringify({...credentials,legalConsent}),
       });
       assert.equal(response.status, 200);
       const registered = await response.json();
@@ -73,7 +74,16 @@ setupRealtime(io, app);
     const avatar = new FormData();
     const avatarBytes = await require('../backend-v2/node_modules/sharp')({ create: { width: 32, height: 32, channels: 3, background: '#29a87d' } }).png().toBuffer();
     avatar.append('avatar', new Blob([avatarBytes], { type: 'image/png' }), 'avatar.png');
-    await api(users[1], 'POST', '/api/users/avatar', avatar);
+    const refusedAvatar = await fetch(`${base}/api/users/avatar`, {
+      method:'POST',headers:{Authorization:`Bearer ${users[1].token}`},body:avatar,
+    });
+    assert.equal(refusedAvatar.status,503);
+    assert.equal((await refusedAvatar.json()).error_code,'MEDIA_MODERATION_UNAVAILABLE');
+    // Seed only synthetic pre-existing media to keep the historical access regression.
+    const {db:legacyDb}=require('../backend-v2/src/db/connection');
+    const avatarPath=path.join(process.env.UPLOADS_ROOT,'avatars','synthetic-legacy.png');
+    fs.mkdirSync(path.dirname(avatarPath),{recursive:true});fs.writeFileSync(avatarPath,avatarBytes);
+    legacyDb.prepare('UPDATE users SET avatar=? WHERE id=?').run('/uploads/avatars/synthetic-legacy.png',users[1].id);
     browser = await chromium.launch({ headless: true,
       ...(process.env.CHROMIUM_PATH ? { executablePath: process.env.CHROMIUM_PATH } : {}) });
     const context = await browser.newContext({ viewport: { width: 1280, height: 900 }, serviceWorkers: 'allow', permissions: ['notifications'] });
@@ -109,6 +119,7 @@ setupRealtime(io, app);
       await page.goto(`${base}/login${i ? `?accountWindow=${randomUUID()}` : ''}`);
       await page.getByTestId('login-phone-input').fill(users[i].phone);
       await page.getByTestId('login-password-input').fill(users[i].password);
+      await page.getByRole('checkbox', {name:'同意隐私政策和用户协议'}).check();
       await page.getByTestId('login-submit-btn').click();
       await page.getByTestId('account-switcher').waitFor({ timeout: 20000 });
       assert.equal((await identity(page)).id, users[i].id);

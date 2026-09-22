@@ -37,6 +37,7 @@
       }
     ],
     "afterPack": "scripts/afterPack.js",
+    "extraResources": [{ "from": "src/lib/install-verified.ps1", "to": "install-verified.ps1" }],
     "win": {
       "executableName": "touliao",
       "target": [
@@ -81,7 +82,8 @@
   "dependencies": {
     "electron-store": "^8.1.0",
     "electron-updater": "6.8.9",
-    "electron-log": "^5.0.0"
+    "electron-log": "^5.0.0",
+    "js-yaml": "4.3.2"
   },
   "devDependencies": {
     "playwright": "1.60.0",

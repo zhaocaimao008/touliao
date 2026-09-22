@@ -20,6 +20,7 @@
     "setupFiles": [
       "<rootDir>/test/testEnv.js"
     ],
+    "setupFilesAfterEnv": ["<rootDir>/test/teardownWriter.js"],
     "globalSetup": "<rootDir>/test/globalSetup.js",
     "globalTeardown": "<rootDir>/test/globalTeardown.js",
     "collectCoverageFrom": [

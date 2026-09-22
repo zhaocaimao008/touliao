@@ -7,6 +7,8 @@ API Client — 封装 requests.Session，自动处理 Cookie + CSRF 双提交。
   2. login(phone, password):  走正常登录 API（受 IP 限流约束）
 """
 import os
+import re
+from pathlib import Path
 import time
 import uuid
 import jwt as pyjwt
@@ -82,9 +84,13 @@ class VxinSession:
             self._s.headers["X-CSRF-Token"] = csrf
 
     def login(self, phone: str, password: str) -> "VxinSession":
+        # Explicit consent for synthetic test accounts; use the repository policy source.
+        source = Path(__file__).resolve().parents[3] / "backend-v2/src/modules/legal/documents.js"
+        version = re.search(r"const version = '([^']+)'", source.read_text()).group(1)
+        legal_consent = {"accepted": True, "privacyVersion": version, "termsVersion": version}
         resp = self._s.post(
             f"{self.base_url}/api/auth/login",
-            json={"phone": phone, "password": password},
+            json={"phone": phone, "password": password, "legalConsent": legal_consent},
         )
         assert resp.status_code == 200, (
             f"登录失败 [{resp.status_code}]: {resp.text}"

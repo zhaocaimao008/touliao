@@ -15,7 +15,7 @@ describe('朋友圈分页 + 回复校验 (MO3/MO4)', () => {
   let momentId;
 
   beforeAll(async () => {
-    const res = await request(app).post('/api/auth/login').send(testUser);
+    const res = await request(app).post('/api/auth/login').send({ ...(testUser), legalConsent: require('./legal-consent.cjs') });
     if (res.status >= 400 || !res.headers['set-cookie']) return; // 无种子用户 → 跳过
     cookies = res.headers['set-cookie'];
     const m = await request(app)

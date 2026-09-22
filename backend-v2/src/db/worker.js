@@ -32,6 +32,16 @@ let timer = null;
 const SEQUENCE_PARAM = '__TOULIAO_SERVER_SEQUENCE__';
 
 function runItem(item) {
+  if (!item.operationId) return applyItem(item);
+  const committed = stmt('SELECT result_json FROM writer_receipts WHERE operation_id=?').get(item.operationId);
+  if (committed) return JSON.parse(committed.result_json);
+  const result = applyItem(item);
+  stmt('INSERT INTO writer_receipts(operation_id,result_json) VALUES (?,?)')
+    .run(item.operationId, JSON.stringify(result));
+  return result;
+}
+
+function applyItem(item) {
   if (item.type === 'writeSequencedEvent') {
     const allocated = stmt(`
       INSERT INTO conversation_sequences (conversation_id,last_sequence) VALUES (?,1)
@@ -63,7 +73,8 @@ function flushBatch(batch) {
     const results = new Map();
     db.transaction(() => {
       for (const item of batch) results.set(item.reqId, runItem(item));
-    })();
+    }).immediate(); // Acquire the write lock before reading receipts; a deferred
+    // read-to-write upgrade can fail immediately despite the busy timeout.
     const acks = batch.filter(b => b.reqId != null);
     for (const item of acks) parentPort.postMessage({ type: 'ack', ids: [item.reqId], result: results.get(item.reqId) });
   } catch (e) {
@@ -71,7 +82,7 @@ function flushBatch(batch) {
     for (const item of batch) {
       try {
         let result;
-        if (item.ops || item.type === 'writeSequencedEvent') result = db.transaction(() => runItem(item))();
+        if (item.operationId || item.ops || item.type === 'writeSequencedEvent') result = db.transaction(() => runItem(item)).immediate();
         else result = runItem(item);
         if (item.reqId != null) parentPort.postMessage({ type: 'ack', ids: [item.reqId], result });
       } catch (itemErr) {
@@ -113,6 +124,13 @@ parentPort.on('message', msg => {
       }
       queue.push(msg);
       schedule();
+      break;
+    case 'pruneReceipts':
+      // The parent has received these acks and will never replay them. A range
+      // on the primary key isolates this writer session; active/unacked rows stay.
+      stmt(`DELETE FROM writer_receipts WHERE operation_id>=? AND operation_id<?
+        AND CAST(substr(operation_id,38) AS INTEGER)<=?`)
+        .run(`${msg.session}:`, `${msg.session};`, msg.through);
       break;
     case 'shutdown':
       if (timer) { clearTimeout(timer); timer = null; }

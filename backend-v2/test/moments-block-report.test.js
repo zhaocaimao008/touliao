@@ -4,7 +4,7 @@
  * 自建私密动态并对其举报（自举报应 400），重复举报应 409；afterAll 清理。
  * 拉黑双向过滤涉及第二账号 + 好友关系，单测环境难稳定构造，故此处聚焦举报路径；
  * 拉黑过滤逻辑由 SQL 与 isBlockedBetween 保证，已在服务层就地实现。
- * 无种子 testUser 时优雅跳过。
+ * 缺少种子或创建失败时直接失败，不能把未执行断言计为通过。
  */
 
 const request = require('supertest');
@@ -17,14 +17,17 @@ describe('朋友圈举报 (MO6)', () => {
   let momentId;
 
   beforeAll(async () => {
-    const res = await request(app).post('/api/auth/login').send(testUser);
-    if (res.status >= 400 || !res.headers['set-cookie']) return;
+    const res = await request(app).post('/api/auth/login').send({ ...(testUser), legalConsent: require('./legal-consent.cjs') });
+    expect(res.status).toBe(200);
+    expect(res.headers['set-cookie']).toBeDefined();
     cookies = res.headers['set-cookie'];
     const m = await request(app)
       .post('/api/moments')
       .set('Cookie', cookies)
       .send({ content: 'MO6 举报测试动态', visibility: 'private' });
-    if (m.status < 400) momentId = m.body.id;
+    expect(m.status).toBe(200);
+    momentId = m.body.id;
+    expect(momentId).toBeTruthy();
   });
 
   afterAll(async () => {
@@ -34,7 +37,6 @@ describe('朋友圈举报 (MO6)', () => {
   });
 
   test('举报自己的动态 → 400', async () => {
-    if (!momentId) return console.warn('无种子用户/动态，跳过');
     const res = await request(app)
       .post(`/api/moments/${momentId}/report`)
       .set('Cookie', cookies)
@@ -43,7 +45,6 @@ describe('朋友圈举报 (MO6)', () => {
   });
 
   test('举报不存在的动态 → 404', async () => {
-    if (!cookies) return console.warn('无种子用户，跳过');
     const res = await request(app)
       .post('/api/moments/nonexistent-moment-id/report')
       .set('Cookie', cookies)

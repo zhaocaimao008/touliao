@@ -134,3 +134,26 @@ test('清空会话(双向)紧跟发送：批处理冲刷时不应带原始内容
   await wait(300);
   expect(received.newMessage).toBeNull();
 });
+
+test('socket disconnect during clear and burn expiry converges after reconnect and HTTP cursor replay', async () => {
+  const a = await makeUser({ username: 'race_reconnect_a' });
+  const b = await makeUser({ username: 'race_reconnect_b' });
+  await befriend(a, b);
+  const convId = await privateConversation(a, b);
+  const sb = await connect(b.token);
+  const sync = require('../src/modules/messages/sync.service');
+  const old = await msgSvc.send(app.get('io'), convId, a.userId, { content: 'offline-clear-secret' });
+  const cursor = sync.syncConversation(convId, b.userId, {}).next_cursor;
+  sb.disconnect();
+  convSvc.clearConversation(app.get('io'), a.userId, convId);
+  await convSvc.setBurnAfter(a.userId, convId, 60);
+  const burn = await msgSvc.send(app.get('io'), convId, a.userId, { content: 'offline-burn-secret' });
+  await convSvc.markRead(app.get('io'), b.userId, convId, burn.id);
+  require('../src/modules/messages/burn.service').expireDueMessages(app.get('io'), db.prepare('SELECT burn_expires_at FROM messages WHERE id=?').get(burn.id).burn_expires_at);
+  await connect(b.token);
+  const response = await require('supertest')(app).get(`/api/messages/${convId}/sync?cursor=${cursor}`).set('Authorization', `Bearer ${b.token}`);
+  expect(response.status).toBe(200);
+  expect(response.body.messages.map(e => e.event_type)).toEqual(expect.arrayContaining(['conversation_cleared', 'message_vanished']));
+  expect(JSON.stringify(response.body)).not.toMatch(/offline-clear-secret|offline-burn-secret/);
+  expect(msgSvc.history(convId, b.userId, {}).map(m => m.id)).not.toEqual(expect.arrayContaining([old.id, burn.id]));
+});

@@ -34,7 +34,7 @@ private val FORWARDABLE_TYPES = setOf("text", "image", "voice", "video", "file",
 const val MERGED_FORWARD_MAX_ITEMS = 30
 
 fun isForwardableMessage(msg: Message): Boolean =
-    msg.deleted == 0 && msg.type in FORWARDABLE_TYPES
+    msg.deleted == 0 && msg.burn_after == 0 && msg.type in FORWARDABLE_TYPES
 
 private val mergedJson = Json { ignoreUnknownKeys = true }
 

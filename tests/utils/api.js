@@ -1,3 +1,4 @@
+const legalConsent = require('../../backend-v2/test/legal-consent.cjs');
 const axios  = require('axios');
 const cfg    = require('../config');
 
@@ -39,12 +40,12 @@ function makeClient() {
 }
 
 async function register(client, username, phone, password) {
-  const r = await client.post('/api/auth/register', { username, phone, password });
+  const r = await client.post('/api/auth/register', { username, phone, password, legalConsent });
   return r.data;
 }
 
 async function login(client, phone, password) {
-  const r = await client.post('/api/auth/login', { phone, password });
+  const r = await client.post('/api/auth/login', { phone, password, legalConsent });
   return r.data;
 }
 

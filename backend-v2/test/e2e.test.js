@@ -24,7 +24,7 @@ describe('投聊 后端 E2E 集成测试', () => {
 
     test('登录成功', async () => {
       const res = await request(app).post('/api/auth/login')
-        .send({ phone: u1.phone, password: u1.password });
+        .send({ ...({ phone: u1.phone, password: u1.password }), legalConsent: require('./legal-consent.cjs') });
       expect(res.status).toBe(200);
       expect(res.body.token).toBeTruthy();
       expect(res.body.user.id).toBe(u1.userId);
@@ -32,7 +32,7 @@ describe('投聊 后端 E2E 集成测试', () => {
 
     test('错误密码登录 400', async () => {
       const res = await request(app).post('/api/auth/login')
-        .send({ phone: u1.phone, password: 'wrong-password-1' });
+        .send({ ...({ phone: u1.phone, password: 'wrong-password-1' }), legalConsent: require('./legal-consent.cjs') });
       expect(res.status).toBe(400);
     });
 

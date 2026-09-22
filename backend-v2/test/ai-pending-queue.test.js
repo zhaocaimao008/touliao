@@ -15,11 +15,16 @@
  * 队列残留。
  */
 require('./testEnv');
+const shutdownWriterBeforeModuleReset = require('./shutdownWriterBeforeModuleReset');
 
 const PATH = '../src/modules/ai-assistant/assistant.service';
 
 describe('AI 队列失败路径', () => {
-  afterEach(() => { jest.resetModules(); jest.restoreAllMocks(); });
+  afterEach(async () => {
+    await shutdownWriterBeforeModuleReset();
+    jest.resetModules();
+    jest.restoreAllMocks();
+  });
 
   test('单条失败不残留队列，也不影响后续消息（不会答非所问）', async () => {
     const svc = require(PATH);

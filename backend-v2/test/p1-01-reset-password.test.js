@@ -36,7 +36,7 @@ describe('P1-01 忘记密码账号接管修复', () => {
   test('原密码仍可登录 → 密码未被篡改', async () => {
     const login = await request(app)
       .post('/api/auth/login')
-      .send({ phone: victim.phone, password: victim.password });
+      .send({ ...({ phone: victim.phone, password: victim.password }), legalConsent: require('./legal-consent.cjs') });
     expect(login.status).toBe(200);
   });
 

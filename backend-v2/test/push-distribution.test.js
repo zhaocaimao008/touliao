@@ -44,6 +44,7 @@ jest.mock('../src/utils/getuiPush', () => ({
 }));
 
 const { makeUser } = require('./helpers');
+const shutdownWriterBeforeModuleReset = require('./shutdownWriterBeforeModuleReset');
 const { db } = require('../src/db/connection');
 const push = require('../src/utils/push');
 const getuiPush = require('../src/utils/getuiPush');
@@ -140,7 +141,6 @@ describe('推送分发(firebase 未配置:APNs/个推直连不误伤)', () => {
   let user, caller, pushNoFcm, getuiNoFcm;
 
   beforeAll(async () => {
-    jest.resetModules();                       // 重新 require push.js
     // 置空 FIREBASE_*(非 delete,防 dotenv 从 .env 回填)→ firebaseAdmin = null
     process.env.FIREBASE_PROJECT_ID = '';
     process.env.FIREBASE_CLIENT_EMAIL = '';
@@ -148,8 +148,14 @@ describe('推送分发(firebase 未配置:APNs/个推直连不误伤)', () => {
     process.env.APNS_P8 = '';
     process.env.APNS_KEY_ID = '';
     process.env.APNS_TEAM_ID = '';
-    getuiNoFcm = require('../src/utils/getuiPush');   // mock 注册仍在,新实例
-    pushNoFcm = require('../src/utils/push');
+    // 仅隔离未配置 FCM 的推送模块。resetModules 会让旧 auth.service 的事务
+    // 与新加载 legal.service 捕获的另一条 db 连接互锁（SQLITE_BUSY）。
+    // 保留 helpers/app/auth 的模块图，后面的注册仍在同一连接上记录同意。
+    await shutdownWriterBeforeModuleReset();
+    jest.isolateModules(() => {
+      getuiNoFcm = require('../src/utils/getuiPush');
+      pushNoFcm = require('../src/utils/push');
+    });
     user = await makeUser({ username: 'push_nofcm_a' });
     caller = await makeUser({ username: 'push_nofcm_b' });
   });

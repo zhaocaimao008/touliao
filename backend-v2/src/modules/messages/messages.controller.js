@@ -3,7 +3,7 @@ const path = require('path');
 const config = require('../../config');
 const { asyncHandler, badRequest } = require('../../utils/http');
 const { makeChatUploader, makeImageUploader, makeUploadGuard, sanitizeFilename, decodeMultipartName, thumbUrlIfExists } = require('../../utils/upload');
-const { isMember } = require('./shared');
+const { isMember, privateSendGuard } = require('./shared');
 const { pushNewMessage } = require('../../utils/push');
 const { registerFile } = require('../../utils/fileRegistry');
 const svc = require('./messages.service');
@@ -20,10 +20,10 @@ const bgUploader = makeImageUploader(path.join(config.uploadsRoot, 'bg'), 'file'
 const bgUploadGuard = makeUploadGuard(path.join(config.uploadsRoot, 'bg'));
 
 exports.history = asyncHandler(async (req, res) =>
-  res.json(svc.history(req.params.conversationId, req.user.id, req.query)));
+  res.json(svc.history(req.params.conversationId, req.user.id, req.query, io(req))));
 
 exports.sync = asyncHandler(async (req, res) =>
-  res.json(syncSvc.syncConversation(req.params.conversationId, req.user.id, req.query)));
+  res.json(syncSvc.syncConversation(req.params.conversationId, req.user.id, req.query, io(req))));
 
 exports.aroundMessage = asyncHandler(async (req, res) => {
   const result = svc.aroundMessage(req.params.convId, req.params.msgId, req.user.id);
@@ -37,8 +37,10 @@ exports.missed = asyncHandler(async (req, res) =>
 exports.send = asyncHandler(async (req, res) =>
   res.json(await svc.send(io(req), req.params.conversationId, req.user.id, req.body)));
 
-exports.forward = asyncHandler(async (req, res) =>
-  res.json({ success: true, ...await svc.forward(io(req), req.user.id, req.body) }));
+exports.forward = asyncHandler(async (req, res) => {
+  const result = await svc.forward(io(req), req.user.id, req.body);
+  res.json({ ...result, success: result.status === 'success' });
+});
 
 exports.batchDelete = asyncHandler(async (req, res) =>
   res.json({ success: true, deleted: await svc.batchDelete(io(req), req.user.id, req.body) }));
@@ -91,7 +93,9 @@ exports.uploadGuard = (req, res, next) => {
   const uid = req.user.id;
   if (!isMember(convId, uid)) return res.status(403).json({ error: '无权发送' });
   const { db } = require('../../db/connection');
-  const conv = db.prepare('SELECT mute_all FROM conversations WHERE id=?').get(convId);
+  const conv = db.prepare('SELECT type,mute_all FROM conversations WHERE id=?').get(convId);
+  const blocked = privateSendGuard(convId, uid, conv);
+  if (blocked) return res.status(403).json({ error: blocked });
   const member = db.prepare('SELECT role FROM conversation_members WHERE conversation_id=? AND user_id=?').get(convId, uid);
   if (conv?.mute_all && member?.role === 'member') return res.status(403).json({ error: '全员禁言中，您没有发言权限' });
   next();
@@ -134,7 +138,7 @@ exports.uploadHandle = asyncHandler(async (req, res) => {
 
   pushNewMessage({
     conversationId, senderId: req.user.id, senderName: msg.senderName,
-    content: safeOriginalName, type, timestamp: msg.created_at,
+    content: msg.burn_after ? '[阅后即焚消息]' : safeOriginalName, type, timestamp: msg.created_at,
     onlineUserIds: req.app.get('onlineUsers') || new Set(),
   }).catch(() => {});
 

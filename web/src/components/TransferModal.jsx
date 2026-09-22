@@ -1,7 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
 import useFocusTrap from '../hooks/useFocusTrap';
 import { useI18n } from '../contexts/I18nContext';
+import { createFinancialRequest } from '../utils/financialRequest';
 
 /**
  * 好友转账弹窗：输入金币数 + 备注，确认后调 POST /api/wallet/transfer。
@@ -14,6 +15,9 @@ export default function TransferModal({ conversation, onClose, onSent }) {
   const [note,   setNote]     = useState('');
   const [sending, setSending] = useState(false);
   const [error,   setError]   = useState('');
+  const requestConfig = useRef(null);
+  if (!requestConfig.current) requestConfig.current = createFinancialRequest();
+  const inFlight = useRef(false);
 
   // 仅私聊才能转账（校验由父组件保证，这里防御性显示）
   const otherUser = conversation?.otherUser;
@@ -29,21 +33,24 @@ export default function TransferModal({ conversation, onClose, onSent }) {
 
   const send = async () => {
     // 资金操作入口二次守卫：快速双击时 disabled 尚未重渲染也不重复扣款
-    if (!canSend || sending) return;
+    if (!canSend || sending || inFlight.current) return;
+    inFlight.current = true;
     setSending(true);
     setError('');
     try {
-      const { data } = await axios.post('/api/wallet/transfer', {
+      const payload = {
         to_user_id: otherUser?.id,
         amount: amountNum,
         note: note.trim(),
-      });
+      };
+      const { data } = await axios.post('/api/wallet/transfer', payload, requestConfig.current(payload));
       onSent?.(data.message);
       onClose();
     } catch (e) {
       setError(e.response?.data?.error || t('transfer.failedRetry'));
     }
     setSending(false);
+    inFlight.current = false;
   };
 
   return (

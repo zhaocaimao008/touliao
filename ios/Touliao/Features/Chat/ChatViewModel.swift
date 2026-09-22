@@ -118,6 +118,12 @@ final class ChatViewModel: ObservableObject {
         self.peerUserId = peerUserId
         self.input = DraftStore.shared.get(conversationId)   // 恢复未发送草稿(对齐微信/Web/Android)
 
+        Timer.publish(every: 1, on: .main, in: .common).autoconnect()
+            .sink { [weak self] now in
+                guard let self else { return }
+                self.messages.removeAll { ($0.burnExpiresAt ?? .greatestFiniteMagnitude) <= now.timeIntervalSince1970 }
+            }.store(in: &cancellables)
+
         // 输入变化即持久化草稿(去抖，避免每字符都写盘)
         $input
             .dropFirst()
@@ -512,13 +518,20 @@ final class ChatViewModel: ObservableObject {
                 if merged {
                     let payload = buildMergedPayload(msgs, title: mergedForwardTitle(count: min(msgs.count, mergedForwardMaxItems)))
                     let json = encodeMergedContent(payload)
+                    var ok = 0
+                    var failed = 0
+                    var firstFailure: String?
                     for convId in conversationIds {
-                        _ = try await repo.sendMergedForward(conversationId: convId, json: json)
+                        do { _ = try await repo.sendMergedForward(conversationId: convId, json: json); ok += 1 }
+                        catch {
+                            failed += 1
+                            if firstFailure == nil { firstFailure = (error as? LocalizedError)?.errorDescription ?? "转发失败" }
+                        }
                     }
+                    error = failed == 0 ? "已合并转发" : "部分结果：成功 \(ok) 项，失败 \(failed) 项。\(firstFailure ?? "")"
                 } else {
-                    try await repo.forwardMessages(msgIds: msgs.map { $0.id }, conversationIds: conversationIds)
+                    error = try await repo.forwardMessages(msgIds: msgs.map { $0.id }, conversationIds: conversationIds).summary
                 }
-                error = merged ? "已合并转发" : "已转发"
                 multiSelect = false; selectedIds = []
             } catch {
                 self.error = (error as? LocalizedError)?.errorDescription ?? "转发失败"
@@ -653,7 +666,7 @@ final class ChatViewModel: ObservableObject {
     func forward(_ msg: Message, conversationIds: [String]) {
         guard !conversationIds.isEmpty else { return }
         Task {
-            do { try await repo.forward(msgId: msg.id, conversationIds: conversationIds); error = "已转发" }
+            do { error = try await repo.forward(msgId: msg.id, conversationIds: conversationIds).summary }
             catch { self.error = (error as? LocalizedError)?.errorDescription ?? "转发失败" }
         }
     }
@@ -884,18 +897,12 @@ final class ChatViewModel: ObservableObject {
                 OutboxStore.shared.remove(conversationId, done.id, owner: outboxOwner)
             }
             messages = ChatMessageMerge.mergeServerWithPending(server: list, pending: stillPending)
+            try MsgCacheStore.shared.saveBeforeCursor(conversationId, burnAfter == 0 ? list : [])
             if SyncCursorStore.shared.load(accountId: myId, conversationId: conversationId) == 0,
                let maximum = list.map(\.serverSequence).max(), maximum > 0 {
                 SyncCursorStore.shared.save(accountId: myId, conversationId: conversationId, sequence: maximum)
             }
             reachedStart = list.count < 50
-            // 离线缓存：server 覆盖旧缓存（含已编辑/已删同步），落盘最近 50。
-            if burnAfter == 0 {
-                let merged = MsgCacheStore.mergeById(MsgCacheStore.shared.load(conversationId), list)
-                MsgCacheStore.shared.save(conversationId, merged)
-            } else {
-                MsgCacheStore.shared.clear(conversationId)   // 焚毁会话不落盘
-            }
             markReadLatest()   // 打开会话即标记已读
             try? await UNUserNotificationCenter.current().setBadgeCount(0)   // 打开会话即清零角标，避免残留
             guard currentAttempt(credential) else { return }
@@ -928,6 +935,9 @@ final class ChatViewModel: ObservableObject {
             messages = ChatMessageMerge.applySyncEvents(messages, page.messages)
             // 2026-09-02：合并逻辑已抽入 ChatMessageMerge（纯函数）。插入由 claimOrAppend/
             // insertBySeq 按序完成，pending 透明不参与比较，真实消息恒有序（第 2 轮洞 A/B 已修）。
+            // Persist the redacted state before acknowledging the sync cursor.
+            do { try MsgCacheStore.shared.saveBeforeCursor(conversationId, burnAfter == 0 ? messages : []) }
+            catch { self.error = "消息缓存更新失败，请重试同步"; return }
             SyncCursorStore.shared.save(accountId: myId, conversationId: conversationId, sequence: page.nextCursor)
             if !page.hasMore || page.nextCursor == cursor { break }
             cursor = page.nextCursor
@@ -1032,6 +1042,7 @@ final class ChatViewModel: ObservableObject {
 
     /// 退出聊天：发送 read + stop_typing
     func onLeave() {
+        AudioPlayerService.shared.stop()
         repo.emitStopTyping(conversationId)
         markReadLatest()
     }

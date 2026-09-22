@@ -194,8 +194,8 @@ export const footer = {
     {
       title: '关于',
       links: [
-        { label: '隐私政策', href: '#' },
-        { label: '用户协议', href: '#' },
+        { label: '隐私政策', href: `${BASE}/api/legal/privacy?format=html` },
+        { label: '用户协议', href: `${BASE}/api/legal/terms?format=html` },
         { label: '团队', href: '#' },
       ],
     },

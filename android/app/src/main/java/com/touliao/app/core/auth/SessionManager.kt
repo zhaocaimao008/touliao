@@ -40,11 +40,16 @@ class SessionManager @Inject constructor(
 ) {
     private val _state = MutableStateFlow<AuthState>(AuthState.Loading)
     val state: StateFlow<AuthState> = _state.asStateFlow()
+    private var restoreGeneration = 0
+    private val _recovery = MutableStateFlow<String?>(null)
+    val recovery: StateFlow<String?> = _recovery.asStateFlow()
     private val identityCleanup = java.util.concurrent.CopyOnWriteArrayList<() -> Unit>()
 
     fun onIdentityCleanup(action: () -> Unit) { identityCleanup.add(action) }
 
     private fun beginIdentityChange() {
+        restoreGeneration++
+        _recovery.value = null
         identityCleanup.forEach { it() }
         tokenStore.beginIdentityChange()
     }
@@ -69,17 +74,43 @@ class SessionManager @Inject constructor(
     }
 
     suspend fun restoreSession() {
+        val generation = ++restoreGeneration
         val credential = tokenStore.snapshot()
-        val user = authRepository.restoreSession()
-        tokenStore.withCurrent(credential) {
-            if (user != null) {
-                socketManager.connect()
-                pushManager.registerCurrentToken()
-                _state.value = AuthState.Authenticated(user)
-            } else {
-                _state.value = AuthState.Unauthenticated
-            }
-        }
+        if (credential.token.isNullOrBlank()) { _state.value = AuthState.Unauthenticated; return }
+        val cached = accountStore.accounts().firstOrNull { it.id == accountStore.activeId() && it.token == credential.token }
+        if (cached != null) _state.value = AuthState.Authenticated(User(cached.id, cached.username, avatar = cached.avatar))
+        restoreWithRetry(
+            isCurrent = { tokenStore.isCurrent(credential) && generation == restoreGeneration },
+            load = { authRepository.restoreSession() },
+            accept = { user ->
+                if (user != null) tokenStore.withCurrent(credential) {
+                    if (cached != null && cached.id != user.id) msgCacheStore.clear()
+                    accountStore.upsertActive(com.touliao.app.data.model.Account(user.id, user.username, user.avatar, credential.token!!))
+                    _recovery.value = null
+                    _state.value = AuthState.Authenticated(user)
+                    socketManager.connect()
+                    pushManager.registerCurrentToken()
+                }
+            },
+            failure = { failure ->
+                _recovery.value = failure.message
+                if (failure == RestoreFailure.FORBIDDEN) tokenStore.withCurrent(credential) {
+                    // /me denied access: stop retries and sockets, retain credentials for recovery.
+                    identityCleanup.forEach { it() }
+                    notificationHelper.clearAccountNotifications()
+                    socketManager.disconnect()
+                    _state.value = AuthState.Unauthenticated
+                }
+                if (failure == RestoreFailure.EXPIRED) tokenStore.withCurrent(credential) {
+                    beginIdentityChange()
+                    socketManager.disconnect()
+                    accountStore.activeId()?.let { accountStore.remove(it) }
+                    tokenStore.clear()
+                    msgCacheStore.clear()
+                    _state.value = AuthState.Unauthenticated
+                }
+            },
+        )
     }
 
     fun onAuthenticated(user: User) {
@@ -125,8 +156,6 @@ class SessionManager @Inject constructor(
                 accountStore.setActive(accountId)
                 tokenStore.token = token
                 msgCacheStore.clear()
-                socketManager.connect()
-                pushManager.registerCurrentToken()
             }) return@launch
             restoreSession()
         }

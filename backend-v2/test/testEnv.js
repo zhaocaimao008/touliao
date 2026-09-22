@@ -18,8 +18,12 @@
  */
 const path = require('path');
 
-const TEST_DB = path.join(__dirname, '.tmp-test-db.sqlite');
-const TEST_UPLOADS = path.join(__dirname, '.tmp-test-uploads');
+const fs = require('fs');
+const root = process.env.TOULIAO_TEST_ROOT || fs.mkdtempSync(path.join(require('os').tmpdir(), 'touliao-test-'));
+process.env.TOULIAO_TEST_ROOT = root;
+const TEST_DB = path.join(root, '.tmp-test-db.sqlite');
+const TEST_UPLOADS = path.join(root, 'uploads');
+process.env.LOG_DIR = path.join(root, 'logs');
 
 process.env.NODE_ENV          = 'test';
 process.env.DB_PATH           = TEST_DB;
@@ -33,4 +37,4 @@ process.env.ADMIN_JWT_SECRET  = process.env.ADMIN_JWT_SECRET || 'test_admin_jwt_
 process.env.ADMIN_USERNAME    = process.env.ADMIN_USERNAME || 'test_admin';
 process.env.ADMIN_PASSWORD    = process.env.ADMIN_PASSWORD || 'test_admin_password_123456';
 
-module.exports = { TEST_DB, TEST_UPLOADS, INVITE_CODE: process.env.INVITE_CODE };
+module.exports = { TEST_ROOT: root, TEST_DB, TEST_UPLOADS, INVITE_CODE: process.env.INVITE_CODE };

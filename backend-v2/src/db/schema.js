@@ -684,6 +684,18 @@ function applySchema(db) {
     // Active clients register again; never guess which old device should keep receiving messages.
     "DELETE FROM push_subscriptions WHERE session_id IS NULL",
     "DELETE FROM device_tokens WHERE session_id IS NULL",
+    // F-06: append-only migration, also runnable independently against an isolated DB.
+    `CREATE TABLE IF NOT EXISTS financial_idempotency (
+      actor_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      operation TEXT NOT NULL,
+      idempotency_key TEXT NOT NULL,
+      request_hash TEXT NOT NULL,
+      response_json TEXT NOT NULL,
+      created_at INTEGER NOT NULL DEFAULT (strftime('%s','now')),
+      PRIMARY KEY (actor_id, operation, idempotency_key)
+    )`,
+    ...require('./migrations/batch2'),
+    ...require('./migrations/batch4'),
   ];
 
   // ── 迁移执行：版本追踪 + 错误分级 ────────────────────────────────

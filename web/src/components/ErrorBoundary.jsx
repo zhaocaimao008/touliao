@@ -1,4 +1,5 @@
 import React from 'react';
+import { redact } from '../utils/redactTelemetry';
 import { getI18n } from '../contexts/I18nContext';
 
 /**
@@ -21,22 +22,22 @@ export default class ErrorBoundary extends React.Component {
 
   componentDidCatch(error, errorInfo) {
     // 1. 控制台日志
-    console.error('[ErrorBoundary] 捕获到未处理异常:', error, errorInfo);
+    console.error('[ErrorBoundary] 捕获到未处理异常:', redact({ message: error?.message, stack: error?.stack, errorInfo }));
 
     // 2. 本地留痕（最近 10 条），便于线上排查/用户反馈
     try {
-      const log = {
+      const log = redact({
         time: new Date().toISOString(),
         message: String(error?.message || error),
         stack: String(error?.stack || ''),
         componentStack: String(errorInfo?.componentStack || ''),
         url: typeof location !== 'undefined' ? location.href : '',
         ua: typeof navigator !== 'undefined' ? navigator.userAgent : '',
-      };
+      });
       const KEY = 'touliao_error_log';
       const prev = JSON.parse(sessionStorage.getItem(KEY) || '[]');
       prev.unshift(log);
-      sessionStorage.setItem(KEY, JSON.stringify(prev.slice(0, 10)));
+      sessionStorage.setItem(KEY, JSON.stringify(redact(prev.slice(0, 10))));
 
       // 3. 尽力上报后端（失败静默，不影响降级页）
       if (typeof fetch === 'function') {

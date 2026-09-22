@@ -15,6 +15,8 @@ const sharp = require('sharp');
 const config = require('../src/config');
 const { app, makeUser, befriend, privateConversation } = require('./helpers');
 const { db } = require('../src/db/connection');
+const { seedLegacyMedia, cleanupLegacyMedia } = require('./fixtures/legacy-media.cjs');
+afterAll(cleanupLegacyMedia);
 
 // 1x1 透明 PNG（真实魔数，可通过 magic bytes 校验）
 const PNG_1x1 = Buffer.from(
@@ -32,14 +34,13 @@ describe('P1-02 /uploads 越权访问（IDOR）', () => {
     await befriend(a, b);
     convId = await privateConversation(a, b);
 
-    // A 向私聊会话上传一张真实图片
-    const up = await request(app)
-      .post(`/api/messages/${convId}/upload`)
-      .set('Authorization', `Bearer ${a.token}`)
-      .attach('file', PNG_1x1, { filename: 'secret.png', contentType: 'image/png' });
-    expect(up.status).toBe(200);
-    fileUrl = up.body.file_url; // /uploads/files/<uuid>.png
-    filePath = path.join(config.uploadsRoot, fileUrl.replace(/^\/uploads\//, ''));
+    // 直接种合成存量附件，保留磁盘文件、原会话归属和活跃消息引用。
+    const legacy = seedLegacyMedia({
+      ownerId: a.userId, conversationId: convId,
+      filename: 'secret.png', mime: 'image/png', bytes: PNG_1x1,
+    });
+    fileUrl = legacy.url;
+    filePath = legacy.path;
     expect(fs.existsSync(filePath)).toBe(true);
 
     // A 发一条私密朋友圈（带图），验证图片访问门控
@@ -92,13 +93,12 @@ describe('P1-02 /uploads 越权访问（IDOR）', () => {
     expect(grp.status).toBe(200);
     const gid = grp.body.conversationId;
 
-    const up = await request(app)
-      .post(`/api/messages/${gid}/upload`)
-      .set('Authorization', `Bearer ${c.token}`)
-      .attach('file', PNG_1x1, { filename: 'group.png', contentType: 'image/png' });
-    expect(up.status).toBe(200);
-    const gUrl = up.body.file_url;
-    const gPath = path.join(config.uploadsRoot, gUrl.replace(/^\/uploads\//, ''));
+    const legacy = seedLegacyMedia({
+      ownerId: c.userId, conversationId: gid,
+      filename: 'group.png', mime: 'image/png', bytes: PNG_1x1,
+    });
+    const gUrl = legacy.url;
+    const gPath = legacy.path;
     expect(fs.existsSync(gPath)).toBe(true);
 
     // 成员时可访问
@@ -177,9 +177,8 @@ describe('P1-02 /uploads 越权访问（IDOR）', () => {
   // moments.images 这类"引用行内容"检查只存原图文件名，缩略图请求得按 uuid 折算，
   // 这里验证：折算不会削弱第一道 file_registry 归属检查，攻击者仍拿不到缩略图。
   //
-  // 注意：不复用上面的 PNG_1x1——它是手写的最小合法 PNG，libvips 的 PNG 解码器读它会报
-  // "vipspng: libpng read error"（generateThumbnail fail-open 静默跳过，不生成缩略图），
-  // 这里用 sharp 现生成一张真正可解码的 PNG，确保缩略图确实落盘，测试的是鉴权逻辑本身。
+  // 用 sharp 生成合成原图和 WebP 缩略图，各自登记同一归属。
+  // 上传/缩略图生成另有专门测试；这里始终执行真实下载鉴权。
   let thumbFileUrl, thumbFilePath, thumbMomentUrl;
 
   function thumbUrlFor(originalUrl) {
@@ -191,12 +190,12 @@ describe('P1-02 /uploads 越权访问（IDOR）', () => {
 
   beforeAll(async () => {
     const validPng = await sharp({ create: { width: 20, height: 20, channels: 3, background: 'red' } }).png().toBuffer();
-    const up = await request(app)
-      .post(`/api/messages/${convId}/upload`)
-      .set('Authorization', `Bearer ${a.token}`)
-      .attach('file', validPng, { filename: 'thumbable.png', contentType: 'image/png' });
-    expect(up.status).toBe(200);
-    thumbFileUrl = up.body.file_url;
+    const legacy = seedLegacyMedia({
+      ownerId: a.userId, conversationId: convId,
+      filename: 'thumbable.png', mime: 'image/png', bytes: validPng,
+      thumbnail: await sharp(validPng).webp().toBuffer(),
+    });
+    thumbFileUrl = legacy.url;
 
     const mom = await request(app)
       .post('/api/moments')
@@ -243,13 +242,12 @@ describe('P1-02 /uploads 越权访问（IDOR）', () => {
     expect([403, 404]).toContain(res.status);
   });
 
-  test('stickers 类别：本人上传的表情可访问（登录即可，功能回归保护）', async () => {
-    const up = await request(app)
-      .post('/api/stickers/upload')
-      .set('Authorization', `Bearer ${a.token}`)
-      .attach('image', PNG_1x1, { filename: 'emoji.png', contentType: 'image/png' });
-    expect(up.status).toBe(200);
-    const sUrl = up.body.url;
+  test('stickers 类别：本人的存量表情可访问（登录即可，功能回归保护）', async () => {
+    const legacy = seedLegacyMedia({
+      ownerId: a.userId, kind: 'stickers',
+      filename: 'emoji.png', mime: 'image/png', bytes: PNG_1x1,
+    });
+    const sUrl = legacy.url;
     expect(sUrl.startsWith('/uploads/stickers/')).toBe(true);
     const sPath = path.join(config.uploadsRoot, sUrl.replace(/^\/uploads\//, ''));
     expect(fs.existsSync(sPath)).toBe(true);
@@ -262,13 +260,11 @@ describe('P1-02 /uploads 越权访问（IDOR）', () => {
   test('moments 类别（真实 /uploads/moments/ 路径）：作者可看、非好友 403、植入后仍拒', async () => {
     // 全新用户 d：与 a 无任何好友/私聊关系（避免被其他用例的免验证互加污染）
     const d = await makeUser({ username: 'p102_d_outsider' });
-    // 上传真实朋友圈图片（field 名 images，最多 9 张）
-    const up = await request(app)
-      .post('/api/moments/images')
-      .set('Authorization', `Bearer ${a.token}`)
-      .attach('images', PNG_1x1, { filename: 'moment.png', contentType: 'image/png' });
-    expect(up.status).toBe(200);
-    const mUrl = up.body.urls[0];
+    const legacy = seedLegacyMedia({
+      ownerId: a.userId, kind: 'moments',
+      filename: 'moment.png', mime: 'image/png', bytes: PNG_1x1,
+    });
+    const mUrl = legacy.url;
     expect(mUrl.startsWith('/uploads/moments/')).toBe(true);
     const mPath = path.join(config.uploadsRoot, mUrl.replace(/^\/uploads\//, ''));
     expect(fs.existsSync(mPath)).toBe(true);

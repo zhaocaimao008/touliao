@@ -332,6 +332,7 @@ fun ChatScreen(
                     }
                 },
                 actions = {
+                    viewModel.peerUserId()?.let { peer -> com.touliao.app.feature.safety.SafetyReportButton("user", peer, "举报用户") }
                     IconButton(onClick = { viewModel.openSearch() }, modifier = Modifier.testTag("chat-search-btn").semantics { contentDescription = "搜索" }) { Text("🔍", style = MaterialTheme.typography.titleMedium) }
                     // 群聊：语音/视频按钮受后台开关控制（关闭即隐藏）；私聊不受影响
                     if (!viewModel.isGroup || state.groupVoiceCallEnabled) {
@@ -1187,6 +1188,8 @@ private fun MessageBubble(
     onOpenMerged: () -> Unit = {},     // F4a：merged 聊天记录卡片点击查看详情
     onReadStatus: () -> Unit = {},     // F4b：自己消息长按「已读状态」（入口可见性由 canViewReadStatus 决定）
 ) {
+    var reportType by remember { mutableStateOf<String?>(null) }
+    reportType?.let { kind -> com.touliao.app.feature.safety.SafetyReportDialog(kind, if (kind == "message") msg.id else msg.sender_id, onClose = { reportType = null }) }
     var menuOpen by remember { mutableStateOf(false) }
     var showRecallConfirm by remember { mutableStateOf(false) }
 
@@ -1329,6 +1332,8 @@ private fun MessageBubble(
                         DropdownMenuItem(text = { Text("已读状态") }, onClick = { onReadStatus(); menuOpen = false })
                     }
                     HorizontalDivider()
+                    DropdownMenuItem(text = { Text("举报消息") }, onClick = { reportType = "message"; menuOpen = false })
+                    DropdownMenuItem(text = { Text("举报用户") }, onClick = { reportType = "user"; menuOpen = false })
                     DropdownMenuItem(text = { Text("多选") }, onClick = { onMultiSelect(); menuOpen = false })
                 }
             }
@@ -1886,13 +1891,14 @@ private fun ScheduledMessagesDialog(
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
                             Column(Modifier.weight(1f)) {
+                                if (msg.status == "recovery_required") Text("发送结果待核对", color = Color(0xFFFA5151))
                                 Text(msg.content, maxLines = 2, overflow = TextOverflow.Ellipsis, fontSize = com.touliao.app.ui.theme.VxinTextSize.base)
                                 Text(
                                     "⏰ ${sdf.format(java.util.Date(msg.send_at * 1000))}",
                                     fontSize = com.touliao.app.ui.theme.VxinTextSize.xs, color = Color(0xFF888888),
                                 )
                             }
-                            TextButton(onClick = { onCancel(msg.id) }) {
+                            TextButton(enabled = msg.status == "pending" || msg.status == "recovery_required", onClick = { onCancel(msg.id) }) {
                                 Text("取消", color = Color(0xFFFA5151), fontSize = com.touliao.app.ui.theme.VxinTextSize.sm)
                             }
                         }

@@ -57,7 +57,7 @@ class RateLimiter {
           this.requests.set(key, valid);
         }
       }
-    }, 300000); // 每5分钟清理一次
+    }, 300000).unref(); // 每5分钟清理一次
   }
 
   // 重置指定 key 的限制

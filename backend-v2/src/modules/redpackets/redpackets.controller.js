@@ -5,7 +5,7 @@ const svc = require('./redpackets.service');
 const io = req => req.app.get('io');
 
 exports.send = asyncHandler(async (req, res) => {
-  const { packetId, message } = await svc.send(io(req), req.user.id, req.body);
+  const { packetId, message } = await svc.send(io(req), req.user.id, req.body, req.get('Idempotency-Key'));
   res.json({ success: true, packetId, message });
 });
 

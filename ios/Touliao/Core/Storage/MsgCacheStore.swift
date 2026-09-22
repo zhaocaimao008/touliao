@@ -1,4 +1,5 @@
 import Foundation
+import CryptoKit
 
 /// 离线消息历史缓存（iOS · FileManager JSON，每会话一文件）。
 /// 契约见 docs/offline-message-cache-contract.md，语义 1:1 对齐 Web 参考实现
@@ -19,9 +20,11 @@ final class MsgCacheStore {
 
     private let fm = FileManager.default
     private let dir: URL
+    private let accountScope: () -> String
 
     /// 允许测试注入独立目录，避免污染真实缓存。
-    init(directory: URL? = nil) {
+    init(directory: URL? = nil, accountScope: (() -> String)? = nil) {
+        self.accountScope = accountScope ?? { directory == nil ? ServerConfig.shared.baseURL + ":" + (AccountStore.shared.activeId() ?? "anonymous") : "test" }
         if let directory {
             dir = directory
         } else {
@@ -65,6 +68,12 @@ final class MsgCacheStore {
         writeItems(conversationId, clean)
     }
 
+    /// Sync must not acknowledge its cursor if the controlled cache did not commit.
+    func saveBeforeCursor(_ conversationId: String, _ msgs: [Message]) throws {
+        let data = try JSONEncoder().encode(Self.normalize(msgs).map { Cached(from: $0) })
+        try data.write(to: fileURL(conversationId), options: .atomic)
+    }
+
     /// 删除单条（撤回/删除）。
     func remove(_ conversationId: String, _ msgId: String) {
         guard !conversationId.isEmpty else { return }
@@ -97,7 +106,7 @@ final class MsgCacheStore {
         var map: [String: Message] = [:]
         var order: [String] = []                          // 保留插入序，后者覆盖同 id
         for m in msgs {
-            guard !m.id.isEmpty else { continue }
+            guard !m.id.isEmpty, m.burnAfter == 0 else { continue }
             if m.clientMsgId != nil || m.localStatus != nil { continue }   // 乐观/待发不入缓存
             if map[m.id] == nil { order.append(m.id) }
             map[m.id] = m
@@ -125,7 +134,8 @@ final class MsgCacheStore {
         // 会话 id 可能含非法文件名字符，做百分号转义保证文件名安全。
         let safe = conversationId.addingPercentEncoding(
             withAllowedCharacters: .alphanumerics) ?? conversationId
-        return dir.appendingPathComponent("\(safe).json")
+        let scope = SHA256.hash(data: Data(accountScope().utf8)).map { String(format: "%02x", $0) }.joined()
+        return dir.appendingPathComponent("\(scope)-\(safe).json")
     }
 
     private func loadItems(_ conversationId: String) -> [Cached] {

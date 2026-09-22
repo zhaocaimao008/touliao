@@ -22,7 +22,7 @@ describe('注册邀请码总开关', () => {
   test('默认需要邀请码：不填被拒', async () => {
     setInviteRequired(true);
     const res = await request(app).post('/api/auth/register')
-      .send({ username: 'inv_' + uniq(), phone: '138' + Date.now().toString().slice(-8), password: 'abc12345' });
+      .send({ ...({ username: 'inv_' + uniq(), phone: '138' + Date.now().toString().slice(-8), password: 'abc12345' }), legalConsent: require('./legal-consent.cjs') });
     expect(res.status).toBe(400);
     expect(res.body.error).toMatch(/邀请码/);
   });
@@ -30,7 +30,7 @@ describe('注册邀请码总开关', () => {
   test('关闭后无需邀请码也能注册', async () => {
     setInviteRequired(false);
     const res = await request(app).post('/api/auth/register')
-      .send({ username: 'inv_' + uniq(), phone: '139' + Date.now().toString().slice(-8), password: 'abc12345' });
+      .send({ ...({ username: 'inv_' + uniq(), phone: '139' + Date.now().toString().slice(-8), password: 'abc12345' }), legalConsent: require('./legal-consent.cjs') });
     expect(res.status).toBe(200);
     expect(res.body.user).toHaveProperty('id');
     expect(res.body.token).toBeTruthy();
@@ -49,7 +49,7 @@ describe('注册邀请码总开关', () => {
   test('重新开启后又强制校验邀请码', async () => {
     setInviteRequired(true);
     const res = await request(app).post('/api/auth/register')
-      .send({ username: 'inv_' + uniq(), phone: '137' + Date.now().toString().slice(-8), password: 'abc12345' });
+      .send({ ...({ username: 'inv_' + uniq(), phone: '137' + Date.now().toString().slice(-8), password: 'abc12345' }), legalConsent: require('./legal-consent.cjs') });
     expect(res.status).toBe(400);
     expect(res.body.error).toMatch(/邀请码/);
   });

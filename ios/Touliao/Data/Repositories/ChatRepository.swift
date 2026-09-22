@@ -225,15 +225,15 @@ final class ChatRepository: HistoryPageSource {
         )
     }
 
-    func forward(msgId: String, conversationIds: [String]) async throws {
-        let _: EmptyResponse = try await api.send(
+    func forward(msgId: String, conversationIds: [String]) async throws -> ForwardResult {
+        return try await api.send(
             "api/messages/forward", method: "POST", body: ForwardBody(msgId: msgId, msgIds: nil, conversationIds: conversationIds)
         )
     }
 
     /// 多条逐条转发（F5）：后端 /forward 支持 msgIds 数组（单次≤30），按选择顺序逐条复制到每个目标会话
-    func forwardMessages(msgIds: [String], conversationIds: [String]) async throws {
-        let _: EmptyResponse = try await api.send(
+    func forwardMessages(msgIds: [String], conversationIds: [String]) async throws -> ForwardResult {
+        return try await api.send(
             "api/messages/forward", method: "POST", body: ForwardBody(msgId: nil, msgIds: msgIds, conversationIds: conversationIds)
         )
     }

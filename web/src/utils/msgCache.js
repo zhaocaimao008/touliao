@@ -127,22 +127,23 @@ export async function loadCache(convId) {
   });
 }
 
-// 覆写会话缓存（内部归一化 + 截断）。异常静默。
-export async function saveCache(convId, msgs) {
+// Sync callers wait for transaction commit and retain the cursor on failure.
+export async function saveCache(convId, msgs, { strict = false } = {}) {
   if (!convId) return;
   const db = await openDB();
+  // No readable persistent cache exists in this session. Continue in memory;
+  // saveSyncCursor also becomes a no-op, so reconnect replays from zero.
   if (!db) return;
   const clean = normalize(msgs || []);
-  return new Promise((resolve) => {
+  return new Promise((resolve, reject) => {
     try {
-      if (!clean.length) {
-        const req = tx(db, 'readwrite').delete(String(convId));
-        req.onsuccess = req.onerror = () => resolve();
-        return;
-      }
-      const req = tx(db, 'readwrite').put({ convId: String(convId), msgs: clean });
-      req.onsuccess = req.onerror = () => resolve();
-    } catch { resolve(); }
+      const transaction = db.transaction(STORE, 'readwrite');
+      const store = transaction.objectStore(STORE);
+      if (clean.length) store.put({ convId: String(convId), msgs: clean });
+      else store.delete(String(convId));
+      transaction.oncomplete = () => resolve();
+      transaction.onabort = transaction.onerror = () => strict ? reject(transaction.error || new Error('cache commit failed')) : resolve();
+    } catch (error) { if (strict) reject(error); else resolve(); }
   });
 }
 

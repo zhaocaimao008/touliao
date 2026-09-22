@@ -1,3 +1,4 @@
+import LegalConsent from '../components/LegalConsent';
 import { clientStorage as localStorage } from '../utils/clientStorage';
 import './auth.css';
 import React, { useState, useEffect, useCallback } from 'react';
@@ -20,6 +21,7 @@ export default function Login() {
   const [phone, setPhone] = useState(initialPhone);
   const [password, setPassword] = useState('');
   const [remember, setRemember] = useState(!!initialPhone);
+  const [legalConsent, setLegalConsent] = useState(null);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [focusedField, setFocusedField] = useState(null);
@@ -121,11 +123,12 @@ export default function Login() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (!legalConsent?.accepted) { setError('请先阅读并同意隐私政策和用户协议'); return; }
     if (loading) return; // 防连点/回车重复提交
     setError(''); setLoading(true);
     try {
       const { data } = await axios.post('/api/auth/login', {
-        phone, password,
+        phone, password, legalConsent,
         ...(captchaRequired ? { captchaId, captchaText } : {}),
       });
       // 登录成功后按勾选保存/清除用户名；密码绝不落盘。
@@ -199,6 +202,7 @@ export default function Login() {
 
         {/* 登录表单 */}
         <form className="auth-form" onSubmit={handleSubmit}>
+          <LegalConsent value={legalConsent} onChange={setLegalConsent} />
           <div className={`auth-field ${focusedField === 'phone' ? 'focused' : ''} ${phone ? 'has-value' : ''}`}>
             <label className="auth-field-label" htmlFor="login-phone">{t('auth.phone')}</label>
             <div className="auth-field-input-wrap">
@@ -315,7 +319,7 @@ export default function Login() {
             <Link to="/forgot-password" className="auth-link" style={{ fontSize: 'var(--text-sm2)' }}>{t('auth.forgotPasswordLink')}</Link>
           </div>
 
-          <button type="submit" className="auth-submit" data-testid="login-submit-btn" disabled={loading || !phone || !password || (captchaRequired && !captchaText)}>
+          <button type="submit" className="auth-submit" data-testid="login-submit-btn" disabled={loading || !legalConsent?.accepted || !phone || !password || (captchaRequired && !captchaText)}>
             {loading ? (
               <span className="auth-spinner" />
             ) : (

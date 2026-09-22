@@ -17,6 +17,7 @@ import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 data class LoginUiState(
+    val legalAccepted: Boolean = false,
     val phone: String = "",
     val password: String = "",
     val serverUrl: String = "",
@@ -35,7 +36,7 @@ data class LoginUiState(
     val captchaSvgDataUrl: String = "",
     val captchaText: String = "",
 ) {
-    val canSubmit: Boolean get() = phone.isNotBlank() && password.isNotBlank() && !loading &&
+    val canSubmit: Boolean get() = legalAccepted && phone.isNotBlank() && password.isNotBlank() && !loading &&
         (!captchaRequired || captchaText.isNotBlank())
 }
 
@@ -62,6 +63,8 @@ class LoginViewModel @Inject constructor(
             // 拉取失败保持默认（不要求验证码），后端仍会最终裁决
         }
     }
+
+    fun onLegalAccepted(v: Boolean) = _uiState.update { it.copy(legalAccepted = v) }
 
     fun onPhoneChange(v: String) = _uiState.update { it.copy(phone = v, error = null) }
     fun onPasswordChange(v: String) = _uiState.update { it.copy(password = v, error = null) }
@@ -117,6 +120,7 @@ class LoginViewModel @Inject constructor(
                     s.phone, s.password,
                     captchaId = if (s.captchaRequired) s.captchaId else null,
                     captchaText = if (s.captchaRequired) s.captchaText else null,
+                    legalConsent = com.touliao.app.data.model.LegalConsentData(s.legalAccepted),
                 )
             }
                 .onSuccess { user ->

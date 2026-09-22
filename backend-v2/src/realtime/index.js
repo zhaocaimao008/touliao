@@ -14,6 +14,7 @@ const { hasActiveSession, passwordRevoked, tokenRoom } = require('../utils/sessi
 const presence = require('./presence');
 const broadcaster = require('./broadcaster');
 const prodMetrics = require('../utils/prodMetrics');
+const { isIP } = require('net');
 
 const registerMessage = require('./handlers/message');
 const registerFile    = require('./handlers/file');
@@ -52,6 +53,32 @@ function autoJoinConversationIds(db, userId, limit = AUTO_JOIN_MAX_ROOMS) {
 // 60s 窗口内同一 IP 最多 30 次握手尝试，超限拒绝。条目带过期清理防 Map 增长。
 const IP_HANDSHAKE_WINDOW_MS = 60 * 1000;
 const IP_HANDSHAKE_MAX = 30;
+// Independent process-wide protection; never use the proxy's IP as the site quota.
+const GLOBAL_HANDSHAKE_MAX = 6000;
+let globalHandshake = { count: 0, resetAt: 0 };
+function normalizeIp(value) {
+  if (typeof value !== 'string' || value.includes('%') || !isIP(value)) return null;
+  if (isIP(value) === 4) return value;
+  const canonical = new URL(`http://[${value}]/`).hostname.slice(1, -1);
+  const mapped = canonical.match(/^::ffff:([a-f0-9]+):([a-f0-9]+)$/);
+  if (!mapped) return canonical;
+  const high = parseInt(mapped[1], 16), low = parseInt(mapped[2], 16);
+  return [high >> 8, high & 255, low >> 8, low & 255].join('.');
+}
+function handshakeIp(socket) {
+  const peer = normalizeIp(socket.handshake.address);
+  // Deployed nginx connects over loopback and overwrites X-Real-IP with $remote_addr.
+  // Do not trust XFF, arbitrary LAN peers, or client-supplied lists of addresses.
+  if (peer === '127.0.0.1' || peer === '::1') {
+    return normalizeIp(socket.handshake.headers?.['x-real-ip']) || peer;
+  }
+  return peer || 'unknown';
+}
+function checkGlobalHandshake() {
+  const now = Date.now();
+  if (now >= globalHandshake.resetAt) globalHandshake = { count: 0, resetAt: now + IP_HANDSHAKE_WINDOW_MS };
+  return ++globalHandshake.count <= GLOBAL_HANDSHAKE_MAX;
+}
 const ipHandshake = new Map(); // ip → { count, resetAt }
 function checkIpHandshake(ip) {
   const now = Date.now();
@@ -89,12 +116,17 @@ module.exports = function setupRealtime(io, app) {
   io.use(async (socket, next) => {
     prodMetrics.recordConnAttempt(); // 监控：连接/重连成功率（每次握手即一次尝试）
     // P1-07 增强：per-IP 握手频率限制（先于 JWT 验证，挡住廉价批量握手风暴）
-    const ip = socket.handshake.address || 'unknown';
+    const ip = handshakeIp(socket);
     if (!checkIpHandshake(ip)) {
       prodMetrics.recordConnResult(false);
       return next(new Error('连接过于频繁，请稍后再试'));
     }
     pruneIpHandshake();
+    // Rejected single-IP traffic must not drain the independent global budget.
+    if (!checkGlobalHandshake()) {
+      prodMetrics.recordConnResult(false);
+      return next(new Error('服务繁忙，请稍后再试'));
+    }
     const cookieHeader = socket.handshake.headers.cookie || '';
     const match = cookieHeader.match(new RegExp(`${config.cookieName}=([^;]+)`));
     const cookieToken = match ? decodeURIComponent(match[1]) : null;
@@ -263,4 +295,5 @@ module.exports.autoJoinConversationIds = autoJoinConversationIds;
 module.exports.AUTO_JOIN_MAX_ROOMS = AUTO_JOIN_MAX_ROOMS;
 module.exports.checkIpHandshake = checkIpHandshake;
 module.exports.ipHandshakeSize = () => ipHandshake.size;
-module.exports._resetIpHandshake = () => ipHandshake.clear();
+module.exports.GLOBAL_HANDSHAKE_MAX = GLOBAL_HANDSHAKE_MAX;
+module.exports._resetIpHandshake = () => { ipHandshake.clear(); globalHandshake = { count: 0, resetAt: 0 }; };

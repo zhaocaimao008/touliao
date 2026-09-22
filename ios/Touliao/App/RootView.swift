@@ -10,6 +10,9 @@ struct RootView: View {
 
     var body: some View {
         content
+            .safeAreaInset(edge: .top) {
+                if let message = session.recoveryMessage { Text(message).font(.footnote).frame(maxWidth: .infinity).padding(6).background(Color.orange.opacity(0.15)) }
+            }
             .preferredColorScheme((AppTheme(rawValue: themeRaw) ?? .system).colorScheme)
             .dynamicTypeSize((AppFontScale(rawValue: fontRaw) ?? .standard).dynamicTypeSize)
     }

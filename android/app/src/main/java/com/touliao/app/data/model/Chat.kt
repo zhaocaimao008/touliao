@@ -99,6 +99,9 @@ data class Message(
     // 2026-08-29新增：语音/视频时长(秒)。后端此前从不写这个字段，语音气泡只能显示固定文字；
     // 现在上传时可选传duration，服务端落库后这里能拿到真实值渲染时长气泡。
     val duration: Int = 0,
+    val burn_after: Int = 0,
+    val burn_read_at: Long? = null,
+    val burn_expires_at: Long? = null,
     val server_sequence: Long = 0,
     val batch_id: String? = null,
     val client_batch_id: String? = null,
@@ -275,3 +278,22 @@ data class ConversationFilesResponse(
 data class ReadStatesResponse(
     val readStates: Map<String, List<String>> = emptyMap(),
 )
+
+@Serializable
+data class ForwardTargetResult(val source_message_id: String, val conversation_id: String, val status: String, val reason: String? = null)
+@Serializable
+data class ForwardResult(
+    val status: String, val success_count: Int = 0, val failed_count: Int = 0,
+    val target_success_count: Int? = null, val target_failed_count: Int? = null,
+    val target_results: List<ForwardTargetResult>? = null,
+) {
+    fun summary(): String {
+        val ok = target_success_count ?: success_count
+        val failed = target_failed_count ?: failed_count
+        return when (status) {
+            "success" -> "已转发：成功 $ok 项"
+            "partial_success" -> "部分成功：成功 $ok 项，失败 $failed 项"
+            else -> "转发未完成：成功 $ok 项，失败 $failed 项"
+        }
+    }
+}

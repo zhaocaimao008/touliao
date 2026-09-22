@@ -1,7 +1,7 @@
 'use strict';
 /**
  * F1 功能批（2026-09-05，8.1.16）后端 8 项验收测试：
- *   #1 朋友圈发视频（video/cover 字段 + 上传 + 互斥校验 + 列表透出）
+ *   #1 存量视频动态（video/cover 字段 + 互斥校验 + 列表透出）
  *   #2 合并转发 merged 消息类型（透传 + 长度放宽 + 撤回一致 + 实时广播）
  *   #3 群邀请链接（同群复用 token + join + 过期/黑名单）
  *   #4 已读状态查询 GET read-states（私聊 message_reads + 群聊 last_read_at）
@@ -19,6 +19,8 @@ const app = require('../src/app');
 const setupRealtime = require('../src/realtime');
 const { db } = require('../src/db/connection');
 const { makeUser, befriend, privateConversation } = require('./helpers');
+const { seedLegacyMedia, cleanupLegacyMedia } = require('./fixtures/legacy-media.cjs');
+afterAll(cleanupLegacyMedia);
 
 // 最小合法 MP4（ftyp/isom box，过 file-type 魔数识别）与 1x1 PNG
 const MP4 = Buffer.concat([
@@ -94,35 +96,37 @@ afterAll(async () => {
 
 // ── #1 朋友圈发视频 ────────────────────────────────────────────────
 describe('#1 朋友圈发视频', () => {
-  let a, b;
+  let a, b, videoUrl;
 
-  test('上传视频+封面 → 发视频动态 → DB 落 video/cover，好友时间线透出', async () => {
+  test('存量视频+封面 → 发视频动态 → DB 落 video/cover，好友时间线透出', async () => {
     a = await makeUser({ username: 'f1_mv_a' });
     b = await makeUser({ username: 'f1_mv_b' });
     await befriend(a, b);
 
-    const up = await request(app).post('/api/moments/video').set(authOf(a)).attach('video', MP4, 'v.mp4');
-    expect(up.status).toBe(200);
-    expect(up.body.url).toMatch(/^\/uploads\/moments\/[\w-]+\.\w+$/);
-
-    const cov = await request(app).post('/api/moments/images').set(authOf(a)).attach('images', PNG, 'c.png');
-    expect(cov.status).toBe(200);
+    const video = seedLegacyMedia({
+      ownerId: a.userId, kind: 'moments', filename: 'v.mp4', mime: 'video/mp4', bytes: MP4,
+    });
+    const cover = seedLegacyMedia({
+      ownerId: a.userId, kind: 'moments', filename: 'c.png', mime: 'image/png', bytes: PNG,
+    });
+    videoUrl = video.url;
+    expect(videoUrl).toMatch(/^\/uploads\/moments\/[\w-]+\.\w+$/);
 
     const create = await request(app).post('/api/moments')
-      .set(authOf(a)).send({ content: '视频动态', video: up.body.url, cover: cov.body.urls[0] });
+      .set(authOf(a)).send({ content: '视频动态', video: videoUrl, cover: cover.url });
     expect(create.status).toBe(200);
-    expect(create.body.video).toBe(up.body.url);
-    expect(create.body.cover).toBe(cov.body.urls[0]);
+    expect(create.body.video).toBe(videoUrl);
+    expect(create.body.cover).toBe(cover.url);
     expect(create.body.images).toEqual([]);
 
     const row = db.prepare('SELECT video, cover FROM moments WHERE id=?').get(create.body.id);
-    expect(row.video).toBe(up.body.url);
-    expect(row.cover).toBe(cov.body.urls[0]);
+    expect(row.video).toBe(videoUrl);
+    expect(row.cover).toBe(cover.url);
 
     // 好友时间线原样透出 video 字段（老客户端多字段无害）
     const tl = await request(app).get('/api/moments').set(authOf(b));
     const mine = tl.body.find(m => m.id === create.body.id);
-    expect(mine && mine.video).toBe(up.body.url);
+    expect(mine && mine.video).toBe(videoUrl);
   });
 
   test('纯图文动态老行为不变（video/cover 恒空串）', async () => {
@@ -133,18 +137,27 @@ describe('#1 朋友圈发视频', () => {
   });
 
   test('校验：视频与图片互斥 / 非白名单 URL / 伪装视频被魔数拒绝', async () => {
-    const up = await request(app).post('/api/moments/video').set(authOf(a)).attach('video', MP4, 'v.mp4');
     const mixed = await request(app).post('/api/moments')
-      .set(authOf(a)).send({ video: up.body.url, images: ['/uploads/moments/x.png'] });
+      .set(authOf(a)).send({ video: videoUrl, images: ['/uploads/moments/x.png'] });
     expect(mixed.status).toBe(400);
 
     const badUrl = await request(app).post('/api/moments')
       .set(authOf(a)).send({ video: 'http://evil.example/x.mp4' });
     expect(badUrl.status).toBe(400);
 
-    // 伪装视频（文本内容 + .mp4 扩展名 + 浏览器会带的 video/mp4 声明）被魔数拒绝
-    const fake = await request(app).post('/api/moments/video')
-      .set(authOf(a)).attach('video', Buffer.from('plain text not a video'), { filename: 'fake.mp4', contentType: 'video/mp4' });
+    // 路由已停用，先锁定 503；在同一真实上传器的下一层继续验证魔数拒绝 400。
+    const stopped = await request(app).post('/api/moments/video')
+      .set(authOf(a)).attach('video', MP4, 'v.mp4');
+    expect(stopped.status).toBe(503);
+    expect(stopped.body.error_code).toBe('MEDIA_MODERATION_UNAVAILABLE');
+    const { makeVideoUploader } = require('../src/utils/upload');
+    const config = require('../src/config');
+    const [policyGate, ...videoValidation] = makeVideoUploader(require('path').join(config.uploadsRoot, 'moments'));
+    expect(policyGate.name).toBe('rejectVisualUpload');
+    const validationApp = require('express')();
+    validationApp.post('/video', ...videoValidation, (_req, res) => res.sendStatus(200));
+    const fake = await request(validationApp).post('/video')
+      .attach('video', Buffer.from('plain text not a video'), { filename: 'fake.mp4', contentType: 'video/mp4' });
     expect(fake.status).toBe(400);
   });
 });
@@ -569,9 +582,10 @@ describe('#8 消息搜索分类筛选', () => {
     const t = await request(app).post(`/api/messages/${convId}`).set(authOf(a)).send({ content: '苹果手机' });
     textMsg = t.body;
     await request(app).post(`/api/messages/${convId}`).set(authOf(b)).send({ content: '苹果派' });
-    const img = await request(app).post(`/api/messages/${convId}/upload`)
-      .set(authOf(a)).attach('file', PNG, { filename: '手机截图.png', contentType: 'image/png' });
-    imgMsg = img.body;
+    imgMsg = seedLegacyMedia({
+      ownerId: a.userId, conversationId: convId,
+      filename: '手机截图.png', mime: 'image/png', bytes: PNG,
+    }).message;
     expect(imgMsg.type).toBe('image');
   });
 

@@ -84,7 +84,7 @@ module.exports = function registerMessageHandler(io, socket) {
     try {
     const { conversationId, content, reply_to_id, clientMsgId } = data;
     // 允许文本/名片(contact_card)/合并转发(merged)；名片的 content 是被分享用户的 JSON 快照，
-    // merged 的 content 是服务端透传的 JSON（{title,items:[...]}），服务端不解析理解其内容。
+    // merged 的源消息由服务端复核，禁止引用阅后即焚消息。
     const type = ['text', 'contact_card', 'merged'].includes(data.type) ? data.type : 'text';
     const maxLen = type === 'merged' ? MAX_MERGED : MAX;
 
@@ -101,6 +101,10 @@ module.exports = function registerMessageHandler(io, socket) {
     }
     if (content.length > maxLen) {
       ack?.({ success: false, error: `消息内容不能超过 ${maxLen} 个字符` }); return;
+    }
+    if (type === 'merged') {
+      try { require('../../modules/messages/burn.service').assertMergedForwardAllowed(content); }
+      catch (err) { ack?.({ success: false, error: err.message }); return; }
     }
     const hitWord = moderation.firstMatch(content);
     if (hitWord) {
@@ -170,7 +174,7 @@ module.exports = function registerMessageHandler(io, socket) {
       });
       msg.server_sequence = sequenced.server_sequence;
       msg.replyTo = readDb.prepare(`
-        SELECT m.id, m.type, m.content, m.file_url, m.deleted, u.username AS senderName
+        SELECT m.id, m.type, CASE WHEN m.burn_after>0 THEN '' ELSE m.content END AS content, CASE WHEN m.burn_after>0 THEN '' ELSE m.file_url END AS file_url, m.deleted, u.username AS senderName
         FROM messages m JOIN users u ON u.id = m.sender_id
         WHERE m.id = ? AND m.conversation_id = ?
       `).get(reply_to_id, conversationId) || null;
@@ -185,6 +189,7 @@ module.exports = function registerMessageHandler(io, socket) {
       msg.server_sequence = sequenced.server_sequence;
     }
 
+    Object.assign(msg, readDb.prepare('SELECT burn_after,burn_read_at,burn_expires_at FROM messages WHERE id=?').get(id));
     broadcaster.broadcastMessage(conversationId, msg); // 批量合并派发（客户端按 id 去重，发送者收到自身消息会被忽略）
     emitSyncAvailable(io, conversationId, msg.server_sequence);
 
@@ -208,7 +213,7 @@ module.exports = function registerMessageHandler(io, socket) {
           io.to(`user_${userId}`).emit('message_delivered', { messageId: id, conversationId, deliveredCount: onlineRecipients.length });
         }
         pushNewMessage({
-          conversationId, senderId: userId, senderName: msg.senderName, content, type,
+          conversationId, senderId: userId, senderName: msg.senderName, content: msg.burn_after ? '[阅后即焚消息]' : content, type,
           timestamp: created_at, onlineUserIds: presence.onlineUserIdSet(), members,
         }).catch(() => {});
       } catch (err) {

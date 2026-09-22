@@ -9,21 +9,22 @@ const { writeAsync, writeBatch, SEQUENCE_PARAM } = require('../../db/writer');
 const config = require('../../config');
 const { badRequest, forbidden, notFound, conflict } = require('../../utils/http');
 const { collectionDedupKey } = require('../../utils/collections');
-const { isMember, requireMember, memberRole, buildMessage, privateSendGuard } = require('./shared');
+const { canUseMessageCache, isMember, requireMember, memberRole, buildMessage, privateSendGuard } = require('./shared');
 const cache = require('../../utils/cache');
 const broadcaster = require('../../realtime/broadcaster');
 // 会话列表缓存失效：发消息/转发/撤回改变会话「最新消息/排序」，需失效该会话所有成员
 // (收发双方/群全员)的会话列表缓存。conversations.service 只 require messages/shared，无循环依赖。
 const convSvc = require('../conversations/conversations.service');
-const { shareFileToConversation } = require('../../utils/fileRegistry');
+const { canReferenceFile, fileShareOp } = require('../../utils/fileRegistry');
 const { appendConversationEvent, emitSyncAvailable } = require('./sync.service');
 const moderation = require('../moderation/moderation.service');
 
 const MAX = config.limits.maxMsgLength;
 
 // ── 历史消息（批量 replyTo + reactions，群已读数 / 私聊送达）──────
-function history(convId, userId, { before, after, limit, beforeId }) {
+function history(convId, userId, { before, after, limit, beforeId }, io=null) {
   requireMember(convId, userId);
+  require('./burn.service').expireDueMessages();
 
   const rawLimit = parseInt(limit);
   const lim = (!isNaN(rawLimit) && rawLimit > 0) ? Math.min(rawLimit, 100) : 50;
@@ -101,7 +102,7 @@ function history(convId, userId, { before, after, limit, beforeId }) {
   if (replyIds.length > 0) {
     const ph = replyIds.map(() => '?').join(',');
     db.prepare(`
-      SELECT m.id, m.type, m.content, m.file_url, m.deleted, COALESCE(u.username, '') AS senderName
+      SELECT m.id, m.type, CASE WHEN m.burn_after>0 THEN '' ELSE m.content END AS content, CASE WHEN m.burn_after>0 THEN '' ELSE m.file_url END AS file_url, m.deleted, COALESCE(u.username, '') AS senderName
       FROM messages m LEFT JOIN users u ON u.id = m.sender_id WHERE m.id IN (${ph}) AND m.conversation_id = ?
     `).all(...replyIds, convId).forEach(r => replyMap.set(r.id, r));
   }
@@ -120,6 +121,7 @@ function history(convId, userId, { before, after, limit, beforeId }) {
     });
   }
 
+  require('./burn.service').recordDelivery(userId,messages,io);
   return messages.map(msg => {
     msg.replyTo   = msg.reply_to_id ? (replyMap.get(msg.reply_to_id) || null) : null;
     msg.reactions = reactionsMap.get(msg.id) || [];
@@ -166,7 +168,7 @@ function missed(io, userId, after) {
     const rph = replyIds.map(() => '?').join(',');
     const convPh = convIds.map(() => '?').join(',');
     db.prepare(`
-      SELECT m.id, m.type, m.content, m.file_url, m.deleted, COALESCE(u.username, '') AS senderName
+      SELECT m.id, m.type, CASE WHEN m.burn_after>0 THEN '' ELSE m.content END AS content, CASE WHEN m.burn_after>0 THEN '' ELSE m.file_url END AS file_url, m.deleted, COALESCE(u.username, '') AS senderName
       FROM messages m LEFT JOIN users u ON u.id = m.sender_id WHERE m.id IN (${rph}) AND m.conversation_id IN (${convPh})
     `).all(...replyIds, ...convIds).forEach(r => replyMap.set(r.id, r));
   }
@@ -210,17 +212,19 @@ function missed(io, userId, after) {
       });
     }
   }
+  require('./burn.service').recordDelivery(userId,enriched,io);
   return enriched;
 }
 
 // ── HTTP 发送（fallback）────────────────────────────────────────
 async function send(io, convId, userId, { content, type, reply_to_id }) {
-  // merged：合并转发，content 为服务端透传的 JSON（{title,items:[...]}），服务端不解析理解
+  // merged：保留快照协议，但服务端拒绝引用阅后即焚源消息。
   const ALLOWED_HTTP_TYPES = new Set(['text', 'contact_card', 'merged']);
   const safeType = ALLOWED_HTTP_TYPES.has(type) ? type : 'text';
   const maxLen = safeType === 'merged' ? config.limits.maxMergedLength : MAX;
   if (!content || typeof content !== 'string') throw badRequest('消息内容格式错误');
   if (content.length > maxLen) throw badRequest(`消息内容不能超过 ${maxLen} 个字符`);
+  if (safeType === 'merged') require('./burn.service').assertMergedForwardAllowed(content);
   moderation.assertClean(content);
   const member = db.prepare('SELECT role FROM conversation_members WHERE conversation_id=? AND user_id=?').get(convId, userId);
   if (!member) throw forbidden('无权发送');
@@ -263,6 +267,9 @@ async function send(io, convId, userId, { content, type, reply_to_id }) {
 async function saveUploadedFile(io, convId, userId, { type, content, fileUrl, reply_to_id, fileMime, fileSize, duration }) {
   const member = db.prepare('SELECT role FROM conversation_members WHERE conversation_id=? AND user_id=?').get(convId, userId);
   if (!member) throw forbidden('无权发送');
+  // Also used by sticker/send: a user's saved sticker URL can be client supplied.
+  // Owning that bookmark must not authorize somebody else's private attachment.
+  if (!canReferenceFile(fileUrl, userId)) throw forbidden('无权使用该文件或文件已失效');
   const conv = db.prepare('SELECT mute_all, type FROM conversations WHERE id=?').get(convId);
   if (conv?.mute_all && member.role === 'member') throw forbidden('全员禁言中，您没有发言权限');
   // 私聊守卫：黑名单 + 屏蔽陌生人合并校验（复用已取的 conv），防止陌生人用文件/图片/表情绕过设置骚扰
@@ -278,7 +285,7 @@ async function saveUploadedFile(io, convId, userId, { type, content, fileUrl, re
   // 真实值(魔数校验后的mime、实际接收字节数)，不信任客户端可另外声称的值。
   const sequenced = await appendConversationEvent({
     conversationId: convId, eventType: 'message_created', messageId: id, actorId: userId,
-    ops: [{
+    ops: [fileShareOp(fileUrl, convId, userId), {
       sql: 'INSERT INTO messages (id,conversation_id,sender_id,type,content,file_url,reply_to_id,file_mime,file_size,duration,server_sequence) VALUES (?,?,?,?,?,?,?,?,?,?,?)',
       params: [id, convId, userId, type, content, fileUrl, reply_to_id || null, fileMime || null, fileSize || null, duration || 0, SEQUENCE_PARAM],
     }],
@@ -297,12 +304,19 @@ async function saveUploadedFile(io, convId, userId, { type, content, fileUrl, re
   return msg;
 }
 
+function forwardTargetSummary(results) {
+  return { target_results: results, target_success_count: results.filter(r=>r.status==='success').length,
+    target_failed_count: results.filter(r=>r.status!=='success').length,
+    sent: new Set(results.filter(r=>r.status==='success').map(r=>r.conversation_id)).size };
+}
+
 // ── 转发 ────────────────────────────────────────────────────────
 async function forward(io, userId, { msgId, msgIds, conversationIds, client_batch_id: requestedClientBatchId }) {
   // 兼容单条(msgId)与多条(msgIds)转发；统一去重、保序
   const rawIds = Array.isArray(msgIds) && msgIds.length ? msgIds : (msgId ? [msgId] : []);
   const ids = [...new Set(rawIds.filter(Boolean))];
-  if (!ids.length || !conversationIds?.length) throw badRequest('参数缺失');
+  if (!ids.length || !Array.isArray(conversationIds) || !conversationIds.length) throw badRequest('参数缺失');
+  conversationIds = [...new Set(conversationIds)];
   if (conversationIds.length > 20) throw badRequest('单次转发最多20个会话');
   if (ids.length > 30) throw badRequest('单次最多转发30条消息');
   // merged（合并转发）本身也是一条消息，允许被再次转发（content 为透传 JSON，原样复制）
@@ -319,7 +333,8 @@ async function forward(io, userId, { msgId, msgIds, conversationIds, client_batc
       success_count: existingBatch.success_count, failed_count: existingBatch.failed_count,
       failed_message_ids: JSON.parse(existingBatch.failed_message_ids || '[]'),
       retryable_message_ids: JSON.parse(existingBatch.retryable_message_ids || '[]'),
-      sent: existingBatch.success_count,
+      ...(JSON.parse(existingBatch.target_results || '[]').length
+        ? forwardTargetSummary(JSON.parse(existingBatch.target_results)) : {}),
     };
   }
   const batchId = uuidv4();
@@ -336,6 +351,10 @@ async function forward(io, userId, { msgId, msgIds, conversationIds, client_batc
     if (!m || !FORWARDABLE_TYPES.has(m.type)) { failedMessageIds.push(id); failureReasons.set(id, '消息不存在或不支持转发'); continue; }
     try { requireMember(m.conversation_id, userId, '无权转发该消息'); }
     catch { failedMessageIds.push(id); failureReasons.set(id, '无权转发该消息'); continue; }
+    if (m.burn_after) { failedMessageIds.push(id); failureReasons.set(id, '阅后即焚消息不能转发'); continue; }
+    if (m.file_url && !canReferenceFile(m.file_url, userId)) {
+      failedMessageIds.push(id); failureReasons.set(id, '无权转发该附件'); continue;
+    }
     msgs.push(m);
   }
 
@@ -354,23 +373,25 @@ async function forward(io, userId, { msgId, msgIds, conversationIds, client_batc
     db.prepare(`SELECT conversation_id, role FROM conversation_members WHERE user_id=? AND conversation_id IN (${placeholders})`).all(userId, ...conversationIds).map(r => [r.conversation_id, r.role])
   );
   // 目标会话过滤一次（与具体消息无关），再对每条消息生成插入
+  const rejectedTargets = new Map();
   const allowedConvIds = conversationIds.filter(convId => {
-    if (!memberConvIds.has(convId)) return false;
-    if (muteMap.get(convId) && roleMap.get(convId) === 'member') return false;
+    if (!memberConvIds.has(convId)) { rejectedTargets.set(convId, '无权发送到该会话'); return false; }
+    if (muteMap.get(convId) && roleMap.get(convId) === 'member') { rejectedTargets.set(convId, '会话已禁言'); return false; }
     // 私聊守卫：静默跳过被拉黑/已拉黑、或对方屏蔽陌生人且我非其好友的目标，防止用转发绕过
-    if (privateSendGuard(convId, userId)) return false;
+    const reason = privateSendGuard(convId, userId);
+    if (reason) { rejectedTargets.set(convId, reason); return false; }
     return true;
   });
+  const targetResults = ids.flatMap(sourceId => conversationIds.map(conversationId => ({
+    source_message_id: sourceId, conversation_id: conversationId, status: 'failed',
+    reason: failureReasons.get(sourceId) || rejectedTargets.get(conversationId) || '转发写入失败',
+  })));
   // 保持消息原始顺序：外层消息、内层会话
   msgs.forEach(msg => {
     allowedConvIds.forEach(convId => {
       const id = uuidv4();
       targets.push({ convId, id, source: msg });
-      // 转发者此刻已通过上面的 requireMember(m.conversation_id,...) 与 allowedConvIds 过滤，
-      // 即已合法持有该文件的原始访问权、且 convId 是转发者本人真实所在的会话——在此把
-      // (file_url, convId) 登记进 file_registry_shares，供 /uploads 授权判断识别"转发到的
-      // 新会话成员"，而不必信任 messages 表本身（登记动作只由服务端在这条已校验路径上触发）。
-      if (msg.file_url) shareFileToConversation(msg.file_url, convId);
+      // The share is committed below with the message, never ahead of it.
     });
   });
 
@@ -384,16 +405,19 @@ async function forward(io, userId, { msgId, msgIds, conversationIds, client_batc
         conversationId: convId, eventType: 'message_created', messageId: id, actorId: userId,
         batchId, clientBatchId,
         payload: { batch_id: batchId, client_batch_id: clientBatchId, source_message_id: source.id },
-        ops: [{
+        ops: [...(source.file_url ? [fileShareOp(source.file_url, convId, userId)] : []), {
           sql: 'INSERT INTO messages (id,conversation_id,sender_id,type,content,file_url,duration,batch_id,client_batch_id,server_sequence) VALUES (?,?,?,?,?,?,?,?,?,?)',
           params: [id, convId, userId, source.type, source.content, source.file_url || '', source.duration || 0, batchId, clientBatchId, SEQUENCE_PARAM],
         }],
       });
       target.serverSequence = sequenced.server_sequence;
+      Object.assign(targetResults.find(r=>r.source_message_id===source.id && r.conversation_id===convId),
+        { status: 'success', reason: null, message_id: id });
       successfulSourceIds.add(source.id);
     } catch (error) {
       writeFailedSourceIds.add(source.id);
       failureReasons.set(source.id, error.message || '转发写入失败');
+      targetResults.find(r=>r.source_message_id===source.id && r.conversation_id===convId).reason = '转发写入失败';
     }
   }
   if (!allowedConvIds.length) msgs.forEach(source => {
@@ -403,11 +427,14 @@ async function forward(io, userId, { msgId, msgIds, conversationIds, client_batc
   writeFailedSourceIds.forEach(id => { if (!successfulSourceIds.has(id)) failedMessageIds.push(id); });
   const uniqueFailedIds = [...new Set(failedMessageIds)];
   const successCount = ids.length - uniqueFailedIds.length;
-  const status = successCount === ids.length ? 'success' : successCount > 0 ? 'partial_success' : 'failed';
-  const retryableIds = uniqueFailedIds.filter(id => failureReasons.has(id));
+  const successfulPairs = targetResults.filter(r=>r.status==='success').length;
+  const status = successfulPairs === targetResults.length ? 'success' : successfulPairs > 0 ? 'partial_success' : 'failed';
+  // Preserve retry hints for non-permission failures, including missing source messages.
+  const nonRetryableReasons = new Set(['无权转发该消息', '无权转发该附件', '没有可用的目标会话', '阅后即焚消息不能转发']);
+  const retryableIds = uniqueFailedIds.filter(id => !nonRetryableReasons.has(failureReasons.get(id)));
   db.prepare(`UPDATE message_forward_batches SET status=?, success_count=?, failed_count=?,
-    failed_message_ids=?, retryable_message_ids=?, updated_at=strftime('%s','now') WHERE batch_id=?`)
-    .run(status, successCount, uniqueFailedIds.length, JSON.stringify(uniqueFailedIds), JSON.stringify(retryableIds), batchId);
+    failed_message_ids=?, retryable_message_ids=?, target_results=?, updated_at=strftime('%s','now') WHERE batch_id=?`)
+    .run(status, successCount, uniqueFailedIds.length, JSON.stringify(uniqueFailedIds), JSON.stringify(retryableIds), JSON.stringify(targetResults), batchId);
   if (targets.length) {
     cache.delPattern(`search:*${userId}*`).catch(() => {});
     // 失效每个目标会话所有成员的会话列表缓存（去重）
@@ -426,7 +453,7 @@ async function forward(io, userId, { msgId, msgIds, conversationIds, client_batc
     batch_id: batchId, client_batch_id: clientBatchId, status,
     total: ids.length, success_count: successCount, failed_count: uniqueFailedIds.length,
     failed_message_ids: uniqueFailedIds, retryable_message_ids: retryableIds,
-    sent: new Set(targets.filter(t => t.serverSequence != null).map(t => t.convId)).size,
+    ...forwardTargetSummary(targetResults),
   };
 }
 
@@ -642,6 +669,7 @@ async function edit(io, userId, msgId, content) {
 
 // ── 收藏 ────────────────────────────────────────────────────────
 async function collect(userId, msgId) {
+  if (db.prepare('SELECT burn_after FROM messages WHERE id=?').get(msgId)?.burn_after) throw forbidden('阅后即焚消息不能收藏');
   // 后台开关拦截：关闭「收藏」后，任何客户端（含绕过 UI 的直连）都被拒绝。
   // 直接读 admin_settings，避免引入 admin.service 造成循环依赖；实时生效，无需重启。
   if (db.prepare('SELECT value FROM admin_settings WHERE key=?').get('feature_collect')?.value === 'off') {
@@ -743,7 +771,7 @@ async function searchGlobal(userId, { q, limit = 20, offset = 0, type, from, to,
 
   const cacheKey = `search:${userId}:${q}:${safeLimit}:${safeOffset}`;
   const cachedResult = await cache.get(cacheKey);
-  if (cachedResult) return cachedResult;
+  if (cachedResult && canUseMessageCache(cachedResult.results, userId)) return cachedResult;
 
   // trigram 分词器要求 token ≥ 3 字符；1~2 字（中文名/单字词极常见）FTS 无法命中，
   // 退化为 LIKE 精确子串匹配，避免短词全局搜索恒空（与 searchInConversation 一致）。
@@ -847,6 +875,7 @@ async function searchGlobal(userId, { q, limit = 20, offset = 0, type, from, to,
 //   若仍走 FTS 则 type=image 等媒体类型过滤永远空结果，故这里换用直查 messages 表按 content LIKE，
 //   可覆盖任意消息类型（文件类消息 content 即原始文件名）。
 async function searchInConversation(convId, userId, q, filters = {}) {
+  require('./burn.service').expireDueMessages();
   const { type, from, to, senderId } = filters;
   const hasFilters = !!(type || from || to || senderId);
   if ((!q || !q.trim()) && !hasFilters) return [];
@@ -887,7 +916,7 @@ async function searchInConversation(convId, userId, q, filters = {}) {
   // P2 优化：尝试从缓存获取搜索结果（TTL: 10 分钟）
   const cacheKey = `search:${convId}:${userId}:${q}`;
   let cachedResult = await cache.get(cacheKey);
-  if (cachedResult) {
+  if (cachedResult && canUseMessageCache(cachedResult, userId)) {
     return cachedResult;
   }
 
@@ -972,7 +1001,7 @@ function aroundMessage(convId, msgId, userId) {
   if (replyIds.length > 0) {
     const ph = replyIds.map(() => '?').join(',');
     db.prepare(`
-      SELECT m.id, m.type, m.content, m.file_url, m.deleted, COALESCE(u.username, '') AS senderName
+      SELECT m.id, m.type, CASE WHEN m.burn_after>0 THEN '' ELSE m.content END AS content, CASE WHEN m.burn_after>0 THEN '' ELSE m.file_url END AS file_url, m.deleted, COALESCE(u.username, '') AS senderName
       FROM messages m LEFT JOIN users u ON u.id=m.sender_id WHERE m.id IN (${ph}) AND m.conversation_id=?
     `).all(...replyIds, convId).forEach(r => replyMap.set(r.id, r));
   }
@@ -1011,7 +1040,7 @@ function exportConversation(convId, userId) {
     SELECT m.created_at, m.type, m.content, m.file_url, m.deleted,
            COALESCE(u.username, '') AS senderName
     FROM messages m LEFT JOIN users u ON u.id=m.sender_id
-    WHERE m.conversation_id=? AND m.deleted=0
+    WHERE m.conversation_id=? AND m.deleted=0 AND m.burn_after=0
       AND m.rowid > COALESCE((SELECT cleared_rowid FROM conversation_clears
                                    WHERE user_id=? AND conversation_id=m.conversation_id), 0)
     ORDER BY m.created_at ASC, m.rowid ASC

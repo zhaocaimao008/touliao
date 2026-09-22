@@ -1,3 +1,4 @@
+const legalConsent = require('../../backend-v2/test/legal-consent.cjs');
 // tests/e2e/voice-call.spec.js
 //
 // 语音通话 E2E 回归套件 —— 2026-09-04 P1「语音通话全端不通」故障排查产出。
@@ -60,13 +61,13 @@ async function fetchCaptcha(page) {
 async function login(page, user) {
   await page.goto(FRONTEND + '/', { waitUntil: 'domcontentloaded' });
   const { captchaId, text: captchaText } = await fetchCaptcha(page);
-  const res = await page.evaluate(async ({ phone, password, captchaId, captchaText }) => {
+  const res = await page.evaluate(async ({ phone, password, captchaId, captchaText, legalConsent }) => {
     const r = await fetch('/api/auth/login', {
       method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include',
-      body: JSON.stringify({ phone, password, captchaId, captchaText }),
+      body: JSON.stringify({ phone, password, captchaId, captchaText, legalConsent }),
     });
     return { status: r.status, body: await r.text() };
-  }, { ...user, captchaId, captchaText });
+  }, { ...user, captchaId, captchaText, legalConsent });
   return res;
 }
 

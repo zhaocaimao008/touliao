@@ -3,7 +3,7 @@ export const FORWARDABLE_MESSAGE_TYPES = new Set([
 ]);
 
 export function isForwardableMessage(message) {
-  return !!message && !message.deleted && FORWARDABLE_MESSAGE_TYPES.has(message.type);
+  return !!message && !message.deleted && !message.burn_after && FORWARDABLE_MESSAGE_TYPES.has(message.type);
 }
 
 function contactName(content) {

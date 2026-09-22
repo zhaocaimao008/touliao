@@ -97,12 +97,12 @@ describe('消息定时发送', () => {
   });
 
   test('调度器 sendDueMessages 到期发送：消息入库且 is_scheduled=1', async () => {
-    // 直接插一条已到期的 pending（绕过 15 分钟下限，模拟到点）
-    const { v4: uuidv4 } = require('uuid');
-    const id = uuidv4();
-    db.prepare(
-      'INSERT INTO scheduled_messages (id,conversation_id,sender_id,content,type,send_at,status) VALUES (?,?,?,?,?,?,?)'
-    ).run(id, convId, u1.userId, '到点自动发出', 'text', now() - 5, 'pending');
+    // Use the real new-task protocol, then move the clock boundary into the past.
+    // A raw legacy overdue row is intentionally quarantined for reconciliation.
+    const { id } = sched.scheduleMessage(u1.userId, {
+      conversation_id: convId, content: '到点自动发出', type: 'text', send_at: now() + 3600,
+    });
+    db.prepare('UPDATE scheduled_messages SET send_at=? WHERE id=?').run(now() - 5, id);
 
     const sent = await sched.sendDueMessages();
     expect(sent).toBeGreaterThanOrEqual(1);

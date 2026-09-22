@@ -32,22 +32,25 @@ class AudioRecorder @Inject constructor(
         stopInternal(deleteFile = true)
         val file = File(context.cacheDir, "voice_${System.currentTimeMillis()}.m4a")
         outputFile = file
-        val r = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) MediaRecorder(context) else @Suppress("DEPRECATION") MediaRecorder()
+        var r: MediaRecorder? = null
+        lastDurationSeconds = 0
         return try {
-            r.setAudioSource(MediaRecorder.AudioSource.MIC)
-            r.setOutputFormat(MediaRecorder.OutputFormat.MPEG_4)
-            r.setAudioEncoder(MediaRecorder.AudioEncoder.AAC)
-            r.setAudioEncodingBitRate(64_000)
-            r.setAudioSamplingRate(44_100)
-            r.setOutputFile(file.absolutePath)
-            r.prepare()
-            r.start()
-            recorder = r
+            val device = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) MediaRecorder(context) else @Suppress("DEPRECATION") MediaRecorder()
+            r = device
+            device.setAudioSource(MediaRecorder.AudioSource.MIC)
+            device.setOutputFormat(MediaRecorder.OutputFormat.MPEG_4)
+            device.setAudioEncoder(MediaRecorder.AudioEncoder.AAC)
+            device.setAudioEncodingBitRate(64_000)
+            device.setAudioSamplingRate(44_100)
+            device.setOutputFile(file.absolutePath)
+            device.prepare()
+            device.start()
+            recorder = device
             startedAtMs = android.os.SystemClock.elapsedRealtime()
             true
         } catch (e: Exception) {
-            Log.e(TAG, "start failed: ${e.message}")
-            runCatching { r.release() }
+            Log.e(TAG, "录音初始化失败")
+            runCatching { r?.release() }
             recorder = null
             file.delete()
             outputFile = null
@@ -60,17 +63,21 @@ class AudioRecorder @Inject constructor(
         val r = recorder ?: return null
         return try {
             r.stop()
-            r.release()
+            val completed = outputFile?.takeIf { it.isFile && it.length() > 0 }
+                ?: throw java.io.IOException("录音文件为空或已丢失")
             recorder = null
             lastDurationSeconds = ((android.os.SystemClock.elapsedRealtime() - startedAtMs) / 1000).toInt().coerceAtLeast(0)
-            outputFile
+            outputFile = null
+            completed
         } catch (e: Exception) {
-            Log.e(TAG, "stop failed: ${e.message}")
-            r.release()
+            Log.e(TAG, "录音失败")
             recorder = null
             outputFile?.delete()
             outputFile = null
             null
+        } finally {
+            runCatching { r.release() }
+            recorder = null
         }
     }
 

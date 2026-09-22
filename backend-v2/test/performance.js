@@ -30,7 +30,11 @@ let conversationId = '';
 
 export function setup() {
   // 注册测试用户
+  // k6 cannot import the CommonJS policy source. The operator must review and
+  // explicitly supply the current policy version for synthetic load-test users.
+  if (!__ENV.LEGAL_CONSENT_VERSION) throw new Error('BLOCKED: LEGAL_CONSENT_VERSION is required');
   const registerPayload = JSON.stringify({
+    legalConsent: { accepted: true, privacyVersion: __ENV.LEGAL_CONSENT_VERSION, termsVersion: __ENV.LEGAL_CONSENT_VERSION },
     phone: `138${Math.random().toString().slice(2, 11)}`,
     password: 'Test@12345',
     username: '压力测试用户',
