@@ -13,7 +13,7 @@ export default function RedPacketModal({ conversation, onClose, onSent }) {
   const [sending, setSending] = useState(false);
   const [error, setError] = useState('');
   const requestConfig = useRef(null);
-  if (!requestConfig.current) requestConfig.current = createFinancialRequest();
+  if (requestConfig.current == null) requestConfig.current = createFinancialRequest();
   const inFlight = useRef(false);
 
   // 私聊红包固定 1 个（对齐微信：私聊只填金额，无「个数」）；群聊才有个数

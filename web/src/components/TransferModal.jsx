@@ -16,7 +16,7 @@ export default function TransferModal({ conversation, onClose, onSent }) {
   const [sending, setSending] = useState(false);
   const [error,   setError]   = useState('');
   const requestConfig = useRef(null);
-  if (!requestConfig.current) requestConfig.current = createFinancialRequest();
+  if (requestConfig.current == null) requestConfig.current = createFinancialRequest();
   const inFlight = useRef(false);
 
   // 仅私聊才能转账（校验由父组件保证，这里防御性显示）

@@ -19,7 +19,7 @@ export function ReportDialog({ targetType = 'support', targetId = 'support', onC
       setItems(data.items); setHasMore(data.hasMore); setOffset(start); setError('');
     } catch (e) { setError(e.response?.data?.error || '状态加载失败，请重试'); }
   };
-  useEffect(() => { load(); }, []);
+  useEffect(() => { (async () => { await load(); })(); }, []);
   const submit = async e => {
     e.preventDefault();
     if (inFlight.current || !reason.trim()) return;
