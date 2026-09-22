@@ -22,6 +22,10 @@ beforeEach(() => {
 });
 
 afterEach(async () => {
+  // 让晚到的 Worker 'exit' 回调先把崩溃重启定时器排进「即将被丢弃的旧假时钟」,
+  // 否则它会排进下一个用例新装的假时钟,污染该用例的 jest.getTimerCount()。
+  // setImmediate 未被 fake(doNotFake 列表内),单次宏任务轮转,非 sleep/非重试。
+  await new Promise(resolve => setImmediate(resolve));
   await shutdownWriterBeforeModuleReset();
   jest.resetModules();
   jest.dontMock('../src/config');
