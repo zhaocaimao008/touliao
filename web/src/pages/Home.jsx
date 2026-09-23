@@ -549,6 +549,39 @@ export default function Home() {
   const addBtnRef = useRef(null);
   useEffect(() => { activeConvIdRef.current = activeConv?.id ?? null; }, [activeConv?.id]);
 
+  // 已打开的会话也订阅好友在线状态；重连后补一次快照，避免漏掉离线期间的事件。
+  const activePeerId = activeConv?.otherUser?.id;
+  useEffect(() => {
+    if (!socket || !activePeerId) return;
+    const ac = new AbortController();
+    let revision = 0;
+    const update = (status) => setActiveConv(prev => prev?.otherUser?.id === activePeerId
+      ? { ...prev, otherUser: { ...prev.otherUser, status } } : prev);
+    const online = ({ userId }) => { if (userId === activePeerId) { revision++; update('online'); } };
+    const offline = ({ userId }) => { if (userId === activePeerId) { revision++; update('offline'); } };
+    const disconnected = () => { revision++; update('unknown'); };
+    const refresh = async () => {
+      const version = ++revision;
+      try {
+        const { data } = await axios.get('/api/messages/conversations', { params: { includeArchived: 1 }, signal: ac.signal });
+        const peer = data.find(c => c.otherUser?.id === activePeerId)?.otherUser;
+        if (!ac.signal.aborted && revision === version && peer) update(peer.status);
+      } catch { /* 实时事件仍可继续更新；请求失败不伪造在线状态 */ }
+    };
+    socket.on('user_online', online);
+    socket.on('user_offline', offline);
+    socket.on('connect', refresh);
+    socket.on('disconnect', disconnected);
+    refresh();
+    return () => {
+      ac.abort();
+      socket.off('user_online', online);
+      socket.off('user_offline', offline);
+      socket.off('connect', refresh);
+      socket.off('disconnect', disconnected);
+    };
+  }, [socket, activePeerId]);
+
   const handleSelectConv = useCallback((conv) => {
     setActiveConv(conv);
     setUnread(prev => ({ ...prev, [conv.id]: 0 }));
@@ -1286,7 +1319,7 @@ export default function Home() {
 
         {/* 面板区（固定顶栏 + 内容） */}
         {(!isMobile || showPanel) && (
-          <div className="wc-panel">
+          <div className={`wc-panel${['moments', 'favorites', 'me', 'profile', 'calls'].includes(tab) ? ' wc-panel-wide' : ''}`}>
 
             {/* 固定顶栏：搜索 + 二维码 + 添加 */}
             <div className="wc-panel-topbar">
@@ -1297,7 +1330,6 @@ export default function Home() {
                   aria-label={t('common.search')}
                   value={search}
                   onChange={e => setSearch(e.target.value)}
-                  onKeyDown={e => { if ((e.key === 'Enter' || e.key === ' ') && tab === 'contacts') { e.preventDefault(); setAddFriendRequest(n => n + 1); } }}
                 />
                 {search && (
                   <button className="home-search-clear" aria-label={t('common.clear')}
@@ -1326,7 +1358,7 @@ export default function Home() {
         )}
 
         {/* 聊天区 */}
-        {(!isMobile || showChat) && (
+        {(!isMobile || showChat) && ['chats', 'contacts'].includes(tab) && (
           <div className="home-chat-area">
             {activeConv
               ? (

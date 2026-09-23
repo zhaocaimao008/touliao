@@ -57,7 +57,7 @@ const ReadStatusModal     = lazy(() => import('./ReadStatusModal'));
 import { useSocket } from '../contexts/SocketContext';
 import { useAuth } from '../contexts/AuthContext';
 import { useI18n } from '../contexts/I18nContext';
-import { mediaUrl, useMediaCredentials } from '../utils/url';
+import { mediaUrl, resolveMediaUrl, useMediaCredentials } from '../utils/url';
 import { rememberAspect } from '../utils/imgDimCache';
 import { copyToClipboard, copyImageToClipboard } from '../utils/clipboard';
 import { downloadFile } from '../utils/download';
@@ -213,7 +213,7 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
   const [conversation, setConversation] = useState(initialConv);
   const [messages, setMessages] = useState([]);
   // 首屏加载态：消息为空且数据仍在途（无缓存/缓存为空）时显示骨架，避免纯空白
-  const [initialLoading, setInitialLoading] = useState(false);
+  const [initialLoading, setInitialLoading] = useState(true);
   // 输入区（compose）状态收敛进 useReducer：input / voiceMode / editingMsg /
   // replyTo 四者有真实协同转换（开始编辑=载入文本+清回复；发送=清文本+清回复；
   // 切换会话=全清），改为原子 dispatch，杜绝散落 setState 的不一致。见
@@ -627,6 +627,7 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
   if (conversation.id !== prevConvId) {
     setMessages([]);
     setPrevConvId(conversation.id);
+    setInitialLoading(true);
     // compose 全清 + 载入新会话草稿（replyTo/editingMsg/voiceMode/input 原子重置）
     dispatchCompose({ type: 'RESET', draft: localStorage.getItem(`draft_${conversation.id}`) || '' });
     setMention(null); // 清 @ 提及态,避免跨会话残留下拉
@@ -651,8 +652,6 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
     // 旧逻辑 setMessages(prev => prev.length ? prev : cached) 在「不清空」后无法
     // 区分「旧会话残留」与「新会话在途消息」，统一用 firstArrival 标记。
     let firstArrival = true;
-    // 会话切换首帧 loading 起点：仅会话切换时置位一次，无级联渲染风险
-    setInitialLoading(true);
     const convIdForCache = conversation.id;
     const cachedMessages = (conversation.burn_after || 0) > 0
       ? clearCache(convIdForCache).then(() => [])
@@ -1778,13 +1777,14 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
     const form = new FormData();
     form.append('file', file);
     if (replyTo?.id) form.append('reply_to_id', replyTo.id);
-    await axios.post(`/api/messages/${conversation.id}/upload`, form, {
+    const { data } = await axios.post(`/api/messages/${conversation.id}/upload`, form, {
       headers: { 'Content-Type': 'multipart/form-data' },
       onUploadProgress: (e) => { if (e.total) onProgress?.(Math.round(e.loaded / e.total * 100)); },
       // 直传路径没有大小上限（后端 MAX_UPLOAD_BYTES 默认 200MB），全局 20s 默认对大文件/慢网络
       // 明显不够，给一个远大于正常场景的兜底值，而不是完全不设超时（那样又回到"可能永久挂起"）。
       timeout: 600000, // 10 分钟
     });
+    return data.file_url;
   }, [conversation.id, replyTo]);
 
   // ── 分片 / 断点续传上传（大文件，云存储未配置时的本地大文件通道）──
@@ -1825,8 +1825,9 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
       }
       onProgress?.(Math.round(received / file.size * 100));
     }
-    await axios.post(`/api/messages/${conversation.id}/upload-finish/${init.uploadId}`,
+    const { data } = await axios.post(`/api/messages/${conversation.id}/upload-finish/${init.uploadId}`,
       replyTo?.id ? { reply_to_id: replyTo.id } : {});
+    return data.file_url;
   }, [conversation.id, replyTo]);
 
   // ── 统一文件处理入口（handleFileUpload / handleDrop 共用）────
@@ -1883,7 +1884,8 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
     // 把刚才的翻阅动作打断。现在点发送瞬间即插入占位(图片/视频给本地 blob 预览)并贴底，
     // 广播到达后按 clientMsgId 原地替换成真实消息，行为与文字/名片发送保持一致。
     const tempId = `tmp_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-    const localPreviewUrl = (type === 'image' || type === 'video') ? URL.createObjectURL(file) : '';
+    let localPreviewUrl = (type === 'image' || type === 'video') ? URL.createObjectURL(file) : '';
+    let previewRevoked = false;
     const replySnap = replyTo ? { ...replyTo } : null;
     const optimistic = {
       id: tempId, conversation_id: conversation.id, sender_id: user.id,
@@ -1895,12 +1897,22 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
       _status: 'sending', _tempId: tempId,
     };
     const addOptimistic = () => {
+      if (previewRevoked) {
+        localPreviewUrl = URL.createObjectURL(file);
+        optimistic.file_url = localPreviewUrl;
+        previewRevoked = false;
+      }
       forceScrollRef.current = true; // 和文字/名片一致：发送瞬间无条件滚到底
       setMessages(prev => prev.some(m => m._tempId === tempId) ? prev : [...prev, optimistic]);
     };
-    const dropOptimistic = () => {
+    const updateOpenPreview = (url) => {
+      setVideoPreview(prev => prev?.url === localPreviewUrl
+        ? (url ? { ...prev, url } : null) : prev);
+    };
+    const dropOptimistic = (finalUrl) => {
+      updateOpenPreview(finalUrl);
       setMessages(prev => prev.filter(m => m._tempId !== tempId));
-      if (localPreviewUrl) URL.revokeObjectURL(localPreviewUrl);
+      if (localPreviewUrl) { URL.revokeObjectURL(localPreviewUrl); previewRevoked = true; }
     };
     dispatchCompose({ type: 'CLEAR_REPLY' });
 
@@ -1933,7 +1945,7 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
             setUploadState(null);
             // 这条兜底路径是后端直接入库+广播，没有 clientMsgId 回执可对上占位消息，
             // 只能先摘掉占位，真实消息到达后作为新行插入(见 onMsg)，不追加多余的强制滚动。
-            dropOptimistic();
+            dropOptimistic(localUrl);
             return;
           }
           throw cloudErr;
@@ -1952,7 +1964,10 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
           clientMsgId: tempId, // 与占位消息用同一个 id：onMsg 按 client_msg_id 原地替换占位，不重复
         }, (res) => {
           if (!res?.success) { showToast(res?.error || t('chat.fileSendFailed'), 'error'); dropOptimistic(); }
-          else if (localPreviewUrl) setTimeout(() => URL.revokeObjectURL(localPreviewUrl), 5000);
+          else {
+            updateOpenPreview(publicUrl);
+            if (localPreviewUrl) setTimeout(() => URL.revokeObjectURL(localPreviewUrl), 5000);
+          }
         });
         // 缩略图：仅图片且后端确实发了 thumbUploadUrl(jpg/jpeg/png/webp)才生成上传；
         // 不 await——不能拖慢/阻塞消息发送，消息已经用原图 URL 正常发出去了。
@@ -2221,7 +2236,7 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
           // 图片/表情：抓原图 → 写入系统剪贴板（可直接粘贴到微信/文档等）。
           // Web 同源直接 fetch；Electron 走主进程原生剪贴板（渲染进程 file:// 跨源受限）。
           showToast(t('chat.copyingImage'));
-          const ok = await copyImageToClipboard(mediaUrl(msg.file_url));
+          const ok = await copyImageToClipboard(await resolveMediaUrl(msg.file_url));
           showToast(ok ? t('chat.imageCopied') : t('chat.copyFailedLongPress'), ok ? 'success' : 'error');
         } else {
           showToast(t('chat.msgTypeNotSupportCopy'));
@@ -2635,7 +2650,7 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
         <div
           className="wc-messages-virt"
           style={conversation.background ? {
-            backgroundImage: `url(${mediaUrl(conversation.background)})`,
+            backgroundImage: mediaUrl(conversation.background) ? `url(${mediaUrl(conversation.background)})` : undefined,
             backgroundSize: 'cover',
             backgroundPosition: 'center',
             backgroundRepeat: 'no-repeat',

@@ -1,3 +1,4 @@
+import useFocusTrap from '../hooks/useFocusTrap';
 import React, { useState, useEffect, useCallback, useRef, memo } from 'react';
 import axios from 'axios';
 import Avatar from './Avatar';
@@ -146,7 +147,7 @@ export const MomentCard = memo(function MomentCard({ m, meId, onLike, onComment,
             aria-label={t('moments.playVideo')}
           >
             <video
-              src={`${mediaUrl(m.video)}#t=0.1`}
+              src={mediaUrl(m.video) ? `${mediaUrl(m.video)}#t=0.1` : undefined}
               poster={m.cover ? mediaUrl(m.cover) : undefined}
               preload="metadata"
               muted
@@ -161,7 +162,7 @@ export const MomentCard = memo(function MomentCard({ m, meId, onLike, onComment,
             url={lightbox.urls[lightbox.idx]} onClose={() => setLightbox(null)} />
         )}
         {videoLightbox && (
-          <VideoPreview url={mediaUrl(m.video)} name={t('moments.videoFilename')} onClose={() => setVideoLightbox(false)} />
+          <VideoPreview url={m.video} name={t('moments.videoFilename')} onClose={() => setVideoLightbox(false)} />
         )}
 
         <div className="wc-moment-actions">
@@ -191,15 +192,15 @@ export const MomentCard = memo(function MomentCard({ m, meId, onLike, onComment,
         {(m.comments?.length > 0 || hasMoreComments) && (
           <div className="wc-moment-comments">
             {m.comments?.map(c => (
-              <div key={c.id} className="wc-moment-comment"
-                onClick={() => startReply(c)}
-                role={c.user_id === meId ? undefined : 'button'}
-                tabIndex={c.user_id === meId ? undefined : 0}
-                onKeyDown={e => { if (e.key === 'Enter') startReply(c); }}
-                style={{ cursor: c.user_id === meId ? 'default' : 'pointer' }}>
-                <span className="wc-moment-comment-user">{c.username}</span>
-                {c.reply_to_username ? <span className="wc-moment-comment-reply">{t('moments.replyToTemplate').replace('{name}', c.reply_to_username)}</span> : null}
-                <span>：{c.content}</span>
+              <div key={c.id} className="wc-moment-comment">
+                <span className="wc-moment-comment-reply-target"
+                  role={c.user_id === meId ? undefined : 'button'} tabIndex={c.user_id === meId ? undefined : 0}
+                  onClick={() => startReply(c)}
+                  onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); startReply(c); } }}>
+                  <span className="wc-moment-comment-user">{c.username}</span>
+                  {c.reply_to_username ? <span className="wc-moment-comment-reply">{t('moments.replyToTemplate').replace('{name}', c.reply_to_username)}</span> : null}
+                  <span>：{c.content}</span>
+                </span>
                 {(c.user_id === meId || m.user_id === meId) && (
                   <button className="wc-moment-comment-del"
                     aria-label={t('moments.deleteCommentAriaLabel')} title={t('moments.deleteCommentAriaLabel')}
@@ -267,6 +268,10 @@ export default function Moments() {
   const [list, setList] = useState([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [hasMore, setHasMore] = useState(false);
+  const timelineRequest = useRef(null);
+  const timelineCursor = useRef(null);
   const [text, setText] = useState('');
   const [images, setImages] = useState([]); // [{previewUrl, file}]
   const [mediaMode, setMediaMode] = useState('images'); // images | video
@@ -281,7 +286,21 @@ export default function Moments() {
   const [notifCount, setNotifCount] = useState(0);
   const [notifList, setNotifList] = useState(null); // null = 面板关闭；[] = 已打开
   const [showSettings, setShowSettings] = useState(false);
-  const [visibleDays, setVisibleDays] = useState(0); // 最近 N 天可见：0=全部
+  const [notifLoading, setNotifLoading] = useState(false);
+  const [notifError, setNotifError] = useState(false);
+  const [notifHasMore, setNotifHasMore] = useState(false);
+  const [notifReady, setNotifReady] = useState(0);
+  const [notifReadError, setNotifReadError] = useState(false);
+  const notifRequest = useRef(null);
+  const notifReadRequest = useRef(null);
+  const notifOffset = useRef(0);
+  const notifBusy = useRef(false);
+  const settingsDialog = useFocusTrap(showSettings);
+  const notificationsDialog = useFocusTrap(notifList !== null);
+  const [settingsError, setSettingsError] = useState(false);
+  const [savingDays, setSavingDays] = useState(false);
+  const savingDaysRef = useRef(false);
+  const [visibleDays, setVisibleDays] = useState(null); // 最近 N 天可见：0=全部
   const [editing, setEditing] = useState(null); // 正在编辑的动态 { id, content } | null
   const [editText, setEditText] = useState('');
   const [savingEdit, setSavingEdit] = useState(false);
@@ -297,29 +316,47 @@ export default function Moments() {
     if (videoRef.current) URL.revokeObjectURL(videoRef.current.previewUrl);
   }, []);
 
-  // 重试/刷新用（显示转圈后重拉）
-  const load = useCallback(() => {
-    setLoading(true);
-    axios.get('/api/moments')
-      .then(r => { setList(r.data); setLoadError(false); })
-      .catch(() => setLoadError(true))
-      .finally(() => setLoading(false));
+  // 时间线使用稳定游标，新增/删除动态不会使下一页跳项；刷新取消旧请求。
+  const load = useCallback(async (more = false) => {
+    if (more && timelineRequest.current) return;
+    timelineRequest.current?.abort();
+    const ac = new AbortController();
+    timelineRequest.current = ac;
+    setLoadError(false);
+    if (more) setLoadingMore(true); else { setLoading(true); setLoadingMore(false); }
+    try {
+      const cursor = more ? timelineCursor.current : null;
+      const { data } = await axios.get('/api/moments', {
+        params: { limit: 20, ...(cursor ? { beforeCreatedAt: cursor.created_at, beforeId: cursor.id } : {}) }, signal: ac.signal,
+      });
+      if (!Array.isArray(data)) throw new Error('Invalid timeline response');
+      if (ac.signal.aborted) return;
+      timelineCursor.current = data.at(-1) || cursor;
+      setList(prev => more ? [...prev, ...data.filter(m => !prev.some(p => p.id === m.id))] : data);
+      setHasMore(data.length === 20);
+    } catch { if (!ac.signal.aborted) setLoadError(true); }
+    finally {
+      if (!ac.signal.aborted) { setLoading(false); setLoadingMore(false); timelineRequest.current = null; }
+    }
   }, []);
-  // 初次挂载拉取：loading 初值已为 true，effect 内不做同步 setState（避免级联渲染）
   useEffect(() => {
-    let alive = true;
-    axios.get('/api/moments')
-      .then(r => { if (alive) { setList(r.data); setLoadError(false); } })
-      .catch(() => { if (alive) setLoadError(true); })
-      .finally(() => { if (alive) setLoading(false); });
-    return () => { alive = false; };
-  }, []);
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- 初始请求与手动刷新共用可取消的加载流程
+    load();
+    return () => timelineRequest.current?.abort();
+  }, [load]);
 
-  // 朋友圈"最近 N 天可见"设置初值
-  useEffect(() => {
-    axios.get('/api/users/me/settings')
-      .then(r => setVisibleDays(Number(r.data?.momentsVisibleDays) || 0)).catch(() => {});
+  const loadSettings = useCallback(async (signal) => {
+    try {
+      const { data } = await axios.get('/api/users/me/settings', { signal });
+      if (!signal?.aborted) { setVisibleDays(Number(data.momentsVisibleDays) || 0); setSettingsError(false); }
+    } catch { if (!signal?.aborted) setSettingsError(true); }
   }, []);
+  useEffect(() => {
+    const ac = new AbortController();
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- 状态仅在可取消的异步设置请求完成后更新
+    loadSettings(ac.signal);
+    return () => ac.abort();
+  }, [loadSettings]);
 
   // 分组可见：首次需要选人时按需加载联系人
   const ensureFriends = useCallback(() => {
@@ -328,9 +365,15 @@ export default function Moments() {
   }, [friends.length]);
 
   const saveVisibleDays = async (d) => {
-    setVisibleDays(d);
-    try { await axios.put('/api/users/me/settings', { momentsVisibleDays: d }); }
-    catch { /* 静默失败，下次进入重置 */ }
+    if (savingDaysRef.current || visibleDays === null || visibleDays === d) return;
+    savingDaysRef.current = true;
+    setSavingDays(true);
+    setSettingsError(false);
+    try {
+      await axios.put('/api/users/me/settings', { momentsVisibleDays: d });
+      setVisibleDays(d);
+    } catch { setSettingsError(true); }
+    finally { savingDaysRef.current = false; setSavingDays(false); }
   };
 
   // 互动通知未读数（谁赞了/评论了我的动态）
@@ -353,24 +396,49 @@ export default function Moments() {
   useEffect(() => {
     const handler = e => {
       if (e.key !== 'Escape') return;
-      if (notifList) { setNotifList(null); return; }
+      if (notifList !== null) { notifRequest.current?.abort(); notifReadRequest.current?.abort(); setNotifList(null); return; }
       if (showFriendPicker) { setShowFriendPicker(false); return; }
       if (showSettings) { setShowSettings(false); return; }
+      if (editing && !savingEdit) setEditing(null);
     };
     document.addEventListener('keydown', handler);
     return () => document.removeEventListener('keydown', handler);
-  }, [notifList, showFriendPicker, showSettings]);
+  }, [notifList, showFriendPicker, showSettings, editing, savingEdit]);
 
-  const openNotif = async () => {
+  const closeNotif = () => { notifRequest.current?.abort(); notifReadRequest.current?.abort(); setNotifList(null); };
+  const openNotif = async (more = false) => {
+    if (more && notifBusy.current) return;
+    notifRequest.current?.abort();
+    const ac = new AbortController();
+    notifRequest.current = ac;
+    notifBusy.current = true;
+    setNotifLoading(true);
+    setNotifError(false);
+    if (!more) { setNotifList([]); setNotifHasMore(false); setNotifReadError(false); notifOffset.current = 0; }
     try {
-      const { data } = await axios.get('/api/moments/notifications', { params: { limit: 30 } });
-      setNotifList(data || []);
-      if (notifCount > 0) {
-        axios.post('/api/moments/notifications/read').catch(() => {});
-        setNotifCount(0);
-      }
-    } catch { setNotifList([]); }
+      const { data } = await axios.get('/api/moments/notifications', { params: { limit: 30, offset: notifOffset.current }, signal: ac.signal });
+      if (!Array.isArray(data?.items) || data.items.some(n => !n || typeof n.id !== 'string')) throw new Error('Invalid notifications response');
+      if (ac.signal.aborted) return;
+      setNotifList(prev => more ? [...(prev || []), ...data.items.filter(n => !prev?.some(p => p.id === n.id))] : data.items);
+      notifOffset.current += data.items.length;
+      setNotifHasMore(!!data.hasMore && data.items.length > 0);
+      if (!more) setNotifReady(n => n + 1);
+    } catch { if (!ac.signal.aborted) setNotifError(true); }
+    finally { if (!ac.signal.aborted) { setNotifLoading(false); notifBusy.current = false; } }
   };
+  // 仅在成功读取并提交通知列表后标记已读；读取/标记失败都保留未读数。
+  useEffect(() => {
+    if (!notifReady) return;
+    if (notifRequest.current?.signal.aborted) return;
+    const ac = new AbortController();
+    notifReadRequest.current = ac;
+    const signal = ac.signal;
+    axios.post('/api/moments/notifications/read', {}, { signal })
+      .then(() => { if (!signal?.aborted) { setNotifReadError(false); loadNotifCount(); } })
+      .catch(() => { if (!signal.aborted) setNotifReadError(true); });
+    return () => ac.abort();
+  }, [notifReady, loadNotifCount]);
+  useEffect(() => () => notifRequest.current?.abort(), []);
 
   const ALLOWED_IMG_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
   const handleImagePick = (e) => {
@@ -501,7 +569,7 @@ export default function Moments() {
         : { content: text.trim(), images: imageUrls, visibility };
       if (visibility === 'include' || visibility === 'exclude') payload.visibleTo = visibleTo;
       const { data } = await axios.post('/api/moments', payload);
-      setList(p => [data, ...p]);
+      setList(p => [data, ...p.filter(m => m.id !== data.id)]);
       resetCompose();
     } catch (e) { showToast(e.response?.data?.error || t('moments.publishFailed'), 'error'); }
     setUploadPct(null);
@@ -595,12 +663,12 @@ export default function Moments() {
   return (
     <div className="moments-root">
       {/* 互动通知入口 */}
-      <div className="wc-moment-notif-bar" onClick={openNotif} role="button" tabIndex={0}
-        onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openNotif(); } }}>
+      <div className="wc-moment-notif-bar">
+        <button className="wc-moment-notif-open" onClick={() => openNotif()}>
         <span className="wc-moment-notif-icon"><svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.9 2 2 2zm6-6v-5c0-3.07-1.64-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.63 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z"/></svg></span>
         <span className="wc-moment-notif-label">{t('moments.notifications')}</span>
         {notifCount > 0 && <span className="wc-moment-notif-badge">{notifCount > 99 ? '99+' : notifCount}</span>}
-        <div className="moments-spacer" />
+        </button>
         <button
           className="wc-moment-settings-btn"
           title={t('moments.settingsTitle')}
@@ -612,22 +680,27 @@ export default function Moments() {
       {/* 朋友圈设置：最近 N 天可见 */}
       {showSettings && (
         <div className="wc-modal-overlay" onClick={e => e.target === e.currentTarget && setShowSettings(false)}>
-          <div className="wc-modal moments-modal-sm" role="dialog" aria-modal="true" aria-label={t('moments.settingsTitle')}>
+          <div ref={settingsDialog} className="wc-modal moments-modal-sm" role="dialog" aria-modal="true" aria-label={t('moments.settingsTitle')}>
             <div className="wc-modal-header">
               <span className="wc-modal-title">{t('moments.settingsTitle')}</span>
               <button className="wc-modal-close" onClick={() => setShowSettings(false)} aria-label={t('common.close')}>✕</button>
             </div>
             <div className="moments-modal-section">
               <div className="moments-modal-desc">{t('moments.visibilityRangeDesc')}</div>
+              {savingDays && <div role="status">{t('moments.savingEllipsis')}</div>}
+              {visibleDays === null && !settingsError && <div role="status">{t('common.loading')}</div>}
+              {settingsError && <div role="alert" className="moments-error">
+                {t(visibleDays === null ? 'moments.loadFailed' : 'moments.saveFailed')}
+                {visibleDays === null && <button onClick={() => loadSettings()}>{t('common.retry')}</button>}
+              </div>}
               <div role="radiogroup" aria-label={t('moments.visibilityRangeAriaLabel')}>
                 {[{ d: 0, label: t('moments.visAll') }, { d: 1, label: t('moments.vis1Day') }, { d: 3, label: t('moments.vis3Days') }, { d: 30, label: t('moments.vis1Month') }].map(o => (
-                  <div key={o.d} className="wc-moment-vis-opt moments-vis-opt-row"
-                    role="radio" aria-checked={visibleDays === o.d} tabIndex={0}
-                    onClick={() => saveVisibleDays(o.d)}
-                    onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); saveVisibleDays(o.d); } }}>
+                  <button key={o.d} className="wc-moment-vis-opt moments-vis-opt-row"
+                    role="radio" aria-checked={visibleDays === o.d} disabled={savingDays || visibleDays === null}
+                    onClick={() => saveVisibleDays(o.d)}>
                     <span>{o.label}</span>
                     {visibleDays === o.d && <span className="moments-check-green">✓</span>}
-                  </div>
+                  </button>
                 ))}
               </div>
             </div>
@@ -637,9 +710,8 @@ export default function Moments() {
 
       {/* 编辑动态：仅改文字内容（图片保持不变） */}
       {editing && (
-        <div className="wc-modal-overlay" role="button" tabIndex={0}
-          onClick={e => e.target === e.currentTarget && !savingEdit && setEditing(null)}
-          onKeyDown={e => { if ((e.key === 'Enter' || e.key === ' ') && !savingEdit) { e.preventDefault(); setEditing(null); } }}>
+        <div className="wc-modal-overlay"
+          onClick={e => e.target === e.currentTarget && !savingEdit && setEditing(null)}>
           <div className="wc-modal moments-modal-md" role="dialog" aria-modal="true" aria-label={t('moments.editMoment')}>
             <div className="wc-modal-header">
               <span className="wc-modal-title">{t('moments.editMoment')}</span>
@@ -701,14 +773,20 @@ export default function Moments() {
 
       {/* 互动通知面板 */}
       {notifList !== null && (
-        <div className="wc-modal-overlay" onClick={e => e.target === e.currentTarget && setNotifList(null)}>
-          <div className="wc-modal moments-modal-md" role="dialog" aria-modal="true" aria-label={t('moments.notifications')}>
+        <div className="wc-modal-overlay" onClick={e => e.target === e.currentTarget && closeNotif()}>
+          <div ref={notificationsDialog} className="wc-modal moments-modal-md" role="dialog" aria-modal="true" aria-label={t('moments.notifications')}>
             <div className="wc-modal-header">
               <span className="wc-modal-title">{t('moments.notifications')}</span>
-              <button className="wc-modal-close" onClick={() => setNotifList(null)} aria-label={t('common.close')}>✕</button>
+              <button className="wc-modal-close" onClick={closeNotif} aria-label={t('common.close')}>✕</button>
             </div>
             <div className="wc-moment-notif-list">
-              {notifList.length === 0 ? (
+              {notifError && <div role="alert" className="wc-moment-state moments-state-pad40">
+                {t('moments.loadFailed')} <button onClick={() => openNotif(notifList.length > 0)}>{t('common.retry')}</button>
+              </div>}
+              {notifReadError && <div role="alert" className="moments-error">
+                {t('moments.readFailed')} <button onClick={() => setNotifReady(n => n + 1)}>{t('common.retry')}</button>
+              </div>}
+              {notifList.length === 0 && !notifLoading && !notifError ? (
                 <div role="status" className="wc-moment-state moments-state-pad40">{t('moments.noNotifications')}</div>
               ) : notifList.map(n => (
                 <div key={n.id} className="wc-moment-notif-item">
@@ -725,6 +803,8 @@ export default function Moments() {
                     : <div className="wc-moment-notif-snippet">{(n.moment?.content || '').slice(0, 12)}</div>}
                 </div>
               ))}
+              {notifLoading && <div role="status" className="wc-moment-state moments-state-pad40">{t('common.loading')}</div>}
+              {notifHasMore && !notifError && <button className="moments-load-more" disabled={notifLoading} onClick={() => openNotif(true)}>{t('common.loadMore')}</button>}
             </div>
           </div>
         </div>
@@ -814,7 +894,7 @@ export default function Moments() {
           <MomentsSkeleton />
         ) : loadError && list.length === 0 ? (
           <div role="status" className="wc-moment-state moments-state-pad60">
-            {t('moments.loadFailed')}，<button className="wc-moment-expand-btn" onClick={load}>{t('moments.clickRetry')}</button>
+            {t('moments.loadFailed')}，<button className="wc-moment-expand-btn" onClick={() => load()}>{t('moments.clickRetry')}</button>
           </div>
         ) : list.length === 0 ? (
           <div role="status" className="wc-moment-state moments-state-pad60">{t('moments.emptyFeed')}</div>
@@ -824,6 +904,14 @@ export default function Moments() {
               onLike={onLike} onComment={onComment} onDelete={onDelete} onDeleteComment={onDeleteComment}
               onLoadComments={onLoadComments} onReport={onReport} onEdit={onEdit} />
           ))
+        )}
+        {!loading && list.length > 0 && (hasMore || loadError) && (
+          <div className="moments-pagination">
+            {loadError && <div role="alert">{t('moments.loadFailed')}</div>}
+            <button className="moments-load-more" disabled={loadingMore} onClick={() => load(true)}>
+              {loadingMore ? t('common.loading') : t(loadError ? 'common.retry' : 'common.loadMore')}
+            </button>
+          </div>
         )}
       </div>
 

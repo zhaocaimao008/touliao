@@ -38,6 +38,7 @@
 
   /* 语义别名 */
   --color-primary:        var(--brand-500);
+  --color-primary-solid:  var(--brand-600);
   --color-primary-hover:  var(--brand-600);
   --color-primary-active: var(--brand-700);
   --color-primary-muted:  var(--brand-50);
@@ -56,7 +57,7 @@
 
   /* 品牌渐变（AURORA 靛→青碧）：我方气泡、侧栏头像、确认按钮等使用。
      原定义在 index.css :root，随单一真相源合并迁移至此。*/
-  --grad-brand:       linear-gradient(135deg, #6D5AE6 0%, #5B7BF0 55%, #17B8A6 130%);
+  --grad-brand:       linear-gradient(135deg, #5A47D6 0%, #435CBD 55%, #087F74 130%);
   --grad-brand-soft:  linear-gradient(135deg, rgba(109,90,230,.14), rgba(23,184,166,.12));
   --grad-call-voice:  linear-gradient(160deg, #2A2440 0%, #17132A 100%);  /* 语音通话默认底，明暗一致 */
 
@@ -192,8 +193,9 @@
   /* ── 文字颜色层级 ── */
   --text-title:       #1E1A2E;   /* 标题：最深，高权重信息（AURORA 深靛近黑）*/
   --text-primary:     #26223A;   /* 正文：常规阅读（AURORA）*/
-  --text-secondary:   #837E96;   /* 辅助：时间、预览文字（AURORA 柔灰）*/
-  --text-muted:       #9AA3B0;   /* 弱化：占位符、禁用描述 */
+  --text-secondary:   #655F77;   /* 辅助：时间、预览文字（AURORA 柔灰）*/
+  --text-muted:       #696178;   /* 弱化：占位符、禁用描述 */
+  --text-danger:      #B42338;
   --text-disabled:    #C9CDD6;   /* 禁用 */
   --text-link:        var(--brand-500);
   --text-link-hover:  var(--brand-600);
@@ -423,9 +425,9 @@
   --bg-active:        var(--bg-panel-item-active);
   --bg-active-hover:  var(--bg-panel-item-active-hover);
   --text-primary:     #26223A;
-  --text-secondary:   #837E96;
-  --text-tertiary:    #ADA8BE;
-  --text-placeholder: #ADA8BE;
+  --text-secondary:   #655F77;
+  --text-tertiary:    #696178;
+  --text-placeholder: #696178;
   --border-color:     var(--border-default);
   --border-light:     var(--border-subtle);
   --divider:          #ECEEF3;
@@ -524,8 +526,9 @@ body.dark-mode {
   /* Text */
   --text-title:       #E5E5EA;
   --text-primary:     #D0D3D8;
-  --text-secondary:   #8E8E93;
-  --text-muted:       #636366;
+  --text-secondary:   #B2B2BA;
+  --text-muted:       #A5A5B0;
+  --text-danger:      #FF8787;
   --text-disabled:    #48484A;
   --text-link:        #A99CF0;   /* 暗色链接：浅薰衣草靛，与 AURORA 同色系(原 #3E8EFF 蓝已弃用) */
   --text-link-hover:  #C7BFF6;

@@ -7,10 +7,12 @@ export async function fetchAllPages({ requestPage, limit = 100, signal }) {
   let offset = 0;
   for (;;) {
     if (signal?.aborted) break;
-    const page = await requestPage(offset, limit);
+    const response = await requestPage(offset, limit);
+    const page = Array.isArray(response) ? response : response?.items;
+    if (!Array.isArray(page)) throw new Error('Invalid paginated response');
     items.push(...page);
-    if (page.length < limit) break;
-    offset += limit;
+    if (page.length === 0 || (Array.isArray(response) ? page.length < limit : !response.hasMore)) break;
+    offset += page.length;
   }
   return items;
 }

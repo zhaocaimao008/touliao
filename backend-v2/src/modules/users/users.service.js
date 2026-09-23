@@ -280,7 +280,9 @@ function addCollection(userId, { type, content, extra }) {
   const userCount = db.prepare('SELECT COUNT(*) n FROM collections WHERE user_id=?').get(userId).n;
   if (userCount >= 1000) throw badRequest('收藏已达上限 1000 条');
   const safeType    = ['text', 'image', 'file', 'video'].includes(type) ? type : 'text';
-  const safeContent = (typeof content === 'string' ? content : JSON.stringify(content)).slice(0, 2000);
+  if (typeof content !== 'string' || !content.trim() || content.length > 2000)
+    throw badRequest('收藏内容需为 1~2000 字符的非空文本');
+  const safeContent = content;
   const safeExtra   = extra && typeof extra === 'object' ? extra : {};
   const dedupKey    = collectionDedupKey(safeType, safeContent, safeExtra);
 

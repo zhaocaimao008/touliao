@@ -155,13 +155,21 @@ export async function resolveTenantCode(code) {
  * 测试连接（供运行时切换服务器 UI 使用）
  */
 export async function testServerConnection(url) {
-  if (!url || !url.startsWith('http')) return { ok: false, msg: '格式错误' };
+  let address;
   try {
-    const res = await fetch(`${url.replace(/\/$/, '')}/health`, { signal: timeoutSignal(6000) });
-    if (res.ok || res.status < 500) return { ok: true, msg: '连接成功 ✓' };
-    return { ok: false, msg: `服务器返回 ${res.status}` };
+    address = new URL(url.trim());
+    if (!['http:', 'https:'].includes(address.protocol) || address.username || address.password) throw new Error('Invalid URL');
+  } catch { return { ok: false, reason: 'format', msg: '格式错误' }; }
+  try {
+    const res = await fetch(`${address.href.replace(/\/$/, '')}/health`, { signal: timeoutSignal(6000), cache: 'no-store' });
+    if (!res.ok) return { ok: false, reason: 'http', status: res.status, msg: `服务器返回 ${res.status}` };
+    const data = await res.json();
+    if (data?.ok !== true || data?.service !== 'touliao-backend') {
+      return { ok: false, reason: 'response', msg: '服务器健康检查未通过' };
+    }
+    return { ok: true, msg: '连接成功 ✓' };
   } catch {
-    return { ok: false, msg: '无法连接到该服务器' };
+    return { ok: false, reason: 'connection', msg: '无法连接到该服务器' };
   }
 }
 

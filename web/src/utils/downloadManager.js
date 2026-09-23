@@ -1,18 +1,10 @@
 // 统一 DownloadManager —— 聊天附件(图片原图/视频/音频/文档/其他文件)保存到本地的
 // 唯一入口。所有组件都通过这里发起下载，不再各自 fetch/下载一遍。
 //
-// 状态机：pending → downloading → completed | failed | cancelled（downloading 还可能
-// 短暂经过 paused，当前实现里 paused 仅用于"网络恢复后自动续跑"的中间态展示，真正的
-// 断点续传依赖服务端 Range 支持，见下方 streamToDisk 的 Range 重试逻辑）。
-//
-// 保存方式按能力探测，不看 UA：
-//   1) File System Access API（Chromium/Edge，含 Windows 桌面 Electron）：
-//      真正边下边写磁盘，全程不在内存里攒完整文件，任意大小都不会 OOM，且有真实进度。
-//   2) 不支持时兜底：fetch+累积 Blob 再 <a download> 触发保存——受浏览器限制拿不到磁盘
-//      直写能力，大文件会占内存，因此设了 SOFT_MEMORY_LIMIT，超过后退化为"直接原生
-//      <a download> 导航"（浏览器自己边下边存，不经过JS，不会OOM，但拿不到进度，
-//      只能展示"下载中"不确定态）。这是浏览器能力边界，不是可以绕开的实现疏漏。
-import { mediaUrl } from './url';
+// 状态机：pending → downloading → completed | failed | cancelled。
+// Electron 由主进程流式落盘并报告实际结果；Web 优先使用 File System Access，
+// 不支持时退回 Blob / 原生链接下载。重试重新申请媒体票据并从头下载。
+import { resolveMediaUrl } from './url';
 import { showToast } from './toast';
 
 const SOFT_MEMORY_LIMIT = 150 * 1024 * 1024; // 150MB：超过且无File System Access API时退化
@@ -87,18 +79,40 @@ async function execute(id) {
   if (!t) return;
   setState(id, { status: 'downloading', progress: 0, downloadedBytes: 0 });
 
-  const url = t.url;
+  let url;
+  try {
+    url = t.url = await resolveMediaUrl(t.fileUrl);
+    if (t.abortController.signal.aborted) { setState(id, { status: 'cancelled' }); return; }
+  } catch (e) {
+    setState(id, { status: t.abortController.signal.aborted ? 'cancelled' : 'failed', error: e.message });
+    return;
+  }
   const name = t.filename;
 
-  // Electron 桌面：主进程 downloadURL 走系统下载队列(渲染进程跨域fetch会被CORS拦)，
-  // 落盘到"下载"目录，完全交给 will-download 处理，不在此处重复实现进度轮询。
-  const electronDownload = window.electronAPI?.downloadFile;
-  if (isElectron() && electronDownload) {
-    // autoOpen: 只有"该格式投聊自己不能App内预览、用户是主动选择要交给别的应用打开"
-    // 时才为 true（见 FilePreview.jsx 的"用其他应用打开"入口）；其余一律 false——
-    // 存好就完事，不弹系统默认程序（Windows上这曾经是点PDF跳Edge的根因）。
-    electronDownload(url, name, !!t.autoOpen);
-    setState(id, { status: 'completed', progress: 100 });
+  // 每次尝试使用独立 ID，避免迟到的进度污染重试任务。
+  const api = window.electronAPI;
+  if (isElectron() && api?.downloadFile) {
+    t.nativeId = crypto.randomUUID();
+    let unsubscribe;
+    try {
+      unsubscribe = api.onDownloadProgress?.((state) => {
+        if (state.id !== t.nativeId || state.status !== 'downloading') return;
+        setState(id, { progress: state.progress, downloadedBytes: state.downloadedBytes || 0,
+          totalBytes: state.totalBytes || 0 });
+      });
+      const result = await api.downloadFile(url, name, !!t.autoOpen, t.nativeId);
+      if (!result || !['completed', 'failed', 'cancelled'].includes(result.status)) {
+        throw new Error('桌面下载组件未返回保存结果，请更新客户端');
+      }
+      setState(id, { status: result.status, error: result.error || null,
+        ...(result.status === 'completed' ? { progress: 100, savePath: result.savePath,
+          downloadedBytes: result.downloadedBytes, totalBytes: result.totalBytes } : {}) });
+    } catch (e) {
+      setState(id, { status: 'failed', error: e?.message || '下载失败' });
+    } finally {
+      unsubscribe?.();
+      t.nativeId = null;
+    }
     return;
   }
 
@@ -208,10 +222,10 @@ export function startDownload({ id, fileUrl, filename, mimeType, autoOpen = fals
   const existing = tasks.get(taskId);
   if (existing && ['pending', 'downloading'].includes(existing.status)) return taskId;
 
-  const resolvedUrl = mediaUrl(fileUrl);
+  const resolvedUrl = fileUrl;
   const resolvedName = filename || filenameFromUrl(resolvedUrl);
   tasks.set(taskId, {
-    id: taskId, url: resolvedUrl, filename: resolvedName, mimeType: mimeType || '', autoOpen: !!autoOpen,
+    id: taskId, fileUrl, url: resolvedUrl, filename: resolvedName, mimeType: mimeType || '', autoOpen: !!autoOpen,
     status: 'pending', progress: 0, downloadedBytes: 0, totalBytes: 0,
     error: null, abortController: new AbortController(),
   });
@@ -232,30 +246,37 @@ export function cancelDownload(id) {
   }
   if (t.status === 'downloading') {
     t.abortController.abort();
-    // execute() 里 AbortError 分支会把状态置为 cancelled
+    if (t.nativeId) {
+      window.electronAPI?.cancelDownload?.(t.nativeId).catch(() => {
+        showToast('取消下载失败，请重试', 'error');
+      });
+    }
+    // 等主进程清理文件后返回 cancelled，期间仍占用并发槽位。
   }
 }
 
 export function retryDownload(id) {
   const t = tasks.get(id);
-  if (!t) return;
+  if (!t || !['failed', 'cancelled'].includes(t.status)) return;
   t.abortController = new AbortController();
-  setState(id, { status: 'pending', progress: 0, downloadedBytes: 0, error: null });
+  setState(id, { status: 'pending', progress: 0, downloadedBytes: 0, totalBytes: 0, savePath: null, error: null });
   queue.push(id);
   runNext();
 }
 
 /** 兼容旧调用：不需要进度 UI 的场景，直接触发一次性下载（内部走同一套 DownloadManager）。 */
-export function downloadFile(fileUrl, filename) {
+export async function downloadFile(fileUrl, filename) {
   const isPlainWeb = !isElectron() && !isNativeApp();
   // 纯网页且用户浏览器没有 File System Access API 时，最简单可靠的路径就是原生
   // <a download> 直接导航——保留这条快速路径，避免所有旧调用点都被迫感知进度状态。
   if (isPlainWeb && typeof window.showSaveFilePicker !== 'function') {
-    anchorDownload(mediaUrl(fileUrl), filename || filenameFromUrl(fileUrl));
+    try { anchorDownload(await resolveMediaUrl(fileUrl), filename || filenameFromUrl(fileUrl)); }
+    catch (e) { showToast('下载失败：' + e.message, 'error'); }
     return;
   }
   const id = startDownload({ fileUrl, filename });
-  subscribe(id, (s) => {
+  const unsubscribe = subscribe(id, (s) => {
     if (s.status === 'failed') showToast('下载失败：' + (s.error || '网络错误'), 'error');
+    if (['completed', 'failed', 'cancelled'].includes(s.status)) queueMicrotask(() => unsubscribe());
   });
 }

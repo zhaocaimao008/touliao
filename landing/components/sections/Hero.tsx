@@ -25,7 +25,7 @@ export function Hero() {
               className="inline-flex items-center px-4 py-1.5 text-xs font-medium tracking-wide uppercase"
               style={{
                 background: '#F2E3D6',
-                color: '#C4612F',
+                color: '#9B441C',
                 borderRadius: '999px',
                 letterSpacing: '0.05em'
               }}
@@ -47,7 +47,7 @@ export function Hero() {
             >
               {hero.title[0]}
               <br />
-              <span style={{ fontStyle: 'italic', color: '#C4612F' }}>
+              <span style={{ fontStyle: 'italic', color: '#A94E22' }}>
                 {hero.title[1]}
               </span>
             </h1>
@@ -73,7 +73,7 @@ export function Hero() {
                 href={hero.primary.href}
                 className="group w-full sm:w-auto"
                 style={{
-                  background: '#C4612F',
+                  background: '#A94E22',
                   color: 'white',
                   padding: '0.875rem 2rem',
                   borderRadius: '999px',
@@ -89,7 +89,7 @@ export function Hero() {
                   e.currentTarget.style.boxShadow = '0 4px 12px rgba(196, 97, 47, 0.32)';
                 }}
                 onMouseLeave={(e) => {
-                  e.currentTarget.style.background = '#C4612F';
+                  e.currentTarget.style.background = '#A94E22';
                   e.currentTarget.style.transform = 'translateY(0)';
                   e.currentTarget.style.boxShadow = '0 2px 8px rgba(196, 97, 47, 0.24)';
                 }}
@@ -112,7 +112,7 @@ export function Hero() {
                 }}
                 onMouseEnter={(e) => {
                   e.currentTarget.style.background = '#FFFFFF';
-                  e.currentTarget.style.borderColor = '#C4612F';
+                  e.currentTarget.style.borderColor = '#A94E22';
                 }}
                 onMouseLeave={(e) => {
                   e.currentTarget.style.background = 'transparent';
@@ -158,11 +158,11 @@ export function Hero() {
             {/* 装饰圆点 */}
             <div
               className="absolute -right-4 -top-4 h-24 w-24 rounded-full opacity-20"
-              style={{ background: '#C4612F', filter: 'blur(24px)' }}
+              style={{ background: '#A94E22', filter: 'blur(24px)' }}
             />
             <div
               className="absolute -bottom-8 -left-8 h-32 w-32 rounded-full opacity-15"
-              style={{ background: '#C4612F', filter: 'blur(32px)' }}
+              style={{ background: '#A94E22', filter: 'blur(32px)' }}
             />
           </div>
         </Reveal>

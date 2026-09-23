@@ -746,7 +746,7 @@ body.dark-mode * {
   transition: box-shadow var(--dur-fast) var(--ease), transform var(--dur-fast) var(--ease);
 }
 .wc-msg-bubble.mine {
-  background: linear-gradient(135deg, var(--brand-400), var(--brand-600));
+  background: linear-gradient(135deg, var(--brand-500), var(--brand-700));
   color: #fff;   /* 紫渐变气泡：白色文字，对比清晰 */
   border: none;
   box-shadow: 0 2px 10px rgba(var(--color-primary-rgb), .35);
@@ -1049,7 +1049,7 @@ body.dark-mode * {
   min-width: 66px;
 }
 .wc-send-btn.active {
-  background: linear-gradient(135deg, var(--brand-400), var(--brand-600));
+  background: linear-gradient(135deg, var(--brand-500), var(--brand-700));
   color: var(--gray-0);
   cursor: pointer;
   box-shadow: 0 2px 8px rgba(var(--color-primary-rgb), .32);
@@ -1433,7 +1433,7 @@ body.dark-mode .wc-me-header { background: var(--bg-card); }
 .wc-modal-footer { padding: 11px 20px; border-top: 1px solid var(--divider); display: flex; gap: var(--sp-2); }
 .wc-modal-btn { flex: 1; padding: 10px; border-radius: var(--radius-button); font-size: var(--text-base); font-weight: var(--font-semibold); cursor: pointer; border: none; transition: background var(--dur-fast), box-shadow var(--dur-fast), transform var(--dur-fast), border-color var(--dur-fast); }
 .wc-modal-btn:active { transform: translateY(0) scale(.985); }
-.wc-modal-btn.primary { background: linear-gradient(135deg, var(--brand-400), var(--brand-600)); color: var(--gray-0); box-shadow: 0 2px 8px rgba(var(--color-primary-rgb), .30); }
+.wc-modal-btn.primary { background: linear-gradient(135deg, var(--brand-500), var(--brand-700)); color: var(--gray-0); box-shadow: 0 2px 8px rgba(var(--color-primary-rgb), .30); }
 .wc-modal-btn.primary:hover { background: linear-gradient(135deg, var(--brand-300), var(--brand-500)); box-shadow: 0 4px 14px rgba(var(--color-primary-rgb), .40); transform: translateY(-1px); }
 .wc-modal-btn.primary:disabled { background: var(--text-disabled); box-shadow: none; transform: none; cursor: not-allowed; }
 .wc-modal-btn.secondary { background: var(--bg-card, #fff); color: var(--text-primary); box-shadow: inset 0 0 0 1px var(--border-color); }
@@ -1564,7 +1564,7 @@ body.dark-mode .wc-me-header { background: var(--bg-card); }
 }
 .wc-moment-comment-submit {
   padding: 0 14px; border-radius: var(--radius-input);
-  background: linear-gradient(135deg, var(--brand-400), var(--brand-600)); color: var(--gray-0); font-size: var(--text-sm2);
+  background: linear-gradient(135deg, var(--brand-500), var(--brand-700)); color: var(--gray-0); font-size: var(--text-sm2);
   font-weight: var(--font-semibold); cursor: pointer; border: none; font-family: inherit;
 }
 .wc-moment-comment-submit:hover { background: linear-gradient(135deg, var(--brand-300), var(--brand-500)); }
@@ -1574,7 +1574,7 @@ body.dark-mode .wc-me-header { background: var(--bg-card); }
 }
 .wc-moment-composer {
   width: 100%; text-align: left; padding: 13px 14px; border-radius: var(--radius-card);
-  background: var(--bg-search); color: var(--text-tertiary); font-size: var(--text-base);
+  background: var(--bg-input-search); color: var(--text-tertiary); font-size: var(--text-base);
   cursor: pointer; border: 1px solid var(--border-color); font-family: inherit;
 }
 .wc-moment-editor textarea {
@@ -1600,7 +1600,7 @@ body.dark-mode .wc-me-header { background: var(--bg-card); }
   background: rgba(var(--green-rgb),.4); cursor: not-allowed;
 }
 .wc-moment-editor-publish:not(:disabled) {
-  background: linear-gradient(135deg, var(--brand-400), var(--brand-600));
+  background: linear-gradient(135deg, var(--brand-500), var(--brand-700));
 }
 .wc-moment-editor-publish:not(:disabled):hover { background: linear-gradient(135deg, var(--brand-300), var(--brand-500)); }
 .wc-moment-editor-publish:not(:disabled):active { transform: scale(.96); }
@@ -1701,7 +1701,7 @@ body.dark-mode .wc-moment-comment-submit { color: var(--link); }
 
 /* 气泡 — 暗色模式下我方气泡：品牌紫渐变，白色文字 */
 body.dark-mode .wc-msg-bubble { border-color: rgba(255,255,255,.06); box-shadow: none; }
-body.dark-mode .wc-msg-bubble.mine { background: linear-gradient(135deg, var(--brand-400), var(--brand-600)); color: #fff; border-color: transparent; box-shadow: 0 2px 10px rgba(var(--color-primary-rgb), .35); }
+body.dark-mode .wc-msg-bubble.mine { background: linear-gradient(135deg, var(--brand-500), var(--brand-700)); color: #fff; border-color: transparent; box-shadow: 0 2px 10px rgba(var(--color-primary-rgb), .35); }
 body.dark-mode .wc-msg-bubble.other { background: var(--bg-input-search); color: #e6e6e6; border-color: rgba(255,255,255,.06); }
 body.dark-mode .wc-msg-bubble.mine::after,
 body.dark-mode .wc-msg-bubble.other::after { display: none; }
@@ -2506,7 +2506,7 @@ body:not(.dark-mode) .wc-discover {
 .wc-settings-account-form button {
   height: 40px;
   border-radius: var(--radius-md);
-  background: linear-gradient(135deg, var(--brand-400), var(--brand-600));
+  background: linear-gradient(135deg, var(--brand-500), var(--brand-700));
   color: var(--gray-0);
   font-size: var(--text-base);
   font-weight: var(--font-medium);
@@ -2686,7 +2686,7 @@ body.dark-mode .wc-msg-time span { background: rgba(255,255,255,.08); }
 
 /* 发送按钮：激活态为品牌渐变实心药丸（明确的主操作） */
 .wc-send-btn.active {
-  background: linear-gradient(135deg, var(--brand-400), var(--brand-600));
+  background: linear-gradient(135deg, var(--brand-500), var(--brand-700));
   color: var(--gray-0);
   box-shadow: 0 2px 8px rgba(var(--color-primary-rgb), .32);
 }
@@ -2968,7 +2968,7 @@ body.dark-mode .wc-msg-time span { background: rgba(255,255,255,.08); }
 }
 .up-action-btn:hover { opacity: .88; transform: translateY(-1px); }
 .up-action-btn:active { transform: scale(.96); }
-.up-action-chat { background: linear-gradient(135deg, var(--brand-400), var(--brand-600)); color: var(--gray-0); }
+.up-action-chat { background: linear-gradient(135deg, var(--brand-500), var(--brand-700)); color: var(--gray-0); }
 .up-action-chat:hover { background: linear-gradient(135deg, var(--brand-300), var(--brand-500)); }
 .up-action-grey { background: var(--bg-panel); color: var(--text-secondary); border: 1px solid var(--border-color); }
 .up-action-warn { background: rgba(250,140,0,.08); color: var(--color-warning); border: 1px solid rgba(250,140,0,.2); }
@@ -2976,7 +2976,7 @@ body.dark-mode .wc-msg-time span { background: rgba(255,255,255,.08); }
 
 /* 通用按钮 */
 .up-btn-primary {
-  padding: 10px 20px; background: linear-gradient(135deg, var(--brand-400), var(--brand-600)); color: var(--gray-0);
+  padding: 10px 20px; background: linear-gradient(135deg, var(--brand-500), var(--brand-700)); color: var(--gray-0);
   border-radius: var(--radius-md); font-size: var(--text-base); font-weight: var(--font-medium);
   cursor: pointer; transition: background var(--dur-fast);
   display: flex; align-items: center; justify-content: center;
@@ -3015,7 +3015,7 @@ body.dark-mode .wc-msg-time span { background: rgba(255,255,255,.08); }
 .req-msg { font-size: var(--text-sm); color: var(--text-secondary); line-height: 1.4; }
 .req-btns { display: flex; gap: var(--sp-1h); flex-shrink: 0; padding-top: 2px; }
 .req-accept {
-  padding: 6px 14px; background: linear-gradient(135deg, var(--brand-400), var(--brand-600)); color: var(--gray-0);
+  padding: 6px 14px; background: linear-gradient(135deg, var(--brand-500), var(--brand-700)); color: var(--gray-0);
   border-radius: var(--radius-button); font-size: var(--text-sm2); font-weight: var(--font-medium); cursor: pointer;
   transition: background var(--dur-fast);
 }
@@ -3052,7 +3052,7 @@ body.dark-mode .wc-msg-time span { background: rgba(255,255,255,.08); }
 }
 .cl-add-btn {
   margin-top: 14px; padding: 8px 20px; min-height: 44px;
-  background: linear-gradient(135deg, var(--brand-400), var(--brand-600)); color: var(--gray-0);
+  background: linear-gradient(135deg, var(--brand-500), var(--brand-700)); color: var(--gray-0);
   border-radius: var(--radius-md); font-size: var(--text-sm2); cursor: pointer;
   transition: background var(--dur-fast);
 }
@@ -3074,7 +3074,7 @@ body.dark-mode .wc-msg-time span { background: rgba(255,255,255,.08); }
 /* 全局 .wc-save-btn 按钮式：Profile 充值确认/复制邀请码等位于 Card 内的裸按钮兜底 */
 .wc-save-btn {
   padding: 9px 18px;
-  background: linear-gradient(135deg, var(--brand-400), var(--brand-600));
+  background: linear-gradient(135deg, var(--brand-500), var(--brand-700));
   color: var(--gray-0);
   border-radius: var(--radius-button);
   font-size: var(--text-sm2);
@@ -3167,7 +3167,7 @@ body.dark-mode .wc-msg-time span { background: rgba(255,255,255,.08); }
 .wc-add-form-input { padding: 11px 14px; border-radius: var(--radius-card); border: 1px solid var(--border-color); font-size: var(--text-base); background: var(--bg-search); color: var(--text-primary); outline: none; transition: border-color var(--dur-fast); }
 .wc-add-form-input:focus { border-color: var(--color-primary); }
 .wc-add-form-error { padding: 6px 10px; background: rgba(250,81,81,.08); border-radius: var(--radius-md); border: 1px solid rgba(250,81,81,.2); color: var(--color-badge); font-size: var(--text-sm); }
-.wc-add-form-submit { padding: 12px 0; background: linear-gradient(135deg, var(--brand-400), var(--brand-600)); color: var(--gray-0); border-radius: var(--radius-card); font-size: var(--text-base); font-weight: var(--font-semibold); letter-spacing: .3px; cursor: pointer; }
+.wc-add-form-submit { padding: 12px 0; background: linear-gradient(135deg, var(--brand-500), var(--brand-700)); color: var(--gray-0); border-radius: var(--radius-card); font-size: var(--text-base); font-weight: var(--font-semibold); letter-spacing: .3px; cursor: pointer; }
 .wc-add-form-submit:disabled { background: rgba(var(--green-rgb),.6); }
 .wc-add-form-submit:hover:not(:disabled) { background: linear-gradient(135deg, var(--brand-300), var(--brand-500)); }
 .wc-add-form-submit:active:not(:disabled) { transform: scale(.97); }
@@ -3180,7 +3180,7 @@ body.dark-mode .wc-msg-time span { background: rgba(255,255,255,.08); }
 .wc-server-btn-row { padding: 12px 14px 0; display: flex; gap: var(--sp-2h); }
 .wc-btn-test { flex: 1; padding: 12px 0; border-radius: var(--radius-card); font-size: var(--text-base); font-weight: var(--font-medium); cursor: pointer; background: var(--bg-search); border: 1px solid var(--border-color); color: var(--text-primary); }
 .wc-btn-test:hover { background: var(--bg-hover); }
-.wc-btn-save { flex: 1; padding: 12px 0; border-radius: var(--radius-card); font-size: var(--text-base); font-weight: var(--font-semibold); cursor: pointer; border: none; color: var(--gray-0); background: linear-gradient(135deg, var(--brand-400), var(--brand-600)); }
+.wc-btn-save { flex: 1; padding: 12px 0; border-radius: var(--radius-card); font-size: var(--text-base); font-weight: var(--font-semibold); cursor: pointer; border: none; color: var(--gray-0); background: linear-gradient(135deg, var(--brand-500), var(--brand-700)); }
 .wc-btn-save:disabled { background: var(--text-disabled); cursor: not-allowed; }
 .wc-btn-save:hover:not(:disabled) { background: linear-gradient(135deg, var(--brand-300), var(--brand-500)); }
 .wc-btn-save:active:not(:disabled) { transform: scale(.97); }
@@ -3315,7 +3315,7 @@ body.dark-mode .wc-msg-time span { background: rgba(255,255,255,.08); }
 .gi-qr-img { width:200px; height:200px; display:block; margin:0 auto 16px; border-radius:var(--radius-md); border:1px solid var(--border-default); }
 .gi-qr-nm { font-size: var(--text-sm2); color:var(--text-secondary); margin-bottom:6px; }
 .gi-qr-ex { font-size: var(--text-xs); color:var(--text-tertiary); }
-.gi-save-btn { margin-top: var(--sp-4); padding:8px 24px; background:linear-gradient(135deg, var(--brand-400), var(--brand-600)); color: var(--gray-0); border-radius:var(--radius-button); font-size: var(--text-base); box-shadow: 0 2px 8px rgba(var(--color-primary-rgb),.3); }
+.gi-save-btn { margin-top: var(--sp-4); padding:8px 24px; background:linear-gradient(135deg, var(--brand-500), var(--brand-700)); color: var(--gray-0); border-radius:var(--radius-button); font-size: var(--text-base); box-shadow: 0 2px 8px rgba(var(--color-primary-rgb),.3); }
 .gi-save-btn:hover { background:linear-gradient(135deg, var(--brand-300), var(--brand-500)); transform: translateY(-1px); }
 .gi-save-btn:active { transform: scale(.96); }
 .gi-qr-load { padding:40px 0; color:var(--text-tertiary); font-size: var(--text-sm2); text-align:center; }
@@ -3422,7 +3422,7 @@ body.dark-mode .we-empty-svg { opacity: .25; }
   width:34px; height:34px;
   border-radius:var(--radius-md);
   display:flex; align-items:center; justify-content:center;
-  background:linear-gradient(135deg, var(--brand-400), var(--brand-600));
+  background:linear-gradient(135deg, var(--brand-500), var(--brand-700));
   color: var(--gray-0); font-size: var(--text-md); font-weight: var(--font-semibold); line-height: var(--lh-none);
   outline-width:2.5px; outline-style:solid; outline-offset:2px;
   transition:outline-color var(--dur-fast); overflow:hidden;
@@ -3619,7 +3619,7 @@ body.dark-mode .we-empty-svg { opacity: .25; }
 .cgm-create {
   flex:2; padding:11px 0; border-radius:var(--radius-card);
   font-size: var(--text-base); font-weight: var(--font-semibold); color: var(--gray-0);
-  background:linear-gradient(135deg, var(--brand-400), var(--brand-600)); cursor:pointer;
+  background:linear-gradient(135deg, var(--brand-500), var(--brand-700)); cursor:pointer;
 }
 .cgm-create:disabled { background:rgba(var(--green-rgb),.4); cursor:not-allowed; }
 .cgm-create:hover:not(:disabled) { background:linear-gradient(135deg, var(--brand-300), var(--brand-500)); }
@@ -4045,7 +4045,7 @@ body.dark-mode .we-empty-svg { opacity: .25; }
 body.dark-mode .wc-confirm-box { background: var(--bg-card, rgba(44,44,46,.95)); }
 body.dark-mode .wc-confirm-msg { color: var(--text-title, #E8E8ED); }
 body.dark-mode .wc-confirm-cancel { background: var(--bg-panel, rgba(44,44,46,.8)); color: var(--text-secondary); border-color: var(--border-default, rgba(255,255,255,.1)); }
-body.dark-mode .wc-confirm-ok { background: linear-gradient(135deg, var(--brand-400), var(--brand-600)); }
+body.dark-mode .wc-confirm-ok { background: linear-gradient(135deg, var(--brand-500), var(--brand-700)); }
 
 /* ── 群公告置顶轮播条 ── */
 .wc-announce-banner { display: flex; align-items: center; gap: 8px; padding: 7px 14px; background: var(--info-banner-bg); cursor: pointer; border-bottom: 1px solid rgba(0,0,0,.04); overflow: hidden; }
@@ -4440,7 +4440,7 @@ select:focus-visible {
 
 /* ── 我方气泡：品牌紫渐变（对比图方案①），柔投影 ── */
 .wc-msg-bubble.mine {
-  background: linear-gradient(135deg, var(--brand-400), var(--brand-600));
+  background: linear-gradient(135deg, var(--brand-500), var(--brand-700));
   box-shadow: 0 2px 10px rgba(var(--color-primary-rgb), .35);
   border: none;
   color: #fff;
@@ -4778,3 +4778,24 @@ body.dark-mode .skeleton-box {
 .collections-item-actions { display: flex; gap: 4px; }
 .collections-jump-btn { font-size: var(--text-sm); color: var(--green); background: none; border: none; cursor: pointer; padding: 2px 6px; }
 .collections-remove-btn { font-size: var(--text-sm); color: var(--color-badge); background: none; border: none; cursor: pointer; padding: 2px 6px; }
+
+/* 审查修复：独立操作控件、可读的操作状态与可伸展的桌面内容区。 */
+.wc-moment-notif-bar { cursor: default; }
+.wc-moment-notif-open {
+  display: flex; align-items: center; gap: var(--sp-2); flex: 1; min-width: 0;
+  padding: 8px 0; border: 0; background: transparent; color: inherit; text-align: left;
+}
+.wc-moment-vis-opt { width: 100%; background: transparent; color: var(--text-primary); text-align: left; }
+.wc-moment-vis-opt:disabled { cursor: wait; }
+.wc-moment-scroll { min-height: 0; }
+.wc-moment-comment-reply-target[role="button"] { cursor: pointer; }
+.moments-pagination { text-align: center; padding: 12px; color: var(--text-secondary); }
+.moments-load-more { display: block; margin: 12px auto; padding: 10px 24px; background: var(--bg-hover); color: var(--text-primary); border: 1px solid var(--border-color); border-radius: var(--radius-md); }
+.moments-error { padding: 8px 0; color: var(--text-primary); }
+.moments-error button { margin-left: 8px; }
+.wc-me-profile-btn { display: flex; align-items: center; gap: var(--sp-3h); flex: 1; min-width: 0; border: 0; background: transparent; color: inherit; padding: 0; text-align: left; }
+@media (min-width: 768px) {
+  .wc-main > .wc-panel.wc-panel-wide { flex: 1; width: auto; min-width: 0; }
+  .wc-panel-wide .moments-root { width: min(100%, 920px); margin-inline: auto; }
+  .wc-panel-wide .wc-search { max-width: 560px; }
+}

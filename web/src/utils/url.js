@@ -37,22 +37,26 @@ function bearerToken() {
 // sessionStorage entries (including pre-revocation tickets) never survive a reload/login.
 const mediaTickets = new Map();
 const mediaListeners = new Set();
+let revision = 0;
 let ticketContext = { token: '', base: '', generation: 0 };
+function publish() {
+  revision++;
+  for (const listener of mediaListeners) listener();
+}
 function clearMediaTickets() {
+  for (const entry of mediaTickets.values()) entry.controller?.abort();
   mediaTickets.clear();
   ticketContext = { token: '', base: '', generation: ticketContext.generation + 1 };
 }
 export function invalidateMediaTickets() {
   clearMediaTickets();
-  for (const listener of mediaListeners) listener();
+  publish();
 }
 function subscribeMedia(listener) {
   mediaListeners.add(listener);
   return () => mediaListeners.delete(listener);
 }
-const mediaSnapshot = () => ticketContext.generation;
-// Subscribe at component top level; mediaUrl remains safe inside maps/event handlers.
-// https://react.dev/reference/react/useSyncExternalStore
+const mediaSnapshot = () => revision;
 export function useMediaCredentials() {
   return useSyncExternalStore(subscribeMedia, mediaSnapshot);
 }
@@ -67,68 +71,96 @@ function ticketExpiry(url, base) {
     const token = new URL(url, base).searchParams.get('token');
     const payload = JSON.parse(atob(token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')));
     return Math.min(Date.now() + 9 * 60 * 1000, Number(payload.exp) * 1000 - 1000);
-  } catch { return 0; } // A response with no readable expiry may be used once, never cached.
+  } catch { return 0; }
 }
 
-export function mediaUrl(u) {
-  if (!u) return u;
-  if (/^(data:|blob:)/i.test(u)) return u;
-
-  const isElectron = !!window.__ELECTRON_CONFIG__;
-  const isNative   = !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
-  if (!isElectron && !isNative && !isIsolatedWindow()) return u;
-
+function resourceInfo(u) {
+  if (!u || /^(data:|blob:)/i.test(u)) return { url: u };
+  const native = window.Capacitor?.isNativePlatform?.();
+  if (!window.__ELECTRON_CONFIG__ && !native && !isIsolatedWindow()) return { url: u };
   const base = getBaseUrl().replace(/\/$/, '');
-  if (!base) return u;
-  let abs;
+  if (!base) return { url: u };
+  let resource;
   try {
-    const resource = new URL(u, `${base}/`);
-    if (resource.origin !== new URL(base).origin) return u;
-    abs = resource.href;
-  } catch { return u; }
-  const fallback = () => {
-    if (!isIsolatedWindow() || !new URL(abs).pathname.startsWith('/uploads/')) return abs;
-    // Never fall back to another account's shared cookie when ticket issuance fails.
-    const denied = new URL(abs);
-    denied.searchParams.set('token', 'unavailable');
-    return denied.href;
-  };
-
-  // 桌面/移动端用 Bearer 请求短时、单文件资源票据；登录 JWT 不进入媒体 URL。
+    resource = new URL(u, `${base}/`);
+    if (resource.origin !== new URL(base).origin) return { url: u };
+  } catch { return { url: u }; }
   const token = bearerToken();
   if (ticketContext.token !== token || ticketContext.base !== base) {
     clearMediaTickets();
     ticketContext = { ...ticketContext, token, base };
   }
-  const generation = ticketContext.generation;
-  if (token && /\/uploads\//.test(abs)) {
-    const file = new URL(abs).pathname;
-    try {
-      const cached = mediaTickets.get(file);
-      if (cached?.url && cached.expiresAt > Date.now()) {
-        return cached.url.startsWith('/') ? base + cached.url : cached.url;
-      }
+  if (!resource.pathname.startsWith('/uploads/')) return { url: resource.href };
+  // No renderer may fall back to a shared cookie or reuse a supplied stale ticket.
+  const denied = new URL(resource);
+  denied.searchParams.set('token', 'unavailable');
+  if (!token) return { url: denied.href };
+  return { file: resource.pathname, base, token, generation: ticketContext.generation, denied: denied.href };
+}
 
-      // mediaUrl 的调用方需要同步字符串（img/video/href）。仅桌面/原生首次取票时
-      // 同步请求一次，随后在当前凭据的有效期内复用，避免把登录 JWT 写入 URL。
-      const xhr = new XMLHttpRequest();
-      xhr.open('GET', `${base}/api/uploads/ticket?file=${encodeURIComponent(file)}`, false);
-      xhr.setRequestHeader('Authorization', `Bearer ${token}`);
-      if (isIsolatedWindow()) xhr.setRequestHeader('X-Touliao-Session', 'isolated');
-      xhr.withCredentials = true;
-      xhr.send();
-      // A credential/server update during the request must discard this old response.
-      if (token !== bearerToken() || base !== getBaseUrl().replace(/\/$/, '') || generation !== ticketContext.generation) return fallback();
-      if (xhr.status >= 200 && xhr.status < 300) {
-        const ticket = JSON.parse(xhr.responseText);
-        if (typeof ticket.url !== 'string') return fallback();
-        if (mediaTickets.size >= 500) mediaTickets.delete(mediaTickets.keys().next().value);
-        mediaTickets.set(file, { url: ticket.url, expiresAt: ticketExpiry(ticket.url, base) });
-        return ticket.url.startsWith('/') ? base + ticket.url : ticket.url;
-      }
-    } catch { /* 取票失败时返回无凭证 URL，由现有加载错误路径处理 */ }
+function requestTicket(info, retry = false) {
+  const { file, base, token, generation } = info;
+  const existing = mediaTickets.get(file);
+  if (existing?.promise || existing?.expiresAt > Date.now() || (!retry && existing?.retryAt > Date.now())) return existing;
+  const controller = new AbortController();
+  const entry = { controller, url: undefined, expiresAt: 0 };
+  const current = () => generation === ticketContext.generation && token === bearerToken()
+    && base === getBaseUrl().replace(/\/$/, '');
+  const timeout = setTimeout(() => controller.abort(), 10000);
+  entry.promise = (async () => {
+    try {
+      const headers = { Authorization: `Bearer ${token}` };
+      if (isIsolatedWindow()) headers['X-Touliao-Session'] = 'isolated';
+      const response = await fetch(`${base}/api/uploads/ticket?file=${encodeURIComponent(file)}`, {
+        headers, credentials: 'include', signal: controller.signal,
+      });
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      const ticket = await response.json();
+      if (typeof ticket.url !== 'string') throw new Error('Invalid media ticket');
+      const url = new URL(ticket.url, base);
+      const expiresAt = ticketExpiry(url.href, base);
+      if (url.origin !== new URL(base).origin || url.pathname !== file || !(expiresAt > Date.now()))
+        throw new Error('Invalid media ticket');
+      if (!current() || controller.signal.aborted) return undefined;
+      entry.url = url.href;
+      entry.expiresAt = expiresAt;
+      return entry.url;
+    } catch {
+      if (current()) entry.retryAt = Date.now() + 5000;
+      return undefined;
+    } finally {
+      clearTimeout(timeout);
+      entry.promise = null;
+      if (current()) publish();
+    }
+  })();
+  if (mediaTickets.size >= 500) {
+    for (const [key, value] of mediaTickets) {
+      if (!value.promise) { mediaTickets.delete(key); break; }
+    }
   }
-  return fallback();
+  mediaTickets.set(file, entry);
+  return entry;
+}
+
+// Render path is synchronous but never waits for the network. Undefined omits src
+// while a deduplicated request is pending; subscribers rerender when it completes.
+export function mediaUrl(u) {
+  const info = resourceInfo(u);
+  if (!info.file) return info.url;
+  const entry = requestTicket(info);
+  return entry.url || (entry.promise ? undefined : info.denied);
+}
+
+// Downloads, clipboard and sharing must await authority before using a URL.
+export async function resolveMediaUrl(u) {
+  const info = resourceInfo(u);
+  if (!info.file) return info.url;
+  const entry = requestTicket(info, true);
+  const url = entry.promise ? await entry.promise : entry.url;
+  if (!url || info.generation !== ticketContext.generation || info.token !== bearerToken()
+    || info.base !== getBaseUrl().replace(/\/$/, '')) throw new Error('媒体授权失败，请重试');
+  return url;
 }
 
 // 由原图 URL 推导缩略图 URL：/uploads/<category>/<uuid>.<ext> → 同目录下的

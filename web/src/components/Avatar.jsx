@@ -44,10 +44,12 @@ export default memo(function Avatar({ src, name = '', size = 'md', style = {}, o
   // 图片加载失败（如服务器上文件不存在）时回退到字母头像，避免显示浏览器碎图图标。
   // src 变化即重置错误态：用 render 期派生（存上一次 src）替代 effect，避免多余一帧闪烁。
   const [errored, setErrored] = useState(false);
+  const [thumbFailed, setThumbFailed] = useState(false);
   const [prevSrc, setPrevSrc] = useState(originalUrl);
   if (originalUrl !== prevSrc) {
     setPrevSrc(originalUrl);
     setErrored(false);
+    setThumbFailed(false);
   }
   const showImg = src && !errored;
 
@@ -64,14 +66,13 @@ export default memo(function Avatar({ src, name = '', size = 'md', style = {}, o
             {/* 字母垫底：图片加载出来前透出彩色字母而非空白，加载完被图覆盖（无 opacity 切换，规避缓存图不触发 onLoad 的失效） */}
             <div aria-hidden="true" style={{ ...baseStyle, position: 'absolute', inset: 0, background: getColor(name), color: 'var(--text-inverse)', fontSize: px * 0.42, fontWeight: 600 }}>{letter}</div>
             <img
-              src={thumbUrl}
+              src={thumbFailed ? originalUrl : thumbUrl}
               alt={name}
               loading="lazy"
               crossOrigin="anonymous"
-              onError={e => {
+              onError={() => {
                 // 缩略图失败（旧头像无缩略图/生成失败）先回退原图，原图也失败才落到字母头像
-                const el = e.currentTarget;
-                if (thumbUrl !== originalUrl && el.src !== originalUrl) { el.src = originalUrl; return; }
+                if (!thumbFailed && thumbUrl !== originalUrl) { setThumbFailed(true); return; }
                 setErrored(true);
               }}
               style={{ ...baseStyle, objectFit: 'cover', position: 'relative', zIndex: 1 }}

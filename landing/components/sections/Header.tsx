@@ -20,7 +20,7 @@ export function Header() {
           <span
             className="flex h-9 w-9 items-center justify-center text-sm font-bold transition-transform group-hover:scale-105"
             style={{
-              background: 'linear-gradient(135deg, #C4612F 0%, #A94E22 100%)',
+              background: 'linear-gradient(135deg, #A94E22 0%, #A94E22 100%)',
               color: 'white',
               borderRadius: '10px',
               boxShadow: '0 2px 8px rgba(196, 97, 47, 0.2)'
@@ -47,7 +47,7 @@ export function Header() {
               href={item.href}
               className="text-sm font-medium transition-colors"
               style={{ color: '#5C635D' }}
-              onMouseEnter={(e) => (e.currentTarget.style.color = '#C4612F')}
+              onMouseEnter={(e) => (e.currentTarget.style.color = '#A94E22')}
               onMouseLeave={(e) => (e.currentTarget.style.color = '#5C635D')}
             >
               {item.label}
@@ -58,7 +58,7 @@ export function Header() {
         <Button
           href={nav.cta.href}
           style={{
-            background: '#C4612F',
+            background: '#A94E22',
             color: 'white',
             padding: '0.625rem 1.5rem',
             borderRadius: '999px',
@@ -74,7 +74,7 @@ export function Header() {
             e.currentTarget.style.boxShadow = '0 3px 10px rgba(196, 97, 47, 0.28)';
           }}
           onMouseLeave={(e: any) => {
-            e.currentTarget.style.background = '#C4612F';
+            e.currentTarget.style.background = '#A94E22';
             e.currentTarget.style.transform = 'translateY(0)';
             e.currentTarget.style.boxShadow = '0 2px 6px rgba(196, 97, 47, 0.2)';
           }}

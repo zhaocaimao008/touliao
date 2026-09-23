@@ -41,7 +41,7 @@ export function Footer() {
           ))}
         </div>
 
-        <div className="mt-12 flex flex-col items-center justify-between gap-2 border-t border-ink-100 pt-6 text-sm text-ink-400 sm:flex-row">
+        <div className="mt-12 flex flex-col items-center justify-between gap-2 border-t border-ink-100 pt-6 text-sm text-ink-600 sm:flex-row">
           <p>{footer.copyright}</p>
           {footer.beian && (
             <a

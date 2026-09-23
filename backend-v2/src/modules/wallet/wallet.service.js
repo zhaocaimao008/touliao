@@ -13,6 +13,10 @@ const broadcaster = require('../../realtime/broadcaster');
 const { runFinancialOperation } = require('./financialIdempotency');
 const { appendConversationEventTx, emitSyncAvailable } = require('../messages/sync.service');
 
+const strictInteger = require('../../utils/strictInteger');
+const { pagination } = require('../../utils/pagination');
+const { privateSendGuard } = require('../messages/shared');
+
 const nowSec = () => Math.floor(Date.now() / 1000);
 
 function ensureWallet(userId) {
@@ -48,8 +52,7 @@ function applyDelta(userId, delta, type, refId = null, memo = '') {
 }
 
 function listTransactions(userId, { limit = 20, offset = 0 } = {}) {
-  const lim = Math.min(Math.max(Number(limit) || 20, 1), 100);
-  const off = Math.max(Number(offset) || 0, 0);
+  const { limit: lim, offset: off } = pagination({ limit, offset }, 100);
   return db.prepare(
     'SELECT id, amount, balance_after, type, ref_id, memo, created_at FROM wallet_transactions WHERE user_id=? ORDER BY created_at DESC, rowid DESC LIMIT ? OFFSET ?'
   ).all(userId, lim, off);
@@ -57,7 +60,7 @@ function listTransactions(userId, { limit = 20, offset = 0 } = {}) {
 
 /** 充值（占位：无真实支付网关，直接入账。生产接入支付后改为支付回调触发）。 */
 function recharge(userId, amount) {
-  const amt = Number(amount);
+  const amt = strictInteger(amount);
   if (!Number.isInteger(amt) || amt < 1 || amt > 100000) throw badRequest('充值金额范围 1-100000 金币');
   const balance = applyDelta(userId, amt, 'recharge', null, '充值');
   return { balance };
@@ -69,7 +72,7 @@ function recharge(userId, amount) {
  */
 async function transfer(senderId, { to_user_id, amount, note }, io = null, idempotencyKey) {
   if (!to_user_id) throw badRequest('请填写收款人');
-  const amt = Number(amount);
+  const amt = strictInteger(amount);
   if (!Number.isInteger(amt) || amt <= 0 || amt > 20000)
     throw badRequest('转账金额需为 1~20000 的整数（单位：金币）');
   if (to_user_id === senderId) throw badRequest('不能给自己转账');
@@ -97,6 +100,8 @@ async function transfer(senderId, { to_user_id, amount, note }, io = null, idemp
   try {
     outcome = runFinancialOperation(senderId, 'transfer', idempotencyKey,
       { to_user_id, amount: amt, note: safeNote }, () => {
+      const denied = privateSendGuard(conv.id, senderId, { type: 'private' });
+      if (denied) throw forbidden(denied);
       // 扣款（sender）— balance 不足时 applyDeltaTx 抛 WALLET_INSUFFICIENT 自动回滚
       applyDeltaTx(senderId,    -amt, 'transfer_out', refId, `转账给${toUser.username}`);
       // 入账（receiver）— 即时到账

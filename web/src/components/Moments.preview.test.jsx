@@ -61,3 +61,26 @@ test('failed loading leaves the entry enabled for retry', async () => {
   await expect(button(render(props)).props.onClick()).rejects.toThrow('offline');
   expect(button(render(props)).props.disabled).toBe(false);
 });
+
+test.each(['Enter', ' '])('reply target supports %j without attaching reply to the delete button', key => {
+  const props = { m: moment([comment]), meId: 'author', onDeleteComment: vi.fn() };
+  const tree = render(props);
+  const row = find(tree, 'wc-moment-comment');
+  expect(row.props.onClick).toBeUndefined();
+  expect(row.props.onKeyDown).toBeUndefined();
+  const remove = find(tree, 'wc-moment-comment-del');
+  const stopPropagation = vi.fn();
+  remove.props.onKeyDown({ key, stopPropagation });
+  expect(stopPropagation).toHaveBeenCalledOnce();
+  remove.props.onClick({ stopPropagation });
+  expect(props.onDeleteComment).toHaveBeenCalledWith(props.m, comment);
+  expect(find(render(props), 'wc-moment-comment-field')).toBeUndefined();
+
+  const reply = find(tree, 'wc-moment-comment-reply-target');
+  expect(reply.props.role).toBe('button');
+  expect(reply.props.tabIndex).toBe(0);
+  const preventDefault = vi.fn();
+  reply.props.onKeyDown({ key, preventDefault });
+  expect(preventDefault).toHaveBeenCalledOnce();
+  expect(find(render(props), 'wc-moment-comment-field')).toBeTruthy();
+});

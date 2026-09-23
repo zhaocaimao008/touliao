@@ -15,6 +15,7 @@ const { badRequest, forbidden, notFound, conflict, paginated } = require('../../
 const { isConfigured, getPublicBase } = require('../../utils/cloudStorage');
 const moderation = require('../moderation/moderation.service');
 const { pagination } = require('../../utils/pagination');
+const strictInteger = require('../../utils/strictInteger');
 
 // ── 互动通知（MO2）：actor≠author 才记。删动态由 FK ON DELETE CASCADE 清理 ──
 function addInteractNotification({ recipientId, actorId, momentId, type, commentId = null }) {
@@ -263,8 +264,14 @@ function createMoment(io, userId, { content, images, visibility, visibleTo, vide
 }
 
 // ── 时间线（本人 + 好友）────────────────────────────────────────
-function timeline(viewerId, { limit = 20, offset = 0 } = {}) {
+function timeline(viewerId, { limit = 20, offset = 0, beforeCreatedAt, beforeId } = {}) {
   const { limit: n, offset: off } = pagination({ limit, offset });
+  const hasCursor = beforeCreatedAt !== undefined || beforeId !== undefined;
+  const cursorTime = hasCursor ? strictInteger(beforeCreatedAt) : undefined;
+  if (hasCursor && (!Number.isSafeInteger(cursorTime) || cursorTime < 0 || typeof beforeId !== 'string' || !beforeId.trim())) {
+    throw badRequest('无效的分页游标');
+  }
+  const cursorParams = hasCursor ? [cursorTime, cursorTime, beforeId] : [];
   const rows = db.prepare(`
     SELECT m.* FROM moments m
     LEFT JOIN user_settings us ON us.user_id = m.user_id
@@ -289,9 +296,10 @@ function timeline(viewerId, { limit = 20, offset = 0 } = {}) {
         SELECT blocked_id FROM blocked_users WHERE user_id=?
         UNION SELECT user_id FROM blocked_users WHERE blocked_id=?
       ))
-    ORDER BY m.created_at DESC
+    ${hasCursor ? 'AND (m.created_at < ? OR (m.created_at = ? AND m.id < ?))' : ''}
+    ORDER BY m.created_at DESC, m.id DESC
     LIMIT ? OFFSET ?
-  `).all(viewerId, viewerId, viewerId, viewerId, viewerId, viewerId, viewerId, viewerId, n, off);
+  `).all(viewerId, viewerId, viewerId, viewerId, viewerId, viewerId, viewerId, viewerId, ...cursorParams, n, off);
   return batchEnrich(viewerId, rows, { likeLimit: 50, commentLimit: 10 });
 }
 

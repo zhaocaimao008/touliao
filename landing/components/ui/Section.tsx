@@ -42,7 +42,7 @@ export function SectionHeading({
   return (
     <div className="mx-auto max-w-2xl text-center">
       {eyebrow && (
-        <p className="mb-3 text-sm font-semibold uppercase tracking-wider text-brand-600">
+        <p className={`mb-3 text-sm font-semibold uppercase tracking-wider ${tone === 'dark' ? 'text-brand-200' : 'text-brand-600'}`}>
           {eyebrow}
         </p>
       )}

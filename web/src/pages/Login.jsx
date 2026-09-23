@@ -6,7 +6,7 @@ import { useNavigate, useLocation, Link } from 'react-router-dom';
 import axios from 'axios';
 import { useAuth } from '../contexts/AuthContext';
 import { useI18n } from '../contexts/I18nContext';
-import { timeoutSignal, resolveTenantCode } from '../utils/config';
+import { testServerConnection, resolveTenantCode } from '../utils/config';
 import { saveCred, hasCred, removeCred, lastRememberedPhone } from '../utils/rememberedCreds';
 import { showToast } from '../utils/toast';
 import AccountWindowButton from '../components/AccountWindowButton';
@@ -105,12 +105,9 @@ export default function Login() {
     const url = serverInput.trim().replace(/\/$/, '');
     if (!url.startsWith('http')) { setServerTest({ ok: false, msg: t('auth.serverProtocolHint') }); return; }
     setServerBusy(true); setServerTest(null);
-    try {
-      await fetch(`${url}/health`, { signal: timeoutSignal(6000) });
-      setServerTest({ ok: true, msg: t('auth.connectSuccess') });
-    } catch {
-      setServerTest({ ok: false, msg: t('auth.connectFail') });
-    } finally { setServerBusy(false); }
+    const result = await testServerConnection(url);
+    setServerTest({ ok: result.ok, msg: t(result.ok ? 'auth.connectSuccess' : result.reason === 'format' ? 'auth.serverProtocolHint' : 'auth.connectFail') + (result.status ? ` (${result.status})` : '') });
+    setServerBusy(false);
   };
 
   const saveServer = () => {
