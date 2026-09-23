@@ -129,7 +129,8 @@ final class SocketService {
         if socket?.status == .connected { return }
         disconnect()
 
-        guard let url = URL(string: ServerConfig.shared.baseURL) else { return }
+        guard let url = URL(string: ServerConfig.shared.baseURL),
+              ServerConfig.origin(of: url.absoluteString) == credential.origin else { return }
         let mgr = SocketIO.SocketManager(socketURL: url, config: [
             .log(false),
             .forceWebsockets(true),     // 仅 websocket，匹配服务端
