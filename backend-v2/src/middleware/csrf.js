@@ -2,11 +2,9 @@
 /**
  * CSRF 双提交 Cookie 校验（全域门控，注册在路由之前）。
  *   - 安全方法 GET/HEAD/OPTIONS 跳过
- *   - Bearer token 请求（移动端/Electron）跳过：第三方网站无法设置自定义 header，
- *     Bearer 鉴权天然不受 CSRF 攻击；且 Capacitor WebView 会把 session cookie
- *     带过来，sessionStorage 重启后清空，导致 cookie 有而 header 无 → 误报 403
+ *   - 仅靠 Bearer token 鉴权的请求（移动端/Electron）跳过
  *   - 对比 csrf_token Cookie 与 X-CSRF-Token header
- *   - 无 CSRF Cookie = 尚未鉴权，放行交给 auth 处理 401
+ *   - Cookie 鉴权的写请求必须完成双提交，即使 CSRF Cookie 丢失
  */
 const config = require('../config');
 
@@ -20,13 +18,15 @@ module.exports = function csrfProtection(req, res, next) {
   if (process.env.DISABLE_CSRF === '1') return next();
   if (/^(GET|HEAD|OPTIONS)$/i.test(req.method)) return next();
   if (CSRF_EXEMPT.includes(req.path)) return next();
-  // Bearer token（移动端 Capacitor / Electron）：无 CSRF 风险，直接跳过
-  if (req.headers['authorization']?.startsWith('Bearer ')) return next();
+  // 与 auth 的 Cookie 优先级一致；添加 Bearer 不能绕过 Cookie 会话的检查。
+  // isolatedSession 已在此之前移除隔离客户端的共享 Cookie。
+  const authCookie = req.cookies?.[config.cookieName];
+  if (!authCookie && req.headers['authorization']?.startsWith('Bearer ')) return next();
 
   const cookieToken = req.cookies?.[config.csrfCookie];
   const headerToken = req.headers['x-csrf-token'];
-  // 两者皆无 = 尚未鉴权，放行交给 auth 处理 401
-  if (!cookieToken && !headerToken) return next();
+  // 无登录凭据且无双提交字段时，继续交给路由鉴权；保留既有双提交语义。
+  if (!authCookie && !cookieToken && !headerToken) return next();
   if (!cookieToken || !headerToken || headerToken !== cookieToken) {
     return res.status(403).json({ error: 'CSRF token 无效或缺失' });
   }

@@ -1,6 +1,7 @@
 package com.touliao.app.core.network
 
 import com.touliao.app.core.storage.TokenStore
+import com.touliao.app.core.storage.normalizedOrigin
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
 import okhttp3.Interceptor
@@ -25,12 +26,12 @@ class AuthInterceptor @Inject constructor(
         val original = chain.request()
         val owner = original.tag(TokenStore.Snapshot::class.java)
         val credential = owner ?: tokenStore.snapshot()
-        if (owner != null && !tokenStore.isCurrent(owner)) throw IOException("Account changed before request")
-        val request = credential.token?.let { token ->
-            original.newBuilder()
-                .header("Authorization", "Bearer $token")
-                .build()
-        } ?: original
+        if (!tokenStore.isCurrent(credential)) throw IOException("Account changed before request")
+        val sameOrigin = credential.origin == normalizedOrigin(original.url.toString())
+        val builder = original.newBuilder().removeHeader("Authorization")
+            .tag(TokenStore.Snapshot::class.java, credential)
+        if (sameOrigin) credential.token?.let { builder.header("Authorization", "Bearer $it") }
+        val request = builder.build()
 
         val response = chain.proceed(request)
 
@@ -38,7 +39,7 @@ class AuthInterceptor @Inject constructor(
         // （如密码错误），不是 token 失效——绝不能触发全局登出，否则「添加账号」流程
         // 输错一次密码就把当前已登录账号的 token/离线缓存全部清掉（数据丢失级事故）。
         // 只有受保护 API 的 401 才视为 token 失效。
-        if (response.code == 401 && !isAuthEndpoint(original.url.encodedPath)) {
+        if (sameOrigin && response.code == 401 && !isAuthEndpoint(original.url.encodedPath)) {
             tokenStore.invalidate(credential)?.let { _unauthorized.tryEmit(it) }
         }
         return response

@@ -222,8 +222,11 @@ class SocketManager @Inject constructor(
     private val _gcEnded = MutableSharedFlow<GroupCallEndedEvent>(extraBufferCapacity = 8)
     val groupCallEndedEvents: SharedFlow<GroupCallEndedEvent> = _gcEnded.asSharedFlow()
 
+    init { tokenStore.onOriginChange { disconnect() } }
+
     fun connect(): Unit = synchronized(tokenStore) {
         val credential = tokenStore.snapshot()
+        if (credential.origin != com.touliao.app.core.storage.normalizedOrigin(serverConfig.baseUrl)) return
         val token = credential.token ?: return        // 未登录不连
         if (socket?.connected() == true) return
 

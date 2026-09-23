@@ -62,6 +62,7 @@ function createSocket(userId, socketId, io) {
     handlers,
     emitted,
     on(event, handler) { handlers[event] = handler; return this; },
+    once(event, handler) { return this.on(event, handler); },
     emit(event, payload) { emitted.push({ event, payload }); return this; },
     to(room) { return io.to(room); },
     last(event) { return emitted.filter(item => item.event === event).at(-1); },
@@ -485,11 +486,13 @@ describe('group call occupancy contract', () => {
       setupRealtime(io);
       const socket = {
         id: 'socket-group-wiring',
+        connected: true,
         authToken: 'synthetic-auth-token',
         user: { id: 'alice-group-wiring' },
         use: jest.fn(),
         join: jest.fn(),
         on: jest.fn(),
+        once(event, handler) { return this.on(event, handler); },
         to: jest.fn(() => ({ emit: jest.fn() })),
       };
       connect(socket);

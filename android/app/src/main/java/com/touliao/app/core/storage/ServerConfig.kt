@@ -1,6 +1,7 @@
 package com.touliao.app.core.storage
 
 import android.content.Context
+import android.content.SharedPreferences
 import com.touliao.app.BuildConfig
 import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
@@ -14,19 +15,23 @@ import javax.inject.Singleton
  *  - 默认：BuildConfig.DEFAULT_SERVER_URL（仅在远程+无覆盖时兜底）
  */
 @Singleton
-class ServerConfig @Inject constructor(
-    @ApplicationContext context: Context,
+class ServerConfig internal constructor(
+    private val prefs: SharedPreferences,
     private val tokenStore: TokenStore,
 ) {
-    private val prefs = context.getSharedPreferences("vxin_server", Context.MODE_PRIVATE)
+    @Inject constructor(@ApplicationContext context: Context, tokenStore: TokenStore) :
+        this(context.getSharedPreferences("vxin_server", Context.MODE_PRIVATE), tokenStore)
+
+    init { tokenStore.selectOrigin(baseUrl) }
 
     /** 生效地址（读时计算优先级）；setter 写入「手动覆盖」 */
     var baseUrl: String
-        get() = manualOverride() ?: remote() ?: BuildConfig.DEFAULT_SERVER_URL
+        get() = synchronized(tokenStore) { manualOverride() ?: remote() ?: BuildConfig.DEFAULT_SERVER_URL }
         set(value) {
             synchronized(tokenStore) {
-                if (baseUrl != normalize(value)) tokenStore.beginIdentityChange()
-                prefs.edit().putString(KEY_OVERRIDE, normalize(value)).apply()
+                val next = normalize(value)
+                tokenStore.selectOrigin(next)
+                prefs.edit().putString(KEY_OVERRIDE, next).apply()
             }
         }
 
@@ -38,7 +43,8 @@ class ServerConfig @Inject constructor(
         val n = normalize(url)
         synchronized(tokenStore) {
             if (n.isNotEmpty()) {
-                if (manualOverride() == null && baseUrl != n) tokenStore.beginIdentityChange()
+                requireNotNull(normalizedOrigin(n)) { "Invalid server origin" }
+                if (manualOverride() == null) tokenStore.selectOrigin(n)
                 prefs.edit().putString(KEY_REMOTE, n).apply()
             }
         }
@@ -46,7 +52,7 @@ class ServerConfig @Inject constructor(
 
     /** 清除手动覆盖，回到远程/默认 */
     fun clearManualOverride() = synchronized(tokenStore) {
-        tokenStore.beginIdentityChange()
+        tokenStore.selectOrigin(remote() ?: BuildConfig.DEFAULT_SERVER_URL)
         prefs.edit().remove(KEY_OVERRIDE).apply()
     }
 
@@ -54,6 +60,8 @@ class ServerConfig @Inject constructor(
     private fun remote(): String? = prefs.getString(KEY_REMOTE, null)?.takeIf { it.isNotBlank() }
 
     private fun normalize(url: String): String = url.trim().trimEnd('/')
+
+    fun endpointSnapshot() = synchronized(tokenStore) { baseUrl to tokenStore.snapshot() }
 
     private companion object {
         const val KEY_OVERRIDE = "base_url_override"

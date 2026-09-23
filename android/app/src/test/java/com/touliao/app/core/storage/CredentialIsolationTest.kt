@@ -55,7 +55,7 @@ class CredentialIsolationTest {
         assertTrue(store.snapshot().identityEpoch > fresh.identityEpoch)
     }
     private fun late401(store: TokenStore, change: () -> Unit) {
-        val request = Request.Builder().url("https://fixture.test/api/messages").build()
+        val request = Request.Builder().url("${store.origin}/api/messages").build()
         val chain = Proxy.newProxyInstance(Interceptor.Chain::class.java.classLoader,
             arrayOf(Interceptor.Chain::class.java)) { _, method, args ->
             when (method.name) {

@@ -39,7 +39,7 @@ const download = (f, user) => request(app).get(f.url).set('Authorization', `Bear
 const shares = f => db.prepare('SELECT * FROM file_registry_shares WHERE path=?').all(f.url);
 async function send(f, user, conv = f.planted) {
   let handler;
-  const socket = { user: { id: user.userId }, on: (event, fn) => { if (event === 'send_file_message') handler = fn; } };
+  const socket = { user: { id: user.userId }, on: (event, fn) => { if (event === 'send_file_message') handler = fn; }, once(event, fn) { return this.on(event, fn); } };
   const io = { to: () => ({ emit() {} }) };
   registerHandler(io, socket);
   // Avoid testing unrelated per-second message quotas.
