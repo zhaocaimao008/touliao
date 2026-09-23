@@ -66,6 +66,11 @@ jobs:
           # Nginx root（见 /etc/nginx/conf.d/touliao-cc.conf 的 location /welcome/）
           LANDING_PATH: /var/www/touliao-landing
         run: |
+          # 2026-09-23：手工 `sudo rsync` 发布留下 root 属主文件后，本步骤以部署用户
+          # `--delete` 删不掉旧 _next 资源（Permission denied，exit 23）。同步前先把
+          # 目录属主统一回部署用户（部署用户已有免密 sudo，见 deploy.yml 的 sudo -n）。
+          ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no "${DEPLOY_USER}@${DEPLOY_HOST}" \
+            "sudo -n mkdir -p '${LANDING_PATH}' && sudo -n chown -R \"\$(id -un):\$(id -gn)\" '${LANDING_PATH}'"
           # --delete 保证生产目录与构建产物一致（清理已删除的旧资源）
           rsync -az --delete \
             -e "ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no" \

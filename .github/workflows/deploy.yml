@@ -4,13 +4,14 @@ on:
   push:
     branches:
       - main
+    # 触发范围 = 部署步骤真实使用的输入（审计 F08）：后端、web 整个构建输入（含锁文件与
+    # 构建配置）、admin/ 面板、部署脚本调用的 ops/prune-web-assets.sh。漏任何一项，
+    # 单独改动它就不会上线，只能等下一次别的改动或人工触发。
     paths:
       - 'backend-v2/**'
-      - 'web/src/**'
-      - 'web/public/**'
-      - 'web/index.html'
-      - 'web/vite.config.js'
-      - 'web/package.json'
+      - 'web/**'
+      - 'admin/**'
+      - 'ops/prune-web-assets.sh'
       - '.github/workflows/deploy.yml'
   workflow_dispatch:  # 允许手动触发
 
@@ -111,9 +112,44 @@ jobs:
         working-directory: web
         run: npm run lint -- --max-warnings=0
 
+  # 与 ci.yml 同名门禁在本工作流内重跑一遍（审计 F09）：独立工作流并发运行，
+  # 不能保证"它们成功后才部署"，所以部署 job 必须直接依赖同一提交上的这两项结果。
+  web-unit:
+    name: Web Vitest 单测
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20.x'
+          cache: 'npm'
+          cache-dependency-path: web/package-lock.json
+      - name: 安装 web 依赖
+        working-directory: web
+        run: npm ci --legacy-peer-deps
+      - name: Vitest
+        working-directory: web
+        run: npm test
+
+  migration-gate:
+    name: Schema 迁移尾部追加门禁
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20.x'
+      # push：对比本次 push 之前的提交；手动触发（无 before）：对比上一个提交。
+      - name: 检查 migrations 数组只允许尾部追加
+        run: node backend-v2/scripts/check-migration-append.js --base "${{ github.event.before || 'HEAD~1' }}"
+
   deploy:
     name: 部署到生产服务器
-    needs: [test, backend-jest, web-gate]
+    needs: [test, backend-jest, web-gate, web-unit, migration-gate]
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
 
