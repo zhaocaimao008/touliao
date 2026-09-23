@@ -214,7 +214,8 @@ final class APIClient {
         guard let url = URL(string: baseURL() + "/" + path) else { throw APIError.network }
         var request = URLRequest(url: url)
         request.httpMethod = method
-        if authorized, let token = credential.token {
+        // 凭据只发往签发它的服务器：请求构造期间若已切换服务器，宁可不带 token（审计 F02）。
+        if authorized, let token = credential.token, ServerConfig.origin(of: url.absoluteString) == credential.origin {
             request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         }
         return request
