@@ -89,7 +89,8 @@ async function sendDueMessages(io = null) {
         }
         const member = db.prepare('SELECT role FROM conversation_members WHERE conversation_id=? AND user_id=?').get(sched.conversation_id,sched.sender_id);
         const conv = db.prepare('SELECT type,mute_all FROM conversations WHERE id=?').get(sched.conversation_id);
-        if (!member || !conv || privateSendGuard(sched.conversation_id,sched.sender_id,conv) || (conv.mute_all && member.role==='member')) {
+        const sender = db.prepare('SELECT banned FROM users WHERE id=?').get(sched.sender_id);
+        if (!sender || sender.banned || !member || !conv || privateSendGuard(sched.conversation_id,sched.sender_id,conv) || (conv.mute_all && member.role==='member')) {
           db.prepare("UPDATE scheduled_messages SET status='cancelled' WHERE id=?").run(id);
           return null;
         }

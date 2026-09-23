@@ -147,7 +147,7 @@ const MomentCard = memo(function MomentCard({ m, meId, onLike, onComment, onDele
             aria-label={t('moments.playVideo')}
           >
             <video
-              src={`${mediaUrl(m.video)}#t=0.1`}
+              src={mediaUrl(m.video) ? `${mediaUrl(m.video)}#t=0.1` : undefined}
               poster={m.cover ? mediaUrl(m.cover) : undefined}
               preload="metadata"
               muted
@@ -162,7 +162,7 @@ const MomentCard = memo(function MomentCard({ m, meId, onLike, onComment, onDele
             url={lightbox.urls[lightbox.idx]} onClose={() => setLightbox(null)} />
         )}
         {videoLightbox && (
-          <VideoPreview url={mediaUrl(m.video)} name={t('moments.videoFilename')} onClose={() => setVideoLightbox(false)} />
+          <VideoPreview url={m.video} name={t('moments.videoFilename')} onClose={() => setVideoLightbox(false)} />
         )}
 
         <div className="wc-moment-actions">
@@ -353,6 +353,7 @@ export default function Moments() {
   }, []);
   useEffect(() => {
     const ac = new AbortController();
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- 状态仅在可取消的异步设置请求完成后更新
     loadSettings(ac.signal);
     return () => ac.abort();
   }, [loadSettings]);

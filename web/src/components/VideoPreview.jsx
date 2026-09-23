@@ -118,7 +118,7 @@ export default function VideoPreview({ url: fileUrl, name, onClose }) {
         </span>
         {!uploading && canShare() && (
           <button
-            onClick={(e) => { e.stopPropagation(); shareMessage({ fileUrl: url, filename: name || filenameFromUrl(url), title: name || t('videoPreview.share') }); }}
+            onClick={(e) => { e.stopPropagation(); shareMessage({ fileUrl, filename: name || filenameFromUrl(fileUrl), title: name || t('videoPreview.share') }); }}
             aria-label={t('videoPreview.share')}
             data-testid="video-lightbox-share"
             style={{

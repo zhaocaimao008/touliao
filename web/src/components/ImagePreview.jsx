@@ -19,7 +19,8 @@ export default function ImagePreview({ url, urls = null, initialIdx = 0, onClose
   // Gallery mode: urls array + current index; single mode: just url
   const gallery = urls && urls.length > 1;
   const [idx, setIdx] = useState(initialIdx);
-  const currentUrl = mediaUrl(gallery ? urls[idx] : url);
+  const sourceUrl = gallery ? urls[idx] : url;
+  const currentUrl = mediaUrl(sourceUrl);
 
   const [scale, setScale] = useState(1);
   const [position, setPosition] = useState({ x: 0, y: 0 });
@@ -213,7 +214,7 @@ export default function ImagePreview({ url, urls = null, initialIdx = 0, onClose
         }}
       >
         <button
-          onClick={(e) => { e.stopPropagation(); downloadFile(currentUrl, filenameFromUrl(currentUrl)); }}
+          onClick={(e) => { e.stopPropagation(); downloadFile(sourceUrl, filenameFromUrl(sourceUrl)); }}
           aria-label={t('imagePreview.download')}
           style={{
             border: 'none', cursor: 'pointer',
@@ -232,7 +233,7 @@ export default function ImagePreview({ url, urls = null, initialIdx = 0, onClose
         </button>
         {canShare() && (
           <button
-            onClick={(e) => { e.stopPropagation(); shareMessage({ fileUrl: currentUrl, filename: filenameFromUrl(currentUrl), title: t('imagePreview.share') }); }}
+            onClick={(e) => { e.stopPropagation(); shareMessage({ fileUrl: sourceUrl, filename: filenameFromUrl(sourceUrl), title: t('imagePreview.share') }); }}
             aria-label={t('imagePreview.share')}
             data-testid="lightbox-share"
             style={{

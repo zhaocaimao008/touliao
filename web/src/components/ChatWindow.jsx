@@ -57,7 +57,7 @@ const ReadStatusModal     = lazy(() => import('./ReadStatusModal'));
 import { useSocket } from '../contexts/SocketContext';
 import { useAuth } from '../contexts/AuthContext';
 import { useI18n } from '../contexts/I18nContext';
-import { mediaUrl, useMediaCredentials } from '../utils/url';
+import { mediaUrl, resolveMediaUrl, useMediaCredentials } from '../utils/url';
 import { rememberAspect } from '../utils/imgDimCache';
 import { copyToClipboard, copyImageToClipboard } from '../utils/clipboard';
 import { downloadFile } from '../utils/download';
@@ -213,7 +213,7 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
   const [conversation, setConversation] = useState(initialConv);
   const [messages, setMessages] = useState([]);
   // 首屏加载态：消息为空且数据仍在途（无缓存/缓存为空）时显示骨架，避免纯空白
-  const [initialLoading, setInitialLoading] = useState(false);
+  const [initialLoading, setInitialLoading] = useState(true);
   // 输入区（compose）状态收敛进 useReducer：input / voiceMode / editingMsg /
   // replyTo 四者有真实协同转换（开始编辑=载入文本+清回复；发送=清文本+清回复；
   // 切换会话=全清），改为原子 dispatch，杜绝散落 setState 的不一致。见
@@ -627,6 +627,7 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
   if (conversation.id !== prevConvId) {
     setMessages([]);
     setPrevConvId(conversation.id);
+    setInitialLoading(true);
     // compose 全清 + 载入新会话草稿（replyTo/editingMsg/voiceMode/input 原子重置）
     dispatchCompose({ type: 'RESET', draft: localStorage.getItem(`draft_${conversation.id}`) || '' });
     setMention(null); // 清 @ 提及态,避免跨会话残留下拉
@@ -651,8 +652,6 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
     // 旧逻辑 setMessages(prev => prev.length ? prev : cached) 在「不清空」后无法
     // 区分「旧会话残留」与「新会话在途消息」，统一用 firstArrival 标记。
     let firstArrival = true;
-    // 会话切换首帧 loading 起点：仅会话切换时置位一次，无级联渲染风险
-    setInitialLoading(true);
     const convIdForCache = conversation.id;
     const cachedMessages = (conversation.burn_after || 0) > 0
       ? clearCache(convIdForCache).then(() => [])
@@ -2237,7 +2236,7 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
           // 图片/表情：抓原图 → 写入系统剪贴板（可直接粘贴到微信/文档等）。
           // Web 同源直接 fetch；Electron 走主进程原生剪贴板（渲染进程 file:// 跨源受限）。
           showToast(t('chat.copyingImage'));
-          const ok = await copyImageToClipboard(mediaUrl(msg.file_url));
+          const ok = await copyImageToClipboard(await resolveMediaUrl(msg.file_url));
           showToast(ok ? t('chat.imageCopied') : t('chat.copyFailedLongPress'), ok ? 'success' : 'error');
         } else {
           showToast(t('chat.msgTypeNotSupportCopy'));
@@ -2651,7 +2650,7 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
         <div
           className="wc-messages-virt"
           style={conversation.background ? {
-            backgroundImage: `url(${mediaUrl(conversation.background)})`,
+            backgroundImage: mediaUrl(conversation.background) ? `url(${mediaUrl(conversation.background)})` : undefined,
             backgroundSize: 'cover',
             backgroundPosition: 'center',
             backgroundRepeat: 'no-repeat',
