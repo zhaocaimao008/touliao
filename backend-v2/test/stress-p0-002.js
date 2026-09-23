@@ -42,6 +42,7 @@ function makeMockSocket(userId, rooms = new Set()) {
     to() { return { emit() {}, _toEmitted: [] }; },
     join() {},
     on(event, handler) { registry[event] = handler; return this; },
+    once(event, handler) { return this.on(event, handler); },
   };
 }
 function makeMockIo() { const targeted = []; return { targeted, to(r) { return { emit(e, p) { targeted.push({ r, e, p }); return this; } }; } }; }

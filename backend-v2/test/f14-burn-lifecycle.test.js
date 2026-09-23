@@ -130,7 +130,7 @@ test('reply previews and HTTP/socket merged forwarding reject known burn source 
  expect(JSON.stringify(messages.history(f.id,f.b,{}).find(x=>x.id===reply.id).replyTo)).not.toContain(secret);
  const content=JSON.stringify({title:'merged',items:[{mid:m.id,snippet:secret}]});
  await expect(messages.send(null,f.id,f.a,{type:'merged',content})).rejects.toThrow('阅后即焚');
- const callbacks={};require('../src/realtime/handlers/message')({}, {user:{id:f.a},on:(name,fn)=>callbacks[name]=fn});
+ const callbacks={};require('../src/realtime/handlers/message')({}, {user:{id:f.a},on:(name,fn)=>callbacks[name]=fn,once(name,fn){return this.on(name,fn);}});
  const ack=await new Promise(resolve=>callbacks.send_message({conversationId:f.id,type:'merged',content},resolve));expect(ack.success).toBe(false);expect(ack.error).toContain('阅后即焚');
  const normal=JSON.stringify({title:'normal',items:[{mid:reply.id,snippet:'reply'}]});
  expect((await messages.send(null,f.id,f.a,{type:'merged',content:normal})).type).toBe('merged');

@@ -70,6 +70,7 @@ function createSocket(userId, socketId, io) {
       handlers[event] = handler;
       return this;
     },
+    once(event, handler) { return this.on(event, handler); },
     emit(event, payload) {
       emitted.push({ event, payload });
       return this;
@@ -436,11 +437,13 @@ describe('private call signaling contract', () => {
       setupRealtime(io);
       const socket = {
         id: 'socket-wiring',
+        connected: true,
         authToken: 'synthetic-auth-token',
         user: { id: 'alice-wiring' },
         use: jest.fn(),
         join: jest.fn(),
         on: jest.fn(),
+        once(event, handler) { return this.on(event, handler); },
         to: jest.fn(() => ({ emit: jest.fn() })),
       };
       connect(socket);

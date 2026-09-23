@@ -29,6 +29,7 @@ function makeMockSocket(userId, rooms = new Set()) {
     to() { return { emit() {}, _toEmitted: [] }; },
     join() {},
     on(event, handler) { registry[event] = handler; return this; },
+    once(event, handler) { return this.on(event, handler); },
   };
   return socket;
 }
