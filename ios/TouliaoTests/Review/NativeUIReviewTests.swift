@@ -91,6 +91,8 @@ final class NativeUIReviewTests: XCTestCase {
         }
         ReviewURLProtocol.uploads = []
         URLProtocol.registerClass(ReviewURLProtocol.self)
+        // Protected media uses its own credential-scoped session (see MediaUrlResolver).
+        MediaUrlResolver.protocolClassesForTesting = [ReviewURLProtocol.self]
         // Kingfisher owns an ephemeral session, so global URLProtocol registration
         // alone does not isolate its requests. Configure only the test transport.
         oldImageConfiguration = ImageDownloader.default.sessionConfiguration
@@ -117,6 +119,7 @@ final class NativeUIReviewTests: XCTestCase {
         UserDefaults.standard.set(oldActive, forKey: "touliao_active_account_id")
         UserDefaults.standard.set(oldServer, forKey: "vxin_base_url_override")
         URLProtocol.unregisterClass(ReviewURLProtocol.self)
+        MediaUrlResolver.protocolClassesForTesting = nil
         if let oldImageConfiguration { ImageDownloader.default.sessionConfiguration = oldImageConfiguration }
     }
 
@@ -192,7 +195,8 @@ final class NativeUIReviewTests: XCTestCase {
         vm.openImage(image)
         XCTAssertEqual(vm.galleryStart, 0)
         XCTAssertTrue(try XCTUnwrap(vm.galleryImages?.first).contains("/uploads/image.png"))
-        XCTAssertTrue(try XCTUnwrap(vm.galleryImages?.first).contains("token="))
+        // Account credentials travel only in same-origin headers or short-lived tickets, never in gallery URLs.
+        XCTAssertFalse(try XCTUnwrap(vm.galleryImages?.first).contains("token="))
         var video = image; video.type = "video"; video.fileUrl = "/uploads/video.mp4"; video.content = "视频.mp4"
         vm.openAttachment(video)
         XCTAssertTrue(try XCTUnwrap(vm.videoPreview?.url).contains("/uploads/video.mp4"))
@@ -372,7 +376,7 @@ final class NativeUIReviewTests: XCTestCase {
             XCTAssertTrue(messages.contains { $0.content == "收到，稍后把文件发给你。" }, "Chat rendering requires successfully loaded history")
         }
         if name.hasPrefix("image-message-") {
-            let loaded = try XCTUnwrap(ImageCache.default.retrieveImageInMemoryCache(forKey: "https://native-review.invalid/uploads/ui-image.png"), "A blank image placeholder must not count as a successful screenshot")
+            let loaded = try XCTUnwrap(ImageCache.default.retrieveImageInMemoryCache(forKey: "review-me:https://native-review.invalid/uploads/ui-image.png"), "A blank image placeholder must not count as a successful screenshot")
             XCTAssertGreaterThan(loaded.size.width, 0)
             XCTAssertEqual(loaded.size.width / loaded.size.height, 1.5, accuracy: 0.01)
         }

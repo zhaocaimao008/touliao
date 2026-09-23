@@ -20,7 +20,14 @@ enum MediaUrlResolver {
         if protectedMedia(url), let token = owner.token { request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization") }
         return request
     }
-    private static let session = URLSession(configuration: .ephemeral, delegate: MediaRedirectDelegate(), delegateQueue: nil)
+    /// 仅测试注入隔离传输层；生产始终是 ephemeral 配置 + 重定向去凭据。
+    static var protocolClassesForTesting: [AnyClass]? { didSet { session = makeSession() } }
+    private static var session = makeSession()
+    private static func makeSession() -> URLSession {
+        let configuration = URLSessionConfiguration.ephemeral
+        if let protocolClassesForTesting { configuration.protocolClasses = protocolClassesForTesting }
+        return URLSession(configuration: configuration, delegate: MediaRedirectDelegate(), delegateQueue: nil)
+    }
     static func download(_ url: URL) async throws -> (URL, URLResponse) {
         let owner = KeychainStore.shared.snapshot()
         let result = try await session.download(for: request(url, owner: owner))
