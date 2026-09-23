@@ -39,7 +39,7 @@ async function poll(fn, label) {
     assert.equal(runtime.version, '8.1.30'); assert.equal(runtime.platform, 'win32'); assert.equal(runtime.packaged, true);
     const base = new URL(await page.evaluate(() => window.electronAPI.getServerUrl())).origin;
     const chunk = await app.evaluate(({ app, session }, { base, local, temp }) => {
-      const fs = require('fs'), path = require('path');
+      const fs = process.getBuiltinModule('fs'), path = process.getBuiltinModule('path');
       app.setPath('downloads', temp);
       session.defaultSession.webRequest.onBeforeRequest({ urls: [base + '/__download_regression/*'] }, (details, callback) => {
         callback({ redirectURL: local + new URL(details.url).pathname.replace('/__download_regression', '') });
