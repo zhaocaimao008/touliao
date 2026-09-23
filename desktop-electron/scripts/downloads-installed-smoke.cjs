@@ -36,13 +36,14 @@ async function poll(fn, label) {
     const page = await app.firstWindow();
     await page.waitForFunction(() => !!window.electronAPI?.downloadFile);
     const runtime = await app.evaluate(({ app }) => ({ version: app.getVersion(), platform: process.platform, packaged: app.isPackaged, electron: process.versions.electron }));
-    assert.equal(runtime.version, '8.1.30'); assert.equal(runtime.platform, 'win32'); assert.equal(runtime.packaged, true);
+    assert.equal(runtime.version, '8.1.31'); assert.equal(runtime.platform, 'win32'); assert.equal(runtime.packaged, true);
     const base = new URL(await page.evaluate(() => window.electronAPI.getServerUrl())).origin;
     const chunk = await app.evaluate(({ app, session }, { base, local, temp }) => {
       const fs = process.getBuiltinModule('fs'), path = process.getBuiltinModule('path');
       app.setPath('downloads', temp);
-      session.defaultSession.webRequest.onBeforeRequest({ urls: [base + '/__download_regression/*'] }, (details, callback) => {
-        callback({ redirectURL: local + new URL(details.url).pathname.replace('/__download_regression', '') });
+      session.defaultSession.webRequest.onBeforeRequest({ urls: [base + '/__download_regression/*', base + '/uploads/files/jev-regression-*'] }, (details, callback) => {
+        const path = new URL(details.url).pathname;
+        callback({ redirectURL: local + (path.startsWith('/uploads/') ? '/normal' : path.replace('/__download_regression', '')) });
       });
       const chunks = fs.readdirSync(path.join(app.getAppPath(), 'web/dist/assets')).filter(x => /^share-.*\.js$/.test(x));
       if (chunks.length !== 1) throw Error('Expected one current download chunk');
@@ -62,6 +63,32 @@ async function poll(fn, label) {
     const state = id => page.evaluate(id => window.downloadSmoke.state(id), id);
     const done = async id => { await poll(async () => ['completed', 'failed', 'cancelled'].includes((await state(id)).status), id); return state(id); };
     const verified = result => { assert.equal(result.status, 'completed'); assert.equal(hash(fs.readFileSync(result.savePath)), hash(body)); };
+    let ticketFailure = false;
+    await page.route(base + '/api/uploads/ticket?*', async route => {
+      assert.equal(route.request().headers().authorization, 'Bearer isolated-ticket-test');
+      await new Promise(r => setTimeout(r, 400));
+      const file = new URL(route.request().url()).searchParams.get('file');
+      const payload = Buffer.from(JSON.stringify({ exp: Math.floor(Date.now()/1000)+600 })).toString('base64url');
+      await route.fulfill({ status: ticketFailure ? 503 : 200, json: ticketFailure ? { error: 'fixture' } : { url: file+'?token=fixture.'+payload+'.test' } });
+    });
+    const responsiveness = await page.evaluate(async base => {
+      localStorage.setItem('touliao_electron_token','isolated-ticket-test');
+      localStorage.setItem('touliao_server_url',base);
+      const begin=performance.now();
+      const heartbeat=new Promise(r=>setTimeout(()=>r(performance.now()-begin),10));
+      for(let i=0;i<3;i++)window.downloadSmoke.start({id:'ticket-'+i,fileUrl:'/uploads/files/jev-regression-'+i+'.mp4',filename:'ticket-'+i+'.mp4'});
+      const blockedMs=performance.now()-begin;
+      return {blockedMs,heartbeatMs:await heartbeat};
+    },base);
+    assert.ok(responsiveness.blockedMs<200,JSON.stringify(responsiveness));
+    assert.ok(responsiveness.heartbeatMs<250,JSON.stringify(responsiveness));
+    for(let i=0;i<3;i++)verified(await done('ticket-'+i));
+    results.push({asyncMediaTickets:responsiveness,verifiedFiles:3});
+    ticketFailure=true;
+    await page.evaluate(()=>window.downloadSmoke.start({id:'ticket-retry',fileUrl:'/uploads/files/jev-regression-retry.mp4',filename:'ticket-retry.mp4'}));
+    assert.equal((await done('ticket-retry')).status,'failed');
+    ticketFailure=false;await page.evaluate(()=>window.downloadSmoke.retry('ticket-retry'));verified(await done('ticket-retry'));
+    results.push('ticket failure and retry');
     await start('normal', 'normal'); verified(await done('normal')); results.push('saved bytes and hash');
     await start('denied', 'forbidden'); assert.match((await done('denied')).error, /403/); assert.ok(!fs.existsSync(path.join(temp, 'denied.mp4'))); results.push('HTTP 403 failure');
     await start('partial', 'partial'); assert.equal((await done('partial')).status, 'failed'); assert.ok(!fs.existsSync(path.join(temp, 'partial.mp4'))); results.push('truncated body cleanup');

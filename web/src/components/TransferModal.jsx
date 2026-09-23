@@ -17,7 +17,7 @@ export default function TransferModal({ conversation, onClose, onSent }) {
 
   // 仅私聊才能转账（校验由父组件保证，这里防御性显示）
   const otherUser = conversation?.otherUser;
-  const amountNum = parseInt(amount, 10) || 0;
+  const amountNum = /^\d+$/.test(amount) ? Number(amount) : 0;
   const canSend   = amountNum >= 1 && amountNum <= 20000;
 
   // Esc 关闭（发送中不关闭，避免资金操作中途打断）
@@ -65,7 +65,7 @@ export default function TransferModal({ conversation, onClose, onSent }) {
             type="text"
             inputMode="numeric"
             value={amount}
-            onChange={e => { setAmount(e.target.value.replace(/\D/g, '').slice(0, 5)); setError(''); }}
+            onChange={e => { setAmount(e.target.value); setError(''); }}
             placeholder={t('redPacket.amountPlaceholder')}
             className="rpm-input"
             aria-label={t('transfer.amountAriaLabel')}

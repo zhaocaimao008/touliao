@@ -4,7 +4,7 @@
 // 状态机：pending → downloading → completed | failed | cancelled。
 // Electron 由主进程流式落盘并报告实际结果；Web 优先使用 File System Access，
 // 不支持时退回 Blob / 原生链接下载。重试重新申请媒体票据并从头下载。
-import { mediaUrl } from './url';
+import { resolveMediaUrl } from './url';
 import { showToast } from './toast';
 
 const SOFT_MEMORY_LIMIT = 150 * 1024 * 1024; // 150MB：超过且无File System Access API时退化
@@ -79,7 +79,14 @@ async function execute(id) {
   if (!t) return;
   setState(id, { status: 'downloading', progress: 0, downloadedBytes: 0 });
 
-  const url = t.url = mediaUrl(t.fileUrl);
+  let url;
+  try {
+    url = t.url = await resolveMediaUrl(t.fileUrl);
+    if (t.abortController.signal.aborted) { setState(id, { status: 'cancelled' }); return; }
+  } catch (e) {
+    setState(id, { status: t.abortController.signal.aborted ? 'cancelled' : 'failed', error: e.message });
+    return;
+  }
   const name = t.filename;
 
   // 每次尝试使用独立 ID，避免迟到的进度污染重试任务。
@@ -215,7 +222,7 @@ export function startDownload({ id, fileUrl, filename, mimeType, autoOpen = fals
   const existing = tasks.get(taskId);
   if (existing && ['pending', 'downloading'].includes(existing.status)) return taskId;
 
-  const resolvedUrl = mediaUrl(fileUrl);
+  const resolvedUrl = fileUrl;
   const resolvedName = filename || filenameFromUrl(resolvedUrl);
   tasks.set(taskId, {
     id: taskId, fileUrl, url: resolvedUrl, filename: resolvedName, mimeType: mimeType || '', autoOpen: !!autoOpen,
@@ -258,12 +265,13 @@ export function retryDownload(id) {
 }
 
 /** 兼容旧调用：不需要进度 UI 的场景，直接触发一次性下载（内部走同一套 DownloadManager）。 */
-export function downloadFile(fileUrl, filename) {
+export async function downloadFile(fileUrl, filename) {
   const isPlainWeb = !isElectron() && !isNativeApp();
   // 纯网页且用户浏览器没有 File System Access API 时，最简单可靠的路径就是原生
   // <a download> 直接导航——保留这条快速路径，避免所有旧调用点都被迫感知进度状态。
   if (isPlainWeb && typeof window.showSaveFilePicker !== 'function') {
-    anchorDownload(mediaUrl(fileUrl), filename || filenameFromUrl(fileUrl));
+    try { anchorDownload(await resolveMediaUrl(fileUrl), filename || filenameFromUrl(fileUrl)); }
+    catch (e) { showToast('下载失败：' + e.message, 'error'); }
     return;
   }
   const id = startDownload({ fileUrl, filename });

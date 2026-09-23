@@ -15,8 +15,8 @@ export default function RedPacketModal({ conversation, onClose, onSent }) {
 
   // 私聊红包固定 1 个（对齐微信：私聊只填金额，无「个数」）；群聊才有个数
   const isGroup = conversation.type === 'group';
-  const amountNum = Math.floor(parseFloat(amount) || 0);
-  const countNum = isGroup ? (parseInt(count) || 0) : 1;
+  const amountNum = /^\d+$/.test(amount) ? Number(amount) : 0;
+  const countNum = isGroup ? (/^\d+$/.test(count) ? Number(count) : 0) : 1;
   const perPerson = countNum > 0 ? Math.floor(amountNum / countNum) : 0;
   const canSend = amountNum > 0 && amountNum <= 20000
     && (isGroup ? (countNum > 0 && countNum <= 100 && amountNum >= countNum) : true);
@@ -58,7 +58,7 @@ export default function RedPacketModal({ conversation, onClose, onSent }) {
         <div className="rpm-field">
           <label className="rpm-label" htmlFor="rpm-amount">{t('redPacket.totalAmountLabel')}</label>
           <input id="rpm-amount" type="text" inputMode="numeric" value={amount}
-            onChange={e => setAmount(e.target.value.replace(/\D/g, '').slice(0, 5))}
+            onChange={e => setAmount(e.target.value)}
             placeholder={t('redPacket.amountPlaceholder')} className="rpm-input" aria-label={t('redPacket.amountAriaLabel')} />
         </div>
 
@@ -66,7 +66,7 @@ export default function RedPacketModal({ conversation, onClose, onSent }) {
           <div className="rpm-field">
             <label className="rpm-label" htmlFor="rpm-count">{t('redPacket.countLabel')}</label>
             <input id="rpm-count" type="text" inputMode="numeric" value={count}
-              onChange={e => setCount(e.target.value.replace(/\D/g, '').slice(0, 3))}
+              onChange={e => setCount(e.target.value)}
               placeholder={t('redPacket.countPlaceholder')} className="rpm-input" aria-label={t('redPacket.countAriaLabel')} />
           </div>
         )}

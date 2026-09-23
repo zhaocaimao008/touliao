@@ -2,7 +2,7 @@ import TouliaoIcon from '../ui-kit/Icon';
 
 import React, { memo } from 'react';
 import Avatar from './Avatar';
-import { mediaUrl, getThumbUrl, useMediaCredentials } from '../utils/url';
+import { mediaUrl, resolveMediaUrl, getThumbUrl, useMediaCredentials } from '../utils/url';
 import { formatFull } from '../utils/time';
 import VoicePlayer from './VoicePlayer';
 import { showToast } from '../utils/toast';
@@ -205,10 +205,13 @@ const MessageItem = memo(function MessageItem({ item, cbRef, measure }) {
                         撑高本行、下一行事后回落造成的重叠/抖动。 */}
                     <img loading="lazy" width={34} height={34} src={mediaUrl(getThumbUrl(msg.replyTo.file_url))} alt="" className="wc-msg-reply-thumb"
                       onLoad={() => measure?.()}
-                      onError={e => {
+                      onError={async e => {
                         const el = e.currentTarget;
-                        const original = mediaUrl(msg.replyTo.file_url);
-                        if (el.src !== original) { el.src = original; return; }
+                        try {
+                          const original = await resolveMediaUrl(msg.replyTo.file_url);
+                          if (!el.isConnected) return;
+                          if (el.src !== original) { el.src = original; return; }
+                        } catch { /* Failed authorization uses the hidden placeholder. */ }
                         el.style.display = 'none'; measure?.();
                       }} />
                   </div>

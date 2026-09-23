@@ -897,7 +897,8 @@ export default function CallModal({ socket, call, onClose, onReplyMessage }) {
      全屏通话界面
   ═══════════════════════════════════════════════════════════════ */
 
-  const voiceBg = remoteUser?.avatar ? `url(${mediaUrl(remoteUser.avatar)})` : null;
+  const avatarUrl = mediaUrl(remoteUser?.avatar);
+  const voiceBg = avatarUrl ? `url(${avatarUrl})` : null;
 
   return (
     <div

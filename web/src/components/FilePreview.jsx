@@ -330,7 +330,7 @@ export default function FilePreview({ fileUrl, filename, mimeType, fileSize, onC
           {fileSize ? <div style={{ fontSize: 12, opacity: .7 }}>{humanSize(fileSize)}</div> : null}
         </div>
         {canShare() && (
-          <button onClick={() => shareMessage({ fileUrl: url, filename, title: filename })} aria-label={t('filePreview.share')}
+          <button onClick={() => shareMessage({ fileUrl, filename, title: filename })} aria-label={t('filePreview.share')}
             style={{ border: 'none', background: 'transparent', color: 'var(--icon-on-dark)', fontSize: 14, cursor: 'pointer', padding: 4 }}>
             {t('filePreview.share')}
           </button>
@@ -351,11 +351,11 @@ export default function FilePreview({ fileUrl, filename, mimeType, fileSize, onC
           </div>
         )}
         <div style={{ display: loadState === 'ready' ? 'block' : 'none', width: '100%', height: '100%' }}>
-          {kind === 'pdf' && <PdfRenderer url={url} onLoaded={onLoaded} onError={onError} />}
-          {kind === 'docx' && <DocxRenderer url={url} onLoaded={onLoaded} onError={onError} />}
-          {kind === 'xlsx' && <XlsxRenderer url={url} onLoaded={onLoaded} onError={onError} />}
-          {kind === 'pptx' && <PptxRenderer url={url} onLoaded={onLoaded} onError={onError} />}
-          {kind === 'text' && <TextRenderer url={url} filename={filename} onLoaded={onLoaded} onError={onError} />}
+          {url && kind === 'pdf' && <PdfRenderer url={url} onLoaded={onLoaded} onError={onError} />}
+          {url && kind === 'docx' && <DocxRenderer url={url} onLoaded={onLoaded} onError={onError} />}
+          {url && kind === 'xlsx' && <XlsxRenderer url={url} onLoaded={onLoaded} onError={onError} />}
+          {url && kind === 'pptx' && <PptxRenderer url={url} onLoaded={onLoaded} onError={onError} />}
+          {url && kind === 'text' && <TextRenderer url={url} filename={filename} onLoaded={onLoaded} onError={onError} />}
         </div>
         {/* 提前触发不支持格式的 onLoaded 路径（kind==='generic' 已在 effect 里处理），这里渲染详情页内容 */}
         {kind === 'generic' && loadState === 'ready' && (

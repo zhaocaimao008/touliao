@@ -112,7 +112,7 @@ export default function ChatFiles({ convId, onClose }) {
     if (item.type === 'image' || item.type === 'video') {
       setPreview({ url: item.fileUrl, type: item.type, name: item.fileName });
     } else {
-      downloadFile(mediaUrl(item.fileUrl), item.fileName || 'download');
+      downloadFile(item.fileUrl, item.fileName || 'download');
     }
   };
 

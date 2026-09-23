@@ -8,7 +8,7 @@
 //
 // 注：出货的安卓/iOS 是原生 App，其「分享到第三方」在原生侧用
 //   Intent.ACTION_SEND / UIActivityViewController 实现，不走本文件。
-import { mediaUrl } from './url';
+import { resolveMediaUrl } from './url';
 import { showToast } from './toast';
 import { downloadFile } from './download';
 
@@ -63,8 +63,7 @@ export async function shareMessage({ fileUrl, filename, mime, text, title } = {}
     return false;
   }
 
-  const url = mediaUrl(fileUrl);
-  const name = (filename && String(filename).trim()) || filenameFromUrl(url);
+  const name = (filename && String(filename).trim()) || filenameFromUrl(fileUrl);
 
   // Electron 桌面端 / 不支持文件分享：回退到下载后由用户手动分享
   if (isElectron || !canShareFiles()) {
@@ -75,6 +74,7 @@ export async function shareMessage({ fileUrl, filename, mime, text, title } = {}
 
   // Web Share API Level 2：取回文件本体 → 交系统分享面板
   try {
+    const url = await resolveMediaUrl(fileUrl);
     const resp = await fetch(url, { credentials: 'include' });
     if (!resp.ok) throw new Error('HTTP ' + resp.status);
     const blob = await resp.blob();
