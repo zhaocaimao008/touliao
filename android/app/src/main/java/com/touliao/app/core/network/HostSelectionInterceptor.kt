@@ -1,6 +1,7 @@
 package com.touliao.app.core.network
 
 import com.touliao.app.core.storage.ServerConfig
+import com.touliao.app.core.storage.TokenStore
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import okhttp3.Interceptor
 import okhttp3.Response
@@ -18,8 +19,8 @@ class HostSelectionInterceptor @Inject constructor(
 
     override fun intercept(chain: Interceptor.Chain): Response {
         val request = chain.request()
-        val target = serverConfig.baseUrl.toHttpUrlOrNull()
-            ?: return chain.proceed(request)
+        val (baseUrl, credential) = serverConfig.endpointSnapshot()
+        val target = baseUrl.toHttpUrlOrNull() ?: throw java.io.IOException("Invalid server origin")
 
         val newUrl = request.url.newBuilder()
             .scheme(target.scheme)
@@ -27,6 +28,7 @@ class HostSelectionInterceptor @Inject constructor(
             .port(target.port)
             .build()
 
-        return chain.proceed(request.newBuilder().url(newUrl).build())
+        return chain.proceed(request.newBuilder().url(newUrl)
+            .tag(TokenStore.Snapshot::class.java, request.tag(TokenStore.Snapshot::class.java) ?: credential).build())
     }
 }

@@ -40,3 +40,35 @@ test('legacy offset pagination and other users privacy remain supported', async 
   expect(result.status).toBe(200);
   expect(result.body).toEqual([]);
 });
+
+test.each([
+  { limit: '1.5' }, { limit: '2e1' }, { limit: '' }, { limit: ['1', '2'] },
+  { limit: 0 }, { limit: '9007199254740992' }, { offset: '-1' },
+  { offset: '0.2' }, { offset: '' }, { offset: ['0', '1'] },
+])('cursor pagination retains strict limit/offset validation: %j', async query => {
+  const response = await get({ beforeCreatedAt: '2000000000', beforeId: 'z', ...query });
+  expect(response.status).toBe(400);
+});
+
+test.each(['', ' ', '1e3', '0x10', '1.5', '9007199254740992', ['1', '2'], { value: '1' }])(
+  'cursor time requires a strict decimal integer: %j', async beforeCreatedAt => {
+    expect((await get({ beforeCreatedAt, beforeId: 'z' })).status).toBe(400);
+  }
+);
+
+test.each(['', ' ', ['a', 'b'], { value: 'a' }])('cursor ID must be a nonempty scalar: %j', async beforeId => {
+  expect((await get({ beforeCreatedAt: '2000000000', beforeId })).status).toBe(400);
+});
+
+test('cursor filter composes with offset and preserves integer-string limits', async () => {
+  const first = await get({ limit: 5 });
+  const cursor = first.body.at(-1);
+  const query = { beforeCreatedAt: String(cursor.created_at), beforeId: cursor.id };
+  const remaining = await get({ ...query, limit: '50' });
+  const page = await get({ ...query, limit: '5', offset: '2' });
+  expect(remaining.status).toBe(200);
+  expect(remaining.body.length).toBeGreaterThan(7);
+  expect(page.status).toBe(200);
+  expect(page.body.map(m => m.id)).toEqual(remaining.body.slice(2, 7).map(m => m.id));
+  expect((await get({ ...query, offset: '100' })).body).toEqual([]);
+});

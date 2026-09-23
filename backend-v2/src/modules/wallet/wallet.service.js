@@ -14,6 +14,7 @@ const { runFinancialOperation } = require('./financialIdempotency');
 const { appendConversationEventTx, emitSyncAvailable } = require('../messages/sync.service');
 
 const strictInteger = require('../../utils/strictInteger');
+const { pagination } = require('../../utils/pagination');
 const { privateSendGuard } = require('../messages/shared');
 
 const nowSec = () => Math.floor(Date.now() / 1000);
@@ -51,10 +52,7 @@ function applyDelta(userId, delta, type, refId = null, memo = '') {
 }
 
 function listTransactions(userId, { limit = 20, offset = 0 } = {}) {
-  const parsedLimit = strictInteger(limit), off = strictInteger(offset);
-  if (!Number.isSafeInteger(parsedLimit) || parsedLimit < 1 || !Number.isSafeInteger(off) || off < 0)
-    throw badRequest('分页参数需为整数，limit 至少为 1，offset 不得为负数');
-  const lim = Math.min(parsedLimit, 100);
+  const { limit: lim, offset: off } = pagination({ limit, offset }, 100);
   return db.prepare(
     'SELECT id, amount, balance_after, type, ref_id, memo, created_at FROM wallet_transactions WHERE user_id=? ORDER BY created_at DESC, rowid DESC LIMIT ? OFFSET ?'
   ).all(userId, lim, off);

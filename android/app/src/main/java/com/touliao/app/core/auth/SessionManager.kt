@@ -55,6 +55,15 @@ class SessionManager @Inject constructor(
     }
 
     init {
+        tokenStore.onOriginChange {
+            restoreGeneration++
+            _recovery.value = null
+            identityCleanup.forEach { it() }
+            notificationHelper.clearAccountNotifications()
+            socketManager.disconnect()
+            msgCacheStore.clear()
+            _state.value = AuthState.Unauthenticated
+        }
         scope.launch {
             authInterceptor.unauthorizedEvents.collect { marker ->
                 tokenStore.withCurrent(marker) {
@@ -142,7 +151,7 @@ class SessionManager @Inject constructor(
     }
 
     /** 切换到已登录的另一账号（本地有 token，免重登） */
-    fun switchAccount(accountId: String) {
+    fun switchAccount(accountId: String): Unit = synchronized(tokenStore) {
         val token = accountStore.tokenFor(accountId) ?: return
         beginIdentityChange()
         notificationHelper.clearAccountNotifications()

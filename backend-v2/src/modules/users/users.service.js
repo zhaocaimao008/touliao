@@ -1,4 +1,5 @@
 'use strict';
+const { pagination } = require('../../utils/pagination');
 const { db } = require('../../db/connection');
 const { notFound, badRequest, conflict, paginated } = require('../../utils/http');
 const cache = require('../../utils/cache');
@@ -335,7 +336,7 @@ function removeCollection(userId, collectionId) {
 // kind 区分 'private'/'group'：群通话没有固定"对方"，peer_name/peer_avatar 复用为群名/群头像，
 // peer_id 为 null，conversation_id/participant_count 只在 kind='group' 时有值。
 function getCallLogs(userId, limit = 50) {
-  const n = Math.min(Number(limit) || 50, 200);
+  const { limit: n } = pagination({ limit }, 200);
   return db.prepare(`
     SELECT * FROM (
       SELECT cl.id, cl.type, cl.status, cl.started_at, cl.ended_at, cl.duration, cl.created_at,
