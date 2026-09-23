@@ -25,7 +25,7 @@ function ago(sec) {
 const CONTENT_LIMIT = 120;
 
 /* 单条动态（memo：仅当本卡片数据 m 变化时才重渲染，点赞/评论不再重刷整个 feed）*/
-const MomentCard = memo(function MomentCard({ m, meId, onLike, onComment, onDelete, onDeleteComment, onLoadComments, onReport, onEdit }) {
+export const MomentCard = memo(function MomentCard({ m, meId, onLike, onComment, onDelete, onDeleteComment, onLoadComments, onReport, onEdit }) {
   useMediaCredentials();
   const { t } = useI18n();
   const [commenting, setCommenting] = useState(false);
@@ -188,9 +188,9 @@ const MomentCard = memo(function MomentCard({ m, meId, onLike, onComment, onDele
         )}
 
         {/* 评论列表 */}
-        {m.comments?.length > 0 && (
+        {(m.comments?.length > 0 || hasMoreComments) && (
           <div className="wc-moment-comments">
-            {m.comments.map(c => (
+            {m.comments?.map(c => (
               <div key={c.id} className="wc-moment-comment"
                 onClick={() => startReply(c)}
                 role={c.user_id === meId ? undefined : 'button'}

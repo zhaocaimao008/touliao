@@ -14,6 +14,7 @@ const pushI18n = require('../../utils/pushI18n');
 const { badRequest, forbidden, notFound, conflict, paginated } = require('../../utils/http');
 const { isConfigured, getPublicBase } = require('../../utils/cloudStorage');
 const moderation = require('../moderation/moderation.service');
+const { pagination } = require('../../utils/pagination');
 
 // ── 互动通知（MO2）：actor≠author 才记。删动态由 FK ON DELETE CASCADE 清理 ──
 function addInteractNotification({ recipientId, actorId, momentId, type, commentId = null }) {
@@ -139,21 +140,34 @@ function batchEnrich(viewerId, rows, { likeLimit = 0, commentLimit = 0 } = {}) {
   db.prepare(`SELECT moment_id FROM moment_likes WHERE moment_id IN (${ph}) AND user_id=?`).all(...ids, viewerId)
     .forEach(r => likedSet.add(r.moment_id));
 
+  // Each moment owns its preview budget; a popular post cannot consume another's.
   const likesMap = new Map(ids.map(id => [id, []]));
-  const maxLikes = (likeLimit || 10) * ids.length;
-  db.prepare(`SELECT ml.moment_id, ml.user_id, u.username FROM moment_likes ml JOIN users u ON u.id=ml.user_id WHERE ml.moment_id IN (${ph}) ORDER BY ml.moment_id, ml.created_at LIMIT ?`).all(...ids, maxLikes)
-    .forEach(r => {
-      const arr = likesMap.get(r.moment_id);
-      if (!likeLimit || arr.length < likeLimit) arr.push({ user_id: r.user_id, username: r.username });
-    });
+  db.prepare(`
+    WITH ranked AS (
+      SELECT moment_id, user_id,
+             ROW_NUMBER() OVER (PARTITION BY moment_id ORDER BY created_at, rowid) AS rn
+      FROM moment_likes WHERE moment_id IN (${ph})
+    )
+    SELECT ml.moment_id, ml.user_id, u.username
+    FROM ranked ml JOIN users u ON u.id=ml.user_id
+    WHERE ml.rn <= ? ORDER BY ml.moment_id, ml.rn
+  `).all(...ids, likeLimit || 10)
+    .forEach(({ moment_id, ...like }) => likesMap.get(moment_id).push(like));
 
   const commentsMap = new Map(ids.map(id => [id, []]));
-  const maxComments = (commentLimit || 10) * ids.length;
-  db.prepare(`SELECT mc.moment_id, mc.id, mc.user_id, mc.content, mc.reply_to_user, ru.username AS reply_to_username, mc.created_at, u.username, u.avatar FROM moment_comments mc JOIN users u ON u.id=mc.user_id LEFT JOIN users ru ON ru.id=mc.reply_to_user WHERE mc.moment_id IN (${ph}) ORDER BY mc.moment_id, mc.created_at LIMIT ?`).all(...ids, maxComments)
-    .forEach(({ moment_id, ...rest }) => {
-      const arr = commentsMap.get(moment_id);
-      if (!commentLimit || arr.length < commentLimit) arr.push(rest);
-    });
+  db.prepare(`
+    WITH ranked AS (
+      SELECT moment_id, id, user_id, content, reply_to_user, created_at,
+             ROW_NUMBER() OVER (PARTITION BY moment_id ORDER BY created_at, rowid) AS rn
+      FROM moment_comments WHERE moment_id IN (${ph})
+    )
+    SELECT mc.moment_id, mc.id, mc.user_id, mc.content, mc.reply_to_user,
+           ru.username AS reply_to_username, mc.created_at, u.username, u.avatar
+    FROM ranked mc JOIN users u ON u.id=mc.user_id
+    LEFT JOIN users ru ON ru.id=mc.reply_to_user
+    WHERE mc.rn <= ? ORDER BY mc.moment_id, mc.rn
+  `).all(...ids, commentLimit || 10)
+    .forEach(({ moment_id, ...comment }) => commentsMap.get(moment_id).push(comment));
 
   return rows.map(m => {
     const likes = likesMap.get(m.id);
@@ -250,8 +264,7 @@ function createMoment(io, userId, { content, images, visibility, visibleTo, vide
 
 // ── 时间线（本人 + 好友）────────────────────────────────────────
 function timeline(viewerId, { limit = 20, offset = 0 } = {}) {
-  const n = Math.min(Number(limit) || 20, 50);
-  const off = Math.max(Number(offset) || 0, 0);
+  const { limit: n, offset: off } = pagination({ limit, offset });
   const rows = db.prepare(`
     SELECT m.* FROM moments m
     LEFT JOIN user_settings us ON us.user_id = m.user_id
@@ -287,8 +300,7 @@ function userMoments(viewerId, targetId, { limit = 20, offset = 0 } = {}) {
   if (targetId !== viewerId && isBlockedBetween(viewerId, targetId)) throw forbidden('无权查看该动态');
   if (targetId !== viewerId && !isFriend(viewerId, targetId)) throw forbidden('仅好友可见');
 
-  const n = Math.min(parseInt(limit) || 20, 50);
-  const off = Math.max(parseInt(offset) || 0, 0);
+  const { limit: n, offset: off } = pagination({ limit, offset });
   let rows;
   if (targetId === viewerId) {
     rows = db.prepare('SELECT * FROM moments WHERE user_id=? ORDER BY created_at DESC LIMIT ? OFFSET ?').all(targetId, n, off);
@@ -463,8 +475,7 @@ function listLikes(viewerId, momentId, { limit = 20, offset = 0 } = {}) {
   const m = db.prepare('SELECT * FROM moments WHERE id=?').get(momentId);
   if (!m) throw notFound('动态不存在');
   assertVisible(viewerId, m);
-  const n = Math.min(Number(limit) || 20, 50);
-  const off = Math.max(Number(offset) || 0, 0);
+  const { limit: n, offset: off } = pagination({ limit, offset });
   const total = db.prepare('SELECT COUNT(*) AS n FROM moment_likes WHERE moment_id=?').get(momentId).n;
   const rows = db.prepare(
     'SELECT ml.user_id, ml.created_at, u.username, u.avatar FROM moment_likes ml JOIN users u ON u.id=ml.user_id WHERE ml.moment_id=? ORDER BY ml.created_at LIMIT ? OFFSET ?'
@@ -476,8 +487,7 @@ function listComments(viewerId, momentId, { limit = 20, offset = 0 } = {}) {
   const m = db.prepare('SELECT * FROM moments WHERE id=?').get(momentId);
   if (!m) throw notFound('动态不存在');
   assertVisible(viewerId, m);
-  const n = Math.min(Number(limit) || 20, 50);
-  const off = Math.max(Number(offset) || 0, 0);
+  const { limit: n, offset: off } = pagination({ limit, offset });
   const total = db.prepare('SELECT COUNT(*) AS n FROM moment_comments WHERE moment_id=?').get(momentId).n;
   const rows = db.prepare(
     'SELECT mc.id, mc.user_id, mc.content, mc.reply_to_user, ru.username AS reply_to_username, mc.created_at, u.username, u.avatar FROM moment_comments mc JOIN users u ON u.id=mc.user_id LEFT JOIN users ru ON ru.id=mc.reply_to_user WHERE mc.moment_id=? ORDER BY mc.created_at LIMIT ? OFFSET ?'
@@ -521,8 +531,7 @@ function reportMoment(userId, momentId, { reason } = {}) {
 
 // ── 互动通知 feed（MO2）──────────────────────────────────────────
 function listNotifications(userId, { limit = 20, offset = 0 } = {}) {
-  const n = Math.min(Number(limit) || 20, 50);
-  const off = Math.max(Number(offset) || 0, 0);
+  const { limit: n, offset: off } = pagination({ limit, offset });
   const rows = db.prepare(`
     SELECT mn.id, mn.type, mn.moment_id, mn.comment_id, mn.is_read, mn.created_at,
            u.id AS actor_id, u.username AS actor_name, u.avatar AS actor_avatar,

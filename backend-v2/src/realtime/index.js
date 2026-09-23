@@ -127,13 +127,13 @@ module.exports = function setupRealtime(io, app) {
       prodMetrics.recordConnResult(false);
       return next(new Error('服务繁忙，请稍后再试'));
     }
-    const cookieHeader = socket.handshake.headers.cookie || '';
-    const match = cookieHeader.match(new RegExp(`${config.cookieName}=([^;]+)`));
-    const cookieToken = match ? decodeURIComponent(match[1]) : null;
-    const bearerToken = socket.handshake.auth?.token || null;
-    const token = socket.handshake.auth?.isolated === true ? bearerToken : cookieToken || bearerToken;
-    if (!token) { prodMetrics.recordConnResult(false); return next(new Error('未授权')); }
     try {
+      const cookieHeader = socket.handshake.headers.cookie || '';
+      const match = cookieHeader.match(new RegExp(`${config.cookieName}=([^;]+)`));
+      const cookieToken = match ? decodeURIComponent(match[1]) : null;
+      const bearerToken = socket.handshake.auth?.token || null;
+      const token = socket.handshake.auth?.isolated === true ? bearerToken : cookieToken || bearerToken;
+      if (!token) { prodMetrics.recordConnResult(false); return next(new Error('未授权')); }
       socket.user = jwt.verify(token, config.jwtSecret, { algorithms: ['HS256'] });
       socket.authToken = token;
       // 黑名单（logout / 强制下线的 token 不得接入）
