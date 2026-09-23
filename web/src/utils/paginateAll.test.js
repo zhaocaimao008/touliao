@@ -54,3 +54,22 @@ describe('fetchAllPages', () => {
     expect(requestPage).toHaveBeenCalledTimes(2);
   });
 });
+
+describe('paginated search envelopes', () => {
+  it('loads all 55 matches even when the server caps pages at 50', async () => {
+    const all = Array.from({ length: 55 }, (_, id) => ({ id }));
+    const requestPage = vi.fn(offset => Promise.resolve({ items: all.slice(offset, offset + 50), total: 55, hasMore: offset + 50 < 55 }));
+    expect(await fetchAllPages({ requestPage })).toEqual(all);
+    expect(requestPage.mock.calls.map(c => c[0])).toEqual([0, 50]);
+  });
+  it('propagates later-page failures instead of displaying incomplete search results', async () => {
+    const requestPage = vi.fn().mockResolvedValueOnce({ items: [1], hasMore: true }).mockRejectedValueOnce(new Error('offline'));
+    await expect(fetchAllPages({ requestPage })).rejects.toThrow('offline');
+  });
+  it('rejects malformed responses and stops on an empty page', async () => {
+    await expect(fetchAllPages({ requestPage: async () => ({ items: null }) })).rejects.toThrow('Invalid paginated response');
+    const requestPage = vi.fn().mockResolvedValue({ items: [], hasMore: true });
+    expect(await fetchAllPages({ requestPage })).toEqual([]);
+    expect(requestPage).toHaveBeenCalledTimes(1);
+  });
+});

@@ -13,7 +13,7 @@ import { goLogin } from '../utils/url';
 import { setIncomingRingtone } from '../utils/callTones';
 import { showConfirm, showToast } from '../utils/toast';
 import { copyToClipboard } from '../utils/clipboard';
-import { timeoutSignal, resolveTenantCode } from '../utils/config';
+import { testServerConnection, resolveTenantCode } from '../utils/config';
 
 /* ─── 小工具 ─── */
 // role="button" 的 div 应同时支持 Enter 和空格触发（空格默认会滚动页面，需 preventDefault）
@@ -1172,12 +1172,9 @@ function ServerSettings({ onBack }) {
     const url = input.trim().replace(/\/$/, '');
     if (!url.startsWith('http')) { setTestResult({ ok: false, msg: t('profile.serverFormatError') }); return; }
     setTesting(true); setTestResult(null);
-    try {
-      await fetch(`${url}/health`, { signal: timeoutSignal(6000) });
-      setTestResult({ ok: true, msg: t('profile.serverConnectSuccess') });
-    } catch {
-      setTestResult({ ok: false, msg: t('profile.serverConnectFail') });
-    } finally { setTesting(false); }
+    const result = await testServerConnection(url);
+    setTestResult({ ok: result.ok, msg: t(result.ok ? 'profile.serverConnectSuccess' : result.reason === 'format' ? 'profile.serverFormatError' : 'profile.serverConnectFail') + (result.status ? ` (${result.status})` : '') });
+    setTesting(false);
   };
 
   const handleSave = async () => {
@@ -1406,20 +1403,22 @@ export default function Profile({ isMobile = false }) {
       <LegalConsent />
       <ReportButton label="举报与客服 / 我的工单" />
       {/* ── 个人信息头部 ── */}
-      <div className="wc-me-header" role="button" tabIndex={0} onClick={() => setSubPage('profile-detail')} onKeyDown={activateOnKey(() => setSubPage('profile-detail'))}>
-        <div className="wc-me-avatar-wrap">
-          <Avatar src={user?.avatar} name={user?.username} size='xl' />
-        </div>
-        <div className="wc-me-info">
-          <div className="wc-me-name">{user?.username || t('profile.noNickname')}</div>
-          {user?.wechat_id && <div className="wc-me-vid">{t('profile.touliaoIdColonTemplate').replace('{id}', user.wechat_id)}</div>}
-          {user?.bio && <div className="wc-me-bio">{user.bio}</div>}
-        </div>
+      <div className="wc-me-header">
+        <button className="wc-me-profile-btn" onClick={() => setSubPage('profile-detail')}>
+          <div className="wc-me-avatar-wrap">
+            <Avatar src={user?.avatar} name={user?.username} size='xl' />
+          </div>
+          <div className="wc-me-info">
+            <div className="wc-me-name">{user?.username || t('profile.noNickname')}</div>
+            {user?.wechat_id && <div className="wc-me-vid">{t('profile.touliaoIdColonTemplate').replace('{id}', user.wechat_id)}</div>}
+            {user?.bio && <div className="wc-me-bio">{user.bio}</div>}
+          </div>
+          <ChevronRight />
+        </button>
         <div className="wc-me-actions">
           <button className="wc-me-qr-btn" onClick={e => { e.stopPropagation(); setShowQR(true); }} title={t('profile.myQrCode')} aria-label={t('profile.myQrCode')}>
             <IcoQR />
           </button>
-          <ChevronRight />
         </div>
       </div>
 

@@ -22,8 +22,8 @@ export default function Collections() {
   const [lightbox, setLightbox] = useState(null); // { urls, idx } | null
   const [query, setQuery] = useState('');          // 搜索关键词
   const [typeFilter, setTypeFilter] = useState(''); // ''=全部 | text | image | file | video
-  const [results, setResults] = useState(null);    // null=未搜索(显示全量) | 数组=搜索结果
-  const [searching, setSearching] = useState(false);
+  const [results, setResults] = useState(null);    // { key, items, error }：只展示当前查询的完整结果
+  const [searchRetry, setSearchRetry] = useState(0);
 
   // Q13 全修：收藏最多 1000 条，服务端 limit/offset 分页上限 100——原来只请求一次
   // 默认页,超过 100 条的旧收藏在列表/本地类型筛选里都摸不到。改成续页拉全量
@@ -35,7 +35,7 @@ export default function Collections() {
       requestPage: (offset, limit) => axios.get('/api/users/me/collections', { params: { offset, limit }, signal }).then(r => r.data),
       signal,
     })
-      .then(items => { setList(items); setLoadError(false); })
+      .then(items => { if (!signal?.aborted) { setList(items); setLoadError(false); } })
       .catch(err => { if (!axios.isCancel?.(err) && err.code !== 'ERR_CANCELED') setLoadError(true); })
       .finally(() => { if (!signal?.aborted) setLoading(false); });
   }, []);
@@ -48,32 +48,33 @@ export default function Collections() {
     return () => ac.abort();
   }, [load]);
 
-  // 搜索：关键词为空且无类型过滤 → 回到全量列表；否则调 /collections/search（去抖）
-  // 空关键词的复位（results=null）交由 render 期派生，避免 effect 同步 setState。
+  // 搜索按关键词和类型去抖；加载完所有分页才发布结果，失败可重试。
+  // 查询键隔离旧结果，清空关键词时回到全量列表。
   const kwTrimmed = query.trim();
+  const searchKey = JSON.stringify([kwTrimmed, typeFilter, searchRetry]);
   useEffect(() => {
     const kw = kwTrimmed;
     if (!kw) return;
     // AbortController：快速输入时取消上一次未完成请求,防止慢响应覆盖新结果(旧数据竞态)
     const ac = new AbortController();
     const timer = setTimeout(() => {
-      setSearching(true); // 去抖窗口结束真正发请求时再置 loading（避免 effect 体内同步 setState）
-      const params = { q: kw, limit: 50 };
-      if (typeFilter) params.type = typeFilter;
-      axios.get('/api/users/me/collections/search', { params, signal: ac.signal })
-        .then(r => setResults(r.data.items || []))
-        .catch(err => { if (!axios.isCancel?.(err) && err.code !== 'ERR_CANCELED') setResults([]); })
-        .finally(() => { if (!ac.signal.aborted) setSearching(false); });
+      fetchAllPages({
+        requestPage: (offset, limit) => axios.get('/api/users/me/collections/search', {
+          params: { q: kw, type: typeFilter || undefined, offset, limit }, signal: ac.signal,
+        }).then(r => r.data),
+        signal: ac.signal,
+      })
+        .then(items => { if (!ac.signal.aborted) setResults({ key: searchKey, items }); })
+        .catch(() => { if (!ac.signal.aborted) setResults({ key: searchKey, items: [], error: true }); });
     }, 300);
-    return () => { clearTimeout(timer); ac.abort(); setSearching(false); };
-  }, [kwTrimmed, typeFilter]);
+    return () => { clearTimeout(timer); ac.abort(); };
+  }, [kwTrimmed, typeFilter, searchKey]);
 
-  // 是否处于「搜索模式」（有关键词）——空关键词时忽略残留的 results/searching，回退全量列表
   const inSearch = kwTrimmed.length > 0;
-
-  // 当前展示的列表：搜索态用结果，否则用全量（全量也支持类型过滤）
-  const shown = (inSearch && results != null)
-    ? results
+  const searching = inSearch && results?.key !== searchKey;
+  const searchError = inSearch && results?.key === searchKey && results.error;
+  const shown = inSearch
+    ? (results?.key === searchKey ? results.items : [])
     : (typeFilter ? list.filter(c => c.type === typeFilter) : list);
 
   // 所有图片收藏的完整 URL，供灯箱左右切换（跟随当前展示的列表）
@@ -86,7 +87,7 @@ export default function Collections() {
     try {
       await axios.delete(`/api/users/me/collections/${id}`);
       setList(p => p.filter(c => c.id !== id));
-      setResults(p => p == null ? p : p.filter(c => c.id !== id));
+      setResults(p => p == null ? p : { ...p, items: p.items.filter(c => c.id !== id) });
     }
     catch (e) { showToast(e.response?.data?.error || t('coll.removeFailed'), 'error'); }
   };
@@ -133,11 +134,11 @@ export default function Collections() {
   return (
     <div style={{ height: '100%', overflowY: 'auto' }}>
       {/* 搜索栏 + 类型过滤（对齐后端 /collections/search 的 q + type） */}
-      <div style={{ padding: '10px 14px', position: 'sticky', top: 0, background: 'var(--bg-primary, #fff)', zIndex: 1, borderBottom: '1px solid var(--border-color)' }}>
+      <div style={{ padding: '10px 14px', position: 'sticky', top: 0, background: 'var(--bg-panel)', zIndex: 1, borderBottom: '1px solid var(--border-color)' }}>
         <div style={{ position: 'relative' }}>
           <input data-testid="collection-search-input" value={query} onChange={e => setQuery(e.target.value)}
             placeholder={t('coll.searchPlaceholder')} aria-label={t('coll.searchAriaLabel')}
-            style={{ width: '100%', padding: '7px 28px 7px 10px', borderRadius: 'var(--radius-input)', border: '1px solid var(--border-color)', fontSize: 'var(--text-base)', boxSizing: 'border-box' }} />
+            style={{ background: 'var(--bg-input-search)', color: 'var(--text-primary)', width: '100%', padding: '7px 28px 7px 10px', borderRadius: 'var(--radius-input)', border: '1px solid var(--border-color)', fontSize: 'var(--text-base)', boxSizing: 'border-box' }} />
           {query && (
             <button type="button" aria-label={t('fwd.clearSearchAriaLabel')} title={t('common.clear')} onClick={() => setQuery('')}
               style={{ position: 'absolute', right: 3, top: '50%', transform: 'translateY(-50%)', width: 24, height: 24, border: 'none', borderRadius: 'var(--radius-full)', background: 'var(--border-color)', color: 'var(--text-secondary)', fontSize: 12, lineHeight: 1, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>✕</button>
@@ -148,7 +149,7 @@ export default function Collections() {
             <button key={val || 'all'} data-testid={`collection-type-${val || 'all'}`} onClick={() => setTypeFilter(val)}
               style={{ fontSize: 'var(--text-sm)', padding: '11px 12px', borderRadius: 'var(--radius-bubble-tip)', cursor: 'pointer',
                 border: '1px solid var(--border-color)', display: 'inline-flex', alignItems: 'center',
-                background: typeFilter === val ? 'var(--green)' : 'transparent',
+                background: typeFilter === val ? 'var(--color-primary-solid)' : 'transparent',
                 color: typeFilter === val ? '#fff' : 'var(--text-secondary)' }}>{label}</button>
           ))}
         </div>
@@ -161,6 +162,10 @@ export default function Collections() {
         </div>
       ) : (inSearch && searching) ? (
         <div role="status" style={{ textAlign: 'center', padding: 40, color: 'var(--text-tertiary)', fontSize: 'var(--text-sm2)' }}>{t('convSearch.searching')}</div>
+      ) : searchError ? (
+        <div role="alert" className="wc-moment-state moments-state-pad40">
+          {t('moments.loadFailed')} <button onClick={() => setSearchRetry(n => n + 1)}>{t('common.retry')}</button>
+        </div>
       ) : shown.length === 0 ? (
         <div role="status" data-testid="collection-empty" style={{ textAlign: 'center', padding: 60, color: 'var(--text-tertiary)', fontSize: 'var(--text-sm2)' }}>
           {(query.trim() || typeFilter) ? t('coll.noMatchingResults') : t('coll.empty')}
@@ -177,7 +182,7 @@ export default function Collections() {
                     style={{ fontSize: 'var(--text-sm)', color: 'var(--green)', background: 'none', border: 'none', cursor: 'pointer', padding: '9px 8px' }}>{t('coll.jumpToSource')}</button>
                 )}
                 <button onClick={() => remove(c.id)}
-                  style={{ fontSize: 'var(--text-sm)', color: 'var(--color-badge)', background: 'none', border: 'none', cursor: 'pointer', padding: '9px 8px' }}>{t('coll.unfavorite')}</button>
+                  style={{ fontSize: 'var(--text-sm)', color: 'var(--text-danger)', background: 'none', border: 'none', cursor: 'pointer', padding: '9px 8px' }}>{t('coll.unfavorite')}</button>
               </div>
             </div>
           </div>

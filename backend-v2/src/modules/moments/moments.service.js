@@ -245,9 +245,14 @@ function createMoment(io, userId, { content, images, visibility, visibleTo, vide
 }
 
 // ── 时间线（本人 + 好友）────────────────────────────────────────
-function timeline(viewerId, { limit = 20, offset = 0 } = {}) {
+function timeline(viewerId, { limit = 20, offset = 0, beforeCreatedAt, beforeId } = {}) {
   const n = Math.min(Number(limit) || 20, 50);
   const off = Math.max(Number(offset) || 0, 0);
+  const hasCursor = beforeCreatedAt !== undefined || beforeId !== undefined;
+  if (hasCursor && (!Number.isSafeInteger(Number(beforeCreatedAt)) || Number(beforeCreatedAt) < 0 || typeof beforeId !== 'string' || !beforeId)) {
+    throw badRequest('无效的分页游标');
+  }
+  const cursorParams = hasCursor ? [Number(beforeCreatedAt), Number(beforeCreatedAt), beforeId] : [];
   const rows = db.prepare(`
     SELECT m.* FROM moments m
     LEFT JOIN user_settings us ON us.user_id = m.user_id
@@ -272,9 +277,10 @@ function timeline(viewerId, { limit = 20, offset = 0 } = {}) {
         SELECT blocked_id FROM blocked_users WHERE user_id=?
         UNION SELECT user_id FROM blocked_users WHERE blocked_id=?
       ))
-    ORDER BY m.created_at DESC
+    ${hasCursor ? 'AND (m.created_at < ? OR (m.created_at = ? AND m.id < ?))' : ''}
+    ORDER BY m.created_at DESC, m.id DESC
     LIMIT ? OFFSET ?
-  `).all(viewerId, viewerId, viewerId, viewerId, viewerId, viewerId, viewerId, viewerId, n, off);
+  `).all(viewerId, viewerId, viewerId, viewerId, viewerId, viewerId, viewerId, viewerId, ...cursorParams, n, hasCursor ? 0 : off);
   return batchEnrich(viewerId, rows, { likeLimit: 50, commentLimit: 10 });
 }
 
