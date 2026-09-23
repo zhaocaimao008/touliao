@@ -73,7 +73,7 @@ class Publication(unittest.TestCase):
 
     def test_reject_unapproved_version(self):
         manifest = json.loads((self.stage / 'spec.json').read_text())
-        manifest['version'] = '8.1.30'
+        manifest['version'] = '8.1.31'
         (self.stage / 'spec.json').write_text(json.dumps(manifest))
         with self.assertRaisesRegex(ValueError, 'approved version pair'): p.expose_version(self.root, self.stage)
 
@@ -85,6 +85,11 @@ class Publication(unittest.TestCase):
 class Publication8129(Publication):
     version = '8.1.29'
     previous_version = '8.1.27'
+
+
+class Publication8130(Publication):
+    version = '8.1.30'
+    previous_version = '8.1.29'
 
 
 if __name__ == '__main__': unittest.main()

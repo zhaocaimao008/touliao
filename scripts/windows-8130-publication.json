@@ -1,0 +1,17 @@
+{
+  "version": "8.1.30",
+  "previousVersion": "8.1.29",
+  "buildRun": "35815344930",
+  "buildCommit": "14ab5f63ac468d9078cc7c36d59a66bb8d6b2811",
+  "authorization": "User explicitly requested Windows publication, then specified on 2026-09-23: 不要证书，我自己用，给我出新版. Applies only to this exact 8.1.30 artifact; retain Ed25519, hashes, backup and actual Windows verification. Default certificate gate remains unchanged.",
+  "authenticode": false,
+  "previousInstallerSha256": "fb1ff74ee67ea20e74335e881f960bc38d16e107b631b93843f7286ceebdf6a7",
+  "previousManifestSha256": "6134990b4f0c50bfcc9ba89f835215639524418785fdb2a4e40652b4380c0a7e",
+  "previousSignatureSha256": "613829eabb08a031d4d632962fe984a12735b659a980f0080c507cafb4395cc9",
+  "files": {
+    "latest.yml": "1914bdb856f2fa2f85483513e54d9d5ed53dd328bb603252daa9848cdd97aa66",
+    "latest.yml.sig": "f8db236d8b1a5a449bfa70a7775e7ca2f52d5f92ae94d4d697d6ff12b705a691",
+    "touliao-8.1.30-setup.exe": "bb5d868c5f18cf2f9d429fe1122470b7d540ef8829fb295e1c044a947357383a",
+    "touliao-8.1.30-setup.exe.blockmap": "231ce940f0a4294ae2736c8d953f26f9601666509216bce2412327db99644e35"
+  }
+}
