@@ -1,3 +1,4 @@
+import TouliaoIcon from '../ui-kit/Icon';
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import axios from 'axios';
 import { formatFull } from '../utils/time';
@@ -84,9 +85,7 @@ export default function MentionList({ onClose, onJumpToMsg }) {
           style={{ background: 'none', border: 'none', cursor: 'pointer',
             padding: 4, color: 'var(--text-secondary)' }}
         >
-          <svg viewBox="0 0 24 24" style={{ width: 20, height: 20, fill: 'currentColor' }}>
-            <path d="M20 11H7.83l4.88-4.88c.39-.39.39-1.03 0-1.42-.39-.39-1.02-.39-1.41 0l-6.59 6.59c-.39.39-.39 1.02 0 1.41l6.59 6.59c.39.39 1.02.39 1.41 0 .39-.39.39-1.02 0-1.41L7.83 13H20c.55 0 1-.45 1-1s-.45-1-1-1z"/>
-          </svg>
+          <TouliaoIcon name="back" size="sm" />
         </button>
         <span style={{ fontWeight: 600, fontSize: 'var(--text-md)' }}>{t('mentionList.title')}</span>
         {total > 0 && (
@@ -104,9 +103,7 @@ export default function MentionList({ onClose, onJumpToMsg }) {
             justifyContent: 'center', height: '60%',
             color: 'var(--text-tertiary)', fontSize: 'var(--text-sm2)',
           }}>
-            <svg viewBox="0 0 24 24" style={{ width: 48, height: 48, fill: 'currentColor', opacity: .3, marginBottom: 8 }}>
-              <path d="M20 2H4c-1.1 0-1.99.9-1.99 2L2 22l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-2 12H6v-2h12v2zm0-3H6V9h12v2zm0-3H6V6h12v2z"/>
-            </svg>
+            <TouliaoIcon name="mention" style={{opacity:.3,marginBottom:8}} size="xl" />
             {t('mentionList.empty')}
           </div>
         )}

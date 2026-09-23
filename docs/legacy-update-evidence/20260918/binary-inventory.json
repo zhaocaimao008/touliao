@@ -1,0 +1,306 @@
+[
+  {
+    "version": "8.1.4",
+    "versionCode": 66,
+    "package": "com.touliao.app",
+    "certificateSha256": "345e9485b4220e607c40afee304f16ca00f87d6f080184423defc0ea1e85983c",
+    "apkSha256": "a8d9e37d28098a1370dce9851d18c1b6eb961a4156a42653cb41d3307ade929d",
+    "bytes": 56673039,
+    "runId": 33326461700,
+    "commit": "31a52c3b31a175719a759764a958148cd966a530",
+    "dexEvidence": {
+      "https://touliao.cc/downloads/touliao-android-version.json": true,
+      "Lcom/touliao/app/core/update/UpdateChecker;": true,
+      "Lcom/touliao/app/core/update/ApkInstaller;": true,
+      "Lcom/touliao/app/feature/chat/ChatScreenKt;": true,
+      "Lcom/facebook/react/ReactNativeHost;": false,
+      "Lcom/tencent/tinker/loader/TinkerLoader;": false
+    },
+    "scriptBundleFiles": []
+  },
+  {
+    "version": "8.1.5",
+    "versionCode": 67,
+    "package": "com.touliao.app",
+    "certificateSha256": "345e9485b4220e607c40afee304f16ca00f87d6f080184423defc0ea1e85983c",
+    "apkSha256": "574ff6947e8bff305caa2522506a0b97a03793e255ad58262a9b0f17aac42a3a",
+    "bytes": 56673052,
+    "runId": 33346176790,
+    "commit": "96d64f69a0cb32984ff75183d2246844db6cbbf4",
+    "dexEvidence": {
+      "https://touliao.cc/downloads/touliao-android-version.json": true,
+      "Lcom/touliao/app/core/update/UpdateChecker;": true,
+      "Lcom/touliao/app/core/update/ApkInstaller;": true,
+      "Lcom/touliao/app/feature/chat/ChatScreenKt;": true,
+      "Lcom/facebook/react/ReactNativeHost;": false,
+      "Lcom/tencent/tinker/loader/TinkerLoader;": false
+    },
+    "scriptBundleFiles": []
+  },
+  {
+    "version": "8.1.6",
+    "versionCode": 68,
+    "package": "com.touliao.app",
+    "certificateSha256": "345e9485b4220e607c40afee304f16ca00f87d6f080184423defc0ea1e85983c",
+    "apkSha256": "bf2b77c27f02cdb60e1986e7c0405f65fbf6a44b7c3dab8cab19555364f43748",
+    "bytes": 56685332,
+    "runId": 33460467650,
+    "commit": "aa3a16969d9d0c0fb7b29e0bd6d757a1c3eef10e",
+    "dexEvidence": {
+      "https://touliao.cc/downloads/touliao-android-version.json": true,
+      "Lcom/touliao/app/core/update/UpdateChecker;": true,
+      "Lcom/touliao/app/core/update/ApkInstaller;": true,
+      "Lcom/touliao/app/feature/chat/ChatScreenKt;": true,
+      "Lcom/facebook/react/ReactNativeHost;": false,
+      "Lcom/tencent/tinker/loader/TinkerLoader;": false
+    },
+    "scriptBundleFiles": []
+  },
+  {
+    "version": "8.1.7",
+    "versionCode": 69,
+    "package": "com.touliao.app",
+    "certificateSha256": "345e9485b4220e607c40afee304f16ca00f87d6f080184423defc0ea1e85983c",
+    "apkSha256": "f6c59ce57503ca41315be8fafcb06a3800c87fe3a7a88e2c6882e25d7418a837",
+    "bytes": 56685319,
+    "runId": 33487077439,
+    "commit": "f83c52e9f019896aa7ddaca61a21094c6c196a9e",
+    "dexEvidence": {
+      "https://touliao.cc/downloads/touliao-android-version.json": true,
+      "Lcom/touliao/app/core/update/UpdateChecker;": true,
+      "Lcom/touliao/app/core/update/ApkInstaller;": true,
+      "Lcom/touliao/app/feature/chat/ChatScreenKt;": true,
+      "Lcom/facebook/react/ReactNativeHost;": false,
+      "Lcom/tencent/tinker/loader/TinkerLoader;": false
+    },
+    "scriptBundleFiles": []
+  },
+  {
+    "version": "8.1.8",
+    "versionCode": 70,
+    "package": "com.touliao.app",
+    "certificateSha256": "345e9485b4220e607c40afee304f16ca00f87d6f080184423defc0ea1e85983c",
+    "apkSha256": "b8c5624620e9b47aa6ff287fd28faa0a5754c1a673a3d805439ae29b888399de",
+    "bytes": 56689432,
+    "runId": 33515603654,
+    "commit": "b3a83baddf91dc57a3793084e86e77ee1ec35bf1",
+    "dexEvidence": {
+      "https://touliao.cc/downloads/touliao-android-version.json": true,
+      "Lcom/touliao/app/core/update/UpdateChecker;": true,
+      "Lcom/touliao/app/core/update/ApkInstaller;": true,
+      "Lcom/touliao/app/feature/chat/ChatScreenKt;": true,
+      "Lcom/facebook/react/ReactNativeHost;": false,
+      "Lcom/tencent/tinker/loader/TinkerLoader;": false
+    },
+    "scriptBundleFiles": []
+  },
+  {
+    "version": "8.1.9",
+    "versionCode": 71,
+    "package": "com.touliao.app",
+    "certificateSha256": "345e9485b4220e607c40afee304f16ca00f87d6f080184423defc0ea1e85983c",
+    "apkSha256": "51951fea8685ff307f041c3acc73545a3302d8151a106ad622c9bff0232f18db",
+    "bytes": 56701714,
+    "runId": 33629490410,
+    "commit": "2bd46a52cfdd1733e30904d2b822ab5b15c3bcf8",
+    "dexEvidence": {
+      "https://touliao.cc/downloads/touliao-android-version.json": true,
+      "Lcom/touliao/app/core/update/UpdateChecker;": true,
+      "Lcom/touliao/app/core/update/ApkInstaller;": true,
+      "Lcom/touliao/app/feature/chat/ChatScreenKt;": true,
+      "Lcom/facebook/react/ReactNativeHost;": false,
+      "Lcom/tencent/tinker/loader/TinkerLoader;": false
+    },
+    "scriptBundleFiles": []
+  },
+  {
+    "version": "8.1.10",
+    "versionCode": 72,
+    "package": "com.touliao.app",
+    "certificateSha256": "345e9485b4220e607c40afee304f16ca00f87d6f080184423defc0ea1e85983c",
+    "apkSha256": "706e64f98411b66467dab84b8922c8a6bc663680dac0544dd1c586ae13d5b579",
+    "bytes": 56709917,
+    "runId": 33753840968,
+    "commit": "92edf5fc5418ac86ff15b3d81824bd90ef521f13",
+    "dexEvidence": {
+      "https://touliao.cc/downloads/touliao-android-version.json": true,
+      "Lcom/touliao/app/core/update/UpdateChecker;": true,
+      "Lcom/touliao/app/core/update/ApkInstaller;": true,
+      "Lcom/touliao/app/feature/chat/ChatScreenKt;": true,
+      "Lcom/facebook/react/ReactNativeHost;": false,
+      "Lcom/tencent/tinker/loader/TinkerLoader;": false
+    },
+    "scriptBundleFiles": []
+  },
+  {
+    "version": "8.1.11",
+    "versionCode": 73,
+    "package": "com.touliao.app",
+    "certificateSha256": "345e9485b4220e607c40afee304f16ca00f87d6f080184423defc0ea1e85983c",
+    "apkSha256": "8909c40aa8ae7d2f3c673cde8e62c533af8f82f3dba92cf12e8322288c0735bc",
+    "bytes": 56709910,
+    "runId": 33765550508,
+    "commit": "ab267a1d4146505006b680842e4cfc1639137ef2",
+    "dexEvidence": {
+      "https://touliao.cc/downloads/touliao-android-version.json": true,
+      "Lcom/touliao/app/core/update/UpdateChecker;": true,
+      "Lcom/touliao/app/core/update/ApkInstaller;": true,
+      "Lcom/touliao/app/feature/chat/ChatScreenKt;": true,
+      "Lcom/facebook/react/ReactNativeHost;": false,
+      "Lcom/tencent/tinker/loader/TinkerLoader;": false
+    },
+    "scriptBundleFiles": []
+  },
+  {
+    "version": "8.1.12",
+    "versionCode": 74,
+    "package": "com.touliao.app",
+    "certificateSha256": "345e9485b4220e607c40afee304f16ca00f87d6f080184423defc0ea1e85983c",
+    "apkSha256": "0e27d4610f282845f18610743ba31306a269e25539c7f123830222f54871f8a8",
+    "bytes": 56714017,
+    "runId": 33824499588,
+    "commit": "55ac23321a2420291896a16517169472d8a9d51d",
+    "dexEvidence": {
+      "https://touliao.cc/downloads/touliao-android-version.json": true,
+      "Lcom/touliao/app/core/update/UpdateChecker;": true,
+      "Lcom/touliao/app/core/update/ApkInstaller;": true,
+      "Lcom/touliao/app/feature/chat/ChatScreenKt;": true,
+      "Lcom/facebook/react/ReactNativeHost;": false,
+      "Lcom/tencent/tinker/loader/TinkerLoader;": false
+    },
+    "scriptBundleFiles": []
+  },
+  {
+    "version": "8.1.13",
+    "versionCode": 75,
+    "package": "com.touliao.app",
+    "certificateSha256": "345e9485b4220e607c40afee304f16ca00f87d6f080184423defc0ea1e85983c",
+    "apkSha256": "df701a5d63b6e7ff684b87a1ba9ab195d011cac07751beb173f92601c3fc1e19",
+    "bytes": 56714017,
+    "runId": 33859291628,
+    "commit": "a69df7278c41342939dd2f81f1cd6fa879c53c65",
+    "dexEvidence": {
+      "https://touliao.cc/downloads/touliao-android-version.json": true,
+      "Lcom/touliao/app/core/update/UpdateChecker;": true,
+      "Lcom/touliao/app/core/update/ApkInstaller;": true,
+      "Lcom/touliao/app/feature/chat/ChatScreenKt;": true,
+      "Lcom/facebook/react/ReactNativeHost;": false,
+      "Lcom/tencent/tinker/loader/TinkerLoader;": false
+    },
+    "scriptBundleFiles": []
+  },
+  {
+    "version": "8.1.14",
+    "versionCode": 76,
+    "package": "com.touliao.app",
+    "certificateSha256": "345e9485b4220e607c40afee304f16ca00f87d6f080184423defc0ea1e85983c",
+    "apkSha256": "b0b84b0d1300655e5d768d58b89f877326e126d5364c6630ce24096ab074ffbc",
+    "bytes": 56714009,
+    "runId": 33959221351,
+    "commit": "8619a60829ce6214177028722f8d2b65d3e227dc",
+    "dexEvidence": {
+      "https://touliao.cc/downloads/touliao-android-version.json": true,
+      "Lcom/touliao/app/core/update/UpdateChecker;": true,
+      "Lcom/touliao/app/core/update/ApkInstaller;": true,
+      "Lcom/touliao/app/feature/chat/ChatScreenKt;": true,
+      "Lcom/facebook/react/ReactNativeHost;": false,
+      "Lcom/tencent/tinker/loader/TinkerLoader;": false
+    },
+    "scriptBundleFiles": []
+  },
+  {
+    "version": "8.1.15",
+    "versionCode": 77,
+    "package": "com.touliao.app",
+    "certificateSha256": "345e9485b4220e607c40afee304f16ca00f87d6f080184423defc0ea1e85983c",
+    "apkSha256": "af35e28ceb7dd56557e654475bd01ff243f7353ad8d4685529f66fc0a8cdfbbe",
+    "bytes": 56718115,
+    "runId": 33967585931,
+    "commit": "70d667fac7aac9d60de7bc92f5297d9d4c1fbd28",
+    "dexEvidence": {
+      "https://touliao.cc/downloads/touliao-android-version.json": true,
+      "Lcom/touliao/app/core/update/UpdateChecker;": true,
+      "Lcom/touliao/app/core/update/ApkInstaller;": true,
+      "Lcom/touliao/app/feature/chat/ChatScreenKt;": true,
+      "Lcom/facebook/react/ReactNativeHost;": false,
+      "Lcom/tencent/tinker/loader/TinkerLoader;": false
+    },
+    "scriptBundleFiles": []
+  },
+  {
+    "version": "8.1.16",
+    "versionCode": 78,
+    "package": "com.touliao.app",
+    "certificateSha256": "345e9485b4220e607c40afee304f16ca00f87d6f080184423defc0ea1e85983c",
+    "apkSha256": "3594836393a91a0fdcf999aebd01cf601bba13513bce63699a918acd06ee082a",
+    "bytes": 56787735,
+    "runId": 34005074809,
+    "commit": "772a2743701f71bf13f183daa590d6be86baf532",
+    "dexEvidence": {
+      "https://touliao.cc/downloads/touliao-android-version.json": true,
+      "Lcom/touliao/app/core/update/UpdateChecker;": true,
+      "Lcom/touliao/app/core/update/ApkInstaller;": true,
+      "Lcom/touliao/app/feature/chat/ChatScreenKt;": true,
+      "Lcom/facebook/react/ReactNativeHost;": false,
+      "Lcom/tencent/tinker/loader/TinkerLoader;": false
+    },
+    "scriptBundleFiles": []
+  },
+  {
+    "version": "8.1.17",
+    "versionCode": 79,
+    "package": "com.touliao.app",
+    "certificateSha256": "345e9485b4220e607c40afee304f16ca00f87d6f080184423defc0ea1e85983c",
+    "apkSha256": "3d53074733ea468290a05d737f4d571fbc7cd272fe18dbf7bc6da69c75bc35d2",
+    "bytes": 56787829,
+    "runId": 34101030002,
+    "commit": "d5b6ec2f64f9924d25ba016243f80fa39f424cec",
+    "dexEvidence": {
+      "https://touliao.cc/downloads/touliao-android-version.json": true,
+      "Lcom/touliao/app/core/update/UpdateChecker;": true,
+      "Lcom/touliao/app/core/update/ApkInstaller;": true,
+      "Lcom/touliao/app/feature/chat/ChatScreenKt;": true,
+      "Lcom/facebook/react/ReactNativeHost;": false,
+      "Lcom/tencent/tinker/loader/TinkerLoader;": false
+    },
+    "scriptBundleFiles": []
+  },
+  {
+    "version": "8.1.18",
+    "versionCode": 80,
+    "package": "com.touliao.app",
+    "certificateSha256": "345e9485b4220e607c40afee304f16ca00f87d6f080184423defc0ea1e85983c",
+    "apkSha256": "e529757718fd1c0f43a8d7720eeee28690433f846f9e2a6003e16ab1bb663976",
+    "bytes": 56800122,
+    "runId": 34308823256,
+    "commit": "f09648a514367d5e470faf5b7107339b150adc6f",
+    "dexEvidence": {
+      "https://touliao.cc/downloads/touliao-android-version.json": true,
+      "Lcom/touliao/app/core/update/UpdateChecker;": true,
+      "Lcom/touliao/app/core/update/ApkInstaller;": true,
+      "Lcom/touliao/app/feature/chat/ChatScreenKt;": true,
+      "Lcom/facebook/react/ReactNativeHost;": false,
+      "Lcom/tencent/tinker/loader/TinkerLoader;": false
+    },
+    "scriptBundleFiles": []
+  },
+  {
+    "version": "8.1.24",
+    "versionCode": 81,
+    "package": "com.touliao.app",
+    "certificateSha256": "345e9485b4220e607c40afee304f16ca00f87d6f080184423defc0ea1e85983c",
+    "apkSha256": "0631c12bd21cd7abd1518d4357b8f617bbe65c699b4fe82b27ab4deeb3568763",
+    "bytes": 56808304,
+    "runId": 34979197799,
+    "commit": "ec0232640f55891f97d554c04d585a27487295ad",
+    "dexEvidence": {
+      "https://touliao.cc/downloads/touliao-android-version.json": true,
+      "Lcom/touliao/app/core/update/UpdateChecker;": true,
+      "Lcom/touliao/app/core/update/ApkInstaller;": true,
+      "Lcom/touliao/app/feature/chat/ChatScreenKt;": true,
+      "Lcom/facebook/react/ReactNativeHost;": false,
+      "Lcom/tencent/tinker/loader/TinkerLoader;": false
+    },
+    "scriptBundleFiles": []
+  }
+]

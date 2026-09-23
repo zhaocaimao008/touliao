@@ -1,5 +1,6 @@
 package com.touliao.app.feature.call
 
+import androidx.compose.material3.MaterialTheme
 import android.Manifest
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -41,16 +42,19 @@ import kotlin.math.roundToInt
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.touliao.app.core.call.CallStage
+import com.touliao.app.ui.theme.TouliaoMetrics
+import com.touliao.app.ui.theme.TouliaoMedia
 import com.touliao.app.ui.components.InitialAvatar
 import org.webrtc.EglBase
 import org.webrtc.RendererCommon
 import org.webrtc.SurfaceViewRenderer
 import org.webrtc.VideoTrack
 
-private val CallGreen = com.touliao.app.ui.theme.VxinSuccess   // 接听绿=语义成功色，对齐 web --color-success
-private val CallRed = Color(0xFFFA5151)
+private val CallGreen = TouliaoMedia.accept // Opaque media controls keep a readable white foreground.
+private val CallRed = TouliaoMedia.danger
 
 /** 全局通话浮层：通话激活时覆盖在主界面之上 */
+@OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 @Composable
 fun CallHost(
     navController: androidx.navigation.NavHostController? = null,
@@ -87,6 +91,8 @@ fun CallHost(
         return
     }
 
+    com.touliao.app.ui.components.DarkMediaSystemBars()
+
     // 权限：进入即申请（接听 / 呼叫均需要）
     val perms = remember(state.isVideo) {
         val base = if (state.isVideo) arrayOf(Manifest.permission.RECORD_AUDIO, Manifest.permission.CAMERA)
@@ -101,12 +107,12 @@ fun CallHost(
         // 此前结果被完全忽略——被拒绝后通话界面照常呈现，用户只会看到"听不到对方声音/
         // 对方看不到自己"却毫无线索。这不拦断通话流程（对方可能仍在等接听），只提示原因。
         if (!res.values.all { it }) {
-            android.widget.Toast.makeText(callScreenContext, "缺少麦克风/摄像头权限，通话可能无法正常进行", android.widget.Toast.LENGTH_LONG).show()
+            com.touliao.app.ui.components.TouliaoFeedback.show(callScreenContext, "缺少麦克风/摄像头权限，通话可能无法正常进行", com.touliao.app.ui.components.FeedbackKind.ERROR)
         }
     }
     LaunchedEffect(Unit) { permLauncher.launch(perms) }
 
-    Box(Modifier.fillMaxSize().background(Color(0xFF1A1A1A))) {
+    Box(Modifier.fillMaxSize().background(TouliaoMedia.canvas)) {
         // 通话音量=0 提示:回铃音无声时用户会以为 App 坏了,主动引导调音量
         if (showVolumeHint) {
             Box(
@@ -116,7 +122,7 @@ fun CallHost(
                     .padding(horizontal = 12.dp, vertical = 6.dp),
             ) {
                 Text(
-                    "⚠️ 通话音量已静音,请按音量键调高",
+                    "通话音量已静音,请按音量键调高",
                     color = Color.White, fontSize = com.touliao.app.ui.theme.VxinTextSize.sm,
                 )
             }
@@ -151,18 +157,18 @@ fun CallHost(
                 Modifier.fillMaxSize().systemBarsPadding().padding(top = 96.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
-                InitialAvatar(name = state.peerName.ifBlank { "?" }, size = 96.dp)
+                InitialAvatar(name = state.peerName.ifBlank { "?" }, size = TouliaoMetrics.avatarCall)
                 Spacer(Modifier.height(16.dp))
                 Text(state.peerName.ifBlank { "通话" }, color = Color.White, fontSize = com.touliao.app.ui.theme.VxinTextSize.displaySm)
                 Spacer(Modifier.height(8.dp))
                 Text(
                     callStatusOrDuration(state.stage, state.isVideo, state.connectedAt, state.endedAt),
-                    color = Color(0xFFBBBBBB), fontSize = com.touliao.app.ui.theme.VxinTextSize.base,
+                    color = TouliaoMedia.secondary, fontSize = com.touliao.app.ui.theme.VxinTextSize.base,
                 )
                 // 通话质量指示：getStats 2s 采样（RTT<200ms/丢包<2% 优; <500ms/<8% 中; 否则差）
                 if (state.stage == CallStage.CONNECTED && state.callQuality.isNotEmpty()) {
                     val (qColor, qText) = when (state.callQuality) {
-                        "poor" -> Color(0xFFFA5151) to "网络较差"
+                        "poor" -> com.touliao.app.ui.theme.VxinError to "网络较差"
                         "medium" -> Color(0xFFF5A623) to "网络一般"
                         else -> com.touliao.app.ui.theme.VxinSuccess to "网络良好"
                     }
@@ -180,10 +186,10 @@ fun CallHost(
         if (state.stage == CallStage.OUTGOING || state.stage == CallStage.CONNECTING || state.stage == CallStage.CONNECTED) {
             Box(
                 Modifier.align(Alignment.TopStart).systemBarsPadding().padding(start = 16.dp, top = 8.dp)
-                    .size(36.dp).clip(CircleShape).background(Color.White.copy(alpha = 0.15f))
+                    .size(com.touliao.app.ui.theme.TouliaoMetrics.touchTarget).clip(CircleShape).background(Color.White.copy(alpha = 0.15f))
                     .clickable { viewModel.setMinimized(true) },
                 contentAlignment = Alignment.Center,
-            ) { Text("⌄", color = Color.White, fontSize = com.touliao.app.ui.theme.VxinTextSize.lg) }
+            ) { com.touliao.app.ui.TouliaoGlyph(com.touliao.app.ui.TouliaoIcons.Minimize, color = com.touliao.app.ui.IconColor.OnDark, size = com.touliao.app.ui.IconSize.Md) }
         }
 
         // 控制按钮（systemBarsPadding 避免按钮被底部手势条遮挡）
@@ -194,21 +200,25 @@ fun CallHost(
             if (state.stage == CallStage.INCOMING) {
                 Row(horizontalArrangement = Arrangement.spacedBy(20.dp)) {
                     RoundButton("接听", CallGreen) { viewModel.accept() }
-                    RoundButton("回复消息", Color(0xFF555555)) { viewModel.rejectAndReply() }
+                    RoundButton("回复消息", com.touliao.app.ui.theme.TouliaoDarkPalette.surfaceSecondary) { viewModel.rejectAndReply() }
                     RoundButton("拒绝", CallRed) { viewModel.reject() }
                 }
             } else {
-                Row(horizontalArrangement = Arrangement.spacedBy(24.dp), verticalAlignment = Alignment.CenterVertically) {
-                    RoundButton(if (state.micEnabled) "麦克风开" else "麦克风关", Color(0xFF555555)) { viewModel.toggleMic() }
-                    RoundButton(if (state.speakerOn) "扬声器开" else "扬声器关", Color(0xFF555555)) { viewModel.toggleSpeaker() }
+                androidx.compose.foundation.layout.FlowRow(
+                    Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+                    horizontalArrangement = Arrangement.spacedBy(16.dp, Alignment.CenterHorizontally),
+                    verticalArrangement = Arrangement.spacedBy(16.dp), maxItemsInEachRow = 3,
+                ) {
+                    RoundButton(if (state.micEnabled) "麦克风开" else "麦克风关", com.touliao.app.ui.theme.TouliaoDarkPalette.surfaceSecondary) { viewModel.toggleMic() }
+                    RoundButton(if (state.speakerOn) "扬声器开" else "扬声器关", com.touliao.app.ui.theme.TouliaoDarkPalette.surfaceSecondary) { viewModel.toggleSpeaker() }
                     if (state.bluetoothAvailable) {
-                        RoundButton(if (state.bluetoothOn) "蓝牙开" else "蓝牙关", Color(0xFF555555)) { viewModel.toggleBluetooth() }
+                        RoundButton(if (state.bluetoothOn) "蓝牙开" else "蓝牙关", com.touliao.app.ui.theme.TouliaoDarkPalette.surfaceSecondary) { viewModel.toggleBluetooth() }
                     }
-                    RoundButton(if (state.isVideo) "切语音" else "切视频", Color(0xFF555555)) { viewModel.toggleVideo() }
+                    RoundButton(if (state.isVideo) "切语音" else "切视频", com.touliao.app.ui.theme.TouliaoDarkPalette.surfaceSecondary) { viewModel.toggleVideo() }
                     RoundButton("挂断", CallRed) { viewModel.hangup() }
                     if (state.isVideo) {
-                        RoundButton(if (state.cameraEnabled) "摄像头开" else "摄像头关", Color(0xFF555555)) { viewModel.toggleCamera() }
-                        RoundButton("翻转", Color(0xFF555555)) { viewModel.switchCamera() }
+                        RoundButton(if (state.cameraEnabled) "摄像头开" else "摄像头关", com.touliao.app.ui.theme.TouliaoDarkPalette.surfaceSecondary) { viewModel.toggleCamera() }
+                        RoundButton("翻转", com.touliao.app.ui.theme.TouliaoDarkPalette.surfaceSecondary) { viewModel.switchCamera() }
                     }
                 }
             }
@@ -245,15 +255,7 @@ private fun callStatusOrDuration(stage: CallStage, video: Boolean, connectedAt: 
 
 @Composable
 private fun RoundButton(label: String, color: Color, onClick: () -> Unit) {
-    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        Box(
-            Modifier.size(64.dp).clip(CircleShape).background(color)
-                .clickable { onClick() },
-            contentAlignment = Alignment.Center,
-        ) { Text(label.take(3), color = Color.White, fontSize = com.touliao.app.ui.theme.VxinTextSize.sm) }
-        Spacer(Modifier.height(4.dp))
-        Text(label, color = Color(0xFFCCCCCC), fontSize = com.touliao.app.ui.theme.VxinTextSize.xs)
-    }
+    com.touliao.app.ui.components.CallActionButton(label, color, onClick)
 }
 
 /** SurfaceViewRenderer 包装：按 track 变化挂/摘 sink，离场释放 */
@@ -322,7 +324,7 @@ private fun CallMinimizedBubble(viewModel: CallViewModel, state: com.touliao.app
                 }
                 .size(bubbleSizeDp)
                 .clip(RoundedCornerShape(16.dp))
-                .background(Color(0xFF262626))
+                .background(TouliaoMedia.surface)
                 .pointerInput(Unit) {
                     detectDragGestures(
                         onDragStart = { totalDrag = 0f },

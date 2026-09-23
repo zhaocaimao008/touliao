@@ -14,7 +14,7 @@ struct SearchView: View {
     var body: some View {
         VStack(spacing: 0) {
             TextField("搜索聊天记录", text: $vm.query)
-                .textFieldStyle(.roundedBorder)
+                .textFieldStyle(TouliaoTextFieldStyle())
                 .focused($searchFocused)
                 .submitLabel(.search)
                 .padding(12)
@@ -31,39 +31,44 @@ struct SearchView: View {
                 Spacer(); ProgressView(); Spacer()
             } else if !hasQuery {
                 Spacer()
-                VxinEmptyState(systemImage: "magnifyingglass", title: "搜索聊天记录", subtitle: "输入关键词查找消息")
+                VxinEmptyState(icon: "search", title: "搜索聊天记录", subtitle: "输入关键词查找消息")
                 Spacer()
             } else if vm.searched && vm.results.isEmpty {
                 Spacer()
-                VxinEmptyState(systemImage: "text.magnifyingglass", title: "没有找到相关消息")
+                VxinEmptyState(icon: "searchEmpty", title: "没有找到相关消息")
                 Spacer()
             } else {
                 List(vm.results) { r in
+                    Group {
                     Button { onOpenResult(r) } label: {
                         HStack(spacing: 12) {
                             InitialAvatar(name: r.convName.isEmpty ? "?" : r.convName, size: 44)
                             VStack(alignment: .leading, spacing: 2) {
-                                Text(r.convName.isEmpty ? "会话" : r.convName).foregroundColor(.primary).lineLimit(1)
+                                Text(r.convName.isEmpty ? "会话" : r.convName).foregroundColor(.vxinText).lineLimit(1)
                                 // 类型图标 + 摘要（F5：结构化消息透出人话字段，不泄原始 JSON；对齐 Web gs-msg-type-icon）
                                 HStack(alignment: .firstTextBaseline, spacing: 4) {
-                                    Text(messageSearchTypeIcon(r.type))
-                                        .font(.subheadline)
+                                    TouliaoIcon(TouliaoIcon.messageType(r.type), size: .xs)
+                                        .touliaoText(.secondary)
                                         .foregroundColor(.vxinTextSecondary)
                                     Text(highlighted(prefix: r.senderName.isEmpty ? "" : "\(r.senderName): ",
                                                      summary: formatSearchMessageSummary(type: r.type, content: r.content),
                                                      query: vm.query))
-                                        .font(.subheadline).lineLimit(1)
+                                        .touliaoText(.secondary).lineLimit(1)
                                 }
                             }
                             Spacer()
                         }
                     }
+                    }.listRowBackground(Color.vxinSurface).listRowSeparatorTint(Color.vxinBorder)
                 }
                 .listStyle(.plain)
+            .scrollContentBackground(.hidden)
+            .background(Color.vxinSurface)
             }
         }
         .navigationTitle("搜索")
         .navigationBarTitleDisplayMode(.inline)
+        .touliaoPage()
         .toast($vm.error)
     }
 
@@ -91,21 +96,22 @@ struct SearchView: View {
                     .frame(maxWidth: .infinity, alignment: .trailing)
                 }
             }
-            // 时间 chips（不限/今天/7天/30天）
+            // Keep every time filter reachable at accessibility text sizes.
+            ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 8) {
                 ForEach(messageSearchTimeRanges) { option in
                     Button {
                         vm.timeRange = option.value
                     } label: {
                         Text(option.label)
-                            .font(.caption)
-                            .padding(.horizontal, 12).padding(.vertical, 5)
-                            .background(vm.timeRange == option.value ? Color.vxinGreen.opacity(0.15) : Color.gray.opacity(0.1))
+                            .touliaoText(.caption)
+                            .padding(.horizontal, 12).frame(minHeight: 44)
+                            .background(vm.timeRange == option.value ? Color.vxinPrimarySoft : Color.vxinSurfaceSecondary)
                             .foregroundColor(vm.timeRange == option.value ? .vxinGreen : .vxinTextSecondary)
                             .clipShape(Capsule())
                     }
                 }
-                Spacer()
+            }
             }
         }
         .padding(.horizontal, 12)

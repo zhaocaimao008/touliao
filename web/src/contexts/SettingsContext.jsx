@@ -5,11 +5,11 @@ const SettingsContext = createContext({});
 
 const FONT_SIZES = { small: 12, normal: 14, large: 16, xlarge: 18 };
 
-// 皮肤: 'aurora' 默认极光紫 | 'wechat' 微信绿 | 'wecom' 企业微信蓝
-const SKINS = ['aurora', 'wechat', 'wecom'];
+// New installations use the supplied design; explicit existing choices survive.
+const SKINS = ['touliao', 'aurora', 'wechat', 'wecom'];
 const getStoredSkin = () => {
   const s = localStorage.getItem('wc_skin');
-  return SKINS.includes(s) ? s : 'aurora';
+  return SKINS.includes(s) ? s : 'touliao';
 };
 
 const getSystemDark = () =>

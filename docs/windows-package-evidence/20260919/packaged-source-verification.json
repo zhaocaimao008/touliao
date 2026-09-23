@@ -1,0 +1,12 @@
+{
+  "version": "8.1.27",
+  "package": "touliao-desktop",
+  "sourceFilesMatch": true,
+  "files": {
+    "src/main.js": "cb7b14b2f6c5241e377e467a9d665c4ba7232f9e979ae25d85e678e7824183cb",
+    "src/preload.js": "b36d112a4e9e6aec6a5b71e12daa616a9fab9e38d949f5d1ffad11d31756574f",
+    "src/update-public-key.pem": "dc8a45f1b37ec296faf89a18590f441fb7a9ea00239f2a4cd93daae619a2505e"
+  },
+  "appUpdate": "provider: generic\nurl: https://touliao.cc/downloads/updates\nchannel: latest\nupdaterCacheDirName: touliao-desktop-updater\n",
+  "packagedRendererPresent": true
+}

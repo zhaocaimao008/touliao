@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import ReactDOM from 'react-dom/client';
+import TouliaoDialog from '../ui-kit/Dialog';
 import { getI18n } from '../contexts/I18nContext';
+import { feedbackDuration } from '../ui-kit/feedbackPolicy';
 
 let _setToast = null;
 let _setConfirm = null;
@@ -20,10 +22,7 @@ function ToastRoot() {
       setToast(t);
       clearTimeout(timerRef.current);
       if (t) {
-        // 错误停留更久(4.5s),便于阅读;普通/成功 3s;长文案再按字数适当延长
-        const base = t.type === 'error' ? 4500 : 3000;
-        const extra = Math.min(2000, Math.max(0, (String(t.msg).length - 20) * 60));
-        timerRef.current = setTimeout(() => setToast(null), base + extra);
+        timerRef.current = setTimeout(() => setToast(null), feedbackDuration(t.msg, t.type));
       }
     };
     _setConfirm = setConfirm;
@@ -41,45 +40,16 @@ function ToastRoot() {
           onClick={() => { clearTimeout(timerRef.current); setToast(null); }}
           title={t('common.close')}
           style={{
-            animation: 'toastSlideIn 0.3s cubic-bezier(0.16, 1, 0.3, 1)',
+            animation: 'toastSlideIn var(--tl-duration-normal) var(--tl-easing-entrance)',
           }}
         >{toast.msg}</div>
       )}
-      {confirmState && (
-        <div
-          className="wc-confirm-overlay"
-          onClick={e => { if (e.target === e.currentTarget) { confirmState.resolve(false); setConfirm(null); } }}
-          style={{
-            animation: 'fadeIn 0.2s ease-out',
-          }}
-        >
-          <div
-            className="wc-confirm-box"
-            role="dialog"
-            aria-modal="true"
-            aria-label={t('common.confirm')}
-            style={{
-              animation: 'scaleIn 0.25s cubic-bezier(0.16, 1, 0.3, 1)',
-            }}
-          >
-            <div className="wc-confirm-msg">{confirmState.msg}</div>
-            <div className="wc-confirm-btns">
-              <button
-                className="wc-confirm-cancel"
-                data-testid="confirm-cancel"
-                onClick={() => { confirmState.resolve(false); setConfirm(null); }}
-                style={{ transition: 'all 0.15s ease' }}
-              >{t('common.cancel')}</button>
-              <button
-                className="wc-confirm-ok"
-                data-testid="confirm-ok"
-                onClick={() => { confirmState.resolve(true); setConfirm(null); }}
-                style={{ transition: 'all 0.15s ease' }}
-              >{t('common.confirm')}</button>
-            </div>
-          </div>
-        </div>
-      )}
+      {confirmState && <TouliaoDialog
+        {...confirmState.options} message={confirmState.msg}
+        onCancel={() => { confirmState.resolve(false); setConfirm(null); }}
+        onConfirm={() => { confirmState.resolve(true); setConfirm(null); }}
+      />}
+
     </>
   );
 }
@@ -94,8 +64,8 @@ export function showToast(msg, type = 'info') {
   _setToast?.({ msg, type });
 }
 
-export function showConfirm(msg) {
+export function showConfirm(msg, options = {}) {
   return new Promise(resolve => {
-    _setConfirm?.({ msg, resolve });
+    _setConfirm?.({ msg, resolve, options });
   });
 }

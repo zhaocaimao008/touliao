@@ -1,4 +1,6 @@
-import React, { useEffect, useCallback, useState } from 'react';
+import TouliaoIcon from '../ui-kit/Icon';
+import useFocusTrap from '../hooks/useFocusTrap';
+import React, { useEffect, useState } from 'react';
 import { downloadFile, startDownload, subscribe, getState, cancelDownload, retryDownload } from '../utils/downloadManager';
 import { shareMessage, canShare } from '../utils/share';
 import { useI18n } from '../contexts/I18nContext';
@@ -37,22 +39,11 @@ export default function VideoPreview({ url: fileUrl, name, onClose }) {
     if (download?.status === 'failed' || download?.status === 'cancelled') retryDownload(fileUrl);
     else startDownload({ fileUrl, filename: name || filenameFromUrl(fileUrl) });
   };
-  const handleKeyDown = useCallback((e) => {
-    if (e.key === 'Escape') onClose();
-  }, [onClose]);
-
-  useEffect(() => {
-    window.addEventListener('keydown', handleKeyDown);
-    document.body.style.overflow = 'hidden';
-    return () => {
-      window.removeEventListener('keydown', handleKeyDown);
-      document.body.style.overflow = '';
-    };
-  }, [handleKeyDown]);
+  const modalRef = useFocusTrap(true, { onEscape: onClose, lockScroll: true, initialFocus: '[data-testid="video-lightbox-close"]' });
 
   return (
     <div
-      data-testid="video-lightbox"
+      ref={modalRef} tabIndex={-1} data-testid="video-lightbox"
       role="dialog" aria-modal="true" aria-label={t('videoPreview.title')}
       style={{
         position: 'fixed', inset: 0, zIndex: 'var(--z-top)',
@@ -101,9 +92,7 @@ export default function VideoPreview({ url: fileUrl, name, onClose }) {
             backdropFilter: 'blur(10px)',
           }}
         >
-          <svg viewBox="0 0 24 24" style={{ width: 16, height: 16, fill: 'var(--text-inverse)' }}>
-            <path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/>
-          </svg>
+          <TouliaoIcon name="download" tone="onDark" size="xs" />
           {t(uploading ? 'videoPreview.uploading' : busy ? 'videoPreview.downloading' : download?.status === 'failed' ? 'filePreview.retry' : 'videoPreview.downloadShort')}
         </button>
         {busy && <button onClick={() => cancelDownload(fileUrl)} style={{
@@ -130,9 +119,7 @@ export default function VideoPreview({ url: fileUrl, name, onClose }) {
               backdropFilter: 'blur(10px)',
             }}
           >
-            <svg viewBox="0 0 24 24" style={{ width: 16, height: 16, fill: 'var(--text-inverse)' }}>
-              <path d="M18 16.08c-.76 0-1.44.3-1.96.77L8.91 12.7c.05-.23.09-.46.09-.7s-.04-.47-.09-.7l7.05-4.11c.54.5 1.25.81 2.04.81 1.66 0 3-1.34 3-3s-1.34-3-3-3-3 1.34-3 3c0 .24.04.47.09.7L8.04 9.81C7.5 9.31 6.79 9 6 9c-1.66 0-3 1.34-3 3s1.34 3 3 3c.79 0 1.5-.31 2.04-.81l7.12 4.16c-.05.21-.08.43-.08.65 0 1.61 1.31 2.92 2.92 2.92s2.92-1.31 2.92-2.92-1.31-2.92-2.92-2.92z"/>
-            </svg>
+            <TouliaoIcon name="share" tone="onDark" size="xs" />
             {t('videoPreview.shareShort')}
           </button>
         )}
@@ -152,9 +139,7 @@ export default function VideoPreview({ url: fileUrl, name, onClose }) {
           backdropFilter: 'blur(10px)',
         }}
         aria-label={t('common.close')}
-      >
-        ✕
-      </button>
+      ><TouliaoIcon name="close" size="sm" /></button>
     </div>
   );
 }

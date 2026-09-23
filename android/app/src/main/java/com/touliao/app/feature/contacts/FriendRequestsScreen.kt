@@ -11,8 +11,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -57,7 +55,7 @@ fun FriendRequestsScreen(
                 title = { Text("新的朋友") },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回")
+                        Icon(com.touliao.app.ui.TouliaoIcons.Back, contentDescription = "返回")
                     }
                 },
             )
@@ -73,7 +71,7 @@ fun FriendRequestsScreen(
                 if (tab == 0) {
                     when {
                         state.loading && state.requests.isEmpty() -> CircularProgressIndicator(Modifier.align(Alignment.Center))
-                        state.requests.isEmpty() -> com.touliao.app.ui.components.EmptyState(icon = "👋", title = "没有新的好友申请", modifier = Modifier.align(Alignment.Center))
+                        state.requests.isEmpty() -> com.touliao.app.ui.components.EmptyState(icon = com.touliao.app.ui.TouliaoIcons.AddFriend, title = "没有新的好友申请", modifier = Modifier.align(Alignment.Center))
                         else -> LazyColumn(Modifier.fillMaxSize()) {
                             items(state.requests, key = { it.id }) { req ->
                                 RequestRow(
@@ -88,7 +86,7 @@ fun FriendRequestsScreen(
                     }
                 } else {
                     if (state.sent.isEmpty()) {
-                        com.touliao.app.ui.components.EmptyState(icon = "📮", title = "没有已发送的申请", modifier = Modifier.align(Alignment.Center))
+                        com.touliao.app.ui.components.EmptyState(icon = com.touliao.app.ui.TouliaoIcons.Send, title = "没有已发送的申请", modifier = Modifier.align(Alignment.Center))
                     } else {
                         LazyColumn(Modifier.fillMaxSize()) {
                             items(state.sent, key = { it.id }) { req -> SentRow(req, avatarUrl = viewModel.resolveUrl(req.avatar)) }

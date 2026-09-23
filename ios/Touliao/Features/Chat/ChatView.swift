@@ -16,6 +16,8 @@ struct ChatView: View {
     @StateObject private var vm: ChatViewModel
     @EnvironmentObject private var session: SessionStore
     @Environment(\.dismiss) private var dismiss
+    @FocusState private var messageFocused: Bool
+    @ScaledMetric(relativeTo: .body) private var minimumInputWidth: CGFloat = 128
     @State private var photoItem: PhotosPickerItem?
     @State private var bgPhotoItem: PhotosPickerItem?
     @State private var stickerPhotoItem: PhotosPickerItem?
@@ -78,6 +80,10 @@ struct ChatView: View {
         }
         .navigationTitle(vm.peerTyping ? "对方正在输入…" : (vm.title.isEmpty ? "聊天" : vm.title))
         .navigationBarTitleDisplayMode(.inline)
+        .touliaoPage()
+        .onChange(of: messageFocused) { focused in
+            if focused { showStickerPanel = false; showFuncPanel = false }
+        }
         .toast($vm.error)   // 发送/上传/收藏/转发等失败与"已收藏""已转发"等提示统一透出
         .toolbar {
             ToolbarItem(placement: .navigationBarTrailing) {
@@ -87,27 +93,27 @@ struct ChatView: View {
                 ToolbarItemGroup(placement: .navigationBarTrailing) {
                     // 群语音/群视频按钮受后台开关控制，关闭即隐藏
                     if vm.groupVoiceCallEnabled {
-                        Button { vm.startGroupCall(video: false) } label: { Image(systemName: "phone.fill") }
+                        Button { vm.startGroupCall(video: false) } label: { TouliaoIcon("phone", size: .md) }
                             .accessibilityIdentifier("chat-call-audio-btn")
                             .accessibilityLabel("语音通话")
                     }
                     if vm.groupVideoCallEnabled {
-                        Button { vm.startGroupCall(video: true) } label: { Image(systemName: "video.fill") }
+                        Button { vm.startGroupCall(video: true) } label: { TouliaoIcon("video", size: .md) }
                             .accessibilityIdentifier("chat-call-video-btn")
                             .accessibilityLabel("视频通话")
                     }
-                    Button(action: onOpenGroupInfo) { Image(systemName: "ellipsis") }
+                    Button(action: onOpenGroupInfo) { TouliaoIcon("more", size: .md) }
                         .accessibilityLabel("群聊信息")
                 }
             } else {
                 ToolbarItemGroup(placement: .navigationBarTrailing) {
                     Button { _ = vm.startCall(video: false, callerName: session.currentUser?.username ?? "") } label: {
-                        Image(systemName: "phone.fill")
+                        TouliaoIcon("phone", size: .md)
                     }
                     .accessibilityIdentifier("chat-call-audio-btn")
                     .accessibilityLabel("语音通话")
                     Button { _ = vm.startCall(video: true, callerName: session.currentUser?.username ?? "") } label: {
-                        Image(systemName: "video.fill")
+                        TouliaoIcon("video", size: .md)
                     }
                     .accessibilityIdentifier("chat-call-video-btn")
                     .accessibilityLabel("视频通话")
@@ -115,7 +121,7 @@ struct ChatView: View {
             }
             // 会话内消息搜索
             ToolbarItem(placement: .navigationBarTrailing) {
-                Button { vm.openSearch() } label: { Image(systemName: "magnifyingglass") }
+                Button { vm.openSearch() } label: { TouliaoIcon("search", size: .md) }
                     .accessibilityIdentifier("chat-search-btn")
                     .accessibilityLabel("搜索聊天记录")
             }
@@ -123,39 +129,39 @@ struct ChatView: View {
             ToolbarItem(placement: .navigationBarTrailing) {
                 Menu {
                     PhotosPicker(selection: $bgPhotoItem, matching: .images) {
-                        Label(vm.background.isEmpty ? "设置聊天背景" : "更换聊天背景", systemImage: "photo")
+                        Label(vm.background.isEmpty ? "设置聊天背景" : "更换聊天背景", touliaoIcon: "image")
                     }
                     if !vm.background.isEmpty {
-                        Button(role: .destructive) { vm.clearBackground() } label: { Label("清除聊天背景", systemImage: "trash") }
+                        Button(role: .destructive) { vm.clearBackground() } label: { Label("清除聊天背景", touliaoIcon: "delete") }
                     }
                     Menu {
                         ForEach(ChatView.burnOptions, id: \.0) { secs, label in
                             Button {
                                 vm.setBurnAfter(secs)
                             } label: {
-                                if vm.burnAfter == secs { Label(label, systemImage: "checkmark") } else { Text(label) }
+                                if vm.burnAfter == secs { Label(label, touliaoIcon: "check") } else { Text(label) }
                             }
                         }
                     } label: {
-                        Label("阅后即焚" + (vm.burnAfter > 0 ? "（\(ChatView.burnLabel(vm.burnAfter))）" : ""), systemImage: "flame")
+                        Label("阅后即焚" + (vm.burnAfter > 0 ? "（\(ChatView.burnLabel(vm.burnAfter))）" : ""), touliaoIcon: "ephemeral")
                     }
                     Divider()
                     // 聊天文件聚合：图片/视频/文件汇总全屏页
                     Button {
                         showConversationFiles = true
                     } label: {
-                        Label("聊天文件", systemImage: "folder")
+                        Label("聊天文件", touliaoIcon: "folder")
                     }
                     .accessibilityIdentifier("chat-files-btn")
                     // 导出聊天记录：拉取全量文本存 txt 并分享
                     Button {
                         vm.exportChat()
                     } label: {
-                        Label(vm.exportingChat ? "导出中…" : "导出聊天记录", systemImage: "square.and.arrow.up")
+                        Label(vm.exportingChat ? "导出中…" : "导出聊天记录", touliaoIcon: "share")
                     }
                     .disabled(vm.exportingChat)
                     .accessibilityIdentifier("chat-export-btn")
-                } label: { Image(systemName: "photo.on.rectangle") }
+                } label: { TouliaoIcon("settings", size: .md) }
                 .accessibilityLabel("聊天设置")
             }
         }
@@ -232,23 +238,27 @@ struct ChatView: View {
                 }
                 .navigationTitle("群公告")
                 .navigationBarTitleDisplayMode(.inline)
+        .touliaoPage()
                 .toolbar { ToolbarItem(placement: .confirmationAction) { Button("关闭") { showAnnouncement = false } } }
             }
         }
         .sheet(isPresented: $showPinnedList) {
             NavigationStack {
                 List(vm.pinnedMessages) { p in
+                    Group {
                     HStack {
                         VStack(alignment: .leading, spacing: 2) {
-                            Text(p.senderName.isEmpty ? "成员" : p.senderName).font(.caption).foregroundColor(.vxinTextSecondary)
+                            Text(p.senderName.isEmpty ? "成员" : p.senderName).touliaoText(.caption).foregroundColor(.vxinTextSecondary)
                             Text(pinnedPreview(p)).lineLimit(2)
                         }
                         Spacer()
                         Button("取消", role: .destructive) { vm.unpinMessage(p.msgId) }.buttonStyle(.borderless)
                     }
+                    }.listRowBackground(Color.vxinSurface).listRowSeparatorTint(Color.vxinBorder)
                 }
                 .navigationTitle("置顶消息 (\(vm.pinnedMessages.count))")
                 .navigationBarTitleDisplayMode(.inline)
+        .touliaoPage()
                 .toolbar { ToolbarItem(placement: .confirmationAction) { Button("关闭") { showPinnedList = false } } }
             }
         }
@@ -271,12 +281,13 @@ struct ChatView: View {
         .sheet(isPresented: $showMentionPicker) {
             NavigationStack {
                 List {
+                    Group {
                     // 群主/管理员专属：@所有人（置顶入口）
                     if vm.canManageGroup {
                         Button { vm.appendMentionAll(); showMentionPicker = false } label: {
                             HStack(spacing: 12) {
                                 InitialAvatar(name: "全", size: 36)
-                                Text("所有人").fontWeight(.semibold).foregroundColor(.primary)
+                                Text("所有人").fontWeight(.semibold).foregroundColor(.vxinText)
                             }
                         }
                     }
@@ -284,29 +295,34 @@ struct ChatView: View {
                         Button { vm.appendMention(m); showMentionPicker = false } label: {
                             HStack(spacing: 12) {
                                 InitialAvatar(name: m.displayName.isEmpty ? "?" : m.displayName, size: 36)
-                                Text(m.displayName.isEmpty ? "未命名" : m.displayName).foregroundColor(.primary)
+                                Text(m.displayName.isEmpty ? "未命名" : m.displayName).foregroundColor(.vxinText)
                             }
                         }
                     }
+                    }.listRowBackground(Color.vxinSurface).listRowSeparatorTint(Color.vxinBorder)
                 }
                 .navigationTitle("选择要 @ 的成员").navigationBarTitleDisplayMode(.inline)
+        .touliaoPage()
                 .toolbar { ToolbarItem(placement: .cancellationAction) { Button("取消") { showMentionPicker = false } } }
             }
         }
         .sheet(isPresented: Binding(get: { vm.forwardTarget != nil }, set: { if !$0 { vm.forwardTarget = nil } })) {
             NavigationStack {
                 List(vm.forwardTargets) { conv in
+                    Group {
                     Button {
                         if forwardSelected.contains(conv.id) { forwardSelected.remove(conv.id) } else { forwardSelected.insert(conv.id) }
                     } label: {
                         HStack {
-                            Image(systemName: forwardSelected.contains(conv.id) ? "checkmark.circle.fill" : "circle").foregroundColor(.vxinGreen)
+                            TouliaoIcon(forwardSelected.contains(conv.id) ? "selected" : "unselected").foregroundColor(.vxinGreen)
                             InitialAvatar(name: conv.name.isEmpty ? "?" : conv.name, size: 32)
-                            Text(conv.name.isEmpty ? "未命名会话" : conv.name).foregroundColor(.primary).lineLimit(1)
+                            Text(conv.name.isEmpty ? "未命名会话" : conv.name).foregroundColor(.vxinText).lineLimit(1)
                         }
                     }
+                    }.listRowBackground(Color.vxinSurface).listRowSeparatorTint(Color.vxinBorder)
                 }
                 .navigationTitle("转发到").navigationBarTitleDisplayMode(.inline)
+        .touliaoPage()
                 .toolbar {
                     ToolbarItem(placement: .cancellationAction) { Button("取消") { vm.forwardTarget = nil; forwardSelected = [] } }
                     ToolbarItem(placement: .confirmationAction) {
@@ -323,17 +339,21 @@ struct ChatView: View {
             NavigationStack {
                 VStack(spacing: 0) {
                     List(vm.forwardTargets) { conv in
+                        Group {
                         Button {
                             if multiForwardSelected.contains(conv.id) { multiForwardSelected.remove(conv.id) } else { multiForwardSelected.insert(conv.id) }
                         } label: {
                             HStack {
-                                Image(systemName: multiForwardSelected.contains(conv.id) ? "checkmark.circle.fill" : "circle").foregroundColor(.vxinGreen)
+                                TouliaoIcon(multiForwardSelected.contains(conv.id) ? "selected" : "unselected").foregroundColor(.vxinGreen)
                                 InitialAvatar(name: conv.name.isEmpty ? "?" : conv.name, size: 32)
-                                Text(conv.name.isEmpty ? "未命名会话" : conv.name).foregroundColor(.primary).lineLimit(1)
+                                Text(conv.name.isEmpty ? "未命名会话" : conv.name).foregroundColor(.vxinText).lineLimit(1)
                             }
                         }
+                        }.listRowBackground(Color.vxinSurface).listRowSeparatorTint(Color.vxinBorder)
                     }
                     .listStyle(.plain)
+            .scrollContentBackground(.hidden)
+            .background(Color.vxinSurface)
                     // 转发模式（对齐 Web fwd-mode：合并=一条卡片消息；逐条=按序复制每条）
                     Picker("转发方式", selection: $multiForwardMerged) {
                         Text("合并转发").tag(true)
@@ -343,11 +363,12 @@ struct ChatView: View {
                     .padding(.horizontal, 12).padding(.top, 8)
                     // 30 条上限提示（对齐 Web：标题显示封顶后的条数；超 30 时明确只合并前 30 条）
                     Text(multiForwardCountHint)
-                        .font(.caption).foregroundColor(.vxinTextSecondary)
+                        .touliaoText(.caption).foregroundColor(.vxinTextSecondary)
                         .frame(maxWidth: .infinity, alignment: .center)
                         .padding(.bottom, 8)
                 }
                 .navigationTitle("转发到").navigationBarTitleDisplayMode(.inline)
+        .touliaoPage()
                 .toolbar {
                     ToolbarItem(placement: .cancellationAction) {
                         Button("取消") { showMultiForwardSheet = false }
@@ -394,13 +415,13 @@ struct ChatView: View {
     private var announcementBanner: some View {
         Button { showAnnouncement = true } label: {
             HStack(spacing: 8) {
-                Text("📢").font(.caption)
-                Text("群公告").font(.caption).foregroundColor(.vxinInfoBannerFg)
+                TouliaoIcon("announcement", size: .sm).touliaoText(.caption)
+                Text("群公告").touliaoText(.caption).foregroundColor(.vxinInfoBannerFg)
                 MarqueeText(text: vm.groupAnnouncement.replacingOccurrences(of: "\n", with: "   "), font: .footnote)
             }
             .padding(.horizontal, 12).padding(.vertical, 8)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(Color(red: 0.92, green: 0.96, blue: 1.0))
+            .background(Color.vxinPrimarySoft)
         }
         .buttonStyle(.plain)
     }
@@ -408,14 +429,14 @@ struct ChatView: View {
     private var pinnedBanner: some View {
         Button { showPinnedList = true } label: {
             HStack(spacing: 8) {
-                Text("📌").font(.caption)
-                Text(vm.pinnedMessages.first.map(pinnedPreview) ?? "").lineLimit(1).font(.footnote)
+                TouliaoIcon("pin", size: .sm).touliaoText(.caption)
+                Text(vm.pinnedMessages.first.map(pinnedPreview) ?? "").lineLimit(1).touliaoText(.secondary)
                 Spacer()
-                if vm.pinnedMessages.count > 1 { Text("\(vm.pinnedMessages.count) 条").font(.caption).foregroundColor(.vxinTextSecondary) }
+                if vm.pinnedMessages.count > 1 { Text("\(vm.pinnedMessages.count) 条").touliaoText(.caption).foregroundColor(.vxinTextSecondary) }
             }
             .padding(.horizontal, 12).padding(.vertical, 8)
             .frame(maxWidth: .infinity)
-            .background(Color(red: 1.0, green: 0.97, blue: 0.9))
+            .background(Color.vxinSurfaceSecondary)
         }
         .buttonStyle(.plain)
     }
@@ -448,30 +469,30 @@ struct ChatView: View {
                         let prev = idx > 0 ? vm.messages[idx - 1].createdAt : nil
                         if shouldShowMessageTime(prev: prev, cur: msg.createdAt) {
                             Text(formatChatTime(msg.createdAt))
-                                .font(.caption2).foregroundColor(.vxinTextSecondary)
+                                .touliaoText(.caption).foregroundColor(.vxinTextSecondary)
                                 .padding(.horizontal, 8).padding(.vertical, 2)
-                                .background(Color.gray.opacity(0.12))
+                                .background(Color.vxinSurfaceSecondary)
                                 .clipShape(RoundedRectangle(cornerRadius: VxinRadius.sm))
                                 .frame(maxWidth: .infinity, alignment: .center)
                                 .padding(.vertical, 4)
                         }
                         if msg.type == "nudge" {
                             Text(vm.nudgeText(msg))
-                                .font(.caption).foregroundColor(.vxinTextSecondary)
+                                .touliaoText(.caption).foregroundColor(.vxinTextSecondary)
                                 .frame(maxWidth: .infinity, alignment: .center)
                                 .padding(.vertical, 4)
                                 .id(msg.id)
                         } else if msg.type == "call" {
                             // 通话系统消息:居中灰字(微信行为对齐,主叫/被叫文案由 callText 区分)
                             Text(vm.callText(msg))
-                                .font(.caption).foregroundColor(.vxinTextSecondary)
+                                .touliaoText(.caption).foregroundColor(.vxinTextSecondary)
                                 .frame(maxWidth: .infinity, alignment: .center)
                                 .padding(.vertical, 4)
                                 .id(msg.id)
                         } else if vm.multiSelect {
                             // 多选模式：整行可点勾选，左侧圆形指示器
                             HStack(spacing: 8) {
-                                Image(systemName: vm.selectedIds.contains(msg.id) ? "checkmark.circle.fill" : "circle")
+                                TouliaoIcon(vm.selectedIds.contains(msg.id) ? "selected" : "unselected")
                                     .foregroundColor(vm.selectedIds.contains(msg.id) ? .vxinGreen : .secondary)
                                 MessageBubble(msg: msg, isMine: msg.senderId == vm.myId, vm: vm, readStatusTarget: $readStatusTarget)
                                     .allowsHitTesting(false)
@@ -497,6 +518,7 @@ struct ChatView: View {
                 .padding(.horizontal, 12)
                 .padding(.vertical, 8)
             }
+            .scrollDismissesKeyboard(.interactively)
             // 最新一条变化：在底部则跟随滚底；在上方看历史则累计"N 条新消息"不打断
             .onChange(of: vm.messages.last?.id) { _ in
                 guard let last = vm.messages.last else { return }
@@ -519,10 +541,10 @@ struct ChatView: View {
                     newMsgCount = 0
                 } label: {
                     HStack(spacing: 4) {
-                        Image(systemName: "arrow.down")
+                        TouliaoIcon("scrollDown")
                         Text("\(newMsgCount) 条新消息")
                     }
-                    .font(.caption).foregroundColor(.vxinGreen)
+                    .touliaoText(.caption).foregroundColor(.vxinGreen)
                     .padding(.horizontal, 12).padding(.vertical, 7)
                     .background(Capsule().fill(Color.vxinCard).shadow(color: .black.opacity(0.12), radius: 4, y: 2))
                 }
@@ -538,7 +560,7 @@ struct ChatView: View {
     // MARK: - 多选底栏（批量撤回/删除/转发，对齐 web）
     private var multiSelectBar: some View {
         HStack {
-            Text("已选 \(vm.selectedIds.count) 条").font(.subheadline).foregroundColor(.vxinTextSecondary)
+            Text("已选 \(vm.selectedIds.count) 条").touliaoText(.secondary).foregroundColor(.vxinTextSecondary)
             Spacer()
             Button("取消") { vm.exitMultiSelect() }
             // F5 合并转发：弹目标选择 sheet（sheet 内可切换合并/逐条模式）
@@ -566,64 +588,107 @@ struct ChatView: View {
             if let t = vm.editTarget {
                 HStack {
                     Text("编辑消息: \(t.content)")
-                        .font(.caption).foregroundColor(.vxinTextSecondary).lineLimit(1)
+                        .touliaoText(.caption).foregroundColor(.vxinTextSecondary).lineLimit(1)
                     Spacer()
-                    Button { vm.editTarget = nil } label: { Image(systemName: "xmark.circle.fill").foregroundColor(.vxinTextSecondary) }
+                    Button { vm.editTarget = nil } label: { TouliaoIcon("close", size: .sm).foregroundColor(IconColor.secondary).frame(width: IconTouchTarget.ios, height: IconTouchTarget.ios).contentShape(Rectangle()) }
                         .accessibilityLabel("取消编辑")
                 }
                 .padding(.horizontal, 12).padding(.vertical, 6)
-                .background(Color.gray.opacity(0.12))
+                .background(Color.vxinSurfaceSecondary)
             }
             if let r = vm.replyingTo {
                 HStack {
                     Text("回复 \(r.senderName): \(replyPreviewText(r))")
-                        .font(.caption).foregroundColor(.vxinTextSecondary).lineLimit(1)
+                        .touliaoText(.caption).foregroundColor(.vxinTextSecondary).lineLimit(1)
                     Spacer()
-                    Button { vm.cancelReply() } label: { Image(systemName: "xmark.circle.fill").foregroundColor(.vxinTextSecondary) }
+                    Button { vm.cancelReply() } label: { TouliaoIcon("close", size: .sm).foregroundColor(IconColor.secondary).frame(width: IconTouchTarget.ios, height: IconTouchTarget.ios).contentShape(Rectangle()) }
                         .accessibilityLabel("取消引用")
                 }
                 .padding(.horizontal, 12).padding(.vertical, 6)
-                .background(Color.gray.opacity(0.12))
+                .background(Color.vxinSurfaceSecondary)
             }
             if vm.recording {
                 Text("● 录音中…点击麦克风停止并发送")
-                    .font(.footnote)
+                    .touliaoText(.secondary)
                     .foregroundColor(.vxinError)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(.horizontal, 16).padding(.vertical, 4)
             }
-            // 2026-08-29 视觉重做(参考V信iOS输入区设计稿)：圆形图标按钮 + 药丸形浅底输入框，
-            // 不改变任何交互逻辑(编辑/回复/录音/@/发送 vs + 切换均与此前完全一致)。
-            // [🎤][@?][ 输入消息…(浅灰药丸底) ][🙂][➕/发送]
-            HStack(alignment: .bottom, spacing: 8) {
+            // Use a second row when the remaining input width is too narrow.
+            ViewThatFits(in: .horizontal) {
+                HStack(alignment: .bottom, spacing: 8) {
+                    voiceAndMentionButtons
+                    composerField.frame(minWidth: minimumInputWidth)
+                    emojiButton
+                    sendOrMoreButton
+                }
+                VStack(spacing: 8) {
+                    composerField
+                    HStack(spacing: 8) {
+                        voiceAndMentionButtons
+                        Spacer(minLength: 0)
+                        emojiButton
+                        sendOrMoreButton
+                    }
+                }
+            }
+            .padding(.horizontal, 12).padding(.vertical, 8)
+
+            if showStickerPanel {
+                stickerEmojiPanel
+            }
+            if showFuncPanel {
+                functionPanel
+            }
+        }
+        .background(Color.vxinSurface)
+    }
+
+    private var composerField: some View {
+
+                TextField("输入消息…", text: $vm.input, axis: .vertical)
+                    .lineLimit(1...6)
+                    .focused($messageFocused)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 8)
+                    .frame(minHeight: 44)
+                    .background(Color.vxinSurfaceSecondary)
+                    .clipShape(RoundedRectangle(cornerRadius: VxinRadius.md, style: .continuous))
+                    .accessibilityIdentifier("chat-msg-input")
+
+    }
+
+    @ViewBuilder private var voiceAndMentionButtons: some View {
                 inputBarIconButton(
-                    systemName: vm.recording ? "stop.fill" : "mic.fill",
-                    tint: vm.recording ? .vxinError : .primary,
+                    icon: vm.recording ? "stop" : "microphone",
+                    tint: vm.recording ? .vxinError : .vxinText,
                     action: onMicTap
                 )
                 .accessibilityIdentifier("chat-voice-btn")
                 .accessibilityLabel(vm.recording ? "停止录音" : "语音输入")
 
                 if vm.isGroup {
-                    inputBarIconButton(systemName: "at", tint: .primary) { showMentionPicker = true }
+                    inputBarIconButton(icon: "mention", tint: .vxinText) { showMentionPicker = true }
                         .accessibilityLabel("提及成员")
                 }
 
-                TextField("输入消息…", text: $vm.input, axis: .vertical)
-                    .lineLimit(1...6)
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 8)
-                    .frame(minHeight: 36)
-                    .background(Color(.systemGray6))
-                    .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
-                    .accessibilityIdentifier("chat-msg-input")
+    }
 
-                inputBarIconButton(systemName: showStickerPanel ? "keyboard" : "face.smiling", tint: .primary) {
+    private var emojiButton: some View {
+
+                inputBarIconButton(icon: showStickerPanel ? "keyboard" : "emoji", tint: .vxinText) {
                     showStickerPanel.toggle()
-                    if showStickerPanel { showFuncPanel = false; vm.loadStickers() }
+                    if showStickerPanel {
+                        messageFocused = false; showFuncPanel = false; vm.loadStickers()
+                    } else { messageFocused = true }
                 }
                 .accessibilityIdentifier("chat-emoji-btn")
                 .accessibilityLabel("表情")
+
+    }
+
+    private var sendOrMoreButton: some View {
+        Group {
 
                 // 有文字 → 发送键；无文字(含纯空白) → +(功能面板)。对齐 Android/微信，逻辑不变。
                 let hasText = !vm.input.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
@@ -639,12 +704,11 @@ struct ChatView: View {
                         }
                     } label: {
                         if vm.sending {
-                            ProgressView().frame(width: 36, height: 36)
+                            ProgressView().frame(width: 44, height: 44)
                         } else {
-                            Image(systemName: "arrow.up")
-                                .font(.system(size: 15, weight: .semibold))
-                                .foregroundColor(.white)
-                                .frame(width: 36, height: 36)
+                            TouliaoIcon("send", size: .md)
+                                .foregroundColor(.vxinOnPrimary)
+                                .frame(width: 44, height: 44)
                                 .background(Color.vxinGreen)
                                 .clipShape(Circle())
                         }
@@ -653,102 +717,82 @@ struct ChatView: View {
                     .accessibilityIdentifier("chat-send-btn")
                     .accessibilityLabel("发送")
                 } else {
-                    inputBarIconButton(systemName: "plus", tint: .primary, filled: true) {
+                    inputBarIconButton(icon: showFuncPanel ? "close" : "add", tint: .vxinText, filled: true) {
                         showFuncPanel.toggle()
-                        if showFuncPanel { showStickerPanel = false }
+                        if showFuncPanel { messageFocused = false; showStickerPanel = false }
                     }
                     .accessibilityIdentifier("chat-more-btn")
                     .accessibilityLabel("更多功能")
                 }
-            }
-            .padding(.horizontal, 10)
-            .padding(.vertical, 8)
-
-            if showStickerPanel {
-                stickerEmojiPanel
-            }
-            if showFuncPanel {
-                functionPanel
-            }
         }
-        .background(Color(.systemBackground))
     }
 
     /// +面板：图片 / 文件 / 红包（对齐微信「更多功能」面板）
-    /// 2026-08-29 视觉重做(参考V信iOS输入区设计稿：4列网格，图标统一SF Symbols)。
+    /// 2026-08-29 视觉重做(参考V信iOS输入区设计稿：4列网格，图标由 Touliao Icon Registry 提供)。
     /// 功能项与此前完全一致(未增删任何入口)，只是从单行HStack换成不会挤压/换行更整齐的网格。
     private var functionPanel: some View {
-        LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 4), spacing: 20) {
+        ScrollView {
+        LazyVGrid(columns: [GridItem(.adaptive(minimum: 72), spacing: 12)], spacing: 16) {
             PhotosPicker(selection: $photoItem, matching: .images) {
-                funcItem(systemName: "photo.on.rectangle", label: "图片")
+                funcItem(icon: "image", label: "图片")
             }
             .accessibilityIdentifier("chat-attach-image")
             .accessibilityLabel("发送图片")
 
             PhotosPicker(selection: $videoItem, matching: .videos) {
-                funcItem(systemName: "video.fill", label: "视频")
+                funcItem(icon: "video", label: "视频")
             }
             .accessibilityIdentifier("chat-attach-video")
             .accessibilityLabel("发送视频")
 
-            Button { showFuncPanel = false; showFileImporter = true } label: { funcItem(systemName: "doc.fill", label: "文件") }
+            Button { showFuncPanel = false; showFileImporter = true } label: { funcItem(icon: "file", label: "文件") }
                 .accessibilityIdentifier("chat-attach-file")
                 .accessibilityLabel("发送文件")
 
-            Button { captureAndSend() } label: { funcItem(systemName: "camera.viewfinder", label: "截屏") }
+            Button { captureAndSend() } label: { funcItem(icon: "screenshot", label: "截屏") }
                 .accessibilityIdentifier("chat-attach-screenshot")
                 .accessibilityLabel("截屏并发送")
 
-            Button { showFuncPanel = false; showRedPacketSend = true } label: { funcItem(emoji: "🧧", label: "红包") }
+            Button { showFuncPanel = false; showRedPacketSend = true } label: { funcItem(icon: "redPacket", label: "红包") }
                 .accessibilityIdentifier("chat-attach-redpacket")
                 .accessibilityLabel("发红包")
 
             // 转账仅私聊可用（群聊不显示）
             if !vm.isGroup {
-                Button { showFuncPanel = false; showTransferSend = true } label: { funcItem(systemName: "creditcard.fill", label: "转账") }
+                Button { showFuncPanel = false; showTransferSend = true } label: { funcItem(icon: "transfer", label: "转账") }
                     .accessibilityIdentifier("chat-attach-transfer")
                     .accessibilityLabel("转账")
             }
 
             // 定时发送：所有会话均可用
-            Button { showFuncPanel = false; showScheduleSend = true } label: { funcItem(systemName: "clock.fill", label: "定时发送") }
+            Button { showFuncPanel = false; showScheduleSend = true } label: { funcItem(icon: "schedule", label: "定时发送") }
                 .accessibilityIdentifier("chat-attach-schedule")
                 .accessibilityLabel("定时发送")
         }
         .padding(.horizontal, 20).padding(.top, 20).padding(.bottom, 12)
-        .frame(maxWidth: .infinity)
-        .background(Color(.secondarySystemBackground))
+        }
+        .frame(maxHeight: 260)
+        .background(Color.vxinSurfaceSecondary)
     }
 
-    private func funcItem(systemName: String, label: String) -> some View {
+    private func funcItem(icon: String, label: String) -> some View {
         VStack(spacing: 6) {
-            Image(systemName: systemName)
-                .font(.system(size: 22))
+            TouliaoIcon(icon, size: .md)
                 .foregroundColor(.vxinTextSecondary)
                 .frame(width: 56, height: 56)
-                .background(Color(.systemBackground))
+                .background(Color.vxinSurface)
                 .clipShape(RoundedRectangle(cornerRadius: VxinRadius.md, style: .continuous))
-            Text(label).font(.caption).foregroundColor(.vxinTextSecondary)
+            Text(label).touliaoText(.caption).foregroundColor(.vxinTextSecondary)
+                .multilineTextAlignment(.center).fixedSize(horizontal: false, vertical: true)
         }
     }
 
-    private func funcItem(emoji: String, label: String) -> some View {
-        VStack(spacing: 6) {
-            Text(emoji).font(.system(size: 26))
-                .frame(width: 56, height: 56)
-                .background(Color(.systemBackground))
-                .clipShape(RoundedRectangle(cornerRadius: VxinRadius.md, style: .continuous))
-            Text(label).font(.caption).foregroundColor(.vxinTextSecondary)
-        }
-    }
-
-    /// 输入栏统一圆形图标按钮(语音/@/表情/+)，触控区≥44x44pt(视觉图标28pt居中，命中区靠padding撑大)。
-    private func inputBarIconButton(systemName: String, tint: Color, filled: Bool = false, action: @escaping () -> Void) -> some View {
+    /// 输入栏统一圆形图标按钮(语音/@/表情/+)，触控区≥44x44pt(视觉图标24pt居中，命中区靠padding撑大)。
+    private func inputBarIconButton(icon: String, tint: Color, filled: Bool = false, action: @escaping () -> Void) -> some View {
         Button(action: action) {
-            Image(systemName: systemName)
-                .font(.system(size: 17, weight: .medium))
-                .foregroundColor(filled ? .white : tint)
-                .frame(width: 36, height: 36)
+            TouliaoIcon(icon, size: .md)
+                .foregroundColor(filled ? IconColor.onDark : tint)
+                .frame(width: 44, height: 44)
                 .background(filled ? Color.vxinTextSecondary.opacity(0.7) : Color.clear)
                 .clipShape(Circle())
         }
@@ -758,21 +802,24 @@ struct ChatView: View {
     private let emojis = ["😀","😁","😂","🤣","😊","😍","😘","😎","🤔","😅","😉","😴","😭","😡","🥺","👍","👎","🙏","👏","💪","🎉","❤️","💔","🔥","⭐","✅","❌","🌹","🍺","☕","🤝","👌"]
 
     private var stickerEmojiPanel: some View {
-        VStack(alignment: .leading, spacing: 4) {
+        ScrollView {
+        VStack(alignment: .leading, spacing: 8) {
             ScrollView(.horizontal, showsIndicators: false) {
-                LazyHGrid(rows: [GridItem(.fixed(34)), GridItem(.fixed(34))], spacing: 6) {
+                LazyHGrid(rows: [GridItem(.fixed(44)), GridItem(.fixed(44))], spacing: 6) {
                     ForEach(emojis, id: \.self) { e in
-                        Text(e).font(.title3).onTapGesture { vm.appendEmoji(e) }
+                        Button { vm.appendEmoji(e) } label: {
+                            Text(e).touliaoText(.headline).frame(minWidth: 44, minHeight: 44)
+                        }.buttonStyle(.plain).accessibilityLabel(e)
                     }
                 }
                 .padding(.horizontal, 8)
             }
             Divider()
             HStack {
-                Text("我的表情").font(.caption).foregroundColor(.vxinTextSecondary)
+                Text("我的表情").touliaoText(.caption).foregroundColor(.vxinTextSecondary)
                 Spacer()
                 PhotosPicker(selection: $stickerPhotoItem, matching: .images) {
-                    Label("添加", systemImage: "plus").font(.caption).foregroundColor(.vxinGreen)
+                    Label("添加", touliaoIcon: "add").touliaoText(.caption).foregroundColor(.vxinGreen)
                 }
             }
             .padding(.horizontal, 8)
@@ -788,11 +835,12 @@ struct ChatView: View {
                     .padding(.horizontal, 8)
                 }
             } else {
-                Text("还没有表情，点右上「添加」上传，或长按聊天图片「收藏表情」").font(.caption2).foregroundColor(.vxinTextSecondary).padding(8)
+                Text("还没有表情，点右上「添加」上传，或长按聊天图片「收藏表情」").touliaoText(.caption).foregroundColor(.vxinTextSecondary).padding(8)
             }
         }
-        .frame(height: 150)
-        .background(Color(.secondarySystemBackground))
+        }
+        .frame(maxHeight: 260)
+        .background(Color.vxinSurfaceSecondary)
     }
 
     // MARK: - 交互
@@ -961,12 +1009,12 @@ private struct MessageBubble: View {
             }
             VStack(alignment: isMine ? .trailing : .leading, spacing: 2) {
                 if !isMine && !msg.senderName.isEmpty {
-                    Text(msg.senderName).font(.caption2).foregroundColor(.vxinTextSecondary)
+                    Text(msg.senderName).touliaoText(.caption).foregroundColor(.vxinTextSecondary)
                 }
                 // 被回复消息引用条：被引用消息已撤回/删除(deleted!=0)时整块不渲染，UI 无痕
                 if let rt = msg.replyTo, rt.deleted == 0 {
                     Text("\(rt.senderName): \(replyPreview(rt))")
-                        .font(.caption2).foregroundColor(.vxinTextSecondary)
+                        .touliaoText(.caption).foregroundColor(.vxinTextSecondary)
                         .lineLimit(1)
                         .padding(.horizontal, 8).padding(.vertical, 3)
                         .background(Color.gray.opacity(0.15)).clipShape(RoundedRectangle(cornerRadius: VxinRadius.sm))
@@ -978,45 +1026,45 @@ private struct MessageBubble: View {
                         Button("举报用户") { reportTarget = SafetyTarget(type: "user", targetId: msg.senderId) }
                         // 快捷表情行已按用户要求移除(长按菜单不再弹表情包)
                         if msg.type == "text" {
-                            Button("复制") { UIPasteboard.general.string = msg.content }
+                            Button { UIPasteboard.general.string = msg.content } label: { Label("复制", touliaoIcon: "copy") }
                         }
-                        Button("回复") { vm.startReply(msg) }
+                        Button { vm.startReply(msg) } label: { Label("回复", touliaoIcon: "reply") }
                         // 红包/转账为资金凭证，不支持转发/收藏
                         if msg.type != "red_packet" && msg.type != "transfer" {
-                            Button("转发") { vm.loadForwardTargets(); vm.forwardTarget = msg }
-                            Button("收藏") { vm.collectMessage(msg) }
+                            Button { vm.loadForwardTargets(); vm.forwardTarget = msg } label: { Label("转发", touliaoIcon: "forward") }
+                            Button { vm.collectMessage(msg) } label: { Label("收藏", touliaoIcon: "favorite") }
                         }
                         // F5 已读状态：自己发送的文本/图片/文件（非发送中）可查看已读明细
                         if canViewReadStatus(msg, currentUserId: vm.myId) {
                             Button { readStatusTarget = msg } label: {
-                                Label("已读状态", systemImage: "checkmark.circle")
+                                Label("已读状态", touliaoIcon: "selected")
                             }
                         }
                         // 分享到第三方软件：文本 + 图片/视频/文件/文档
                         if msg.type == "text" || (["image", "video", "file"].contains(msg.type) && !(msg.fileUrl ?? "").isEmpty) {
-                            Button("分享到…") { shareMessage() }
+                            Button { shareMessage() } label: { Label("分享到…", touliaoIcon: "share") }
                         }
                         if vm.canEdit(msg) {
-                            Button("编辑") { vm.editTarget = msg }
+                            Button { vm.editTarget = msg } label: { Label("编辑", touliaoIcon: "edit") }
                         }
                         if vm.isGroup {
-                            Button(vm.isPinned(msg.id) ? "取消置顶" : "置顶") {
+                            Button {
                                 if vm.isPinned(msg.id) { vm.unpinMessage(msg.id) } else { vm.pinMessage(msg) }
-                            }
+                            } label: { Label(vm.isPinned(msg.id) ? "取消置顶" : "置顶", touliaoIcon: "pin") }
                         }
                         if msg.type == "image" {
-                            Button("复制图片") { copyImage(msg.fileUrl) }
-                            Button("收藏表情") { vm.collectSticker(msg.fileUrl) }
-                            Button("保存图片") { saveImage(msg.fileUrl) }
+                            Button { copyImage(msg.fileUrl) } label: { Label("复制图片", touliaoIcon: "copy") }
+                            Button { vm.collectSticker(msg.fileUrl) } label: { Label("收藏表情", touliaoIcon: "favorite") }
+                            Button { saveImage(msg.fileUrl) } label: { Label("保存图片", touliaoIcon: "download") }
                         }
                         // 撤回：自己消息，或群主/管理员撤回群内他人消息（对全员生效）
                         // 删除：彻底删除，双方都不可见（原「仅自己删除」语义已改为复用 vanish，与撤回同权限）
                         if isMine || (vm.isGroup && vm.canManageGroup) {
-                            Button("撤回", role: .destructive) { showRecallConfirm = true }
+                            Button(role: .destructive) { showRecallConfirm = true } label: { Label("撤回", touliaoIcon: "recall").foregroundColor(IconColor.danger) }
 
                         }
                         Divider()
-                        Button("多选") { vm.enterMultiSelect(msg) }
+                        Button { vm.enterMultiSelect(msg) } label: { Label("多选", touliaoIcon: "multiselect") }
                     }
                     .sheet(isPresented: $showShare) {
                         if let items = shareItems { ShareSheet(items: items) }
@@ -1033,7 +1081,7 @@ private struct MessageBubble: View {
                         ForEach(msg.reactions, id: \.emoji) { r in
                             let mine = r.mine(vm.myId)
                             Text("\(r.emoji) \(r.count)")
-                                .font(.caption2)
+                                .touliaoText(.caption)
                                 .foregroundColor(mine ? .vxinBrand : .primary)
                                 .padding(.horizontal, 6).padding(.vertical, 1)
                                 // 高亮「我」贴过的表情（对齐 Web .mine 样式）
@@ -1045,7 +1093,7 @@ private struct MessageBubble: View {
                     }
                 }
                 if msg.edited == 1 {
-                    Text("已编辑").font(.caption2).foregroundColor(.vxinTextSecondary)
+                    Text("已编辑").touliaoText(.caption).foregroundColor(.vxinTextSecondary)
                 }
                 if isMine {
                     if msg.localStatus == LocalMsgStatus.sending {
@@ -1053,20 +1101,20 @@ private struct MessageBubble: View {
                         ProgressView().scaleEffect(0.6).frame(height: 12)
                     } else if msg.localStatus == LocalMsgStatus.failed {
                         // 失败：红色感叹号，点击重发
-                        Text("❗发送失败，点击重发")
-                            .font(.caption2)
-                            .foregroundColor(Color(red: 0.9, green: 0.27, blue: 0.27))
+                        Label("发送失败，点击重发", touliaoIcon: "error")
+                            .touliaoText(.caption)
+                            .foregroundColor(IconColor.danger)
                             .onTapGesture { vm.retryMessage(msg.id) }
                     } else {
                         // 定时消息角标（is_scheduled=1）显示在已读状态上方
                         if msg.isScheduled == 1 {
-                            Text("⏰ 定时")
-                                .font(.caption2)
+                            Label("定时", touliaoIcon: "schedule")
+                                .touliaoText(.caption)
                                 .foregroundColor(.vxinTextSecondary)
                         }
                         let read = vm.isReadByPeer(msg)
-                        Text(read ? "✓✓ 已读" : "✓")
-                            .font(.caption2)
+                        Label(read ? "已读" : "", touliaoIcon: read ? "read" : "check")
+                            .touliaoText(.caption)
                             .foregroundColor(read ? .vxinGreen : .vxinTextSecondary)
                     }
                 }
@@ -1151,13 +1199,13 @@ private struct MessageBubble: View {
                 card {
                     HStack(spacing: 6) {
                         if !isMine {
-                            Image(systemName: "speaker.wave.2.fill").font(.footnote)
+                            TouliaoIcon("speaker")
                         }
                         Text(msg.duration > 0 ? "\(msg.duration)″" : "语音")
-                            .font(.footnote)
+                            .touliaoText(.secondary)
                             .frame(maxWidth: .infinity, alignment: isMine ? .trailing : .leading)
                         if isMine {
-                            Image(systemName: "speaker.wave.2.fill").font(.footnote)
+                            TouliaoIcon("speaker")
                                 .scaleEffect(x: -1, y: 1)
                         }
                     }
@@ -1170,11 +1218,11 @@ private struct MessageBubble: View {
                 HStack(spacing: 8) {
                     RoundedRectangle(cornerRadius: 6).fill(Color.vxinBrand.opacity(0.12))
                         .frame(width: 28, height: 28)
-                        .overlay(Text("F").font(.caption2).foregroundColor(.vxinBrand))
+                        .overlay(TouliaoIcon("fileContent", size: .sm).foregroundColor(isMine ? .vxinBubbleText : .vxinBrand))
                     VStack(alignment: .leading, spacing: 2) {
                         Text(msg.content.isEmpty ? "文件" : msg.content).lineLimit(2)
                         if let size = humanFileSize(msg.fileSize) {
-                            Text(size).font(.caption2).foregroundColor(.secondary)
+                            Text(size).touliaoText(.caption).foregroundColor(isMine ? .vxinBubbleText : .vxinTextSecondary)
                         }
                     }
                 }
@@ -1185,14 +1233,14 @@ private struct MessageBubble: View {
                 VideoBubbleThumbnail(urlString: resolved)
                     .onTapGesture { vm.openAttachment(msg) }
             } else {
-                card { Text("▶ 视频") }.onTapGesture { vm.openAttachment(msg) }
+                card { Label("视频", touliaoIcon: "video") }.onTapGesture { vm.openAttachment(msg) }
             }
         case "red_packet":
             redPacketCard.onTapGesture { vm.openRedPacket(msg) }
         case "transfer":
             transferCard
         case "contact_card", "contact":
-            card { Text("👤 \(contactCardTitle)") }
+            card { Label(contactCardTitle, touliaoIcon: "contact") }
         case "merged":
             // 合并转发卡片（F5）：标题+摘要+查看 N 条 → 点击弹只读详情
             MergedMessageCard(content: msg.content, isMine: isMine)
@@ -1210,7 +1258,7 @@ private struct MessageBubble: View {
     /// 高亮 @用户名
     private func mentionHighlighted(_ text: String, mine: Bool) -> AttributedString {
         guard text.contains("@"), let re = try? NSRegularExpression(pattern: "@[^\\s@]+") else { return AttributedString(text) }
-        let color: Color = .vxinGreen   // @提及高亮：浅绿/白气泡上都用品牌绿，保证可读
+        let color: Color = mine ? .vxinBubbleText : .vxinBrand
         let ns = text as NSString
         var result = AttributedString("")
         var last = 0
@@ -1232,11 +1280,11 @@ private struct MessageBubble: View {
     @ViewBuilder private var redPacketCard: some View {
         let rp = vm.parseRedPacket(msg)
         HStack(spacing: 10) {
-            Text("🧧").font(.system(size: 28))
+            TouliaoIcon("redPacket", size: .lg)
             VStack(alignment: .leading, spacing: 2) {
                 Text(rp?.greeting.isEmpty == false ? rp!.greeting : "恭喜发财，大吉大利")
-                    .foregroundColor(.white).font(.subheadline).lineLimit(1)
-                Text("领取红包").foregroundColor(Color(red: 0.99, green: 0.89, blue: 0.66)).font(.caption)
+                    .foregroundColor(.white).touliaoText(.secondary).lineLimit(1)
+                Text("领取红包").foregroundColor(Color(red: 0.99, green: 0.89, blue: 0.66)).touliaoText(.caption)
             }
         }
         .padding(12)
@@ -1250,14 +1298,14 @@ private struct MessageBubble: View {
     @ViewBuilder private var transferCard: some View {
         let t = vm.parseTransfer(msg)
         HStack(spacing: 10) {
-            Text("💸").font(.system(size: 26))
+            TouliaoIcon("transfer", size: .lg)
             VStack(alignment: .leading, spacing: 2) {
                 Text(transferTitle(t))
-                    .foregroundColor(.white).font(.subheadline).lineLimit(1)
+                    .foregroundColor(.white).touliaoText(.secondary).lineLimit(1)
                 if let note = t?.note, !note.isEmpty {
-                    Text(note).foregroundColor(.white.opacity(0.8)).font(.caption).lineLimit(1)
+                    Text(note).foregroundColor(.white.opacity(0.8)).touliaoText(.caption).lineLimit(1)
                 } else {
-                    Text("已到账").foregroundColor(.white.opacity(0.75)).font(.caption)
+                    Text("已到账").foregroundColor(.white.opacity(0.75)).touliaoText(.caption)
                 }
             }
         }
@@ -1298,18 +1346,16 @@ private struct MessageBubble: View {
     private func card<V: View>(@ViewBuilder _ inner: () -> V) -> some View {
         inner()
             // 对齐 web AURORA：我的=极光靛渐变+白字；对方=系统浅底(暗色自适应)+主色字
-            .foregroundColor(isMine ? Color.vxinBubbleText : .primary)
-            .padding(.horizontal, 14).padding(.vertical, 9)
+            .foregroundColor(isMine ? Color.vxinBubbleText : .vxinText)
+            .padding(.horizontal, 12).padding(.vertical, 8)
             .background {
                 if isMine {
                     LinearGradient.vxinBubble
                 } else {
-                    Color(.secondarySystemBackground)
+                    TouliaoDesign.messageIncoming
                 }
             }
-            .clipShape(RoundedRectangle(cornerRadius: VxinRadius.md))
-            .shadow(color: (isMine ? Color.vxinBrand : .black).opacity(isMine ? 0.28 : 0.06),
-                    radius: isMine ? 5 : 3, y: 1)
+            .clipShape(RoundedRectangle(cornerRadius: VxinRadius.bubble))
     }
 
 }
@@ -1326,9 +1372,8 @@ private struct VideoBubbleThumbnail: View {
             } else {
                 Color.black.opacity(0.08)
             }
-            Image(systemName: "play.circle.fill")
-                .font(.system(size: 34))
-                .foregroundColor(.white)
+            TouliaoIcon("play", size: .xl)
+                .foregroundColor(IconColor.onDark)
                 .shadow(color: .black.opacity(0.35), radius: 3)
         }
         .frame(width: 200, height: 150)
@@ -1350,8 +1395,8 @@ private struct PendingBubbleView: View {
             // 失败时：气泡左侧红色感叹号，点击重试(对齐微信 + 安卓)
             if pending.failed {
                 Button(action: onRetry) {
-                    Image(systemName: "exclamationmark.circle.fill")
-                        .foregroundColor(.vxinError).font(.title3)
+                    TouliaoIcon("error")
+                        .foregroundColor(.vxinError).touliaoText(.headline)
                 }
                 .buttonStyle(.plain)
             }
@@ -1366,7 +1411,7 @@ private struct PendingBubbleView: View {
                             // 视频有真实上传进度(磁盘流式上传的 didSendBodyData 回调)，显示百分比而非纯转圈
                             VStack(spacing: 4) {
                                 ProgressView(value: pending.progress).tint(.white).frame(width: 80)
-                                Text("\(Int(pending.progress * 100))%").font(.caption2).foregroundColor(.white)
+                                Text("\(Int(pending.progress * 100))%").touliaoText(.caption).foregroundColor(.white)
                             }
                         } else {
                             ProgressView().tint(.white)
@@ -1379,7 +1424,7 @@ private struct PendingBubbleView: View {
                             .foregroundColor(.white)
                     }
                     .padding(.horizontal, 12).padding(.vertical, 8)
-                    .background(pending.failed ? Color.vxinError.opacity(0.7) : Color.vxinGreen.opacity(0.6))
+                    .background(pending.failed ? Color.vxinError : Color.vxinBubbleMine)
                     .clipShape(RoundedRectangle(cornerRadius: VxinRadius.badge))
                     .onTapGesture { if pending.failed { onRetry() } }
                     .onLongPressGesture { if pending.failed { onDismiss() } }
@@ -1410,13 +1455,16 @@ private struct SendRedPacketSheet: View {
     var body: some View {
         NavigationStack {
             Form {
+                Group {
                 TextField("总金币 (1-20000)", text: $amount).keyboardType(.numberPad)
                 TextField("红包个数 (1-100)", text: $count).keyboardType(.numberPad)
                 TextField("祝福语（可选）", text: $greeting)
-                if let error { Text(error).foregroundColor(.vxinError).font(.footnote) }
+                if let error { Text(error).foregroundColor(.vxinError).touliaoText(.secondary) }
+                }.listRowBackground(Color.vxinSurface).listRowSeparatorTint(Color.vxinBorder)
             }
             .navigationTitle("发红包")
             .navigationBarTitleDisplayMode(.inline)
+        .touliaoPage()
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("取消") { dismiss() } }
                 ToolbarItem(placement: .confirmationAction) {
@@ -1450,12 +1498,15 @@ private struct SendTransferSheet: View {
     var body: some View {
         NavigationStack {
             Form {
+                Group {
                 TextField("金额（金币，1-20000）", text: $amount).keyboardType(.numberPad)
                 TextField("备注（可选，≤50字）", text: $note)
-                if let error { Text(error).foregroundColor(.vxinError).font(.footnote) }
+                if let error { Text(error).foregroundColor(.vxinError).touliaoText(.secondary) }
+                }.listRowBackground(Color.vxinSurface).listRowSeparatorTint(Color.vxinBorder)
             }
             .navigationTitle("转账")
             .navigationBarTitleDisplayMode(.inline)
+        .touliaoPage()
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("取消") { dismiss() }.disabled(sending) }
                 ToolbarItem(placement: .confirmationAction) {
@@ -1488,6 +1539,7 @@ private struct SendScheduleSheet: View {
     var body: some View {
         NavigationStack {
             Form {
+                Group {
                 Section("消息内容") {
                     TextField("请输入要定时发送的内容…", text: $content, axis: .vertical)
                         .lineLimit(3...6)
@@ -1504,16 +1556,18 @@ private struct SendScheduleSheet: View {
                     .accessibilityIdentifier("schedule-date-picker")
                 }
                 if let error {
-                    Section { Text(error).foregroundColor(.vxinError).font(.footnote) }
+                    Section { Text(error).foregroundColor(.vxinError).touliaoText(.secondary) }
                 }
                 Section {
                     Text("仅抑制发送操作，聊天和已发消息不受影响。到点由服务器自动发出。")
-                        .font(.caption)
+                        .touliaoText(.caption)
                         .foregroundColor(.vxinTextSecondary)
                 }
+                }.listRowBackground(Color.vxinSurface).listRowSeparatorTint(Color.vxinBorder)
             }
             .navigationTitle("定时发送")
             .navigationBarTitleDisplayMode(.inline)
+        .touliaoPage()
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("取消") { dismiss() }.disabled(sending)
@@ -1546,39 +1600,44 @@ private struct ScheduledListSheet: View {
                     ProgressView().frame(maxWidth: .infinity, maxHeight: .infinity)
                 } else if vm.scheduledList.isEmpty {
                     VStack(spacing: 12) {
-                        Image(systemName: "clock").font(.system(size: 40)).foregroundColor(.vxinTextSecondary)
+                        TouliaoIcon("schedule", size: .xl).foregroundColor(.vxinTextSecondary)
                         Text("暂无定时消息").foregroundColor(.vxinTextSecondary)
                     }
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                 } else {
                     List(vm.scheduledList) { item in
+                        Group {
                         VStack(alignment: .leading, spacing: 4) {
                             HStack {
                                 Text(scheduledStatusLabel(item.status))
-                                    .font(.caption2)
+                                    .touliaoText(.caption)
                                     .foregroundColor(item.status == "pending" ? .vxinGreen : .vxinTextSecondary)
                                     .padding(.horizontal, 6).padding(.vertical, 2)
                                     .background((item.status == "pending" ? Color.vxinGreen : Color.gray).opacity(0.12))
                                     .clipShape(Capsule())
                                 Spacer()
                                 Text(formatChatTime(item.sendAt))
-                                    .font(.caption2).foregroundColor(.vxinTextSecondary)
+                                    .touliaoText(.caption).foregroundColor(.vxinTextSecondary)
                             }
                             Text(item.content).lineLimit(2)
                             if item.status == "pending" {
                                 Button("取消定时") { vm.cancelScheduledMessage(item) }
-                                    .font(.caption)
+                                    .touliaoText(.caption)
                                     .foregroundColor(.vxinError)
                                     .buttonStyle(.borderless)
                             }
                         }
                         .padding(.vertical, 2)
+                        }.listRowBackground(Color.vxinSurface).listRowSeparatorTint(Color.vxinBorder)
                     }
                     .listStyle(.plain)
+            .scrollContentBackground(.hidden)
+            .background(Color.vxinSurface)
                 }
             }
             .navigationTitle("定时消息")
             .navigationBarTitleDisplayMode(.inline)
+        .touliaoPage()
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("关闭") { dismiss() }
@@ -1634,7 +1693,7 @@ private struct ChatImageGalleryView: View {
             .tabViewStyle(.page(indexDisplayMode: .never))
             .ignoresSafeArea()
             HStack {
-                Button { onClose() } label: { Image(systemName: "xmark").foregroundColor(.white).padding() }
+                Button { onClose() } label: { TouliaoIcon("close").foregroundColor(IconColor.onDark).padding() }
                     .accessibilityLabel("关闭")
                 Spacer()
                 if images.count > 1 { Text("\(page + 1)/\(images.count)").foregroundColor(.white).padding() }
@@ -1649,8 +1708,8 @@ private struct ChatImageGalleryView: View {
                         }
                     }
                 } label: {
-                    Image(systemName: "square.and.arrow.up")
-                        .foregroundColor(.white).padding()
+                    TouliaoIcon("share")
+                        .foregroundColor(IconColor.onDark).padding()
                 }
                 .accessibilityLabel("分享图片")
                 Button {
@@ -1663,23 +1722,15 @@ private struct ChatImageGalleryView: View {
                         }
                     }
                 } label: {
-                    Image(systemName: "square.and.arrow.down")
-                        .foregroundColor(.white).padding()
+                    TouliaoIcon("download")
+                        .foregroundColor(IconColor.onDark).padding()
                 }
                 .accessibilityLabel("保存图片")
             }
-            if let toast = saveToast {
-                Text(toast)
-                    .font(.footnote).foregroundColor(.white)
-                    .padding(.horizontal, 14).padding(.vertical, 8)
-                    .background(Color.black.opacity(0.7))
-                    .clipShape(Capsule())
-                    .padding(.top, 80)
-                    .onAppear {
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 2) { saveToast = nil }
-                    }
-            }
+
         }
+        .toast($saveToast)
+        .onChange(of: page) { _ in scale = 1 }
         .onAppear { page = min(max(start, 0), max(images.count - 1, 0)) }
         .sheet(isPresented: $showShare) {
             if let items = shareItems { ShareSheet(items: items) }
@@ -1699,44 +1750,49 @@ private struct RedPacketDetailSheet: View {
     var body: some View {
         NavigationStack {
             VStack(spacing: 12) {
-                Text("🧧").font(.system(size: 44))
-                Text("\(detail.senderName.isEmpty ? "好友" : detail.senderName) 的红包").font(.headline)
+                TouliaoIcon("redPacket", size: .xl)
+                Text("\(detail.senderName.isEmpty ? "好友" : detail.senderName) 的红包").touliaoText(.headline, weight: .semibold)
                 Text(detail.greeting.isEmpty ? "恭喜发财，大吉大利" : detail.greeting)
                     .foregroundColor(.vxinTextSecondary)
 
                 if let mine = detail.myClaim {
-                    Text("你领取了 \(mine.amount) 金币").font(.title3).foregroundColor(Color(red: 0.91, green: 0.31, blue: 0.23))
+                    Text("你领取了 \(mine.amount) 金币").touliaoText(.headline).foregroundColor(Color(red: 0.91, green: 0.31, blue: 0.23))
                 } else if let claimedAmount {
-                    Text("你领取了 \(claimedAmount) 金币").font(.title3).foregroundColor(Color(red: 0.91, green: 0.31, blue: 0.23))
+                    Text("你领取了 \(claimedAmount) 金币").touliaoText(.headline).foregroundColor(Color(red: 0.91, green: 0.31, blue: 0.23))
                 } else if detail.claimedCount >= detail.totalCount {
                     Text("手慢了，红包已被领完").foregroundColor(.vxinTextSecondary)
                 }
 
                 if canClaim {
                     Button(action: onClaim) {
-                        Text("开").font(.title2).foregroundColor(.white)
+                        Text("开").touliaoText(.title).foregroundColor(.white)
                             .frame(width: 80, height: 80)
                             .background(Color(red: 0.91, green: 0.31, blue: 0.23)).clipShape(Circle())
                     }
                 }
 
-                Text("已领 \(detail.claimedCount)/\(detail.totalCount) 个").font(.caption).foregroundColor(.vxinTextSecondary)
+                Text("已领 \(detail.claimedCount)/\(detail.totalCount) 个").touliaoText(.caption).foregroundColor(.vxinTextSecondary)
 
                 if !detail.claims.isEmpty {
                     List(detail.claims) { c in
+                        Group {
                         HStack {
                             Text(c.username.isEmpty ? "用户" : c.username)
                             Spacer()
                             Text("\(c.amount) 金币").foregroundColor(Color(red: 0.91, green: 0.31, blue: 0.23))
                         }
+                        }.listRowBackground(Color.vxinSurface).listRowSeparatorTint(Color.vxinBorder)
                     }
                     .listStyle(.plain)
+            .scrollContentBackground(.hidden)
+            .background(Color.vxinSurface)
                 } else {
                     Spacer()
                 }
             }
             .padding()
             .navigationBarTitleDisplayMode(.inline)
+        .touliaoPage()
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) { Button("关闭") { onClose() } }
             }
@@ -1761,6 +1817,7 @@ private struct MessageSearchSheet: View {
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                 } else {
                     List(vm.searchResults) { msg in
+                        Group {
                         Button {
                             let id = msg.id
                             vm.searchActive = false
@@ -1769,20 +1826,24 @@ private struct MessageSearchSheet: View {
                             VStack(alignment: .leading, spacing: 3) {
                                 HStack {
                                     Text(msg.senderName.isEmpty ? "用户" : msg.senderName)
-                                        .font(.caption).fontWeight(.medium).foregroundColor(.vxinGreen)
+                                        .touliaoText(.caption).fontWeight(.medium).foregroundColor(.vxinGreen)
                                     Spacer()
-                                    Text(formatChatTime(msg.createdAt)).font(.caption2).foregroundColor(.vxinTextSecondary)
+                                    Text(formatChatTime(msg.createdAt)).touliaoText(.caption).foregroundColor(.vxinTextSecondary)
                                 }
-                                Text(preview(msg)).font(.subheadline).lineLimit(2).foregroundColor(.primary)
+                                Text(preview(msg)).touliaoText(.secondary).lineLimit(2).foregroundColor(.vxinText)
                             }
                         }
                         .buttonStyle(.plain)
+                        }.listRowBackground(Color.vxinSurface).listRowSeparatorTint(Color.vxinBorder)
                     }
                     .listStyle(.plain)
+            .scrollContentBackground(.hidden)
+            .background(Color.vxinSurface)
                 }
             }
             .searchable(text: Binding(get: { vm.searchQuery }, set: { vm.onSearchQueryChange($0) }), prompt: "搜索聊天记录")
             .navigationTitle("搜索聊天记录").navigationBarTitleDisplayMode(.inline)
+        .touliaoPage()
             .toolbar { ToolbarItem(placement: .confirmationAction) { Button("取消") { vm.searchActive = false } } }
         }
     }
@@ -1802,3 +1863,15 @@ private struct MessageSearchSheet: View {
         }
     }
 }
+
+#if DEBUG
+// Screenshot fixtures select existing presentation states; release behavior is unchanged.
+extension ChatView {
+    static func iconReview(conversation: Conversation, panel: String) -> ChatView {
+        var view = ChatView(conversation: conversation, myId: "review-me")
+        view._showFuncPanel = State(initialValue: panel == "attachments")
+        view._showStickerPanel = State(initialValue: panel == "emoji")
+        return view
+    }
+}
+#endif

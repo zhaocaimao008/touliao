@@ -8,41 +8,82 @@ import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.sp
+import androidx.compose.ui.unit.TextUnit
+import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.shape.RoundedCornerShape
 
-private val LightColors = lightColorScheme(
-    primary = VxinGreen,
-    onPrimary = androidx.compose.ui.graphics.Color.White,
-    secondary = VxinGreenDark,
-    background = VxinBg,
-    onBackground = VxinTextPrimary,
-    surface = androidx.compose.ui.graphics.Color.White,
-    onSurface = VxinTextPrimary,
-    surfaceVariant = VxinBg,
-    error = VxinError,
+private fun colors(p: TouliaoPalette, dark: Boolean) = if (dark) darkColorScheme(
+    primary = p.primary, onPrimary = p.primaryForeground,
+    primaryContainer = p.primarySoft, onPrimaryContainer = p.primary,
+    secondary = p.primary, onSecondary = p.primaryForeground,
+    secondaryContainer = p.primarySoft, onSecondaryContainer = p.text,
+    background = p.background, onBackground = p.text,
+    surface = p.surface, onSurface = p.text,
+    surfaceVariant = p.surfaceSecondary, onSurfaceVariant = p.readableMuted,
+    surfaceTint = androidx.compose.ui.graphics.Color.Transparent,
+    error = p.readableDanger, onError = p.primaryForeground,
+    errorContainer = p.dangerSoft, onErrorContainer = p.readableDanger,
+    outline = p.borderStrong, outlineVariant = p.border,
+) else lightColorScheme(
+    primary = p.primary, onPrimary = p.primaryForeground,
+    primaryContainer = p.primarySoft, onPrimaryContainer = p.primary,
+    secondary = p.primary, onSecondary = p.primaryForeground,
+    secondaryContainer = p.primarySoft, onSecondaryContainer = p.text,
+    background = p.background, onBackground = p.text,
+    surface = p.surface, onSurface = p.text,
+    surfaceVariant = p.surfaceSecondary, onSurfaceVariant = p.readableMuted,
+    surfaceTint = androidx.compose.ui.graphics.Color.Transparent,
+    error = p.readableDanger, onError = p.primaryForeground,
+    errorContainer = p.dangerSoft, onErrorContainer = p.readableDanger,
+    outline = p.borderStrong, outlineVariant = p.border,
 )
 
-private val DarkColors = darkColorScheme(
-    primary = VxinGreen,
-    onPrimary = androidx.compose.ui.graphics.Color.White,
-    secondary = VxinGreenDark,
-    background = VxinBgDark,
-    onBackground = VxinTextPrimaryDark,
-    surface = VxinSurfaceDark,
-    onSurface = VxinTextPrimaryDark,
-    surfaceVariant = VxinSurfaceDark,
-    error = VxinError,
+private fun type(size: TextUnit, leading: Float = 1.6f, weight: FontWeight = FontWeight.Normal) = TextStyle(
+    fontFamily = FontFamily.SansSerif, fontSize = size, lineHeight = size * leading,
+    fontWeight = weight, letterSpacing = 0.sp,
+)
+private val TouliaoTypography = Typography(
+    displayLarge = type(TouliaoMetrics.fontDisplay, 1.3f, FontWeight.SemiBold),
+    displayMedium = type(TouliaoMetrics.fontDisplay, 1.3f, FontWeight.SemiBold),
+    displaySmall = type(TouliaoMetrics.fontTitle, 1.3f, FontWeight.SemiBold),
+    headlineLarge = type(TouliaoMetrics.fontTitle, 1.3f, FontWeight.SemiBold),
+    headlineMedium = type(TouliaoMetrics.fontTitle, 1.3f, FontWeight.SemiBold),
+    headlineSmall = type(20.sp, 1.3f, FontWeight.SemiBold),
+    titleLarge = type(TouliaoMetrics.fontTitle, 1.3f, FontWeight.SemiBold),
+    titleMedium = type(TouliaoMetrics.fontHeadline, 1.3f, FontWeight.SemiBold),
+    titleSmall = type(TouliaoMetrics.fontBody, 1.4f, FontWeight.Medium),
+    bodyLarge = type(TouliaoMetrics.fontBody), bodyMedium = type(TouliaoMetrics.fontBody), bodySmall = type(TouliaoMetrics.fontCaption),
+    labelLarge = type(TouliaoMetrics.fontBody, 1.4f, FontWeight.Medium),
+    labelMedium = type(TouliaoMetrics.fontSecondary, 1.4f, FontWeight.Medium), labelSmall = type(TouliaoMetrics.fontCaption, 1.4f),
 )
 
 @Composable
-fun VxinTheme(
-    darkTheme: Boolean = isSystemInDarkTheme(),
-    content: @Composable () -> Unit,
-) {
-    MaterialTheme(
-        colorScheme = if (darkTheme) DarkColors else LightColors,
-        typography = Typography(),
-        content = content,
-    )
+fun VxinTheme(darkTheme: Boolean = isSystemInDarkTheme(), content: @Composable () -> Unit) {
+    val palette = if (darkTheme) TouliaoDarkPalette else TouliaoLightPalette
+    val view = androidx.compose.ui.platform.LocalView.current
+    androidx.compose.runtime.SideEffect {
+        val window = (view.context as? android.app.Activity)?.window
+        if (window != null) {
+            androidx.core.view.WindowCompat.getInsetsController(window, view).apply {
+                isAppearanceLightStatusBars = !darkTheme
+                isAppearanceLightNavigationBars = !darkTheme
+            }
+        }
+    }
+    androidx.compose.runtime.CompositionLocalProvider(LocalTouliaoPalette provides palette) {
+        MaterialTheme(
+            colorScheme = colors(palette, darkTheme), typography = TouliaoTypography,
+            shapes = androidx.compose.material3.Shapes(
+                extraSmall = RoundedCornerShape(TouliaoMetrics.radiusSmall), small = RoundedCornerShape(TouliaoMetrics.radiusSmall),
+                medium = RoundedCornerShape(TouliaoMetrics.radiusControl), large = RoundedCornerShape(TouliaoMetrics.radiusDialog),
+                extraLarge = RoundedCornerShape(TouliaoMetrics.radiusDialog),
+            ), content = content,
+        )
+    }
 }
 
 /** 按用户外观偏好（跟随系统 / 日间 / 夜间）解析是否用暗色。 */

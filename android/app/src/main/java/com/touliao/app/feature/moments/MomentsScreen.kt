@@ -31,8 +31,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.pullrefresh.PullRefreshIndicator
 import androidx.compose.material.pullrefresh.pullRefresh
 import androidx.compose.material.pullrefresh.rememberPullRefreshState
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Badge
 import androidx.compose.material3.BadgedBox
@@ -103,16 +101,16 @@ fun MomentsScreen(
         topBar = {
             TopAppBar(
                 title = { Text("朋友圈") },
-                navigationIcon = { onBack?.let { cb -> IconButton(onClick = cb) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回") } } },
+                navigationIcon = { onBack?.let { cb -> IconButton(onClick = cb) { Icon(com.touliao.app.ui.TouliaoIcons.Back, contentDescription = "返回") } } },
                 actions = {
                     // 互动通知入口：右上角铃铛 + 未读角标
                     IconButton(onClick = { viewModel.openNotif() }) {
                         BadgedBox(badge = {
                             if (state.notifUnread > 0) Badge { Text(if (state.notifUnread > 99) "99+" else state.notifUnread.toString()) }
-                        }) { Text("🔔", fontSize = com.touliao.app.ui.theme.VxinTextSize.lg) }
+                        }) { com.touliao.app.ui.TouliaoGlyph(com.touliao.app.ui.TouliaoIcons.Notification, size = com.touliao.app.ui.IconSize.Md) }
                     }
-                    IconButton(onClick = { viewModel.openSettings() }) { Text("⚙️", fontSize = com.touliao.app.ui.theme.VxinTextSize.lg) }
-                    IconButton(onClick = onCompose) { Text("📷", fontSize = com.touliao.app.ui.theme.VxinTextSize.xl) }
+                    IconButton(onClick = { viewModel.openSettings() }) { com.touliao.app.ui.TouliaoGlyph(com.touliao.app.ui.TouliaoIcons.Settings, size = com.touliao.app.ui.IconSize.Md) }
+                    IconButton(onClick = onCompose) { com.touliao.app.ui.TouliaoGlyph(com.touliao.app.ui.TouliaoIcons.Camera, size = com.touliao.app.ui.IconSize.Md) }
                 },
             )
         },
@@ -122,7 +120,7 @@ fun MomentsScreen(
         Box(Modifier.fillMaxSize().padding(padding).pullRefresh(pullState)) {
             when {
                 state.loading && state.moments.isEmpty() -> CircularProgressIndicator(Modifier.align(Alignment.Center))
-                state.moments.isEmpty() -> com.touliao.app.ui.components.EmptyState(icon = "📷", title = "还没有朋友圈动态", subtitle = "分享生活，记录点滴", modifier = Modifier.align(Alignment.Center))
+                state.moments.isEmpty() -> com.touliao.app.ui.components.EmptyState(icon = com.touliao.app.ui.TouliaoIcons.Camera, title = "还没有朋友圈动态", subtitle = "分享生活，记录点滴", modifier = Modifier.align(Alignment.Center))
                 else -> LazyColumn(state = listState, modifier = Modifier.fillMaxSize()) {
                     items(state.moments, key = { it.id }) { m ->
                         MomentCard(
@@ -149,7 +147,7 @@ fun MomentsScreen(
                                 if (c.user_id != viewModel.myId) { replyTarget = c; commentingId = m.id }
                             },
                         )
-                        HorizontalDivider(thickness = 6.dp, color = Color(0x11000000))
+                        HorizontalDivider(thickness = 6.dp, color = MaterialTheme.colorScheme.surfaceVariant)
                     }
                     if (state.loadingMore) {
                         item { Box(Modifier.fillMaxWidth().padding(16.dp), Alignment.Center) { CircularProgressIndicator(Modifier.size(24.dp)) } }
@@ -169,7 +167,7 @@ fun MomentsScreen(
             onDismissRequest = { deleteTarget = null },
             title = { Text("删除动态") },
             text = { Text("确认删除这条朋友圈？") },
-            confirmButton = { TextButton(onClick = { viewModel.delete(target); deleteTarget = null }) { Text("删除", color = Color(0xFFFA5151)) } },
+            confirmButton = { TextButton(onClick = { viewModel.delete(target); deleteTarget = null }) { Text("删除", color = com.touliao.app.ui.theme.VxinError) } },
             dismissButton = { TextButton(onClick = { deleteTarget = null }) { Text("取消") } },
         )
     }
@@ -179,7 +177,7 @@ fun MomentsScreen(
             onDismissRequest = { reportTarget = null },
             title = { Text("举报动态") },
             text = { Text("举报这条动态？举报后将提交后台审核。") },
-            confirmButton = { TextButton(onClick = { viewModel.report(target); reportTarget = null }) { Text("举报", color = Color(0xFFFA5151)) } },
+            confirmButton = { TextButton(onClick = { viewModel.report(target); reportTarget = null }) { Text("举报", color = com.touliao.app.ui.theme.VxinError) } },
             dismissButton = { TextButton(onClick = { reportTarget = null }) { Text("取消") } },
         )
     }
@@ -189,7 +187,7 @@ fun MomentsScreen(
             onDismissRequest = { deleteCommentTarget = null },
             title = { Text("删除评论") },
             text = { Text("确认删除这条评论？") },
-            confirmButton = { TextButton(onClick = { viewModel.deleteComment(m, c); deleteCommentTarget = null }) { Text("删除", color = Color(0xFFFA5151)) } },
+            confirmButton = { TextButton(onClick = { viewModel.deleteComment(m, c); deleteCommentTarget = null }) { Text("删除", color = com.touliao.app.ui.theme.VxinError) } },
             dismissButton = { TextButton(onClick = { deleteCommentTarget = null }) { Text("取消") } },
         )
     }
@@ -229,7 +227,7 @@ fun MomentsScreen(
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
                             Text(label, modifier = Modifier.weight(1f))
-                            if (state.visibleDays == d) Text("✓", color = VxinGreen)
+                            if (state.visibleDays == d) com.touliao.app.ui.TouliaoGlyph(com.touliao.app.ui.TouliaoIcons.Check, color = VxinGreen, size = com.touliao.app.ui.IconSize.Xs)
                         }
                     }
                 }
@@ -333,7 +331,7 @@ private fun MomentCard(
                 Box(
                     Modifier.size(48.dp).clip(androidx.compose.foundation.shape.CircleShape).background(Color(0x88000000)),
                     contentAlignment = Alignment.Center,
-                ) { Text("▶", color = Color.White, fontSize = com.touliao.app.ui.theme.VxinTextSize.lg) }
+                ) { com.touliao.app.ui.TouliaoGlyph(com.touliao.app.ui.TouliaoIcons.Play, color = com.touliao.app.ui.IconColor.OnDark, size = com.touliao.app.ui.IconSize.Md) }
             }
         }
         Spacer(Modifier.size(6.dp))
@@ -345,14 +343,14 @@ private fun MomentCard(
                 Text(if (moment.liked) "已赞" else "赞", color = VxinGreen)
             }
             TextButton(onClick = onComment) {
-                Text("💬", fontSize = com.touliao.app.ui.theme.VxinTextSize.base)
+                com.touliao.app.ui.TouliaoGlyph(com.touliao.app.ui.TouliaoIcons.Comment, size = com.touliao.app.ui.IconSize.Md)
                 Spacer(Modifier.size(4.dp))
                 Text("评论", color = VxinGreen)
             }
         }
         // 点赞名单
         if (moment.likes.isNotEmpty()) {
-            Box(Modifier.fillMaxWidth().clip(RoundedCornerShape(com.touliao.app.ui.theme.VxinRadius.sm)).background(Color(0x11000000)).padding(8.dp)) {
+            Box(Modifier.fillMaxWidth().clip(RoundedCornerShape(com.touliao.app.ui.theme.VxinRadius.sm)).background(MaterialTheme.colorScheme.surfaceVariant).padding(8.dp)) {
                 Text("❤ " + moment.likes.joinToString("，") { it.username.ifBlank { "用户" } }, color = VxinGreen, fontSize = com.touliao.app.ui.theme.VxinTextSize.sm2)
             }
         }
@@ -431,8 +429,8 @@ private fun ImageGrid(images: List<String>, resolveUrl: (String?) -> String?, on
                         .clip(RoundedCornerShape(com.touliao.app.ui.theme.VxinRadius.sm))
                         .clickable { onImageClick(index) },
                     // 加载中/失败灰底占位，避免九宫格空白闪烁
-                    loading = { Box(Modifier.fillMaxSize().background(Color(0x11000000))) },
-                    error = { Box(Modifier.fillMaxSize().background(Color(0x11000000))) },
+                    loading = { Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.surfaceVariant)) },
+                    error = { Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.surfaceVariant)) },
                 )
             }
             repeat(cols - rowImgs.size) { Spacer(Modifier.weight(1f)) }

@@ -22,23 +22,23 @@ struct MergedMessageCard: View {
     private var card: some View {
         VStack(alignment: .leading, spacing: 4) {
             Text(record.title.isEmpty ? "聊天记录" : record.title)
-                .font(.subheadline.bold())
+                .touliaoText(.secondary, weight: .bold)
                 .lineLimit(1)
             // 摘要最多 2 条（对齐 Web wc-merged-summary）
             ForEach(Array(record.items.prefix(2).enumerated()), id: \.offset) { _, item in
                 Text("\(item.senderName.isEmpty ? "" : "\(item.senderName): ")\(item.snippet)")
-                    .font(.caption)
+                    .touliaoText(.caption)
                     .foregroundColor(isMine ? Color.vxinBubbleText.opacity(0.8) : .vxinTextSecondary)
                     .lineLimit(1)
             }
             Text("查看 \(record.items.count) 条记录")
-                .font(.caption2)
+                .touliaoText(.caption)
                 .foregroundColor(isMine ? Color.vxinBubbleText.opacity(0.7) : .vxinTextSecondary)
                 .padding(.top, 2)
         }
         .padding(.horizontal, 12).padding(.vertical, 9)
         .frame(width: 232, alignment: .leading)
-        .background(isMine ? AnyShapeStyle(LinearGradient.vxinBubble) : AnyShapeStyle(Color(.secondarySystemBackground)))
+        .background(isMine ? AnyShapeStyle(LinearGradient.vxinBubble) : AnyShapeStyle(Color.vxinSurfaceSecondary))
         .clipShape(RoundedRectangle(cornerRadius: VxinRadius.md))
     }
 }
@@ -49,20 +49,6 @@ private struct MergedForwardDetailSheet: View {
     let items: [MergedForwardItem]
     @Environment(\.dismiss) private var dismiss
 
-    /// 类型图标（对齐 Web typeIcon）
-    private func typeIcon(_ type: String) -> String {
-        switch type {
-        case "text": return "💬"
-        case "image": return "🖼"
-        case "video": return "🎬"
-        case "voice": return "🎤"
-        case "file": return "📎"
-        case "contact_card", "contact": return "👤"
-        case "merged": return "📚"
-        default: return "💬"
-        }
-    }
-
     var body: some View {
         NavigationStack {
             Group {
@@ -71,28 +57,33 @@ private struct MergedForwardDetailSheet: View {
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                 } else {
                     List(items) { item in
+                        Group {
                         HStack(alignment: .top, spacing: 8) {
-                            Text(typeIcon(item.type))
+                            TouliaoIcon(TouliaoIcon.messageType(item.type), size: .sm)
                             VStack(alignment: .leading, spacing: 2) {
                                 HStack {
                                     Text(item.senderName.isEmpty ? "成员" : item.senderName)
-                                        .font(.subheadline.bold())
+                                        .touliaoText(.secondary, weight: .bold)
                                     Spacer()
                                     Text(formatChatTime(item.ts))
-                                        .font(.caption2).foregroundColor(.vxinTextSecondary)
+                                        .touliaoText(.caption).foregroundColor(.vxinTextSecondary)
                                 }
                                 Text(item.snippet.isEmpty ? "内容不可用" : item.snippet)
-                                    .font(.subheadline)
+                                    .touliaoText(.secondary)
                                     .foregroundColor(.vxinTextSecondary)
                             }
                         }
                         .padding(.vertical, 2)
+                        }.listRowBackground(Color.vxinSurface).listRowSeparatorTint(Color.vxinBorder)
                     }
                     .listStyle(.plain)
+            .scrollContentBackground(.hidden)
+            .background(Color.vxinSurface)
                 }
             }
             .navigationTitle(title.isEmpty ? "聊天记录" : title)
             .navigationBarTitleDisplayMode(.inline)
+        .touliaoPage()
             .toolbar { ToolbarItem(placement: .confirmationAction) { Button("关闭") { dismiss() } } }
         }
     }

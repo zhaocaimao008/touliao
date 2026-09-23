@@ -1,3 +1,4 @@
+import TouliaoIcon, { iconForMessageType } from '../ui-kit/Icon';
 import React, { useEffect, useMemo, useState } from 'react';
 import { formatFull } from '../utils/time';
 import { useI18n } from '../contexts/I18nContext';
@@ -15,9 +16,6 @@ function parseMerged(content) {
   }
 }
 
-function typeIcon(type) {
-  return { text: '💬', image: '🖼', video: '🎬', voice: '🎤', file: '📎', contact_card: '👤', merged: '📚' }[type] || '💬';
-}
 
 export default function MergedMessageCard({ content }) {
   const { t } = useI18n();
@@ -50,14 +48,14 @@ export default function MergedMessageCard({ content }) {
           <div className="wc-modal wc-merged-modal" role="dialog" aria-modal="true" aria-label={title}>
             <div className="wc-modal-header">
               <span className="wc-modal-title">{title}</span>
-              <button type="button" className="wc-modal-close" onClick={() => setOpen(false)} aria-label={t('common.close')}>✕</button>
+              <button type="button" className="wc-modal-close" onClick={() => setOpen(false)} aria-label={t('common.close')}><TouliaoIcon name="close" size="sm" /></button>
             </div>
             <div className="wc-merged-list">
               {record.items.length === 0 ? (
                 <div className="wc-merged-empty" role="status">{t('merged.empty')}</div>
               ) : record.items.map((item, index) => (
                 <div className="wc-merged-item" key={`${item.mid || `${item.sender}-${item.ts}`}-${index}`}>
-                  <span className="wc-merged-item-icon" aria-hidden="true">{typeIcon(item.type)}</span>
+                  <span className="wc-merged-item-icon" aria-hidden="true"><TouliaoIcon name={iconForMessageType(item.type)} size="sm" /></span>
                   <div className="wc-merged-item-body">
                     <div className="wc-merged-item-head">
                       <strong>{item.senderName || t('messageItem.someone')}</strong>

@@ -11,6 +11,7 @@ struct GroupQrView: View {
     private let repo = GroupRepository.shared
 
     var body: some View {
+        ScrollView {
         VStack(spacing: 16) {
             if loading {
                 ProgressView()
@@ -19,9 +20,9 @@ struct GroupQrView: View {
                     .resizable().interpolation(.none).scaledToFit()
                     .frame(width: 240, height: 240)
                 Text("扫一扫上面的二维码，加入群聊")
-                    .font(.footnote).foregroundColor(.vxinTextSecondary)
+                    .touliaoText(.secondary).foregroundColor(.vxinTextSecondary)
                 Spacer().frame(height: 12)
-                Text(qr.url).font(.footnote).foregroundColor(.vxinTextSecondary)
+                Text(qr.url).touliaoText(.secondary).foregroundColor(.vxinTextSecondary)
                     .multilineTextAlignment(.center)
                 Button {
                     UIPasteboard.general.string = qr.url
@@ -29,16 +30,19 @@ struct GroupQrView: View {
                 } label: {
                     Text(copied ? "已复制" : "复制邀请链接").frame(maxWidth: .infinity)
                 }
-                .buttonStyle(.borderedProminent).tint(.vxinGreen)
-                Text("链接 7 天内有效").font(.caption2).foregroundColor(.vxinTextSecondary)
+                .buttonStyle(.borderedProminent).foregroundColor(.vxinOnPrimary).tint(.vxinGreen)
+                Text("链接 7 天内有效").touliaoText(.caption).foregroundColor(.vxinTextSecondary)
             } else {
                 Text(error ?? "二维码加载失败").foregroundColor(.vxinTextSecondary)
             }
             Spacer()
         }
         .padding(24)
+        .frame(maxWidth: .infinity)
+        }
         .navigationTitle("群聊二维码")
         .navigationBarTitleDisplayMode(.inline)
+        .touliaoPage()
         .task { await load() }
     }
 

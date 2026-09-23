@@ -3383,12 +3383,12 @@ body.dark-mode .wc-msg-time span { background: rgba(255,255,255,.08); }
 .gi-loading-txt { color:var(--text-tertiary); font-size: var(--text-sm); }
 
 /* ── SVG fill utilities ── */
-.gi-fill-warn { fill:var(--color-warning); }
-.gi-fill-green { fill:var(--green); }
-.gi-fill-red { fill:var(--color-badge); }
-.gi-fill-white { fill: var(--gray-0); }
-.gi-fill-tertiary { fill:var(--text-tertiary); }
-.gi-fill-grey { fill:var(--text-disabled); }
+.gi-fill-warn { color:var(--color-warning); }
+.gi-fill-green { color:var(--green); }
+.gi-fill-red { color:var(--color-badge); }
+.gi-fill-white { color: var(--gray-0); }
+.gi-fill-tertiary { color:var(--text-tertiary); }
+.gi-fill-grey { color:var(--text-disabled); }
 
 /* ── Misc ── */
 .gi-mg-click { cursor:pointer; user-select:none; }
@@ -4066,11 +4066,12 @@ body.dark-mode .wc-announce-detail { background: var(--info-banner-bg-soft); }
 /* banner 内所有交互控件强制 no-drag,否则无边框窗口拖拽区会吞掉点击 */
 .wc-update-banner button, .wc-update-check-btn { -webkit-app-region: no-drag; }
 .wc-update-icon { flex-shrink: 0; font-size: 15px; }
-.wc-update-text { white-space: nowrap; }
+.wc-update-text { min-width: 0; overflow-wrap: anywhere; }
 .wc-update-progress-wrap { width: 120px; height: 6px; background: rgba(0,0,0,.08); border-radius: 3px; overflow: hidden; flex-shrink: 0; }
 .wc-update-progress-bar { height: 100%; background: var(--info-banner-fg); border-radius: 3px; transition: width .2s; }
 .wc-update-install-btn { flex-shrink: 0; padding: 4px 12px; border: none; border-radius: var(--radius-sm); background: var(--info-banner-fg); color: var(--gray-0); font-size: var(--text-sm); cursor: pointer; }
 .wc-update-install-btn:hover { background: var(--info-banner-fg-hover); }
+.wc-update-install-btn:disabled { cursor: wait; opacity: var(--tl-disabled-opacity); }
 .wc-update-dismiss { flex-shrink: 0; border: none; background: transparent; color: var(--text-secondary); font-size: var(--text-sm); cursor: pointer; padding: 4px 6px; }
 .wc-spin { display: inline-block; animation: wc-spin 1s linear infinite; }
 body.dark-mode .wc-update-banner { background: var(--info-banner-bg); border-color: var(--info-banner-border); }
@@ -4153,7 +4154,7 @@ body.dark-mode .wc-reaction-pill.mine { background: rgba(var(--green-rgb),.2); b
   display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; color: var(--text-secondary);
 }
 .m-tab.active { color: var(--green); }
-.m-tab-ico svg { width: 26px; height: 26px; fill: currentColor; display: block; }
+.m-tab-ico svg { width: var(--icon-md); height: var(--icon-md); display: block; }
 .m-tab-label { font-size: var(--text-2xs); line-height: var(--lh-none); }
 .m-tab-badge {
   position: absolute; top: 3px; left: 54%; min-width: 16px; height: 16px; padding: 0 4px; box-sizing: border-box;
@@ -4595,10 +4596,14 @@ body.dark-mode .pf-hero { box-shadow: 0 10px 34px rgba(0,0,0,.5); }
 .wc-skeleton { padding: 8px 0; }
 .wc-skeleton-row { display: flex; align-items: center; gap: 12px; padding: 12px 16px; }
 .wc-skeleton-avatar {
-  width: 44px; height: 44px; flex: 0 0 44px;
+  width: var(--skeleton-avatar-size); height: var(--skeleton-avatar-size); flex: 0 0 var(--skeleton-avatar-size);
   border-radius: var(--radius-avatar);
   background: var(--bg-hover);
 }
+.wc-skeleton--chat .wc-skeleton-lines { flex: 0 1 70%; }
+.wc-skeleton--chat .wc-skeleton-line { height: 36px; border-radius: var(--radius-bubble); }
+.wc-skeleton-row--mine { justify-content: flex-end; }
+.wc-skeleton--panel .wc-skeleton-line { height: var(--tl-control-height); }
 .wc-skeleton-lines { flex: 1; display: flex; flex-direction: column; gap: 8px; }
 .wc-skeleton-line { height: 12px; border-radius: var(--radius-sm); background: var(--bg-hover); }
 .wc-skeleton-avatar, .wc-skeleton-line {
@@ -4608,11 +4613,11 @@ body.dark-mode .pf-hero { box-shadow: 0 10px 34px rgba(0,0,0,.5); }
   content: ''; position: absolute; inset: 0;
   background: linear-gradient(90deg, transparent, rgba(255,255,255,.45), transparent);
   transform: translateX(-100%);
-  animation: wc-shimmer 1.4s infinite;
+  animation: wc-shimmer var(--tl-skeleton-duration, 1200ms) infinite;
 }
 @keyframes wc-shimmer { 100% { transform: translateX(100%); } }
 @media (prefers-reduced-motion: reduce) {
-  .wc-skeleton-avatar::after, .wc-skeleton-line::after { animation: none; }
+  .wc-skeleton-avatar::after, .wc-skeleton-line::after, .skeleton-box, .img-skeleton { animation: none !important; }
 }
 
 /* Empty / Error 三态 */
@@ -4644,7 +4649,7 @@ body.dark-mode .pf-hero { box-shadow: 0 10px 34px rgba(0,0,0,.5); }
     var(--bg-hover, rgba(0,0,0,.06)) 75%
   );
   background-size: 200% 100%;
-  animation: skeleton-shimmer 1.4s ease-in-out infinite;
+  animation: skeleton-shimmer var(--tl-skeleton-duration, 1200ms) ease-in-out infinite;
 }
 body.dark-mode .skeleton-box {
   background: linear-gradient(
@@ -4654,7 +4659,7 @@ body.dark-mode .skeleton-box {
     rgba(255,255,255,.06) 75%
   );
   background-size: 200% 100%;
-  animation: skeleton-shimmer 1.4s ease-in-out infinite;
+  animation: skeleton-shimmer var(--tl-skeleton-duration, 1200ms) ease-in-out infinite;
 }
 @keyframes skeleton-shimmer {
   0%   { background-position: 200% 0; }
@@ -4666,7 +4671,7 @@ body.dark-mode .skeleton-box {
   border-radius: var(--radius-bubble-tip);
   display: inline-block;
   min-width: 60px; min-height: 60px;
-  animation: skeleton-shimmer 1.4s ease-in-out infinite;
+  animation: skeleton-shimmer var(--tl-skeleton-duration, 1200ms) ease-in-out infinite;
 }
 
 /* ── Profile.jsx（个人资料/设置页）静态样式：P2 UI 体检内联样式迁移 ── */

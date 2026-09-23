@@ -8,6 +8,7 @@ struct VxinApp: App {
     var body: some Scene {
         WindowGroup {
             RootView()
+                .modifier(TouliaoMotionPolicy())
                 .environmentObject(session)
         }
     }

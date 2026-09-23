@@ -1,39 +1,51 @@
 package com.touliao.app.ui.theme
 
 import androidx.compose.ui.graphics.Color
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.ReadOnlyComposable
 
-// 投聊 品牌色（AURORA 极光靛，对齐 Web 端 --brand-500 #6D5AE6）
-val VxinBrand = Color(0xFF6D5AE6)         // 主品牌色 极光靛（brand-500）
-val VxinBrandLight = Color(0xFF8A78EB)    // brand-400 渐变浅端
-val VxinBrandDark = Color(0xFF5A47D6)     // brand-600 渐变深端 / 按下态
-val VxinBrandMuted = Color(0xFFF1EFFD)    // brand-50 主色浅底
-val VxinTeal = Color(0xFF17B8A6)          // 青碧辅助色（气泡渐变尾端）
-// 兼容旧引用名（各 Screen 无需改动）：统一指向极光靛
-val VxinGreen = VxinBrand
-val VxinGreenDark = VxinBrandDark
-val VxinBg = Color(0xFFF3F1FA)            // 紫调壳层，对齐 web --bg-messages
-val VxinTextPrimary = Color(0xFF1A1A1A)   // 正文近黑，对齐 web --text-primary
-val VxinTextSecondary = Color(0xFF888888) // 辅助中性灰，对齐 web --text-secondary
-val VxinError = Color(0xFFFA5151)
+// Compatibility names keep business views intact; colors now follow the app theme.
+val VxinBrand: Color
+    @Composable @ReadOnlyComposable get() = LocalTouliaoPalette.current.primary
+val VxinBrandLight: Color
+    @Composable @ReadOnlyComposable get() = LocalTouliaoPalette.current.primary
+val VxinBrandDark: Color
+    @Composable @ReadOnlyComposable get() = LocalTouliaoPalette.current.primaryActive
+val VxinBrandMuted: Color
+    @Composable @ReadOnlyComposable get() = LocalTouliaoPalette.current.primarySoft
+val VxinTeal: Color
+    @Composable @ReadOnlyComposable get() = LocalTouliaoPalette.current.primary
+val VxinGreen: Color
+    @Composable @ReadOnlyComposable get() = LocalTouliaoPalette.current.primary
+val VxinGreenDark: Color
+    @Composable @ReadOnlyComposable get() = LocalTouliaoPalette.current.primaryActive
+val VxinBg: Color
+    @Composable @ReadOnlyComposable get() = LocalTouliaoPalette.current.background
+val VxinTextPrimary: Color
+    @Composable @ReadOnlyComposable get() = LocalTouliaoPalette.current.text
+val VxinTextSecondary: Color
+    @Composable @ReadOnlyComposable get() = LocalTouliaoPalette.current.readableMuted
+val VxinError: Color
+    @Composable @ReadOnlyComposable get() = LocalTouliaoPalette.current.readableDanger
+val VxinSuccess: Color
+    @Composable @ReadOnlyComposable get() = LocalTouliaoPalette.current.success
+val VxinSuccessDark: Color
+    @Composable @ReadOnlyComposable get() = LocalTouliaoPalette.current.success
+val VxinBubbleMine: Color
+    @Composable @ReadOnlyComposable get() = LocalTouliaoPalette.current.messageOutgoing
+val VxinBubbleMineText: Color
+    @Composable @ReadOnlyComposable get() = LocalTouliaoPalette.current.messageOutgoingText
+val VxinBubbleText: Color
+    @Composable @ReadOnlyComposable get() = LocalTouliaoPalette.current.text
 
-// 语义色（对齐 web --color-success / 支付绿 / 通话接听）
-val VxinSuccess = Color(0xFF00B42A)       // 成功/正向（对齐 web --color-success #00B42A）：钱包入账、通话接听
-val VxinSuccessDark = Color(0xFF059C4B)   // 成功按下态
-// 支付/转账金钱主题绿（微信支付经典绿，对齐 web --pay-grad）：转账卡片渐变
+// Explicit dark aliases and financial card colors retain their semantic purpose.
+val VxinBubbleOtherDark = TouliaoDarkPalette.messageIncoming
+val VxinBubbleTextDark = TouliaoDarkPalette.text
+val VxinBgDark = TouliaoDarkPalette.background
+val VxinSurfaceDark = TouliaoDarkPalette.surface
+val VxinTextPrimaryDark = TouliaoDarkPalette.text
+val VxinTextSecondaryDark = TouliaoDarkPalette.readableMuted
 val VxinPay = Color(0xFF07C160)
-val VxinPayDark = Color(0xFF059C4B)       // 支付绿按下态/渐变深端（原 TransferGreenDark）
+val VxinPayDark = Color(0xFF059C4B)
 val VxinPayGradStart = Color(0xFF09BB07)
 val VxinPayGradEnd = Color(0xFF07C160)
-
-// 聊天气泡（对齐 web AURORA）：我的=极光靛渐变 + 白字；对方=白 + 深字
-val VxinBubbleMine = VxinBrand            // 我方气泡主色（渐变见 ChatScreen bubbleBrush）
-val VxinBubbleMineText = Color(0xFFFFFFFF) // 靛底白字，保证对比度（WCAG AA）
-val VxinBubbleText = Color(0xFF1A1A1A)
-val VxinBubbleOtherDark = Color(0xFF26262A)   // 暗色下对方气泡
-val VxinBubbleTextDark = Color(0xFFE5E5E5)    // 暗色下对方气泡文字
-
-// 深色模式壳层（对齐微信深色：近黑背景 + 深灰卡面）
-val VxinBgDark = Color(0xFF111111)            // 深色背景
-val VxinSurfaceDark = Color(0xFF1E1E1E)       // 深色卡面/顶栏
-val VxinTextPrimaryDark = Color(0xFFE5E5E5)   // 深色正文
-val VxinTextSecondaryDark = Color(0xFF9A9A9A) // 深色辅助文字

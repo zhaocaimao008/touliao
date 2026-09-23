@@ -20,21 +20,26 @@ struct InviteMembersView: View {
                 Text("没有可邀请的联系人").foregroundColor(.vxinTextSecondary)
             } else {
                 List(vm.candidates) { contact in
+                    Group {
                     Button { vm.toggle(contact.id) } label: {
                         HStack(spacing: 12) {
-                            Image(systemName: vm.selected.contains(contact.id) ? "checkmark.circle.fill" : "circle")
+                            TouliaoIcon(vm.selected.contains(contact.id) ? "selected" : "unselected")
                                 .foregroundColor(vm.selected.contains(contact.id) ? .vxinGreen : .vxinTextSecondary)
                             InitialAvatar(name: contact.displayName.isEmpty ? "?" : contact.displayName, size: 40)
-                            Text(contact.displayName.isEmpty ? "未命名" : contact.displayName).foregroundColor(.primary)
+                            Text(contact.displayName.isEmpty ? "未命名" : contact.displayName).foregroundColor(.vxinText)
                             Spacer()
                         }
                     }
+                    }.listRowBackground(Color.vxinSurface).listRowSeparatorTint(Color.vxinBorder)
                 }
                 .listStyle(.plain)
+            .scrollContentBackground(.hidden)
+            .background(Color.vxinSurface)
             }
         }
         .navigationTitle("邀请成员")
         .navigationBarTitleDisplayMode(.inline)
+        .touliaoPage()
         .toolbar {
             ToolbarItem(placement: .confirmationAction) {
                 Button(vm.selected.isEmpty ? "邀请" : "邀请(\(vm.selected.count))") { vm.invite() }

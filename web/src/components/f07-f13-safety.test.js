@@ -39,7 +39,7 @@ test.each([[Login,'login'],[Register,'register']])('%s blocks unchecked submissi
   legal.props.onChange(consent);tree=render(Component);
   if(kind==='register'){
     for(const input of ['username','phone','password','inviteCode']) {
-      const n=find(tree,n=>n.type==='input'&&n.props.id===`reg-${input}`);
+      const n=find(tree,n=>n.props?.id===`reg-${input}`&&typeof n.props.onChange==='function');
       // Actual form uses reg-* IDs; values satisfy the existing validation.
       expect(n).toBeTruthy();n.props.onChange({target:{value:{username:'tester',phone:'13012345678',password:'Testpass123',inviteCode:'123456'}[input]}});tree=render(Component);
     }

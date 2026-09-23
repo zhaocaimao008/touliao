@@ -94,9 +94,16 @@ autoUpdater.logger.transports.file.level = LOG_LEVELS.includes(envLogLevel)
   ? envLogLevel
   : (app.isPackaged ? 'error' : 'info');
 
-// Keep electron-updater 6.8.9's built-in publisher verification enabled.
+// Windows 自动更新两种模式（清单 Ed25519 验签、版本防回退、安装包摘要绑定两者都做）：
+//  - 严格模式：update-policy.json 配置了发布者证书指纹 → 经锁定的 install-verified.ps1
+//    复核 Authenticode 发布者后安装；
+//  - 签名模式：未配置指纹 → 由 electron-updater 安装已绑定的安装包（8.1.27–8.1.31 已发布行为）。
+// 配置指纹后自动进入严格模式，无需改代码。
 const updateTrust = require('./lib/updateTrust');
 const updatePolicy = require('./update-policy.json');
+function strictUpdateMode() {
+  try { updateTrust.publishers(updatePolicy); return true; } catch { return false; }
+}
 let trustedUpdate = null;
 let downloadedInstaller = null;
 let updateAttempt = 0;
@@ -109,7 +116,7 @@ process.on('uncaughtException', (err) => {
 process.on('unhandledRejection', (reason) => {
   log.error('[main] 未处理的 Promise 拒绝:', reason);
 });
-// Windows installation is exclusively through the locked, verified helper below.
+// 只在用户确认后安装（见 update:install），退出 App 不静默安装。
 autoUpdater.autoInstallOnAppQuit = false;
 autoUpdater.disableWebInstaller = true;
 // 安全：关闭自动下载，改由 update-available 事件中先对更新元数据(latest.yml)做
@@ -134,6 +141,8 @@ let tray = null;
 let _trayBaseIcon = null;    // 托盘正常态图标缓存（闪烁时还原用）
 let _trayFlashTimer = null;  // 托盘闪烁定时器句柄
 let isQuitting = false;
+let updateReady = false;
+let updateInstallRequested = false;
 
 // 引导配置地址（与 web/src/utils/config.js、Android/iOS RemoteConfig 一致）：
 // 主进程在建窗口前据此拉 config.json，使 CSP connect-src 跟随远程配置，
@@ -644,7 +653,6 @@ async function verifyUpdateSignature(info) {
     const ok = crypto.verify(null, ymlBuf, pub, sigBuf);
     if (ok) {
       if (process.platform === 'win32') {
-        updateTrust.publishers(updatePolicy);
         return updateTrust.bindManifest({ bytes: ymlBuf, signature: sigBuf,
           publicKey: pub.export({ type: 'spki', format: 'pem' }), info, currentVersion: app.getVersion(),
           platform: process.platform, arch: process.arch, channel: updatePolicy.channel });
@@ -662,36 +670,36 @@ async function verifyUpdateSignature(info) {
 // ── 自动更新（验签 → 下载 → 用户确认后安装，不强制重启）──────────
 function setupAutoUpdater() {
   autoUpdater.on('update-available', async (info) => {
+    updateReady = false;
     log.info('发现新版本:', info.version);
     mainWindow?.webContents.send('update:available', info);
     if (process.platform !== 'win32') {
       mainWindow?.webContents.send('update:error', '当前平台尚不支持安全自动更新，请从可信分发渠道安装完整安装包');
       return;
     }
-    if (installingUpdate) return;
-    try { updateTrust.publishers(updatePolicy); } catch {
-      trustedUpdate = null; downloadedInstaller = null;
-      mainWindow?.webContents.send('update:error', '此版本未配置 Windows 发布者证书，自动更新不可用，请联系发行方');
-      return;
-    }
+    if (installingUpdate || updateInstallRequested) return;
     const attempt = ++updateAttempt;
     trustedUpdate = null;
     downloadedInstaller = null;
     const verdict = await verifyUpdateSignature(info);
     if (attempt !== updateAttempt) return;
-    if (!verdict || verdict === 'fail') {
+    if (!verdict || typeof verdict !== 'object') {
       log.error('更新已阻止：版本', info.version, '未通过签名校验，不下载');
       mainWindow?.webContents.send('update:error', '更新包校验失败，已阻止安装，请联系管理员');
       return;
     }
-    if (process.platform === 'win32') trustedUpdate = verdict;
-    autoUpdater.downloadUpdate().catch(() => {
+    trustedUpdate = verdict;
+    autoUpdater.downloadUpdate().catch((e) => {
       if (attempt === updateAttempt) { trustedUpdate = null; downloadedInstaller = null; }
-      mainWindow?.webContents.send('update:error', '下载或发布者验证失败，已阻止安装');
+      log.error('下载更新失败:', e.message);
+      mainWindow?.webContents.send('update:error', `下载失败：${e.message}`);
     });
   });
 
-  autoUpdater.on('update-not-available', () => log.info('已是最新版本'));
+  autoUpdater.on('update-not-available', () => {
+    log.info('当前渠道没有可用更新');
+    mainWindow?.webContents.send('update:not-available', { version: app.getVersion() });
+  });
 
   autoUpdater.on('download-progress', (progress) => {
     mainWindow?.webContents.send('update:progress', Math.round(progress.percent));
@@ -699,22 +707,29 @@ function setupAutoUpdater() {
 
   autoUpdater.on('update-downloaded', async (info) => {
     if (process.platform !== 'win32') return;
-    if (process.platform === 'win32') {
-      try {
-        if (!trustedUpdate || info.version !== trustedUpdate.version) throw new Error('版本不匹配');
-        updateTrust.verifyFile(info.downloadedFile, trustedUpdate);
-        downloadedInstaller = info.downloadedFile;
-      } catch {
-        downloadedInstaller = null;
-        mainWindow?.webContents.send('update:error', '安装包校验失败，已阻止安装');
-        return;
-      }
+    // 两种模式都把下载结果与已验签清单绑定（版本、大小、sha512），挡住 updater 自取元数据与验签元数据不一致。
+    try {
+      if (!trustedUpdate || info.version !== trustedUpdate.version) throw new Error('版本不匹配');
+      updateTrust.verifyFile(info.downloadedFile, trustedUpdate);
+      downloadedInstaller = info.downloadedFile;
+    } catch {
+      downloadedInstaller = null;
+      mainWindow?.webContents.send('update:error', '安装包校验失败，已阻止安装');
+      return;
     }
+    updateReady = true;
+    log.info('更新已下载:', info.version);
+    // 渲染层 UpdateBanner 已有「立即重启安装」按钮，由它统一接管确认逻辑；
+    // 主进程不再弹原生 dialog，避免两套 UI 同时出现打架、且 dialog 阻塞事件循环。
     mainWindow?.webContents.send('update:downloaded', info);
   });
 
   autoUpdater.on('error', (err) => {
-    trustedUpdate = null; downloadedInstaller = null;
+    trustedUpdate = null; downloadedInstaller = null; updateReady = false;
+    if (updateInstallRequested) {
+      updateInstallRequested = false;
+      isQuitting = false;
+    }
     log.error('更新错误:', err.message);
     mainWindow?.webContents.send('update:error', err.message);
   });
@@ -768,6 +783,7 @@ function createTray() {
       enabled: PROFILE === 1,
       click: () => {
         mainWindow?.show(); mainWindow?.focus();
+        mainWindow?.webContents.send('update:checking');
         autoUpdater.checkForUpdates().catch((e) => {
           mainWindow?.webContents.send('update:error', `检查失败：${e.message}`);
         });
@@ -1078,9 +1094,26 @@ function setupIPC() {
 
   // 更新：用户在 UI 确认后主动触发安装
   ipcMain.handle('update:install', async (_e) => {
-    if (!isTrustedSender(_e) || PROFILE !== 1 || installingUpdate) return;
+    if (!isTrustedSender(_e)) return;
+    if (PROFILE !== 1) throw new Error('请在账号窗口 1 安装更新，安装前退出其他账号窗口。');
     if (process.platform !== 'win32') {
       mainWindow?.webContents.send('update:error', '当前平台尚不支持安全自动更新，请从可信分发渠道安装完整安装包');
+      return;
+    }
+    if (!updateReady || !downloadedInstaller) throw new Error('更新尚未下载完成，请先检查更新。');
+    if (installingUpdate || updateInstallRequested) return;
+    if (!strictUpdateMode()) {
+      // 签名模式（未配置发布者证书指纹）：安装包已在 update-downloaded 与验签清单逐字节绑定。
+      updateTrust.verifyFile(downloadedInstaller, trustedUpdate);
+      updateInstallRequested = true;
+      isQuitting = true;
+      try {
+        autoUpdater.quitAndInstall();
+      } catch (error) {
+        updateInstallRequested = false;
+        isQuitting = false;
+        throw error;
+      }
       return;
     }
     installingUpdate = true;
@@ -1102,7 +1135,7 @@ function setupIPC() {
       isQuitting = true;
       app.quit();
     } catch {
-      mainWindow?.webContents.send('update:error', '安装校验失败或发布者未配置，已阻止安装');
+      mainWindow?.webContents.send('update:error', '安装校验失败或发布者证书不匹配，已阻止安装');
     } finally { installingUpdate = false; }
   });
 
@@ -1113,6 +1146,7 @@ function setupIPC() {
       mainWindow?.webContents.send('update:error', '请在账号窗口 1 检查更新，安装前退出其他账号窗口。');
       return;
     }
+    mainWindow?.webContents.send('update:checking');
     autoUpdater.checkForUpdates().catch((e) => {
       mainWindow?.webContents.send('update:error', `检查失败：${e.message}`);
     });

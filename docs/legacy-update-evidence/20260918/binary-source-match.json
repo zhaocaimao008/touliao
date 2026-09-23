@@ -1,0 +1,19 @@
+{
+  "src/main.js": {
+    "equalsPublishedSourceIgnoringCRLF": true,
+    "sha256": "cb7b14b2f6c5241e377e467a9d665c4ba7232f9e979ae25d85e678e7824183cb"
+  },
+  "src/preload.js": {
+    "equalsPublishedSourceIgnoringCRLF": true,
+    "sha256": "b36d112a4e9e6aec6a5b71e12daa616a9fab9e38d949f5d1ffad11d31756574f"
+  },
+  "src/update-public-key.pem": {
+    "equalsPublishedSourceIgnoringCRLF": true,
+    "sha256": "dc8a45f1b37ec296faf89a18590f441fb7a9ea00239f2a4cd93daae619a2505e"
+  },
+  "src/lib/profiles.js": {
+    "equalsPublishedSourceIgnoringCRLF": true,
+    "sha256": "70e3453cfc02107ba2d08bf756541509bf8a8096f24319cb6973a51f74c687c4"
+  },
+  "appUpdate": "provider: generic\nurl: https://touliao.cc/downloads/updates\nchannel: latest\nupdaterCacheDirName: touliao-desktop-updater\n"
+}

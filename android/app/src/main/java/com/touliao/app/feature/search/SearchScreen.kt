@@ -15,8 +15,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -25,7 +23,7 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
+import com.touliao.app.ui.components.TouliaoField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
@@ -72,7 +70,7 @@ fun SearchScreen(
         topBar = {
             TopAppBar(
                 title = {
-                    OutlinedTextField(
+                    TouliaoField(
                         value = state.query,
                         onValueChange = viewModel::onQueryChange,
                         modifier = Modifier.fillMaxWidth().focusRequester(focusRequester),
@@ -81,7 +79,7 @@ fun SearchScreen(
                     )
                 },
                 navigationIcon = {
-                    IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回") }
+                    IconButton(onClick = onBack) { Icon(com.touliao.app.ui.TouliaoIcons.Back, contentDescription = "返回") }
                 },
             )
         },
@@ -92,11 +90,11 @@ fun SearchScreen(
                 if (state.query.isNotBlank()) {
                     SearchFilterBar(state = state, viewModel = viewModel)
                 }
-                Box(Modifier.weight(1f)) {
+                Box(Modifier.weight(1f).fillMaxWidth()) {
                     when {
                         state.loading -> CircularProgressIndicator(Modifier.align(Alignment.Center))
                         state.query.isBlank() -> Text("输入关键词搜索聊天记录", color = VxinTextSecondary, modifier = Modifier.align(Alignment.Center))
-                        state.searched && state.results.isEmpty() -> com.touliao.app.ui.components.EmptyState(icon = "🔍", title = "没有找到相关消息", modifier = Modifier.align(Alignment.Center))
+                        state.searched && state.results.isEmpty() -> com.touliao.app.ui.components.EmptyState(icon = com.touliao.app.ui.TouliaoIcons.Search, title = "没有找到相关消息", modifier = Modifier.align(Alignment.Center))
                         else -> LazyColumn(Modifier.fillMaxSize()) {
                             items(state.results, key = { it.id }) { r ->
                                 ResultRow(r, avatarUrl = viewModel.resolveUrl(r.otherUser?.avatar), query = state.query) { onOpenResult(r) }
@@ -169,7 +167,7 @@ private fun FilterDropdown(
             Modifier
                 .fillMaxWidth()
                 .clip(RoundedCornerShape(8.dp))
-                .background(Color(0x11000000))
+                .background(MaterialTheme.colorScheme.surfaceVariant)
                 .clickable { open = true }
                 .padding(horizontal = 10.dp, vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically,
@@ -182,7 +180,7 @@ private fun FilterDropdown(
                 modifier = Modifier.weight(1f, fill = false),
             )
             Spacer(Modifier.weight(1f))
-            Text("▾", color = VxinTextSecondary, fontSize = com.touliao.app.ui.theme.VxinTextSize.sm2)
+            com.touliao.app.ui.TouliaoGlyph(com.touliao.app.ui.TouliaoIcons.Expand, color = VxinTextSecondary, size = com.touliao.app.ui.IconSize.Md)
         }
         DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
             options.forEachIndexed { i, opt ->
@@ -199,7 +197,7 @@ private fun TimeChip(label: String, selected: Boolean, onClick: () -> Unit) {
         Modifier
             .padding(end = 8.dp)
             .clip(shape)
-            .background(if (selected) VxinGreen.copy(alpha = 0.15f) else Color(0x11000000))
+            .background(if (selected) VxinGreen.copy(alpha = 0.15f) else MaterialTheme.colorScheme.surfaceVariant)
             .then(if (selected) Modifier.border(0.5.dp, VxinGreen.copy(alpha = 0.6f), shape) else Modifier)
             .clickable(onClick = onClick)
             .padding(horizontal = 12.dp, vertical = 5.dp),
@@ -220,19 +218,25 @@ private fun ResultRow(r: SearchResult, avatarUrl: String? = null, query: String,
             Text(r.convName.ifBlank { "会话" }, style = MaterialTheme.typography.bodyLarge, maxLines = 1, overflow = TextOverflow.Ellipsis)
             val prefix = if (r.senderName.isNotBlank()) "${r.senderName}: " else ""
             // 类型图标 + 按类型摘要（结构化消息不泄 JSON，对齐 Web formatSearchMessageSummary）
-            val typePrefix = "${messageSearchTypeIcon(r.type)} "
+
             val summary = formatSearchMessageSummary(r.type, r.content)
-            Text(
-                highlightQuery(prefix + typePrefix + summary, query, prefixLen = prefix.length + typePrefix.length),
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                com.touliao.app.ui.TouliaoGlyph(com.touliao.app.ui.messageTypeIcon(r.type), size = com.touliao.app.ui.IconSize.Xs, color = VxinTextSecondary)
+                Spacer(Modifier.width(8.dp))
+                Text(
+                highlightQuery(prefix + summary, query, prefixLen = prefix.length),
                 color = VxinTextSecondary, style = MaterialTheme.typography.bodySmall,
                 maxLines = 1, overflow = TextOverflow.Ellipsis,
-            )
+                )
+            }
         }
     }
 }
 
 /** 高亮文本中所有匹配 query 的片段（大小写不敏感）。prefixLen 之前的发送者名不参与高亮匹配。 */
+@Composable
 private fun highlightQuery(text: String, query: String, prefixLen: Int = 0): AnnotatedString {
+    val highlightColor = VxinGreen
     val q = query.trim()
     if (q.isEmpty()) return AnnotatedString(text)
     return buildAnnotatedString {
@@ -246,7 +250,7 @@ private fun highlightQuery(text: String, query: String, prefixLen: Int = 0): Ann
             if (idx < prefixLen) {           // 命中发送者名前缀，不高亮，继续向后找
                 append(text.substring(idx, idx + q.length))
             } else {
-                withStyle(SpanStyle(color = VxinGreen, fontWeight = FontWeight.Bold)) {
+                withStyle(SpanStyle(color = highlightColor, fontWeight = FontWeight.Bold)) {
                     append(text.substring(idx, idx + q.length))
                 }
             }

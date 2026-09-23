@@ -15,8 +15,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -26,9 +24,9 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
+import com.touliao.app.ui.components.TouliaoField
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Switch
+import com.touliao.app.ui.components.TouliaoSettingToggle
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -89,7 +87,7 @@ fun GroupInfoScreen(
     LaunchedEffect(state.inviteLink) {
         val link = state.inviteLink ?: return@LaunchedEffect
         clipboard.setText(androidx.compose.ui.text.AnnotatedString(link))
-        android.widget.Toast.makeText(context, "邀请链接已复制", android.widget.Toast.LENGTH_SHORT).show()
+        com.touliao.app.ui.components.TouliaoFeedback.show(context, "邀请链接已复制", com.touliao.app.ui.components.FeedbackKind.SUCCESS)
         viewModel.consumeInviteLink()
     }
     // 转让成功等一次性绿色提示
@@ -110,7 +108,7 @@ fun GroupInfoScreen(
             TopAppBar(
                 title = { Text("群聊信息") },
                 navigationIcon = {
-                    IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回") }
+                    IconButton(onClick = onBack) { Icon(com.touliao.app.ui.TouliaoIcons.Back, contentDescription = "返回") }
                 },
             )
         },
@@ -126,7 +124,9 @@ fun GroupInfoScreen(
                         Column(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .background(Brush.linearGradient(listOf(VxinBrandLight, VxinBrand, VxinTeal)))
+                                .padding(16.dp)
+                                .clip(RoundedCornerShape(com.touliao.app.ui.theme.VxinRadius.card))
+                                .background(MaterialTheme.colorScheme.surface)
                                 .clickable(enabled = info.canManage) { avatarPicker.launch("image/*") }
                                 .padding(vertical = 24.dp),
                             horizontalAlignment = Alignment.CenterHorizontally,
@@ -138,12 +138,12 @@ fun GroupInfoScreen(
                                 } else {
                                     InitialAvatar(name = info.name.ifBlank { "群" }, size = 72.dp)
                                 }
-                                if (state.uploadingAvatar) CircularProgressIndicator(Modifier.size(24.dp), color = Color.White)
+                                if (state.uploadingAvatar) CircularProgressIndicator(Modifier.size(24.dp), color = MaterialTheme.colorScheme.onSurface)
                             }
                             Spacer(Modifier.size(12.dp))
-                            Text(info.name.ifBlank { "未命名群聊" }, color = Color.White, fontSize = com.touliao.app.ui.theme.VxinTextSize.xxl, fontWeight = FontWeight.Bold)
+                            Text(info.name.ifBlank { "未命名群聊" }, color = MaterialTheme.colorScheme.onSurface, fontSize = com.touliao.app.ui.theme.VxinTextSize.xxl, fontWeight = FontWeight.Bold)
                             Spacer(Modifier.size(4.dp))
-                            Text("${info.members.size} 名成员", color = Color.White.copy(alpha = 0.85f), fontSize = com.touliao.app.ui.theme.VxinTextSize.sm2)
+                            Text("${info.members.size} 名成员", color = VxinTextSecondary, fontSize = com.touliao.app.ui.theme.VxinTextSize.sm2)
                         }
                         HorizontalDivider()
                         // 群名称
@@ -155,7 +155,7 @@ fun GroupInfoScreen(
                         ) {
                             Text("群名称", Modifier.weight(1f), style = MaterialTheme.typography.bodyLarge)
                             Text(info.name.ifBlank { "未命名群聊" }, color = VxinTextSecondary)
-                            if (info.canManage) { Spacer(Modifier.width(6.dp)); Text("›", color = VxinTextSecondary) }
+                            if (info.canManage) { Spacer(Modifier.width(6.dp)); com.touliao.app.ui.TouliaoGlyph(com.touliao.app.ui.TouliaoIcons.Disclosure, color = VxinTextSecondary, size = com.touliao.app.ui.IconSize.Xs) }
                         }
                         HorizontalDivider()
                         // 群公告
@@ -171,7 +171,7 @@ fun GroupInfoScreen(
                                 Modifier.weight(1f).padding(start = 8.dp),
                                 color = VxinTextSecondary,
                             )
-                            if (info.canManage) { Spacer(Modifier.width(6.dp)); Text("›", color = VxinTextSecondary) }
+                            if (info.canManage) { Spacer(Modifier.width(6.dp)); com.touliao.app.ui.TouliaoGlyph(com.touliao.app.ui.TouliaoIcons.Disclosure, color = VxinTextSecondary, size = com.touliao.app.ui.IconSize.Xs) }
                         }
                         HorizontalDivider()
                         // 我的群昵称
@@ -183,7 +183,7 @@ fun GroupInfoScreen(
                         ) {
                             Text("我的群昵称", Modifier.weight(1f), style = MaterialTheme.typography.bodyLarge)
                             Text(info.myNickname(viewModel.myId).ifBlank { "未设置" }, color = VxinTextSecondary)
-                            Spacer(Modifier.width(6.dp)); Text("›", color = VxinTextSecondary)
+                            Spacer(Modifier.width(6.dp)); com.touliao.app.ui.TouliaoGlyph(com.touliao.app.ui.TouliaoIcons.Disclosure, color = VxinTextSecondary, size = com.touliao.app.ui.IconSize.Xs)
                         }
                         HorizontalDivider()
                         // 群聊二维码
@@ -195,7 +195,7 @@ fun GroupInfoScreen(
                         ) {
                             Text("群聊二维码", Modifier.weight(1f), style = MaterialTheme.typography.bodyLarge)
                             Text("邀请进群", color = VxinTextSecondary)
-                            Spacer(Modifier.width(6.dp)); Text("›", color = VxinTextSecondary)
+                            Spacer(Modifier.width(6.dp)); com.touliao.app.ui.TouliaoGlyph(com.touliao.app.ui.TouliaoIcons.Disclosure, color = VxinTextSecondary, size = com.touliao.app.ui.IconSize.Xs)
                         }
                         // F4a 复制邀请链接：群主/管理员，或群开启 member_can_invite 的普通成员
                         // （权限语义与后端 createInviteLink、Web F3a 一致）。链接经 web 落地页
@@ -209,7 +209,10 @@ fun GroupInfoScreen(
                                 verticalAlignment = Alignment.CenterVertically,
                             ) {
                                 Text("复制邀请链接", Modifier.weight(1f), style = MaterialTheme.typography.bodyLarge)
-                                Text(if (state.copyingInviteLink) "生成中…" else "🔗 复制", color = VxinTextSecondary)
+                                if (!state.copyingInviteLink) {
+                                    Icon(com.touliao.app.ui.TouliaoIcons.Link, contentDescription = null, tint = VxinTextSecondary, modifier = Modifier.size(com.touliao.app.ui.IconSize.Sm).padding(end = 4.dp))
+                                }
+                                Text(if (state.copyingInviteLink) "生成中…" else "复制", color = VxinTextSecondary)
                             }
                         }
                         HorizontalDivider()
@@ -229,7 +232,7 @@ fun GroupInfoScreen(
                                 Modifier.size(40.dp).clip(RoundedCornerShape(com.touliao.app.ui.theme.VxinRadius.badge))
                                     .background(VxinBrand.copy(alpha = 0.12f)),
                                 contentAlignment = Alignment.Center,
-                            ) { Icon(TouliaoIcons.Add, contentDescription = null, tint = VxinBrand, modifier = Modifier.size(22.dp)) }
+                            ) { Icon(TouliaoIcons.Add, contentDescription = null, tint = VxinBrand, modifier = Modifier.size(com.touliao.app.ui.IconSize.Md)) }
                             Spacer(Modifier.width(12.dp))
                             Text("邀请成员", color = VxinBrand, fontWeight = FontWeight.Medium)
                         }
@@ -252,9 +255,9 @@ fun GroupInfoScreen(
                         item {
                             HorizontalDivider()
                             Text("群管理", Modifier.padding(16.dp), color = VxinTextSecondary, style = MaterialTheme.typography.bodySmall)
-                            ToggleRow("全员禁言", info.mute_all == 1, !state.updating) { viewModel.setManage(muteAll = it) }
-                            ToggleRow("禁止成员间私聊", info.no_private_chat == 1, !state.updating) { viewModel.setManage(noPrivateChat = it) }
-                            ToggleRow("禁止成员互加好友", info.no_add_friend == 1, !state.updating) { viewModel.setManage(noAddFriend = it) }
+                            TouliaoSettingToggle("全员禁言", checked = info.mute_all == 1, enabled = !state.updating) { viewModel.setManage(muteAll = it) }
+                            TouliaoSettingToggle("禁止成员间私聊", checked = info.no_private_chat == 1, enabled = !state.updating) { viewModel.setManage(noPrivateChat = it) }
+                            TouliaoSettingToggle("禁止成员互加好友", checked = info.no_add_friend == 1, enabled = !state.updating) { viewModel.setManage(noAddFriend = it) }
                         }
                     }
                     item {
@@ -262,8 +265,8 @@ fun GroupInfoScreen(
                         Button(
                             onClick = { if (info.isOwner) showDissolveConfirm = true else showLeaveConfirm = true },
                             colors = ButtonDefaults.buttonColors(
-                                containerColor = Color(0xFFFFECEC),
-                                contentColor = Color(0xFFFA5151),
+                                containerColor = MaterialTheme.colorScheme.errorContainer,
+                                contentColor = com.touliao.app.ui.theme.VxinError,
                             ),
                             shape = RoundedCornerShape(com.touliao.app.ui.theme.VxinRadius.md),
                             modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
@@ -377,19 +380,8 @@ private fun MemberRow(
             TextButton(onClick = onTransfer) { Text("转让", color = VxinGreen) }
         }
         if (canKick) {
-            TextButton(onClick = onKick) { Text("移除", color = Color(0xFFFA5151)) }
+            TextButton(onClick = onKick) { Text("移除", color = com.touliao.app.ui.theme.VxinError) }
         }
-    }
-}
-
-@Composable
-private fun ToggleRow(label: String, checked: Boolean, enabled: Boolean, onChange: (Boolean) -> Unit) {
-    Row(
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Text(label, Modifier.weight(1f), style = MaterialTheme.typography.bodyLarge)
-        Switch(checked = checked, onCheckedChange = onChange, enabled = enabled)
     }
 }
 
@@ -399,7 +391,7 @@ private fun RenameDialog(initial: String, busy: Boolean, onConfirm: (String) -> 
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text("修改群名称") },
-        text = { OutlinedTextField(name, { name = it }, singleLine = true, modifier = Modifier.fillMaxWidth()) },
+        text = { TouliaoField(name, { name = it }, singleLine = true, modifier = Modifier.fillMaxWidth()) },
         confirmButton = { TextButton(onClick = { onConfirm(name) }, enabled = !busy && name.isNotBlank()) { Text("确定") } },
         dismissButton = { TextButton(onClick = onDismiss) { Text("取消") } },
     )
@@ -420,7 +412,7 @@ private fun EditTextDialog(
         onDismissRequest = onDismiss,
         title = { Text(title) },
         text = {
-            OutlinedTextField(
+            TouliaoField(
                 text, { text = it },
                 singleLine = singleLine,
                 minLines = if (singleLine) 1 else 3,

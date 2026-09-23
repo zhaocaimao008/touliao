@@ -1,4 +1,8 @@
 import LegalConsent from '../components/LegalConsent';
+import TouliaoField from '../ui-kit/Field';
+import { PrimaryButton } from '../ui-kit/Button';
+import TouliaoIcon from '../ui-kit/Icon';
+
 import './auth.css';
 import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
@@ -21,8 +25,7 @@ export default function Register() {
   const [legalConsent, setLegalConsent] = useState(null);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const [focusedField, setFocusedField] = useState(null);
-  const [showPwd, setShowPwd] = useState(false);
+  const [errorField, setErrorField] = useState(null);
   // 是否需要邀请码由后台开关决定（GET /api/config）。默认 true，避免加载前误放行 UI。
   const [inviteRequired, setInviteRequired] = useState(true);
   const { login } = useAuth();
@@ -38,20 +41,20 @@ export default function Register() {
     e.preventDefault();
     if (!legalConsent?.accepted) { setError('请先阅读并同意隐私政策和用户协议'); return; }
     if (loading) return; // 防连点/回车重复提交（避免重复注册）
-    setError(''); setLoading(true);
+    setError(''); setErrorField(null); setLoading(true);
 
     // 前端基础校验
     if (!form.username || form.username.trim().length < 2 || form.username.trim().length > 20) {
-      setError(t('auth.nicknameLenError')); setLoading(false); return;
+      setErrorField('username'); setError(t('auth.nicknameLenError')); setLoading(false); return;
     }
     if (!/^\d{11}$/.test(form.phone)) {
-      setError(t('auth.phoneFormatError')); setLoading(false); return;
+      setErrorField('phone'); setError(t('auth.phoneFormatError')); setLoading(false); return;
     }
     if (!/^(?=.*[a-zA-Z])(?=.*\d).{8,}$/.test(form.password)) {
-      setError(t('auth.passwordFormatError')); setLoading(false); return;
+      setErrorField('password'); setError(t('auth.passwordFormatError')); setLoading(false); return;
     }
     if (inviteRequired && (!form.inviteCode || !/^\d{6}$/.test(form.inviteCode))) {
-      setError(t('auth.inviteCodeFormatError')); setLoading(false); return;
+      setErrorField('inviteCode'); setError(t('auth.inviteCodeFormatError')); setLoading(false); return;
     }
 
     try {
@@ -65,26 +68,16 @@ export default function Register() {
 
   const fields = [
     { key: 'username', label: t('auth.nickname'), type: 'text', autocomplete: 'nickname', placeholder: t('auth.nicknamePlaceholder'), maxLength: 20, icon: (
-      <svg viewBox="0 0 20 20" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.5">
-        <path d="M10 11a4 4 0 100-8 4 4 0 000 8zM3 18c0-3.3 3.1-6 7-6s7 2.7 7 6"/>
-      </svg>
+      <TouliaoIcon name="contact" className="auth-field-icon" size="sm" />
     )},
     { key: 'phone', label: t('auth.phone'), type: 'tel', inputMode: 'tel', autocomplete: 'username', placeholder: t('auth.phonePlaceholder'), maxLength: 11, icon: (
-      <svg viewBox="0 0 20 20" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.5">
-        <rect x="3" y="1" width="14" height="18" rx="3"/>
-        <line x1="8" y1="15" x2="12" y2="15"/>
-      </svg>
+      <TouliaoIcon name="phoneNumber" className="auth-field-icon" size="sm" />
     )},
     { key: 'password', label: t('auth.password'), type: 'password', autocomplete: 'new-password', placeholder: t('auth.setPasswordPlaceholder'), icon: (
-      <svg viewBox="0 0 20 20" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.5">
-        <rect x="3" y="9" width="14" height="10" rx="2"/>
-        <path d="M6 9V6a4 4 0 018 0v3"/>
-      </svg>
+      <TouliaoIcon name="lock" className="auth-field-icon" size="sm" />
     )},
     ...(inviteRequired ? [{ key: 'inviteCode', label: t('auth.inviteCode'), type: 'text', inputMode: 'numeric', autocomplete: 'off', placeholder: t('auth.inviteCodePlaceholder'), maxLength: 6, icon: (
-      <svg viewBox="0 0 20 20" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.5">
-        <path d="M10 2l2.4 4.8 5.3.8-3.85 3.75.9 5.3L10 14.1l-4.75 2.55.9-5.3L2.3 7.6l5.3-.8z"/>
-      </svg>
+      <TouliaoIcon name="passwordReset" className="auth-field-icon" size="sm" />
     )}] : []),
   ];
 
@@ -115,57 +108,25 @@ export default function Register() {
           )}
 
           {fields.map(f => (
-            <div key={f.key} className={`auth-field ${focusedField === f.key ? 'focused' : ''} ${form[f.key] ? 'has-value' : ''}`}>
-              <label className="auth-field-label" htmlFor={`reg-${f.key}`}>{f.label}</label>
-              <div className="auth-field-input-wrap">
-                <span className="auth-field-icon" aria-hidden="true">{f.icon}</span>
-                <input
-                  data-testid={f.key === 'inviteCode' ? 'register-invite-input' : `register-${f.key}-input`}
-                  id={`reg-${f.key}`}
-                  className="auth-field-input"
-                  type={f.key === 'password' ? (showPwd ? 'text' : 'password') : f.type}
-                  inputMode={f.inputMode}
-                  autoComplete={f.autocomplete}
-                  placeholder={f.placeholder}
-                  value={form[f.key]}
-                  maxLength={f.maxLength}
-                  onChange={e => setForm({...form, [f.key]: e.target.value})}
-                  onFocus={() => setFocusedField(f.key)}
-                  onBlur={() => setFocusedField(null)}
-                  required
-                />
-                {f.key === 'password' && (
-                  <button type="button" className="auth-pwd-toggle" onClick={() => setShowPwd(v => !v)} aria-label={showPwd ? t('auth.hidePassword') : t('auth.showPassword')}>
-                    {showPwd ? (
-                      <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.5">
-                        <path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94"/>
-                        <path d="M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19"/>
-                        <line x1="1" y1="1" x2="23" y2="23"/>
-                      </svg>
-                    ) : (
-                      <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.5">
-                        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
-                        <circle cx="12" cy="12" r="3"/>
-                      </svg>
-                    )}
-                  </button>
-                )}
-              </div>
-            </div>
+            <TouliaoField key={f.key} id={`reg-${f.key}`} label={f.label} icon={f.icon}
+              data-testid={f.key === 'inviteCode' ? 'register-invite-input' : `register-${f.key}-input`}
+              variant={f.key === 'password' ? 'PASSWORD' : f.key === 'inviteCode' ? 'CODE' : 'TEXT'}
+              type={f.type} inputMode={f.inputMode} autoComplete={f.autocomplete} placeholder={f.placeholder}
+              value={form[f.key]} maxLength={f.maxLength} required
+              error={errorField === f.key ? error : undefined} aria-describedby={error && !errorField ? 'register-error' : undefined}
+              onChange={e => { setForm({...form, [f.key]: e.target.value}); if (errorField === f.key) { setErrorField(null); setError(''); } }} />
           ))}
 
           {error && (
-            <div className="auth-error" role="alert">
-              <svg viewBox="0 0 16 16" width="14" height="14" fill="currentColor">
-                <path d="M8 1a7 7 0 100 14A7 7 0 008 1zM7 5h2v4H7V5zm0 5h2v2H7v-2z"/>
-              </svg>
+            <div id="register-error" className="auth-error" role="alert">
+              <TouliaoIcon name="error" size="xs" />
               {error}
             </div>
           )}
 
-          <button type="submit" data-testid="register-submit-btn" className="auth-submit" disabled={loading || !legalConsent?.accepted || !form.username || !form.phone || !form.password || (inviteRequired && !form.inviteCode)}>
-            {loading ? <span className="auth-spinner" /> : t('auth.registerBtn')}
-          </button>
+          <PrimaryButton type="submit" data-testid="register-submit-btn" className="auth-submit" loading={loading} disabled={!legalConsent?.accepted || !form.username || !form.phone || !form.password || (inviteRequired && !form.inviteCode)}>
+            {t('auth.registerBtn')}
+          </PrimaryButton>
         </form>
 
         <p className="auth-footer">

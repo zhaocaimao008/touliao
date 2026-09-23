@@ -17,6 +17,13 @@ on:
       # 仅安卓端专属前缀触发；避免裸 v* 同时误触发桌面端/iOS 发布（详见 VERSIONING.md）。
       - 'android-v*'
 
+concurrency:
+  group: android-release
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -42,6 +49,15 @@ jobs:
         working-directory: android
         run: chmod +x gradlew
 
+      - name: Preserve current public Android baseline
+        run: |
+          mkdir -p android-release-evidence
+          curl --fail --silent --show-error --retry 3 --max-time 45 https://touliao.cc/downloads/touliao-android-version.json -o android-release-evidence/previous-version.json
+          curl --fail --silent --show-error --retry 3 --max-time 240 https://touliao.cc/downloads/touliao-android-latest.apk -o android-release-evidence/previous.apk
+
+      - name: Verify publication transaction and rollback guards
+        run: python3 -B scripts/test-android-publish.py -v
+
       - name: Decode keystore
         env:
           KS_B64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
@@ -63,17 +79,21 @@ jobs:
         run: |
           ./gradlew testDebugUnitTest assembleRelease --stacktrace --no-daemon
 
+      - name: Verify production identity signature and upgrade version
+        run: |
+          python3 scripts/verify-android-release.py --apk android/app/build/outputs/apk/release/app-release.apk --baseline-apk android-release-evidence/previous.apk --baseline-manifest android-release-evidence/previous-version.json --output android-release-evidence
+
       - name: Enable emulator acceleration
         run: sudo chmod a+rw /dev/kvm
 
-      - name: Installed release APK startup regression
+      - name: Installed release APK startup and in-place upgrade regression
         uses: reactivecircus/android-emulator-runner@v2
         with:
           api-level: 29
           arch: x86_64
           target: default
           disable-animations: true
-          script: bash scripts/android-startup-smoke.sh android/app/build/outputs/apk/release/app-release.apk
+          script: bash scripts/android-upgrade-smoke.sh android-release-evidence/previous.apk android/app/build/outputs/apk/release/app-release.apk
 
       - name: Upload startup evidence
         if: always()
@@ -91,68 +111,24 @@ jobs:
           path: android/app/build/outputs/apk/release/*.apk
           if-no-files-found: error
 
-      # ── 部署到服务器（2026-08-30 加固，对齐 deploy.yml 的模式）──────────
-      # 此前这一步没做 secret 检测，DEPLOY_SSH_KEY/DEPLOY_USER/DEPLOY_SERVER_HOST 缺失时
-      # ssh 命令必然失败，整个 step 直接标红——问题不是"显示成功"，而是失败发生在
-      # sha256/version.json 生成代码*之前*，导致这几行代码从未被真正跑到过（详见
-      # AUDIT.md 相关章节）。这次拆成三步：①secret 检测（缺失就让 job 明确失败，不
-      # 静默跳过、不显示假绿灯）②版本清单生成（纯本地计算，不依赖网络/SSH，即使后面
-      # 部署失败这一步的产物也已经生成、日志里能看到）③真正的网络部署。
-      - name: 检查部署 secret 是否已配置
-        if: success() && (startsWith(github.ref, 'refs/tags/android-v') || inputs.deploy == true)
-        run: |
-          missing=()
-          [ -z "${{ secrets.DEPLOY_SSH_KEY }}" ]     && missing+=("DEPLOY_SSH_KEY")
-          [ -z "${{ secrets.DEPLOY_USER }}" ]        && missing+=("DEPLOY_USER")
-          [ -z "${{ secrets.DEPLOY_SERVER_HOST }}" ] && missing+=("DEPLOY_SERVER_HOST")
-          if [ ${#missing[@]} -gt 0 ]; then
-            echo "::error::缺少部署所需的 secret：${missing[*]}。APK 已构建完成（见上方 Upload signed APK 产物，可手动下载），但无法自动部署到服务器、无法更新 version.json——请到仓库 Settings → Secrets and variables → Actions 配置后重新触发本 workflow，或手动下载 Artifact 后按 deploy/README.md 的流程手动部署。"
-            exit 1
-          fi
-          echo "✅ 部署所需 secret 齐全"
-
-      - name: 生成版本清单（本地计算，先于网络部署）
-        id: version
-        run: |
-          APK=$(find android/app/build/outputs/apk/release -name "*.apk" | head -1)
-          echo "apk_path=$APK" >> "$GITHUB_OUTPUT"
-          # 从 build.gradle.kts 读出真实版本，生成 version.json。
-          # 安卓端"检查更新"靠这个文件比对版本；不同步会导致存量用户拉不到更新提示。
-          VN=$(grep -oP 'versionName\s*=\s*"\K[^"]+' android/app/build.gradle.kts | head -1)
-          VC=$(grep -oP 'versionCode\s*=\s*\K[0-9]+' android/app/build.gradle.kts | head -1)
-          # sha256 供客户端 ApkDownloader 下载完成后校验，防更新host被中间人/被攻破后
-          # 替换成别的文件。对刚打包好的同一份 $APK 算哈希（已在磁盘上是最终产物，纯
-          # 顺序shell脚本，不存在electron那次遇到的"签名时机早于文件写完"的竞态）。
-          SHA256=$(sha256sum "$APK" | cut -d' ' -f1)
-          echo "版本清单: versionName=$VN versionCode=$VC sha256=$SHA256"
-          printf '{\n  "versionCode": %s,\n  "versionName": "%s",\n  "url": "https://touliao.cc/downloads/touliao-android-latest.apk",\n  "notes": "当前最新版本 %s。",\n  "sha256": "%s"\n}\n' "$VC" "$VN" "$VN" "$SHA256" > /tmp/touliao-android-version.json
-          cat /tmp/touliao-android-version.json
-
-      - name: 部署 APK + 版本清单到服务器
+      - name: Publish verified Android downloads with rollback backup
         if: success() && (startsWith(github.ref, 'refs/tags/android-v') || inputs.deploy == true)
         env:
           DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
           DEPLOY_HOST: ${{ secrets.DEPLOY_SERVER_HOST }}
-        run: |
-          mkdir -p ~/.ssh
-          echo "${{ secrets.DEPLOY_SSH_KEY }}" > ~/.ssh/deploy_key
-          chmod 600 ~/.ssh/deploy_key
-          cp deploy/ssh_known_hosts ~/.ssh/known_hosts
-          APK="${{ steps.version.outputs.apk_path }}"
-          # 部署根 = nginx /downloads/ alias 目录(2026-09-07 新机实测: /var/www/downloads, 非旧机 touliao-downloads)
-          echo "部署: $APK → /var/www/downloads/touliao-android-latest.apk"
-          ssh -i ~/.ssh/deploy_key "${DEPLOY_USER}@${DEPLOY_HOST}" "mkdir -p /var/www/downloads"
-          scp -i ~/.ssh/deploy_key "$APK" "${DEPLOY_USER}@${DEPLOY_HOST}:/var/www/downloads/.touliao-android-latest.apk.pending"
-          ssh -n -i ~/.ssh/deploy_key "${DEPLOY_USER}@${DEPLOY_HOST}" "mv /var/www/downloads/.touliao-android-latest.apk.pending /var/www/downloads/touliao-android-latest.apk"
-          echo "✅ APK 已发布到 https://touliao.cc/downloads/touliao-android-latest.apk"
-          scp -i ~/.ssh/deploy_key /tmp/touliao-android-version.json "${DEPLOY_USER}@${DEPLOY_HOST}:/var/www/downloads/.touliao-android-version.json.pending"
-          ssh -n -i ~/.ssh/deploy_key "${DEPLOY_USER}@${DEPLOY_HOST}" "mv /var/www/downloads/.touliao-android-version.json.pending /var/www/downloads/touliao-android-version.json"
-          curl --fail --silent --show-error --max-time 180 https://touliao.cc/downloads/touliao-android-latest.apk -o "$RUNNER_TEMP/published.apk"
-          cmp "$APK" "$RUNNER_TEMP/published.apk"
-          curl --fail --silent --show-error --max-time 30 https://touliao.cc/downloads/touliao-android-version.json -o "$RUNNER_TEMP/published.json"
-          cmp /tmp/touliao-android-version.json "$RUNNER_TEMP/published.json"
-          echo "✅ 版本清单已发布到 https://touliao.cc/downloads/touliao-android-version.json"
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+        run: bash scripts/publish-android-release.sh android/app/build/outputs/apk/release/app-release.apk
+
+      - name: Upload release verification and publication receipt
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-release-verification
+          path: |
+            android-release-evidence/*.json
+            android/app/build/reports/tests/testDebugUnitTest/
+          if-no-files-found: error
 
       - name: Remove signing and deployment keys
         if: always()
-        run: rm -f "$RUNNER_TEMP/touliao-release.jks" ~/.ssh/deploy_key
+        run: rm -f "$RUNNER_TEMP/touliao-release.jks" "$RUNNER_TEMP/touliao-release-deploy-key"

@@ -54,6 +54,7 @@ struct FriendLabelsView: View {
 
     var body: some View {
         List {
+            Group {
             if vm.loading {
                 HStack { Spacer(); ProgressView(); Spacer() }
             } else if vm.labels.isEmpty {
@@ -64,8 +65,8 @@ struct FriendLabelsView: View {
                         HStack {
                             Circle().fill(Color(hexOrGreen: label.color)).frame(width: 12, height: 12)
                             VStack(alignment: .leading, spacing: 2) {
-                                Text(label.name.isEmpty ? "未命名标签" : label.name).foregroundColor(.primary)
-                                Text("\(label.members.count) 位好友").font(.caption).foregroundColor(.vxinTextSecondary)
+                                Text(label.name.isEmpty ? "未命名标签" : label.name).foregroundColor(.vxinText)
+                                Text("\(label.members.count) 位好友").touliaoText(.caption).foregroundColor(.vxinTextSecondary)
                             }
                             Spacer()
                         }
@@ -75,12 +76,14 @@ struct FriendLabelsView: View {
                     }
                 }
             }
+            }.listRowBackground(Color.vxinSurface).listRowSeparatorTint(Color.vxinBorder)
         }
         .navigationTitle("好友标签")
         .navigationBarTitleDisplayMode(.inline)
+        .touliaoPage()
         .toolbar {
             ToolbarItem(placement: .navigationBarTrailing) {
-                Button { showCreate = true } label: { Image(systemName: "plus") }
+                Button { showCreate = true } label: { TouliaoIcon("add", size: .md) }
             }
         }
         .task { await vm.load() }
@@ -112,20 +115,23 @@ private struct LabelMembersSheet: View {
     var body: some View {
         NavigationStack {
             List(contacts) { c in
+                Group {
                 Button {
                     let add = !memberIds.contains(c.id)
                     if add { memberIds.insert(c.id) } else { memberIds.remove(c.id) }
                     onToggle(c.id, add)
                 } label: {
                     HStack {
-                        Text(c.displayName.isEmpty ? "未命名" : c.displayName).foregroundColor(.primary)
+                        Text(c.displayName.isEmpty ? "未命名" : c.displayName).foregroundColor(.vxinText)
                         Spacer()
-                        if memberIds.contains(c.id) { Image(systemName: "checkmark").foregroundColor(.vxinGreen) }
+                        if memberIds.contains(c.id) { TouliaoIcon("check").foregroundColor(.vxinGreen) }
                     }
                 }
+                }.listRowBackground(Color.vxinSurface).listRowSeparatorTint(Color.vxinBorder)
             }
             .navigationTitle("编辑「\(label.name)」成员")
             .navigationBarTitleDisplayMode(.inline)
+        .touliaoPage()
             .toolbar { ToolbarItem(placement: .confirmationAction) { Button("完成") { dismiss() } } }
         }
     }

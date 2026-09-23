@@ -85,10 +85,10 @@ class SearchFiltersTest {
 
     @Test
     fun typeIconFallsBackForUnknownType() {
-        assertEquals("○", messageSearchTypeIcon(""))
-        assertEquals("文", messageSearchTypeIcon("text"))
-        assertEquals("包", messageSearchTypeIcon("red_packet"))
-        assertEquals("•", messageSearchTypeIcon("nope"))
+        assertEquals("allTypes", messageSearchTypeIcon(""))
+        assertEquals("text", messageSearchTypeIcon("text"))
+        assertEquals("redPacket", messageSearchTypeIcon("red_packet"))
+        assertEquals("allTypes", messageSearchTypeIcon("nope"))
     }
 
     // ── formatSearchMessageSummary ─────────────────────────────

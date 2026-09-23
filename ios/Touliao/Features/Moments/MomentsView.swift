@@ -184,6 +184,7 @@ struct MomentsView: View {
                 Text("还没有朋友圈动态").foregroundColor(.vxinTextSecondary)
             } else {
                 List {
+                    Group {
                     ForEach(vm.moments) { m in
                         MomentCard(
                             moment: m,
@@ -210,22 +211,26 @@ struct MomentsView: View {
                         )
                         .onAppear { if m.id == vm.moments.last?.id { vm.loadMore() } }
                     }
+                    }.listRowBackground(Color.vxinSurface).listRowSeparatorTint(Color.vxinBorder)
                 }
                 .listStyle(.plain)
+            .scrollContentBackground(.hidden)
+            .background(Color.vxinSurface)
                 .refreshable { await vm.refresh() }
             }
         }
         .navigationTitle("朋友圈")
         .navigationBarTitleDisplayMode(.inline)
+        .touliaoPage()
         .toolbar {
             ToolbarItemGroup(placement: .navigationBarTrailing) {
                 // 互动通知入口：铃铛 + 未读角标
                 Button { vm.openNotif(); showNotif = true } label: {
-                    Image(systemName: "bell")
+                    TouliaoIcon("notification", size: .md)
                         .overlay(alignment: .topTrailing) {
                             if vm.notifUnread > 0 {
                                 Text(vm.notifUnread > 99 ? "99+" : "\(vm.notifUnread)")
-                                    .font(.system(size: 9)).foregroundColor(.white)
+                                    .touliaoText(.caption).foregroundColor(.vxinOnPrimary)
                                     .padding(.horizontal, 4).padding(.vertical, 1)
                                     .background(Color.vxinError).clipShape(Capsule())
                                     .offset(x: 8, y: -6)
@@ -233,9 +238,9 @@ struct MomentsView: View {
                         }
                 }
                 .accessibilityLabel("互动消息")
-                Button { showSettings = true } label: { Image(systemName: "gearshape") }
+                Button { showSettings = true } label: { TouliaoIcon("settings", size: .md) }
                     .accessibilityLabel("朋友圈设置")
-                Button { showCompose = true } label: { Image(systemName: "camera") }
+                Button { showCompose = true } label: { TouliaoIcon("camera", size: .md) }
                     .accessibilityLabel("发朋友圈")
             }
         }
@@ -248,19 +253,22 @@ struct MomentsView: View {
         .sheet(isPresented: $showSettings) {
             NavigationStack {
                 List {
+                    Group {
                     Section("允许朋友查看朋友圈的范围") {
                         ForEach([(0, "全部"), (1, "最近一天"), (3, "最近三天"), (30, "最近一个月")], id: \.0) { day, label in
                             Button { vm.setVisibleDays(day) } label: {
                                 HStack {
-                                    Text(label).foregroundColor(.primary)
+                                    Text(label).foregroundColor(.vxinText)
                                     Spacer()
-                                    if vm.visibleDays == day { Image(systemName: "checkmark").foregroundColor(.vxinGreen) }
+                                    if vm.visibleDays == day { TouliaoIcon("check").foregroundColor(.vxinGreen) }
                                 }
                             }
                         }
                     }
+                    }.listRowBackground(Color.vxinSurface).listRowSeparatorTint(Color.vxinBorder)
                 }
                 .navigationTitle("朋友圈设置").navigationBarTitleDisplayMode(.inline)
+        .touliaoPage()
                 .toolbar { ToolbarItem(placement: .confirmationAction) { Button("完成") { showSettings = false } } }
             }
         }
@@ -320,7 +328,7 @@ private struct MomentCard: View {
             HStack {
                 InitialAvatar(name: moment.author.username.isEmpty ? "?" : moment.author.username, size: 40)
                 Text(moment.author.username.isEmpty ? "未命名" : moment.author.username)
-                    .foregroundColor(.vxinGreen).font(.subheadline)
+                    .foregroundColor(.vxinGreen).touliaoText(.secondary)
                 Spacer()
             }
             if !moment.content.isEmpty { Text(moment.content) }
@@ -328,28 +336,28 @@ private struct MomentCard: View {
             // 视频动态（F5）：与图片互斥，轻量缩略图卡片 + 点击全屏播放（不自动播）
             if !moment.video.isEmpty { MomentVideoCard(rawURL: moment.video, cover: moment.cover, onTap: onVideoTap) }
             HStack {
-                Text(formatChatTime(moment.createdAt)).font(.caption2).foregroundColor(.vxinTextSecondary)
+                Text(formatChatTime(moment.createdAt)).touliaoText(.caption).foregroundColor(.vxinTextSecondary)
                 Spacer()
                 Button { onLike() } label: {
                     // 心形图标 + 文案(对齐微信/安卓 ❤️/🤍)
-                    Label(moment.liked ? "已赞" : "赞", systemImage: moment.liked ? "heart.fill" : "heart")
+                    Label(moment.liked ? "已赞" : "赞", touliaoIcon: moment.liked ? "like" : "like")
                         .foregroundColor(moment.liked ? .vxinError : .vxinGreen)
                 }.buttonStyle(.borderless)
                 Button { onComment() } label: {
-                    Label("评论", systemImage: "bubble.right")
+                    Label("评论", touliaoIcon: "comment")
                 }.buttonStyle(.borderless).foregroundColor(.vxinGreen)
                 if isMine { Button("删除", role: .destructive) { onDelete() }.buttonStyle(.borderless) }
                 else { Button("举报") { onReport() }.buttonStyle(.borderless).foregroundColor(.vxinTextSecondary) }
             }
             if !moment.likes.isEmpty {
                 Text("❤ " + moment.likes.map { $0.username.isEmpty ? "用户" : $0.username }.joined(separator: "，"))
-                    .font(.footnote).foregroundColor(.vxinGreen)
+                    .touliaoText(.secondary).foregroundColor(.vxinGreen)
                     .padding(8).frame(maxWidth: .infinity, alignment: .leading)
-                    .background(Color.gray.opacity(0.08)).clipShape(RoundedRectangle(cornerRadius: VxinRadius.sm))
+                    .background(Color.vxinPrimarySoft).clipShape(RoundedRectangle(cornerRadius: VxinRadius.sm))
             }
             ForEach(moment.comments) { c in
                 commentText(c)
-                    .font(.footnote)
+                    .touliaoText(.secondary)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .contentShape(Rectangle())
                     // 点非自己的评论 → 回复该人(对齐 web/安卓)
@@ -357,19 +365,19 @@ private struct MomentCard: View {
                     .contextMenu {
                         // 长按自己的评论 → 删除(对齐 web/安卓)
                         if !myId.isEmpty && c.userId == myId {
-                            Button(role: .destructive) { onDeleteComment(c) } label: { Label("删除", systemImage: "trash") }
+                            Button(role: .destructive) { onDeleteComment(c) } label: { Label("删除", touliaoIcon: "delete") }
                         }
                     }
             }
             // 热门动态：timeline 只返回前 N 条，按需加载全部
             if moment.commentCount > moment.comments.count {
                 Button("查看全部 \(moment.commentCount) 条评论") { onViewAllComments() }
-                    .font(.footnote).foregroundColor(.vxinGreen)
+                    .touliaoText(.secondary).foregroundColor(.vxinGreen)
             }
             if commenting {
                 HStack {
                     TextField(replyTargetName.isEmpty ? "评论…" : "回复 \(replyTargetName)…", text: $commentText)
-                        .textFieldStyle(.roundedBorder)
+                        .textFieldStyle(TouliaoTextFieldStyle())
                         .focused($commentFocused)
                         .submitLabel(.send)
                         .onSubmit { if !commentText.isEmpty { onSubmitComment() } }
@@ -387,7 +395,7 @@ private struct MomentCard: View {
         let name = Text("\(c.username.isEmpty ? "用户" : c.username)").foregroundColor(.vxinGreen)
         if !c.replyToUsername.isEmpty {
             return name
-                + Text(" 回复 ").foregroundColor(.secondary)
+                + Text(" 回复 ").foregroundColor(.vxinTextSecondary)
                 + Text(c.replyToUsername).foregroundColor(.vxinGreen)
                 + Text("：\(c.content)")
         }
@@ -449,9 +457,8 @@ private struct MomentVideoCard: View {
                 } else {
                     Color.black.opacity(0.08)
                 }
-                Image(systemName: "play.circle.fill")
-                    .font(.system(size: 40))
-                    .foregroundColor(.white)
+                TouliaoIcon("play", size: .xl)
+                    .foregroundColor(IconColor.onDark)
                     .shadow(color: .black.opacity(0.4), radius: 4)
             }
             .frame(width: 200, height: 150)
@@ -491,7 +498,7 @@ private struct MomentGalleryView: View {
             .tabViewStyle(.page(indexDisplayMode: .never))
             .ignoresSafeArea()
             HStack {
-                Button { onClose() } label: { Image(systemName: "xmark").foregroundColor(.white).padding() }
+                Button { onClose() } label: { TouliaoIcon("close").foregroundColor(IconColor.onDark).padding() }
                     .accessibilityLabel("关闭")
                 Spacer()
                 Text("\(page + 1)/\(images.count)").foregroundColor(.white).padding()
@@ -517,13 +524,14 @@ private struct MomentNotifSheet: View {
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                 } else {
                     List(items) { n in
+                        Group {
                         HStack(spacing: 12) {
                             InitialAvatar(name: n.actor.username.isEmpty ? "?" : n.actor.username, size: 40)
                             VStack(alignment: .leading, spacing: 3) {
                                 (Text(n.actor.username.isEmpty ? "用户" : n.actor.username).fontWeight(.medium)
                                     + Text(n.type == "like" ? " 赞了你的动态" : " 评论：\(n.commentContent)"))
-                                    .font(.footnote).lineLimit(2)
-                                Text(formatChatTime(n.createdAt)).font(.caption2).foregroundColor(.vxinTextSecondary)
+                                    .touliaoText(.secondary).lineLimit(2)
+                                Text(formatChatTime(n.createdAt)).touliaoText(.caption).foregroundColor(.vxinTextSecondary)
                             }
                             Spacer()
                             if !n.moment.thumb.isEmpty {
@@ -532,16 +540,20 @@ private struct MomentNotifSheet: View {
                                     .frame(width: 40, height: 40).clipShape(RoundedRectangle(cornerRadius: VxinRadius.tag))
                             } else if !n.moment.content.isEmpty {
                                 Text(String(n.moment.content.prefix(12)))
-                                    .font(.caption2).foregroundColor(.vxinTextSecondary)
+                                    .touliaoText(.caption).foregroundColor(.vxinTextSecondary)
                                     .frame(maxWidth: 80, alignment: .trailing).lineLimit(2)
                             }
                         }
                         .padding(.vertical, 2)
+                        }.listRowBackground(Color.vxinSurface).listRowSeparatorTint(Color.vxinBorder)
                     }
                     .listStyle(.plain)
+            .scrollContentBackground(.hidden)
+            .background(Color.vxinSurface)
                 }
             }
             .navigationTitle("互动消息").navigationBarTitleDisplayMode(.inline)
+        .touliaoPage()
             .toolbar { ToolbarItem(placement: .confirmationAction) { Button("完成") { dismiss() } } }
         }
     }

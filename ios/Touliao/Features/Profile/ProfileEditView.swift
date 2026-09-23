@@ -18,21 +18,21 @@ struct ProfileEditView: View {
 
     private enum Tok {
         static let green = Color.vxinBrand
-        static let secondary = Color(UIColor.secondaryLabel)
+        static let secondary = Color.vxinTextSecondary
         static let avatarSize: CGFloat = 80
     }
 
     var body: some View {
         Form {
+            Group {
             Section {
                 HStack {
                     Spacer()
                     PhotosPicker(selection: $photoItem, matching: .images) {
                         avatarView
                             .overlay(alignment: .bottomTrailing) {
-                                Image(systemName: "camera.fill")
-                                    .font(.system(size: 12, weight: .semibold))
-                                    .foregroundColor(.white)
+                                TouliaoIcon("camera", size: .xs)
+                                    .foregroundColor(IconColor.onDark)
                                     .padding(5)
                                     .background(Tok.green)
                                     .clipShape(Circle())
@@ -103,9 +103,11 @@ struct ProfileEditView: View {
                 .disabled(saving || username.trimmingCharacters(in: .whitespaces).isEmpty)
                 .accessibilityIdentifier("edit-save-btn")
             }
+            }.listRowBackground(Color.vxinSurface).listRowSeparatorTint(Color.vxinBorder)
         }
         .navigationTitle("个人资料")
         .navigationBarTitleDisplayMode(.inline)
+        .touliaoPage()
         .toast($message)
         .onAppear {
             if username.isEmpty { username = session.currentUser?.username ?? "" }

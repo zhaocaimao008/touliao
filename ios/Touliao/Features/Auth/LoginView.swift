@@ -8,12 +8,13 @@ struct LoginView: View {
     @State private var showServerConfig = false
 
     var body: some View {
+        ScrollView {
         VStack(spacing: 16) {
             if let onCancel {
                 HStack {
                     Button(action: onCancel) {
                         HStack(spacing: 4) {
-                            Image(systemName: "chevron.left")
+                            TouliaoIcon("back")
                             Text("返回")
                         }
                     }
@@ -24,40 +25,41 @@ struct LoginView: View {
             }
             Spacer()
 
-            // 品牌 Logo 徽章：极光靛渐变圆角方 + 对话图标（对齐 Web/Android 登录页）
+            // 与已上线客户端一致的投聊蓝标识。
             ZStack {
                 RoundedRectangle(cornerRadius: VxinRadius.xl, style: .continuous)
-                    .fill(LinearGradient(colors: [.vxinBrandLight, .vxinBrandDark],
-                                         startPoint: .topLeading, endPoint: .bottomTrailing))
+                    .fill(Color.vxinBrand)
                     .frame(width: 72, height: 72)
-                    .shadow(color: .vxinBrand.opacity(0.4), radius: 12, y: 6)
-                Image(systemName: "bubble.left.and.bubble.right.fill")
-                    .font(.system(size: 30))
-                    .foregroundColor(.white)
+                TouliaoIcon("chat", size: .lg)
+                    .foregroundColor(.vxinOnPrimary)
             }
             Text("投聊")
-                .font(.system(size: VxinFontSize.displayLg, weight: .bold))
-                .foregroundColor(.primary)
+                .touliaoFont(VxinFontSize.displayLg, weight: .bold)
+                .foregroundColor(.vxinText)
             Text("安全 · 私密 · 畅聊")
-                .font(.subheadline)
+                .touliaoText(.secondary)
                 .foregroundColor(.vxinTextSecondary)
                 .padding(.bottom, 24)
 
+            TouliaoField(title: "手机号") {
             TextField("手机号", text: $vm.phone)
                 .keyboardType(.phonePad)
                 .textContentType(.telephoneNumber)
-                .textFieldStyle(.roundedBorder)
+                .textFieldStyle(TouliaoTextFieldStyle())
                 .accessibilityIdentifier("login-phone-input")
+            }
 
+            TouliaoField(title: "密码") {
             PasswordField(placeholder: "密码", text: $vm.password,
                           accessibilityId: "login-password-input")
+            }
 
             if vm.captchaRequired {
                 HStack(spacing: 12) {
                     TextField("请输入图中字符", text: $vm.captchaText)
                         .textInputAutocapitalization(.never)
                         .autocorrectionDisabled(true)
-                        .textFieldStyle(.roundedBorder)
+                        .textFieldStyle(TouliaoTextFieldStyle())
                         .accessibilityIdentifier("login-captcha-input")
                     Button {
                         Task { await vm.loadCaptcha() }
@@ -77,7 +79,7 @@ struct LoginView: View {
 
             if let error = vm.error {
                 Text(error)
-                    .font(.footnote)
+                    .touliaoText(.secondary)
                     .foregroundColor(.vxinError)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .accessibilityIdentifier("auth-error-text")
@@ -86,40 +88,27 @@ struct LoginView: View {
             LegalLinks()
             Toggle("我已阅读并同意隐私政策和用户协议", isOn: $vm.legalAccepted).font(.footnote)
 
-            Button(action: vm.login) {
-                ZStack {
-                    if vm.loading { ProgressView().tint(.white) }
-                    else { Text("登录").bold() }
-                }
-                .frame(maxWidth: .infinity, minHeight: 50)
-                .background(
-                    Group {
-                        if vm.canLogin {
-                            LinearGradient(colors: [.vxinBrandLight, .vxinBrandDark],
-                                           startPoint: .leading, endPoint: .trailing)
-                        } else {
-                            Color.vxinTextSecondary.opacity(0.4)
-                        }
-                    }
-                )
-                .foregroundColor(.white)
-                .clipShape(RoundedRectangle(cornerRadius: VxinRadius.pill, style: .continuous))
-                .shadow(color: vm.canLogin ? .vxinBrand.opacity(0.35) : .clear, radius: 8, y: 4)
-            }
-            .disabled(!vm.canLogin)
+            VxinGradientButton(title: "登录", loading: vm.loading, enabled: vm.canLogin, action: vm.login)
             .padding(.top, 8)
             .accessibilityIdentifier("login-submit-btn")
 
+            ViewThatFits(in: .horizontal) {
             HStack {
                 NavigationLink("注册账号") { RegisterView() }
-                    .foregroundColor(.vxinGreen)
+                    .foregroundColor(.vxinGreen).fixedSize(horizontal: true, vertical: false)
                 Spacer()
                 NavigationLink("忘记密码") { ForgotPasswordView() }
-                    .foregroundColor(.vxinTextSecondary)
+                    .foregroundColor(.vxinTextSecondary).fixedSize(horizontal: true, vertical: false)
+            }
+
+                VStack(spacing: 12) {
+                    NavigationLink("注册账号") { RegisterView() }.foregroundColor(.vxinGreen)
+                    NavigationLink("忘记密码") { ForgotPasswordView() }.foregroundColor(.vxinTextSecondary)
+                }
             }
 
             Button(showServerConfig ? "收起" : "切换服务器") { showServerConfig.toggle() }
-                .font(.caption)
+                .touliaoText(.caption)
                 .foregroundColor(.vxinTextSecondary)
 
             if showServerConfig {
@@ -127,7 +116,7 @@ struct LoginView: View {
                     TextField("企业代码", text: $vm.tenantCode)
                         .textInputAutocapitalization(.never)
                         .autocorrectionDisabled(true)
-                        .textFieldStyle(.roundedBorder)
+                        .textFieldStyle(TouliaoTextFieldStyle())
                     Button(vm.resolvingTenantCode ? "查找中…" : "连接") {
                         Task {
                             if await vm.resolveTenantCode() { showServerConfig = false }
@@ -138,18 +127,18 @@ struct LoginView: View {
                 }
                 if let status = vm.tenantCodeStatus {
                     Text(status)
-                        .font(.caption)
+                        .touliaoText(.caption)
                         .foregroundColor(.vxinTextSecondary)
                 }
                 Text("不知道代码？向你的公司/团队管理员索取，或在下方直接填服务器地址。")
-                    .font(.caption2)
+                    .touliaoText(.caption)
                     .foregroundColor(.vxinTextSecondary)
 
                 TextField("服务器地址", text: $vm.serverURL)
                     .keyboardType(.URL)
                     .textInputAutocapitalization(.never)
                     .autocorrectionDisabled(true)
-                    .textFieldStyle(.roundedBorder)
+                    .textFieldStyle(TouliaoTextFieldStyle())
                 Button("保存") { vm.saveServerURL(); showServerConfig = false }
                     .foregroundColor(.vxinGreen)
             }
@@ -157,6 +146,10 @@ struct LoginView: View {
             Spacer()
         }
         .padding(.horizontal, 32)
+        .padding(.vertical, 24)
+        }
+        .scrollDismissesKeyboard(.interactively)
+        .touliaoPage()
         .task { await vm.loadConfig() }
         .onChange(of: vm.authedUser) { user in
             if let user { session.onAuthenticated(user) }

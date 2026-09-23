@@ -18,9 +18,28 @@ on:
       - 'android/**'
       - '.github/workflows/android-build.yml'
   workflow_dispatch:
+    inputs:
+      legacy_update_audit:
+        description: 'Only audit installed historical Windows/Android releases; never build or publish apps'
+        type: boolean
+        default: false
+      windows_upgrade_run:
+        description: 'Optional existing Windows installer artifact run for manual upgrade audit; never publishes'
+        type: string
+        default: ''
+      legacy_audit_platform:
+        description: 'Installed-client audit scope'
+        type: choice
+        options: [both, android, windows, transition]
+        default: both
+      native_ui_review:
+        description: 'Run isolated native simulator screenshots (no release / deploy)'
+        type: boolean
+        default: false
 
 jobs:
   build:
+    if: ${{ !inputs.legacy_update_audit }}
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
@@ -69,3 +88,192 @@ jobs:
           name: touliao-debug-apk
           path: android/app/build/outputs/apk/debug/*.apk
           if-no-files-found: warn
+
+  native-ui-review:
+    if: github.event_name == 'workflow_dispatch' && inputs.native_ui_review && !inputs.legacy_update_audit
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: gradle
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: 'platform-tools platforms;android-34 build-tools;34.0.0'
+          log-accepted-android-sdk-licenses: false
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: Build native test APKs
+        working-directory: android
+        run: ./gradlew assembleDebug assembleDebugAndroidTest --no-daemon
+      - name: Native Compose screenshots and keyboard / back regression
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 34
+          arch: x86_64
+          target: default
+          profile: pixel_2
+          disable-animations: true
+          emulator-options: -no-window -no-snapshot -noaudio -no-boot-anim -gpu swiftshader_indirect
+          script: bash scripts/native-review/run-android.sh
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: android-native-ui-review
+          path: |
+            android/native-review/
+            android/app/build/reports/androidTests/connected/
+            android/app/build/outputs/androidTest-results/connected/
+          if-no-files-found: warn
+
+  legacy-android-update:
+    if: github.event_name == 'workflow_dispatch' && inputs.legacy_update_audit && (inputs.legacy_audit_platform == 'both' || inputs.legacy_audit_platform == 'android')
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      actions: read
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {old_run: 33326461700, api: 34}
+          - {old_run: 34308823256, api: 34}
+          - {old_run: 34979197799, api: 34}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: 'platform-tools build-tools;34.0.0'
+          log-accepted-android-sdk-licenses: false
+      - name: Download actual historical signed APK
+        env:
+          GH_TOKEN: ${{ github.token }}
+          OLD_RUN: ${{ matrix.old_run }}
+        run: |
+          gh run download "$OLD_RUN" --repo "$GITHUB_REPOSITORY" --name touliao-release-apk --dir historical-apk
+          mkdir -p legacy-evidence/android
+          "$ANDROID_HOME/build-tools/34.0.0/apksigner" verify --verbose --print-certs historical-apk/app-release.apk > legacy-evidence/android/old-signature.txt
+          "$ANDROID_HOME/build-tools/34.0.0/aapt" dump badging historical-apk/app-release.apk > legacy-evidence/android/old-package.txt
+          sha256sum historical-apk/app-release.apk > legacy-evidence/android/old-sha256.txt
+      - name: Enable emulator acceleration
+        run: sudo chmod a+rw /dev/kvm
+      - name: Old client discovers downloads validates and installs through its own UI
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: ${{ matrix.api }}
+          arch: x86_64
+          target: default
+          profile: pixel_2
+          disable-animations: true
+          script: python3 scripts/legacy-update/android-installed-flow.py --old-apk historical-apk/app-release.apk --output legacy-evidence/android
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: legacy-android-${{ matrix.old_run }}-api${{ matrix.api }}
+          path: legacy-evidence/android/
+          if-no-files-found: error
+
+  legacy-windows-installed:
+    if: github.event_name == 'workflow_dispatch' && inputs.legacy_update_audit && (inputs.legacy_audit_platform == 'both' || inputs.legacy_audit_platform == 'windows')
+    runs-on: windows-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install actual published Windows 8.1.26 in disposable runner
+        shell: pwsh
+        run: |
+          $setup = "$env:RUNNER_TEMP/legacy-8.1.26.exe"
+          Invoke-WebRequest https://touliao.cc/downloads/updates/touliao-8.1.26-setup.exe -OutFile $setup
+          if ((Get-FileHash $setup -Algorithm SHA256).Hash.ToLower() -ne '3933d478dc6dd8c4ffb9863abc84c4a4635c8913bfe3a70fd537b1626b4c5c46') { throw 'Historical Windows installer changed' }
+          New-Item -ItemType Directory -Force legacy-evidence/windows | Out-Null
+          $directory = Join-Path $env:RUNNER_TEMP 'TouliaoLegacy'
+          $installation = Start-Process $setup -ArgumentList @('/S', '/currentuser', "/D=$directory") -Wait -PassThru
+          @{exitCode=$installation.ExitCode;requestedDirectory=$directory} | ConvertTo-Json | Set-Content legacy-evidence/windows/install-result.json
+          if ($installation.ExitCode -ne 0) { throw "Historical installer failed: $($installation.ExitCode)" }
+          Get-Process touliao -ErrorAction SilentlyContinue | Stop-Process -Force
+          $exe = Join-Path $directory 'touliao.exe'
+          if (!(Test-Path $exe)) {
+            Get-ChildItem (Join-Path $env:LOCALAPPDATA 'Programs') -Filter touliao.exe -Recurse -ErrorAction SilentlyContinue | Select-Object FullName | ConvertTo-Json | Set-Content legacy-evidence/windows/installed-paths.json
+            throw 'Historical installation missing from requested directory'
+          }
+          "LEGACY_EXE=$exe" >> $env:GITHUB_ENV
+          "PLAYWRIGHT_MODULE=$env:RUNNER_TEMP/legacy-driver/node_modules/playwright" >> $env:GITHUB_ENV
+          npm install --prefix "$env:RUNNER_TEMP/legacy-driver" --no-audit --no-fund playwright@1.60.0
+      - name: Download requested Windows upgrade artifact for isolated VM only
+        if: inputs.windows_upgrade_run != ''
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          UPGRADE_RUN: ${{ inputs.windows_upgrade_run }}
+        run: |
+          if ($env:UPGRADE_RUN -notmatch '^\d+$') { throw 'Invalid build run ID' }
+          gh run download $env:UPGRADE_RUN --repo $env:GITHUB_REPOSITORY --name touliao-windows-setup --dir upgrade-artifact
+          if ($LASTEXITCODE -ne 0) { throw 'Failed to download candidate installer artifact' }
+          $candidate = Get-ChildItem upgrade-artifact -Recurse -Filter 'touliao-8.1.27-setup.exe'
+          if (@($candidate).Count -ne 1) { throw 'Expected exactly one 8.1.27 installer' }
+          "LEGACY_UPGRADE_INSTALLER=$($candidate.FullName)" >> $env:GITHUB_ENV
+          @{path=$candidate.Name;sha256=(Get-FileHash $candidate.FullName -Algorithm SHA256).Hash.ToLower();publisherSignature=(Get-AuthenticodeSignature $candidate.FullName).Status.ToString();published=$false} | ConvertTo-Json | Set-Content legacy-evidence/windows/candidate-installer.json
+      - name: Run actual installed Electron and historical update IPC
+        run: node scripts/legacy-update/windows-installed-audit.cjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: legacy-windows-8.1.26
+          path: legacy-evidence/windows/
+          if-no-files-found: error
+
+  legacy-android-transition:
+    if: github.event_name == 'workflow_dispatch' && inputs.legacy_update_audit && inputs.legacy_audit_platform == 'transition'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: 'platform-tools build-tools;34.0.0'
+          log-accepted-android-sdk-licenses: false
+      - name: Download immutable old and unpublished transition APKs
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh run download 34979197799 --repo "$GITHUB_REPOSITORY" --name touliao-release-apk --dir historical-apk
+          gh run download 35373394824 --repo "$GITHUB_REPOSITORY" --name touliao-release-apk --dir transition-apk
+          mkdir -p legacy-evidence/transition
+          "$ANDROID_HOME/build-tools/34.0.0/apksigner" verify --verbose --print-certs transition-apk/app-release.apk > legacy-evidence/transition/candidate-signature.txt
+      - name: Enable emulator acceleration
+        run: sudo chmod a+rw /dev/kvm
+      - name: External package replacement preserves real old session and offline cache
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 29
+          arch: x86_64
+          target: default
+          profile: pixel_2
+          disable-animations: true
+          script: python3 scripts/legacy-update/android-installed-flow.py --old-apk historical-apk/app-release.apk --external-transition-apk transition-apk/app-release.apk --output legacy-evidence/transition
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: android-unpublished-transition-api29
+          path: legacy-evidence/transition/
+          if-no-files-found: error

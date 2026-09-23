@@ -1,3 +1,5 @@
+import TouliaoIcon from '../ui-kit/Icon';
+import useFocusTrap, { isTopFocusLayer } from '../hooks/useFocusTrap';
 import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { downloadFile } from '../utils/download';
 import { shareMessage, canShare } from '../utils/share';
@@ -16,6 +18,7 @@ function filenameFromUrl(u) {
 export default function ImagePreview({ url, urls = null, initialIdx = 0, onClose }) {
   useMediaCredentials();
   const { t } = useI18n();
+  const modalRef = useFocusTrap(true, { onEscape: onClose, lockScroll: true, initialFocus: '[data-testid="lightbox-close"]' });
   // Gallery mode: urls array + current index; single mode: just url
   const gallery = urls && urls.length > 1;
   const [idx, setIdx] = useState(initialIdx);
@@ -43,21 +46,19 @@ export default function ImagePreview({ url, urls = null, initialIdx = 0, onClose
   const next = useCallback(() => { setIdx(i => i < urls.length - 1 ? i + 1 : 0); resetTransform(); }, [urls]);
 
   const handleKeyDown = useCallback((e) => {
-    if (e.key === 'Escape') onClose();
+    if (!isTopFocusLayer(modalRef.current)) return;
     if (gallery && e.key === 'ArrowLeft') prev();
     if (gallery && e.key === 'ArrowRight') next();
     // 键盘缩放：+/= 放大、-/_ 缩小、0 复位(对齐通用图片查看器)
     if (e.key === '+' || e.key === '=') { setScale(s => Math.min(5, s + 0.25)); }
     if (e.key === '-' || e.key === '_') { setScale(s => { const ns = Math.max(0.5, s - 0.25); if (ns <= 1) setPosition({ x: 0, y: 0 }); return ns; }); }
     if (e.key === '0') { setScale(1); setPosition({ x: 0, y: 0 }); }
-  }, [onClose, gallery, prev, next]);
+  }, [modalRef, gallery, prev, next]);
 
   useEffect(() => {
     window.addEventListener('keydown', handleKeyDown);
-    document.body.style.overflow = 'hidden';
     return () => {
       window.removeEventListener('keydown', handleKeyDown);
-      document.body.style.overflow = '';
     };
   }, [handleKeyDown]);
 
@@ -134,7 +135,7 @@ export default function ImagePreview({ url, urls = null, initialIdx = 0, onClose
   return (
     <div
       data-testid="lightbox"
-      role="dialog" aria-modal="true" aria-label={t('imagePreview.title')}
+      ref={modalRef} tabIndex={-1} role="dialog" aria-modal="true" aria-label={t('imagePreview.title')}
       style={{
         position: 'fixed', inset: 0, zIndex: "var(--z-top)",
         background: 'rgba(0,0,0,.92)',
@@ -195,8 +196,8 @@ export default function ImagePreview({ url, urls = null, initialIdx = 0, onClose
       {/* Gallery navigation arrows */}
       {gallery && (
         <>
-          <button data-testid="lightbox-prev" onClick={(e) => { e.stopPropagation(); prev(); }} style={arrowStyle('left')} aria-label={t('imagePreview.prev')}>‹</button>
-          <button data-testid="lightbox-next" onClick={(e) => { e.stopPropagation(); next(); }} style={arrowStyle('right')} aria-label={t('imagePreview.next')}>›</button>
+          <button data-testid="lightbox-prev" onClick={(e) => { e.stopPropagation(); prev(); }} style={arrowStyle('left')} aria-label={t('imagePreview.prev')}><TouliaoIcon name="previous" size="md" /></button>
+          <button data-testid="lightbox-next" onClick={(e) => { e.stopPropagation(); next(); }} style={arrowStyle('right')} aria-label={t('imagePreview.next')}><TouliaoIcon name="disclosure" size="md" /></button>
           <div style={{ position: 'absolute', top: 18, left: '50%', transform: 'translateX(-50%)',
             color: 'rgba(255,255,255,.7)', fontSize: 'var(--text-sm2)', zIndex: 10, pointerEvents: 'none' }}>
             {idx + 1} / {urls.length}
@@ -226,9 +227,7 @@ export default function ImagePreview({ url, urls = null, initialIdx = 0, onClose
             backdropFilter: 'blur(10px)',
           }}
         >
-          <svg viewBox="0 0 24 24" style={{ width: 16, height: 16, fill: 'var(--text-inverse)' }}>
-            <path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/>
-          </svg>
+          <TouliaoIcon name="download" tone="onDark" size="xs" />
           下载
         </button>
         {canShare() && (
@@ -245,9 +244,7 @@ export default function ImagePreview({ url, urls = null, initialIdx = 0, onClose
               backdropFilter: 'blur(10px)',
             }}
           >
-            <svg viewBox="0 0 24 24" style={{ width: 16, height: 16, fill: 'var(--text-inverse)' }}>
-              <path d="M18 16.08c-.76 0-1.44.3-1.96.77L8.91 12.7c.05-.23.09-.46.09-.7s-.04-.47-.09-.7l7.05-4.11c.54.5 1.25.81 2.04.81 1.66 0 3-1.34 3-3s-1.34-3-3-3-3 1.34-3 3c0 .24.04.47.09.7L8.04 9.81C7.5 9.31 6.79 9 6 9c-1.66 0-3 1.34-3 3s1.34 3 3 3c.79 0 1.5-.31 2.04-.81l7.12 4.16c-.05.21-.08.43-.08.65 0 1.61 1.31 2.92 2.92 2.92s2.92-1.31 2.92-2.92-1.31-2.92-2.92-2.92z"/>
-            </svg>
+            <TouliaoIcon name="share" tone="onDark" size="xs" />
             分享
           </button>
         )}
@@ -267,9 +264,7 @@ export default function ImagePreview({ url, urls = null, initialIdx = 0, onClose
           backdropFilter: 'blur(10px)',
         }}
         aria-label={t('common.close')}
-      >
-        ✕
-      </button>
+      ><TouliaoIcon name="close" size="sm" /></button>
 
       {/* Zoom indicator */}
       <div

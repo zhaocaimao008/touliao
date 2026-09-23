@@ -15,8 +15,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -43,7 +41,6 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import android.widget.Toast
 import com.google.android.gms.common.ConnectionResult
 import com.google.android.gms.common.GoogleApiAvailability
 import com.google.mlkit.vision.codescanner.GmsBarcodeScannerOptions
@@ -115,7 +112,7 @@ fun AddFriendScreen(
                 title = { Text("添加好友") },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回")
+                        Icon(com.touliao.app.ui.TouliaoIcons.Back, contentDescription = "返回")
                     }
                 },
             )
@@ -128,12 +125,12 @@ fun AddFriendScreen(
                         val sc = scanner
                         if (sc == null) {
                             // 无 GMS（华为等）：扫码不可用，引导改用搜索用户名/手机号加好友
-                            Toast.makeText(context, "当前设备不支持扫码，请在下方搜索用户名或手机号添加", Toast.LENGTH_LONG).show()
+                            com.touliao.app.ui.components.TouliaoFeedback.show(context, "当前设备不支持扫码，请在下方搜索用户名或手机号添加", com.touliao.app.ui.components.FeedbackKind.WARNING)
                         } else {
                             sc.startScan()
                                 .addOnSuccessListener { barcode -> barcode.rawValue?.let { viewModel.addByQrPayload(it) } }
                                 .addOnFailureListener { e ->
-                                    Toast.makeText(context, "扫码失败：${e.message ?: "请重试或改用搜索"}", Toast.LENGTH_SHORT).show()
+                                    com.touliao.app.ui.components.TouliaoFeedback.show(context, "扫码失败：${e.message ?: "请重试或改用搜索"}", com.touliao.app.ui.components.FeedbackKind.ERROR)
                                 }
                         }
                     },
@@ -170,7 +167,7 @@ fun AddFriendScreen(
                 when {
                     state.searching -> CircularProgressIndicator(Modifier.align(Alignment.Center))
                     state.searched && state.results.isEmpty() ->
-                        com.touliao.app.ui.components.EmptyState(icon = "🔍", title = "未找到用户", subtitle = "换个手机号 / 投聊号试试", modifier = Modifier.align(Alignment.Center))
+                        com.touliao.app.ui.components.EmptyState(icon = com.touliao.app.ui.TouliaoIcons.Search, title = "未找到用户", subtitle = "换个手机号 / 投聊号试试", modifier = Modifier.align(Alignment.Center))
                     else -> LazyColumn(Modifier.fillMaxSize()) {
                         items(state.results, key = { it.id }) { user ->
                             SearchRow(user, sent = user.id in state.sentIds) { viewModel.sendRequest(user) }

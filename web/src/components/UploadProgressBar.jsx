@@ -1,3 +1,5 @@
+import TouliaoIcon from '../ui-kit/Icon';
+
 import React, { memo } from 'react';
 import { useI18n } from '../contexts/I18nContext';
 
@@ -19,7 +21,7 @@ function UploadProgressBar({ uploadState, onCancel }) {
     >
       {uploadState.status === 'uploading' ? (
         <>
-          <span className="wc-upload-icon wc-upload-icon-ok">📤</span>
+          <span className="wc-upload-icon wc-upload-icon-ok"><TouliaoIcon name="arrowDownToLine" style={{transform:'rotate(180deg)'}} /></span>
           <div className="wc-upload-body">
             <div className="wc-upload-name">
               {uploadState.name} · {uploadState.progress}%
@@ -31,7 +33,7 @@ function UploadProgressBar({ uploadState, onCancel }) {
         </>
       ) : (
         <>
-          <span className="wc-upload-icon wc-upload-icon-fail">❌</span>
+          <span className="wc-upload-icon wc-upload-icon-fail"><TouliaoIcon name="error"  /></span>
           <div className="wc-upload-error-text">
             {uploadState.errorMsg || t('chat.uploadFailed')}
           </div>
@@ -44,7 +46,7 @@ function UploadProgressBar({ uploadState, onCancel }) {
             className="wc-cancel-upload-btn"
             onClick={onCancel}
             aria-label={t('uploadProgress.cancelUpload')}
-          >✕</button>
+          ><TouliaoIcon name="close" size="sm" /></button>
         </>
       )}
     </div>

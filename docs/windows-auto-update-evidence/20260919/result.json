@@ -1,0 +1,35 @@
+{
+  "environment": "GitHub Windows native VM",
+  "physicalDevice": false,
+  "productionAccountTested": false,
+  "oldVersion": "8.1.26",
+  "targetVersion": "8.1.27",
+  "updateTraffic": "unchanged production HTTPS endpoints",
+  "accountApiAndSocketTransport": "isolated fixture; realtime business not tested",
+  "hotUpdate": false,
+  "passed": true,
+  "stage": "complete",
+  "updatedAt": "2026-09-19T06:15:33.907Z",
+  "before": {
+    "version": "8.1.26",
+    "userData": "C:\\Users\\runneradmin\\AppData\\Roaming\\touliao-desktop",
+    "appPath": "D:\\a\\_temp\\TouliaoLegacy\\resources\\app.asar"
+  },
+  "failedCheckObserved": [
+    "net::ERR_NETWORK_ACCESS_DENIED",
+    "检查失败：net::ERR_NETWORK_ACCESS_DENIED"
+  ],
+  "recoveryTrigger": "historical checkUpdate IPC after removing the OS network block",
+  "downloadedInstallerSha256": "c2ae64ec1316d5f033b9f2afa25b3eb5bfbf56f978d8abe99b20b21c2cbcf7e0",
+  "signedManifestAndDownloadedBytesVerified": true,
+  "activation": "actual historical Install button and updater-launched NSIS wizard",
+  "after": {
+    "version": "8.1.27",
+    "userData": "C:\\Users\\runneradmin\\AppData\\Roaming\\touliao-desktop",
+    "appPath": "D:\\a\\_temp\\TouliaoLegacy\\resources\\app.asar"
+  },
+  "accountSessionAndOfflineHistoryPreserved": true,
+  "loginCount": 1,
+  "installedThroughHistoricalUpdater": true,
+  "failedNetworkCheckRecovered": true
+}

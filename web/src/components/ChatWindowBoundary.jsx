@@ -1,3 +1,4 @@
+import TouliaoIcon from '../ui-kit/Icon';
 import React from 'react';
 import { getI18n } from '../contexts/I18nContext';
 
@@ -52,7 +53,7 @@ export default class ChatWindowBoundary extends React.Component {
     return (
       <div style={styles.wrap}>
         <div style={styles.inner}>
-          <div style={styles.icon}>⚠️</div>
+          <div style={styles.icon}><TouliaoIcon name="warning" size="lg" tone="danger" /></div>
           <p style={styles.msg}>{t('chatWindowBoundary.loadError')}</p>
           {this.state.error?.message && (
             <pre style={styles.detail}>{String(this.state.error.message)}</pre>

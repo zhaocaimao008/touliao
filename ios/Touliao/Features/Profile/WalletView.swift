@@ -26,10 +26,11 @@ struct WalletView: View {
 
     var body: some View {
         List {
+            Group {
             Section {
                 VStack(spacing: 8) {
-                    Text("当前余额（金币）").font(.caption).foregroundColor(.vxinTextSecondary)
-                    Text("\(vm.balance)").font(.system(size: VxinFontSize.displayXl, weight: .bold)).foregroundColor(Color(red: 0.98, green: 0.62, blue: 0.23))
+                    Text("当前余额（金币）").touliaoText(.caption).foregroundColor(.vxinTextSecondary)
+                    Text("\(vm.balance)").touliaoFont(VxinFontSize.displayXl, weight: .bold).foregroundColor(Color(red: 0.98, green: 0.62, blue: 0.23))
                 }
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 12)
@@ -43,9 +44,11 @@ struct WalletView: View {
                     ForEach(vm.transactions) { tx in TransactionRow(tx: tx) }
                 }
             }
+            }.listRowBackground(Color.vxinSurface).listRowSeparatorTint(Color.vxinBorder)
         }
         .navigationTitle("我的钱包")
         .navigationBarTitleDisplayMode(.inline)
+        .touliaoPage()
         .task { await vm.load() }
     }
 }
@@ -56,14 +59,14 @@ private struct TransactionRow: View {
         HStack {
             VStack(alignment: .leading, spacing: 2) {
                 Text(tx.memo.isEmpty ? typeLabel(tx.type) : tx.memo)
-                Text(formatTime(tx.createdAt)).font(.caption).foregroundColor(.vxinTextSecondary)
+                Text(formatTime(tx.createdAt)).touliaoText(.caption).foregroundColor(.vxinTextSecondary)
             }
             Spacer()
             VStack(alignment: .trailing, spacing: 2) {
                 Text((tx.amount >= 0 ? "+" : "") + "\(tx.amount)")
                     .foregroundColor(tx.amount >= 0 ? .vxinGreen : Color(red: 0.98, green: 0.32, blue: 0.32))
                     .fontWeight(.semibold)
-                Text("余额 \(tx.balanceAfter)").font(.caption).foregroundColor(.vxinTextSecondary)
+                Text("余额 \(tx.balanceAfter)").touliaoText(.caption).foregroundColor(.vxinTextSecondary)
             }
         }
     }

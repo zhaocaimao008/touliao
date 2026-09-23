@@ -1,0 +1,63 @@
+/* Contacts retain their real sections and actions; wide pages use the workspace. */
+@media (min-width: 768px) {
+  html.touliao-ui body .tl-full-panel .wc-panel { width: 100%; min-width: 0; flex: 1; border-right: 0; }
+  html.touliao-ui body .tl-full-panel .home-chat-area { display: none; }
+  html.touliao-ui body .tl-full-panel .wc-panel-content { background: var(--tl-background); }
+  html.touliao-ui body .tl-full-panel .wc-panel-topbar { border-bottom: 1px solid var(--tl-border); }
+  html.touliao-ui body .tl-full-panel .wc-search { max-width: 420px; }
+  html.touliao-ui body .tl-full-panel .cl-panel { max-width: 1000px; width: 100%; margin: 0 auto; }
+  html.touliao-ui body .tl-full-panel .cl-panel > .wc-list { padding: 24px 36px; }
+  html.touliao-ui body .tl-full-panel .tl-contact-shortcuts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin-bottom: 24px; }
+  html.touliao-ui body .tl-full-panel .tl-contact-shortcut { border: 1px solid var(--tl-border); border-radius: 12px; padding: 16px; min-height: 80px; }
+}
+html.touliao-ui body :is(.wc-contact-item, .req-item, .gs-row, .cg-row) { min-height: 68px; padding: 12px 16px; gap: 12px; background: var(--tl-surface); border-bottom: 1px solid var(--tl-border); transform: none; }
+html.touliao-ui body :is(.wc-contact-item, .gs-row, .cg-row):hover { background: var(--tl-surface-hover); transform: none; }
+html.touliao-ui body :is(.wc-contact-item-name, .req-name, .gs-name, .cg-name) { font-size: 14px; font-weight: 500; line-height: 1.6; }
+html.touliao-ui body :is(.wc-contact-item-sub, .req-msg, .gs-sub) { font-size: 12px; line-height: 1.6; color: var(--tl-readable-muted); }
+html.touliao-ui body :is(.wc-contacts-alpha, .gs-cat) { background: var(--tl-background); color: var(--tl-readable-muted); padding: 12px 16px 8px; font-size: 12px; font-weight: 600; }
+html.touliao-ui body .cl-entry-icon-box { color: var(--tl-primary); background: var(--tl-primary-soft) !important; border-radius: 12px; }
+html.touliao-ui body .cl-entry-arrow { color: var(--tl-readable-muted); }
+html.touliao-ui body .wc-alpha-index { padding: 8px 2px; background: transparent; }
+html.touliao-ui body .wc-alpha-char { color: var(--tl-primary); min-height: 24px; min-width: 24px; display: grid; place-items: center; }
+html.touliao-ui body :is(.cl-section-header, .cgm-header, .afm-header, .gi-header) { min-height: 64px; padding: 12px 16px; background: var(--tl-surface); border-bottom: 1px solid var(--tl-border); }
+html.touliao-ui body :is(.cl-section-title, .cgm-title, .afm-header-title, .gi-title) { font-size: 18px; font-weight: 600; color: var(--tl-text); }
+html.touliao-ui body :is(.cl-section-back, .cgm-close, .afm-close-btn, .gi-close-btn) { min-width: 36px; min-height: 36px; color: var(--tl-readable-muted); border-radius: 8px; }
+html.touliao-ui body .cl-subtabs { background: var(--tl-surface); gap: 8px; padding: 12px 16px; }
+html.touliao-ui body .cl-subtab { min-height: 36px; border-radius: 8px; }
+html.touliao-ui body .cl-subtab.active { background: var(--tl-primary-soft); color: var(--tl-primary); border-color: transparent; }
+html.touliao-ui body :is(.req-accept, .req-reject, .lt-action-btn, .lt-delete-btn, .lt-create-btn) { min-height: 36px; border-radius: 8px; transform: none; }
+html.touliao-ui body .req-accept:hover { background: var(--tl-primary-hover); transform: none; }
+html.touliao-ui body .req-item { align-items: center; flex-wrap: wrap; }
+html.touliao-ui body .req-info { min-width: 120px; }
+html.touliao-ui body :is(.up-card, .afm-card, .cgm-content) { background: var(--tl-surface); color: var(--tl-text); border: 1px solid var(--tl-border); border-radius: 20px; box-shadow: var(--tl-shadow-dialog); max-width: calc(100vw - 32px); max-height: calc(100dvh - 64px); overflow-y: auto; }
+html.touliao-ui body .up-cover-default { background: var(--tl-primary-soft); }
+html.touliao-ui body .up-name { font-size: 22px; font-weight: 600; }
+html.touliao-ui body .up-avatar-wrap .wc-avatar-face { box-shadow: none !important; border: 4px solid var(--tl-surface); }
+html.touliao-ui body :is(.up-btn-primary, .up-action-chat, .afm-search-btn, .cgm-create-btn, .gi-btn-save) { background: var(--tl-primary); color: var(--tl-primary-foreground); border-radius: 8px; min-height: 36px; box-shadow: none; }
+html.touliao-ui body :is(.up-action-grey, .up-btn-ghost) { background: var(--tl-surface-secondary); color: var(--tl-text); border: 1px solid var(--tl-border); border-radius: 8px; }
+html.touliao-ui body :is(.up-action-danger, .up-action-warn, .lt-delete-btn) { color: var(--tl-readable-danger); }
+html.touliao-ui body :is(.up-row, .gi-row) { min-height: 52px; padding: 12px 16px; border-color: var(--tl-border); }
+html.touliao-ui body .gi-panel { width: var(--tl-layout-details-drawer); min-width: var(--tl-layout-details-drawer); background: var(--tl-background); border-left: 1px solid var(--tl-border); }
+html.touliao-ui body .gi-body { padding: 16px 12px; }
+html.touliao-ui body :is(.gi-section, .gi-nk, .gi-avinfo) { background: var(--tl-surface); border: 1px solid var(--tl-border); border-radius: 12px; margin-bottom: 12px; overflow: hidden; }
+html.touliao-ui body .gi-avinfo { padding: 16px; }
+html.touliao-ui body .gi-name { font-size: 18px; line-height: 1.4; overflow-wrap: anywhere; }
+html.touliao-ui body :is(.gi-mg-bg, .gi-nk-bd) { background: var(--tl-surface-secondary); }
+html.touliao-ui body :is(.gi-mg-desc, .gi-meta, .gi-t13m) { font-size: 12px; line-height: 1.6; color: var(--tl-readable-muted); }
+html.touliao-ui body :is(.gi-label, .gi-mg-label, .gi-sec-tit, .gi-text14) { color: var(--tl-text); font-size: 14px; }
+html.touliao-ui body :is(.gi-ann-textarea, .gi-name-edit, .gi-nick-input, .lt-edit-input, .afm-input, .cgm-name-input, .cgm-search-input, .up-remark-input) { background: var(--tl-surface-secondary); color: var(--tl-text); border: 1px solid var(--tl-border-strong); border-radius: 12px; min-height: 40px; }
+html.touliao-ui body .gs-highlight { color: var(--tl-primary); background: var(--tl-primary-soft); border-radius: 3px; }
+html.touliao-ui body .gs-filters { background: var(--tl-surface); padding: 12px 16px; gap: 12px; border-bottom: 1px solid var(--tl-border); }
+html.touliao-ui body .gs-filters :is(select, button) { min-height: 36px; border: 1px solid var(--tl-border-strong); border-radius: 8px; color: var(--tl-text); background: var(--tl-surface-secondary); }
+html.touliao-ui body .gs-time-filter button.active { color: var(--tl-primary); background: var(--tl-primary-soft); border-color: var(--tl-primary); }
+@media (max-width: 1099px) {
+  /* Details overlay the conversation when three columns cannot fit. */
+  html.touliao-ui body .gi-panel { position: absolute; right: 0; top: 0; bottom: 0; z-index: 40; box-shadow: var(--tl-shadow-popover); max-width: 100%; }
+}
+@media (max-width: 767px) {
+  html.touliao-ui body :is(.wc-contact-item, .gs-row) { min-height: 76px; }
+  html.touliao-ui body :is(.wc-contact-item-name, .req-name, .gs-name) { font-size: 16px; }
+  html.touliao-ui body :is(.cl-section-back, .cgm-close, .afm-close-btn, .gi-close-btn, .req-accept, .req-reject, .lt-action-btn, .lt-delete-btn) { min-height: 44px; }
+  html.touliao-ui body .gi-panel { width: 100%; min-width: 0; }
+  html.touliao-ui body .req-btns { margin-left: auto; }
+}

@@ -1,3 +1,4 @@
+import TouliaoIcon from '../ui-kit/Icon';
 import { clientStorage as localStorage } from '../utils/clientStorage';
 import React, { useState, useEffect, useCallback, memo, useMemo } from 'react';
 import axios from 'axios';
@@ -11,8 +12,11 @@ import { useI18n } from '../contexts/I18nContext';
 import { FixedSizeList } from 'react-window';
 import AutoSizer from 'react-virtualized-auto-sizer';
 import { archiveUnreadTotal, splitArchivedConversations } from '../utils/archiveConversations';
+import { isWindowsDesktop } from '../utils/desktopPlatform';
+import designTokens from '../ui-kit/tokens.json';
 
-const ITEM_HEIGHT = 64;
+const rowHeight = () => window.innerWidth < designTokens.layout.breakpoints.compactDesktopMin
+  ? designTokens.components.listRow.mobileMinimum : designTokens.components.listRow.desktopMinimum;
 
 // 会话排序：置顶优先，其次按最新消息时间倒序（多处 setState 复用，避免逻辑漂移）
 const byPinnedThenTime = (a, b) =>
@@ -60,9 +64,7 @@ const ConvRow = memo(function ConvRow({ index, style, data }) {
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
             {!!conv.muted && (
-              <svg viewBox="0 0 24 24" style={{ width: 11, height: 11, fill: 'var(--text-tertiary)', flexShrink: 0 }}>
-                <path d="M16.5 12c0-1.77-1.02-3.29-2.5-4.03v2.21l2.45 2.45c.03-.2.05-.41.05-.63zm2.5 0c0 .94-.2 1.82-.54 2.64l1.51 1.51C20.63 14.91 21 13.5 21 12c0-4.28-2.99-7.86-7-8.77v2.06c2.89.86 5 3.54 5 6.71zM4.27 3L3 4.27 7.73 9H3v6h4l5 5v-6.73l4.25 4.25c-.67.52-1.42.93-2.25 1.18v2.06c1.38-.31 2.63-.95 3.69-1.81L19.73 21 21 19.73l-9-9L4.27 3zM12 4L9.91 6.09 12 8.18V4z"/>
-              </svg>
+              <TouliaoIcon name="mute" style={{flexShrink:0,color:'var(--text-tertiary)'}} size="xs" />
             )}
             <span className="wc-chat-item-preview">
               {draft
@@ -77,7 +79,7 @@ const ConvRow = memo(function ConvRow({ index, style, data }) {
 }, (prev, next) => {
   const pi = prev.data.items[prev.index];
   const ni = next.data.items[next.index];
-  return pi === ni && prev.data.activeConvId === next.data.activeConvId && prev.style.top === next.style.top && pi?.manually_unread === ni?.manually_unread
+  return pi === ni && prev.data.activeConvId === next.data.activeConvId && prev.style.top === next.style.top && prev.style.height === next.style.height && pi?.manually_unread === ni?.manually_unread
     && (prev.data.drafts?.[pi?.id] || '') === (next.data.drafts?.[ni?.id] || '');
 });
 
@@ -142,6 +144,13 @@ function ChatListSkeleton() {
 }
 
 export default function ChatList({ onSelectConv, activeConvId, unread = {}, searchQuery = '', convRefreshKey = 0, onOpenMentions }) {
+  const [itemHeight, setItemHeight] = useState(rowHeight);
+  const [filter, setFilter] = useState('all');
+  useEffect(() => {
+    const resize = () => setItemHeight(rowHeight());
+    window.addEventListener('resize', resize);
+    return () => window.removeEventListener('resize', resize);
+  }, []);
   const { t } = useI18n();
   const [conversations, setConversations] = useState([]);
   const [loaded, setLoaded] = useState(false);   // 首屏是否已拉过一次：未拉完显示骨架，避免闪「暂无聊天」
@@ -380,8 +389,9 @@ export default function ChatList({ onSelectConv, activeConvId, unread = {}, sear
       .map(c => {
         const u = Object.prototype.hasOwnProperty.call(unread, c.id) ? unread[c.id] : (c.unreadCount || 0);
         return c._unread === u ? c : { ...c, _unread: u };
-      });
-  }, [conversations, searchQuery, unread, showArchived]);
+      })
+      .filter(c => filter === 'all' || (filter === 'groups' ? c.type === 'group' : c._unread > 0 || c.manually_unread));
+  }, [conversations, searchQuery, unread, showArchived, filter]);
 
   const archivedConversations = useMemo(() => splitArchivedConversations(conversations).archived, [conversations]);
   const archivedUnread = useMemo(() => archiveUnreadTotal(archivedConversations, unread), [archivedConversations, unread]);
@@ -398,8 +408,16 @@ export default function ChatList({ onSelectConv, activeConvId, unread = {}, sear
   }), [filtered, activeConvId, handleSelectConv, user, drafts]);
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', background: 'var(--bg-panel)' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', background: 'var(--bg-panel)', '--tl-conversation-row-height': `${itemHeight}px`, '--windows-row-height': `${itemHeight}px` }}>
       {!searchQuery && !showArchived && (
+        <div className="tl-conversation-filters" role="tablist" aria-label={t('ui.conversationFilter')}>
+          {['all', 'unread', 'groups'].map(key => (
+            <button type="button" key={key} role="tab" aria-selected={filter === key}
+              data-testid={`conversation-filter-${key}`} onClick={() => setFilter(key)}>{t(`ui.filter.${key}`)}</button>
+          ))}
+        </div>
+      )}
+      {!searchQuery && !showArchived && (!isWindowsDesktop() || archivedConversations.length > 0) && (
         <button type="button" className="wc-archive-entry" onClick={() => setShowArchived(true)}>
           <span className="wc-archive-icon" aria-hidden="true">▣</span>
           <span>{t('chatlist.archive')}</span>
@@ -409,7 +427,7 @@ export default function ChatList({ onSelectConv, activeConvId, unread = {}, sear
       )}
       {showArchived && (
         <div className="wc-archive-header">
-          <button type="button" onClick={() => setShowArchived(false)} aria-label={t('common.back')}>‹</button>
+          <button type="button" onClick={() => setShowArchived(false)} aria-label={t('common.back')}><TouliaoIcon name="back" size="md" /></button>
           <strong>{t('chatlist.archivedChats')}</strong>
           <button type="button" onClick={clearArchive} disabled={archivedConversations.length === 0}>{t('chatlist.clearArchive')}</button>
         </div>
@@ -429,9 +447,7 @@ export default function ChatList({ onSelectConv, activeConvId, unread = {}, sear
           onMouseEnter={e => { e.currentTarget.style.background = 'var(--bg-hover)'; }}
           onMouseLeave={e => { e.currentTarget.style.background = ''; }}
         >
-          <svg viewBox="0 0 24 24" style={{ width: 18, height: 18, fill: 'currentColor', flexShrink: 0 }}>
-            <path d="M20 2H4c-1.1 0-1.99.9-1.99 2L2 22l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-2 12H6v-2h12v2zm0-3H6V9h12v2zm0-3H6V6h12v2z"/>
-          </svg>
+          <TouliaoIcon name="mention" style={{flexShrink:0}} size="sm" />
           {t('home.mentionsAriaLabel')}
         </button>
       )}
@@ -448,7 +464,7 @@ export default function ChatList({ onSelectConv, activeConvId, unread = {}, sear
                   height={height}
                   width={width}
                   itemCount={filtered.length}
-                  itemSize={ITEM_HEIGHT}
+                  itemSize={itemHeight}
                   itemData={listData}
                   overscanCount={5}
                 >

@@ -15,23 +15,30 @@ struct GroupCallHostView: View {
                     inviteBanner(inv)
                     Spacer()
                 }
-                .padding(.top, 60)
+                .padding(.horizontal, 12).padding(.top, 8)
             }
         }
     }
 
     private func inviteBanner(_ inv: GroupCallInvite) -> some View {
-        HStack(spacing: 12) {
-            Text("\(inv.fromName.isEmpty ? "群成员" : inv.fromName) 发起了群\(inv.type == "video" ? "视频" : "语音")通话")
-                .font(.subheadline).foregroundColor(.white)
-            Button("加入") { manager.join(callId: inv.callId, conversationId: inv.conversationId, video: inv.type == "video") }
-                .padding(.horizontal, 14).padding(.vertical, 6)
-                .background(Color.vxinSuccess).foregroundColor(.white).clipShape(Capsule())
-            Button("忽略") { manager.pendingInvite = nil }
-                .foregroundColor(Color(white: 0.7))
+        VStack(alignment: .leading, spacing: 12) {
+            Label("\(inv.fromName.isEmpty ? "群成员" : inv.fromName) 发起了群\(inv.type == "video" ? "视频" : "语音")通话",
+                  touliaoIcon: inv.type == "video" ? "video" : "phone")
+                .touliaoText(.secondary).foregroundColor(.white)
+                .fixedSize(horizontal: false, vertical: true)
+            HStack(spacing: 16) {
+                Button("加入") { manager.join(callId: inv.callId, conversationId: inv.conversationId, video: inv.type == "video") }
+                    .padding(.horizontal, 20).frame(minHeight: 44)
+                    .background(Color.vxinCallAccept).foregroundColor(.white)
+                    .clipShape(RoundedRectangle(cornerRadius: VxinRadius.sm))
+                Button("忽略") { manager.pendingInvite = nil }
+                    .frame(minWidth: 44, minHeight: 44).foregroundColor(.white.opacity(0.85))
+            }
         }
-        .padding(12)
-        .background(Color(white: 0.18)).clipShape(RoundedRectangle(cornerRadius: VxinRadius.avatar))
+        .padding(16)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(TouliaoMedia.surface).clipShape(RoundedRectangle(cornerRadius: VxinRadius.card))
+
     }
 }
 
@@ -47,17 +54,17 @@ private struct GroupCallView: View {
 
     var body: some View {
         ZStack {
-            Color(white: 0.07).ignoresSafeArea()
+            TouliaoMedia.canvas.ignoresSafeArea()
 
             VStack {
                 VStack(spacing: 2) {
                     Text("群\(state.isVideo ? "视频" : "语音")通话 · \(state.participants.count + 1) 人")
-                        .font(.subheadline).foregroundColor(.white)
+                        .touliaoText(.secondary).foregroundColor(.white)
                     // 接通后每秒递增的通话时长(mm:ss)，对齐微信/安卓
                     if state.stage == .connected, let start = state.connectedAt {
                         TimelineView(.periodic(from: start, by: 1)) { context in
                             Text(formatCallDuration(from: start, now: context.date))
-                                .font(.caption2).foregroundColor(Color(white: 0.7)).monospacedDigit()
+                                .touliaoText(.caption).foregroundColor(TouliaoMedia.secondary).monospacedDigit()
                         }
                     }
                 }.padding(.top, 12)
@@ -74,8 +81,11 @@ private struct GroupCallView: View {
                     .padding(8)
                 }
 
-                controls.padding(.bottom, 40)
             }
+        }
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            controls.padding(.horizontal, 16).padding(.vertical, 16)
+                .background(Color.black.opacity(0.50))
         }
         .task { await ensurePermissions() }
         .onChange(of: state.stage) { stage in
@@ -93,18 +103,18 @@ private struct GroupCallView: View {
             } else {
                 InitialAvatar(name: label, size: 64)
             }
-            Text(label).font(.caption2).foregroundColor(.white).padding(6)
+            Text(label).touliaoText(.caption).foregroundColor(.white).padding(6)
         }
         .aspectRatio(0.85, contentMode: .fit)
         .clipShape(RoundedRectangle(cornerRadius: VxinRadius.badge))
     }
 
     @ViewBuilder private var controls: some View {
-        HStack(spacing: 28) {
-            circleButton(state.micEnabled ? "静音" : "取消静音", Color(white: 0.35)) { manager.toggleMic() }
-            circleButton("挂断", .red) { manager.hangup() }
+        LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 16), count: 3), spacing: 20) {
+            circleButton(state.micEnabled ? "静音" : "取消静音", TouliaoMedia.control) { manager.toggleMic() }
+            circleButton("挂断", .vxinCallDanger) { manager.hangup() }
             // B-1：语音模式也提供"开启视频"升级入口；视频模式保持原摄像头开关（镜像 Web GroupCallModal）
-            circleButton(state.isVideo ? (state.cameraEnabled ? "关摄像头" : "开摄像头") : "开启视频", Color(white: 0.35)) {
+            circleButton(state.isVideo ? (state.cameraEnabled ? "关摄像头" : "开摄像头") : "开启视频", TouliaoMedia.control) {
                 if state.isVideo {
                     manager.toggleCamera()
                 } else {
@@ -119,20 +129,13 @@ private struct GroupCallView: View {
                 }
             }
             if state.isVideo {
-                circleButton("翻转", Color(white: 0.35)) { manager.switchCamera() }
+                circleButton("翻转", TouliaoMedia.control) { manager.switchCamera() }
             }
         }
     }
 
     private func circleButton(_ label: String, _ color: Color, _ action: @escaping () -> Void) -> some View {
-        VStack(spacing: 4) {
-            Button(action: action) {
-                Text(String(label.prefix(2)))
-                    .font(.caption).foregroundColor(.white)
-                    .frame(width: 60, height: 60).background(color).clipShape(Circle())
-            }
-            Text(label).font(.caption2).foregroundColor(Color(white: 0.8))
-        }
+        CallActionButton(label: label, color: color, action: action)
     }
 
     private func ensurePermissions() async {

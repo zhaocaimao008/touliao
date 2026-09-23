@@ -1,4 +1,6 @@
 import ReportButton from './ReportDialog';
+import { GhostButton, PrimaryButton, SecondaryButton, DangerButton } from '../ui-kit/Button';
+import TouliaoIcon from '../ui-kit/Icon';
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import Avatar from './Avatar';
@@ -98,7 +100,7 @@ export default function UserProfile({ userId, onClose, onStartChat, onFriendAdde
   };
 
   const deleteFriend = async () => {
-    if (!(await showConfirm(t('up.confirmDeleteFriendTemplate').replace('{name}', user.remark || user.username)))) return;
+    if (!(await showConfirm(t('up.confirmDeleteFriendTemplate').replace('{name}', user.remark || user.username), { variant: 'DANGER' }))) return;
     try {
       await axios.delete(`/api/users/contacts/${userId}`);
       onFriendAdded?.();
@@ -158,7 +160,7 @@ export default function UserProfile({ userId, onClose, onStartChat, onFriendAdde
             : <div className="up-cover-default" />
           }
           <button className="up-close-btn" onClick={onClose} aria-label={t('common.close')}>
-            <IcoClose width="18" height="18" fill="currentColor" />
+            <IcoClose size="sm" />
           </button>
           <div className="up-avatar-wrap">
             <Avatar src={user.avatar} name={displayName} size='xl' style={{ borderRadius: 'var(--radius-bubble-tip)', boxShadow: '0 2px 12px rgba(0,0,0,.3)' }} />
@@ -186,7 +188,7 @@ export default function UserProfile({ userId, onClose, onStartChat, onFriendAdde
             const label = formatLastOnline(user.last_online_at, user.status === 'online');
             return label ? (
               <div className="up-last-online" title={t('up.lastOnlineTitle')}>
-                🟢 {label}
+                <TouliaoIcon name={user.status === 'online' ? "selected" : "clock3"} size="xs" tone="secondary" /> {label}
               </div>
             ) : null;
           })()}
@@ -198,7 +200,7 @@ export default function UserProfile({ userId, onClose, onStartChat, onFriendAdde
             <button type="button" className="up-row" onClick={() => { setRemark(user.remark || ''); setShowRemarkEdit(true); }}>
               <span className="up-row-label">{t('up.remarkNameLabel')}</span>
               <span className="up-row-value">{user.remark || <span style={{ color: 'var(--text-tertiary)' }}>{t('up.notSet')}</span>}</span>
-              <IcoBack width="14" height="14" fill="var(--text-tertiary)" />
+              <IcoBack style={{color:"var(--text-tertiary)"}} size="xs" />
             </button>
             {user.phone && (
               <div className="up-row">
@@ -222,10 +224,10 @@ export default function UserProfile({ userId, onClose, onStartChat, onFriendAdde
               maxLength={20}
             />
             <div className="up-remark-actions">
-              <button className="up-btn-ghost" onClick={() => setShowRemarkEdit(false)}>{t('common.cancel')}</button>
-              <button className="up-btn-primary" onClick={saveRemark} disabled={remarkSaving}>
+              <GhostButton className="up-btn-ghost" onClick={() => setShowRemarkEdit(false)}>{t('common.cancel')}</GhostButton>
+              <PrimaryButton className="up-btn-primary" onClick={saveRemark} disabled={remarkSaving}>
                 {remarkSaving ? t('up.saving') : t('common.confirm')}
-              </button>
+              </PrimaryButton>
             </div>
           </div>
         )}
@@ -234,10 +236,10 @@ export default function UserProfile({ userId, onClose, onStartChat, onFriendAdde
         {!user.isFriend && userId !== currentUser?.id && (
           <div className="up-add-area">
             {addStep === 'idle' && (
-              <button className="up-btn-primary up-btn-full" onClick={() => setAddStep('composing')}>
-                <IcoPersonAdd width="16" height="16" fill="currentColor" style={{ marginRight: 6 }} />
+              <PrimaryButton className="up-btn-primary up-btn-full" onClick={() => setAddStep('composing')}>
+                <IcoPersonAdd style={{marginRight:6}} size="xs" />
                 {t('up.applyAddFriend')}
-              </button>
+              </PrimaryButton>
             )}
             {addStep === 'composing' && (
               <div className="up-verify-box">
@@ -253,16 +255,16 @@ export default function UserProfile({ userId, onClose, onStartChat, onFriendAdde
                 />
                 {errMsg && <div className="up-err">{errMsg}</div>}
                 <div className="up-verify-actions">
-                  <button className="up-btn-ghost" onClick={() => { setAddStep('idle'); setErrMsg(''); }}>{t('common.cancel')}</button>
-                  <button className="up-btn-primary" onClick={sendRequest} disabled={sending}>
+                  <GhostButton className="up-btn-ghost" onClick={() => { setAddStep('idle'); setErrMsg(''); }}>{t('common.cancel')}</GhostButton>
+                  <PrimaryButton className="up-btn-primary" onClick={sendRequest} disabled={sending}>
                     {sending ? t('fwd.sending') : t('up.sendApplication')}
-                  </button>
+                  </PrimaryButton>
                 </div>
               </div>
             )}
             {addStep === 'sent' && (
               <div className="up-sent-tip">
-                <IcoCheck width="16" height="16" fill="var(--green)" style={{ flexShrink: 0 }} />
+                <IcoCheck style={{flexShrink:0}} tone="selected" size="xs" />
                 {t('up.applicationSentTip')}
               </div>
             )}
@@ -272,32 +274,24 @@ export default function UserProfile({ userId, onClose, onStartChat, onFriendAdde
         {/* 好友操作按钮 */}
         {user.isFriend && (
           <div className="up-actions">
-            <button className="up-action-btn up-action-chat" onClick={startChat}>
-              <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
-                <path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H5.17L4 17.17V4h16v12z"/>
-              </svg>
+            <PrimaryButton className="up-action-btn up-action-chat" onClick={startChat}>
+              <TouliaoIcon name="chat" size="sm" />
               <span>{t('up.sendMessage')}</span>
-            </button>
+            </PrimaryButton>
             {onNudge && userId !== currentUser?.id && (
-              <button className="up-action-btn up-action-grey" onClick={() => { onNudge(userId); showToast(t('up.nudgeSentToast')); onClose?.(); }}>
-                <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
-                  <path d="M9 11.24V7.5a2.5 2.5 0 0 1 5 0v3.74c1.21-.81 2-2.18 2-3.74a4 4 0 1 0-8 0c0 1.56.79 2.93 2 3.74zM18.84 15.87l-4.54-2.26c-.17-.07-.35-.11-.54-.11H13v-6a1.5 1.5 0 0 0-3 0v10.74l-3.43-.72a1 1 0 0 0-.99 1.65l3.6 3.44c.28.28.66.44 1.06.44h6.4a2 2 0 0 0 1.98-1.72l.63-4.46c.13-.9-.34-1.79-1.14-2.15z"/>
-                </svg>
+              <SecondaryButton className="up-action-btn up-action-grey" onClick={() => { onNudge(userId); showToast(t('up.nudgeSentToast')); onClose?.(); }}>
+                <TouliaoIcon name="nudge" size="sm" />
                 <span>{t('up.nudge')}</span>
-              </button>
+              </SecondaryButton>
             )}
             <button className={`up-action-btn ${blocked ? 'up-action-warn' : 'up-action-grey'}`} onClick={toggleBlock}>
-              <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
-                <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zM4 12c0-4.42 3.58-8 8-8 1.85 0 3.55.63 4.9 1.69L5.69 16.9A7.902 7.902 0 014 12zm8 8c-1.85 0-3.55-.63-4.9-1.69l11.21-11.21C19.37 8.45 20 10.15 20 12c0 4.42-3.58 8-8 8z"/>
-              </svg>
+              <TouliaoIcon name="blocked" size="sm" />
               <span>{blocked ? t('up.blacklistedVerb') : t('up.blacklistVerb')}</span>
             </button>
-            <button className="up-action-btn up-action-danger" onClick={deleteFriend}>
-              <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
-                <path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/>
-              </svg>
+            <DangerButton className="up-action-btn up-action-danger" onClick={deleteFriend}>
+              <TouliaoIcon name="delete" size="sm" />
               <span>{t('chat.delete')}</span>
-            </button>
+            </DangerButton>
           </div>
         )}
       </div>

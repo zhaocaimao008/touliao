@@ -7,11 +7,13 @@ struct MarqueeText: View {
     var font: Font = .footnote
     var color: Color = .primary
 
+    @ScaledMetric(relativeTo: .footnote) private var lineHeight: CGFloat = 20
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var textWidth: CGFloat = 0
     @State private var containerWidth: CGFloat = 0
     @State private var animate = false
 
-    private var needsScroll: Bool { textWidth > containerWidth && containerWidth > 0 }
+    private var needsScroll: Bool { textWidth > containerWidth && containerWidth > 0 && !reduceMotion }
     private var travel: CGFloat { max(0, textWidth - containerWidth) + 24 }
 
     var body: some View {
@@ -41,7 +43,7 @@ struct MarqueeText: View {
                 .onChange(of: geo.size.width) { containerWidth = $0 }
         }
         .onPreferenceChange(MarqueeWidthKey.self) { textWidth = $0 }
-        .frame(height: 18)
+        .frame(height: lineHeight)
         .clipped()
     }
 }

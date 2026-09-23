@@ -111,7 +111,7 @@ fun ContactsScreen(
                             Spacer(Modifier.width(8.dp))
                         }
                     }
-                    Text("›", color = VxinTextSecondary)
+                    com.touliao.app.ui.TouliaoGlyph(com.touliao.app.ui.TouliaoIcons.Disclosure, color = VxinTextSecondary, size = com.touliao.app.ui.IconSize.Xs)
                 }
                 HorizontalDivider()
                 // 好友标签入口
@@ -120,7 +120,7 @@ fun ContactsScreen(
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Text("好友标签", Modifier.weight(1f), style = MaterialTheme.typography.bodyLarge)
-                    Text("›", color = VxinTextSecondary)
+                    com.touliao.app.ui.TouliaoGlyph(com.touliao.app.ui.TouliaoIcons.Disclosure, color = VxinTextSecondary, size = com.touliao.app.ui.IconSize.Xs)
                 }
                 HorizontalDivider()
                 // 黑名单入口
@@ -129,7 +129,7 @@ fun ContactsScreen(
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Text("黑名单", Modifier.weight(1f), style = MaterialTheme.typography.bodyLarge)
-                    Text("›", color = VxinTextSecondary)
+                    com.touliao.app.ui.TouliaoGlyph(com.touliao.app.ui.TouliaoIcons.Disclosure, color = VxinTextSecondary, size = com.touliao.app.ui.IconSize.Xs)
                 }
                 HorizontalDivider()
                 // AI 助手入口（固定分组；bot 列表来自后端 /api/config）
@@ -142,7 +142,7 @@ fun ContactsScreen(
                         Modifier.weight(1f),
                         style = MaterialTheme.typography.bodyLarge,
                     )
-                    Text(if (state.showAiBots) "˄" else "›", color = VxinTextSecondary)
+                    com.touliao.app.ui.TouliaoGlyph(if (state.showAiBots) com.touliao.app.ui.TouliaoIcons.Collapse else com.touliao.app.ui.TouliaoIcons.Disclosure, color = VxinTextSecondary, size = com.touliao.app.ui.IconSize.Xs)
                 }
                 HorizontalDivider()
                 if (state.showAiBots) {
@@ -171,7 +171,7 @@ fun ContactsScreen(
                                         )
                                     }
                                 }
-                                Text("›", color = VxinTextSecondary)
+                                com.touliao.app.ui.TouliaoGlyph(com.touliao.app.ui.TouliaoIcons.Disclosure, color = VxinTextSecondary, size = com.touliao.app.ui.IconSize.Xs)
                             }
                         }
                     }
@@ -218,7 +218,7 @@ fun ContactsScreen(
             onDismissRequest = { deleteTarget = null },
             title = { Text("删除好友") },
             text = { Text("确认删除好友「${target.displayName}」？将同时删除聊天记录。") },
-            confirmButton = { TextButton(onClick = { viewModel.deleteContact(target); deleteTarget = null }) { Text("删除", color = Color(0xFFFA5151)) } },
+            confirmButton = { TextButton(onClick = { viewModel.deleteContact(target); deleteTarget = null }) { Text("删除", color = com.touliao.app.ui.theme.VxinError) } },
             dismissButton = { TextButton(onClick = { deleteTarget = null }) { Text("取消") } },
         )
     }
@@ -227,7 +227,7 @@ fun ContactsScreen(
             onDismissRequest = { blockTarget = null },
             title = { Text("加入黑名单") },
             text = { Text("加入黑名单后，将阻止与「${target.displayName}」的私聊及好友申请，双方动态不可见；共同群聊和已有历史仍可能可见。") },
-            confirmButton = { TextButton(onClick = { viewModel.block(target); blockTarget = null }) { Text("加入", color = Color(0xFFFA5151)) } },
+            confirmButton = { TextButton(onClick = { viewModel.block(target); blockTarget = null }) { Text("加入", color = com.touliao.app.ui.theme.VxinError) } },
             dismissButton = { TextButton(onClick = { blockTarget = null }) { Text("取消") } },
         )
     }
@@ -368,12 +368,12 @@ private fun ContactRow(
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Box {
-            InitialAvatar(name = contact.displayName.ifBlank { "?" }, size = 48.dp, avatarUrl = avatarUrl)
+            InitialAvatar(name = contact.displayName.ifBlank { "?" }, size = 44.dp, avatarUrl = avatarUrl)
             if (online) {
                 Box(
                     Modifier.align(Alignment.BottomEnd).size(12.dp)
                         // 描边圈随主题：浅色=白、深色=卡面色，深色下不再突兀
-                        .clip(CircleShape).background(if (isSystemInDarkTheme()) VxinSurfaceDark else Color.White).padding(2.dp)
+                        .clip(CircleShape).background(MaterialTheme.colorScheme.surface).padding(2.dp)
                         .clip(CircleShape).background(VxinGreen),
                 )
             }
@@ -400,7 +400,7 @@ private fun ContactRow(
             DropdownMenuItem(text = { Text("设置备注") }, onClick = { onRemark(); menuOpen = false })
             DropdownMenuItem(text = { Text("举报用户") }, onClick = { showReport = true; menuOpen = false })
             DropdownMenuItem(text = { Text("加入黑名单") }, onClick = { onBlock(); menuOpen = false })
-            DropdownMenuItem(text = { Text("删除好友", color = Color(0xFFFA5151)) }, onClick = { onDelete(); menuOpen = false })
+            DropdownMenuItem(text = { Text("删除好友", color = com.touliao.app.ui.theme.VxinError) }, onClick = { onDelete(); menuOpen = false })
         }
     }
 }

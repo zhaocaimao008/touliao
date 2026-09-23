@@ -3,10 +3,10 @@ import UIKit
 
 private enum AccountMgmtTok {
     static let green     = Color.vxinBrand
-    static let greenBg   = Color.vxinBrand.opacity(0.12)
-    static let secondary = Color(UIColor.secondaryLabel)
-    static let primary   = Color(UIColor.label)
-    static let red       = Color(UIColor.systemRed)
+    static let greenBg   = Color.vxinPrimarySoft
+    static let secondary = Color.vxinTextSecondary
+    static let primary   = Color.vxinText
+    static let red       = Color.vxinError
 }
 
 /// 切换账号 / 账号管理页（从「其他」→「切换账号」进入）
@@ -17,6 +17,7 @@ struct AccountManagementView: View {
 
     var body: some View {
         List {
+            Group {
             Section("账号列表") {
                 ForEach(session.accountList) { acc in
                     AccountRow(
@@ -37,13 +38,15 @@ struct AccountManagementView: View {
                 Button {
                     showAddAccount = true
                 } label: {
-                    Label("添加账号", systemImage: "plus.circle")
+                    Label("添加账号", touliaoIcon: "add")
                         .foregroundColor(AccountMgmtTok.green)
                 }
             }
+            }.listRowBackground(Color.vxinSurface).listRowSeparatorTint(Color.vxinBorder)
         }
         .navigationTitle("切换账号")
         .navigationBarTitleDisplayMode(.inline)
+        .touliaoPage()
         .sheet(isPresented: $showAddAccount) {
             // 添加账号成功后 SessionStore.onAuthenticated 已完成账号切换 + socket 重连，
             // 这里只需收起弹层回到主界面。
@@ -66,7 +69,7 @@ private struct AccountRow: View {
                 InitialAvatar(name: account.username.isEmpty ? "?" : account.username, size: 40)
                     .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
                 Text(account.username.isEmpty ? "未命名" : account.username)
-                    .font(.system(size: 16))
+                    .touliaoText(.body)
                     .foregroundColor(AccountMgmtTok.primary)
                     .lineLimit(1)
                 Spacer()
@@ -87,7 +90,7 @@ private struct AccountRow: View {
 
     private var activeBadge: some View {
         Text("当前")
-            .font(.system(size: 13, weight: .medium))
+            .touliaoFont(13, weight: .medium)
             .foregroundColor(AccountMgmtTok.green)
             .padding(.horizontal, 8)
             .padding(.vertical, 3)

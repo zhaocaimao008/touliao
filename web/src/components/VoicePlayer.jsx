@@ -1,3 +1,4 @@
+import TouliaoIcon from '../ui-kit/Icon';
 import React, { useState, useRef, useEffect, useCallback, memo } from 'react';
 import { isVoicePlayed, markVoicePlayed } from '../utils/playedVoice';
 import { useI18n } from '../contexts/I18nContext';
@@ -85,14 +86,9 @@ const VoicePlayer = memo(function VoicePlayer({ url, msgId = null, isMine = fals
     <div className="wc-msg-voice-player wc-voice-player">
       <button onClick={togglePlay} className="wc-voice-play-btn" aria-label={playing ? t('voice.pause') : t('voice.play')}>
         {playing ? (
-          <svg viewBox="0 0 24 24" className="wc-voice-play-icon">
-            <rect x="6" y="4" width="4" height="16" rx="1"/>
-            <rect x="14" y="4" width="4" height="16" rx="1"/>
-          </svg>
+          <TouliaoIcon name="pause" className="wc-voice-play-icon" size="sm" />
         ) : (
-          <svg viewBox="0 0 24 24" className="wc-voice-play-icon-offset">
-            <path d="M8 5v14l11-7z"/>
-          </svg>
+          <TouliaoIcon name="play" className="wc-voice-play-icon-offset" size="sm" />
         )}
       </button>
       <div
