@@ -25,6 +25,7 @@ final class SessionStore: ObservableObject {
     @Published private(set) var recoveryMessage: String?
     private let repo = AuthRepository.shared
     private var observer: NSObjectProtocol?
+    private var originObserver: NSObjectProtocol?
     private var socketAuthCancellable: AnyCancellable?
 
     private func clearIdentityResources() {
@@ -50,6 +51,25 @@ final class SessionStore: ObservableObject {
                 KeychainStore.shared.withCurrent(marker) {
                     self?.clearIdentityResources()
                     SocketService.shared.disconnect()
+                    self?.state = .unauthenticated
+                }
+            }
+        }
+        // 切换服务器（手动 / 企业代码 / 远程配置）→ token 已在 ServerConfig 内清除；
+        // 这里断开旧服务器的 socket、清掉旧服务器的缓存并回登录页。marker 不再是当前身份
+        // （例如切换后已在新服务器登录成功）时跳过，避免把新登录踢掉。
+        originObserver = NotificationCenter.default.addObserver(
+            forName: ServerConfig.originDidChangeNotification, object: ServerConfig.shared, queue: .main
+        ) { [weak self] notification in
+            guard let marker = notification.userInfo?["marker"] as? KeychainStore.Snapshot else { return }
+            Task { @MainActor in
+                KeychainStore.shared.withCurrent(marker) {
+                    self?.restoreGeneration += 1
+                    self?.recoveryMessage = nil
+                    self?.clearIdentityResources()
+                    SocketService.shared.disconnect()
+                    MsgCacheStore.shared.clear()
+                    self?.refreshAccounts()
                     self?.state = .unauthenticated
                 }
             }
@@ -81,6 +101,7 @@ final class SessionStore: ObservableObject {
 
     deinit {
         if let observer { NotificationCenter.default.removeObserver(observer) }
+        if let originObserver { NotificationCenter.default.removeObserver(originObserver) }
     }
 
     func restoreSession() async {

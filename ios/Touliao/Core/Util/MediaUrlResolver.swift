@@ -17,7 +17,7 @@ enum MediaUrlResolver {
     }
     static func request(_ url: URL, owner: KeychainStore.Snapshot) -> URLRequest {
         var request = URLRequest(url: url)
-        if protectedMedia(url), let token = owner.token { request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization") }
+        if protectedMedia(url), let token = owner.token, ServerConfig.origin(of: url.absoluteString) == owner.origin { request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization") }
         return request
     }
     private static let session = URLSession(configuration: .ephemeral, delegate: MediaRedirectDelegate(), delegateQueue: nil)

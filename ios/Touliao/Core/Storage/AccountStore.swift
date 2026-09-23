@@ -9,20 +9,26 @@ struct StoredAccount: Codable, Identifiable, Equatable {
 }
 
 /// 多账号本地存储(含 token，存 Keychain)。支持秒切换。
+/// 账号列表与当前账号按服务器 origin 分区（对齐 Android AccountStore）：切换服务器后
+/// 只能看到/切到该服务器上登录过的账号，别的服务器的 token 不会被装进 KeychainStore（审计 F02）。
 final class AccountStore {
     static let shared = AccountStore()
     private init() {}
 
     private let service = "com.touliao.app"
-    private let account = "touliao.accounts"
-    private let activeKey = "touliao_active_account_id"
+    private let legacyAccount = "touliao.accounts"
+    private let legacyActiveKey = "touliao_active_account_id"
+    private var origin: String { ServerConfig.shared.origin }
+    private var account: String { "\(legacyAccount)|\(origin)" }
+    private var activeKey: String { "\(legacyActiveKey)|\(origin)" }
 
     func accounts() -> [StoredAccount] {
-        guard let data = read(), let list = try? JSONDecoder().decode([StoredAccount].self, from: data) else { return [] }
+        migrateLegacy()
+        guard let data = read(account), let list = try? JSONDecoder().decode([StoredAccount].self, from: data) else { return [] }
         return list
     }
 
-    func activeId() -> String? { UserDefaults.standard.string(forKey: activeKey) }
+    func activeId() -> String? { migrateLegacy(); return UserDefaults.standard.string(forKey: activeKey) }
 
     func upsertActive(_ acc: StoredAccount) {
         var list = accounts().filter { $0.id != acc.id }
@@ -49,10 +55,21 @@ final class AccountStore {
         if activeId() == id { UserDefaults.standard.removeObject(forKey: activeKey) }
     }
 
+    /// 升级前的未分区数据归入当前生效服务器（与 KeychainStore 的旧 token 处理一致），只迁移一次。
+    private func migrateLegacy() {
+        guard let legacy = read(legacyAccount) else { return }
+        if read(account) == nil, let list = try? JSONDecoder().decode([StoredAccount].self, from: legacy) {
+            save(list)
+            if let id = UserDefaults.standard.string(forKey: legacyActiveKey) { UserDefaults.standard.set(id, forKey: activeKey) }
+        }
+        delete(legacyAccount)
+        UserDefaults.standard.removeObject(forKey: legacyActiveKey)
+    }
+
     // MARK: - Keychain
     private func save(_ list: [StoredAccount]) {
         guard let data = try? JSONEncoder().encode(list) else { return }
-        delete()
+        delete(account)
         let q: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
@@ -63,7 +80,7 @@ final class AccountStore {
         SecItemAdd(q as CFDictionary, nil)
     }
 
-    private func read() -> Data? {
+    private func read(_ account: String) -> Data? {
         let q: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
@@ -76,7 +93,7 @@ final class AccountStore {
         return item as? Data
     }
 
-    private func delete() {
+    private func delete(_ account: String) {
         SecItemDelete([
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
