@@ -1,0 +1,43 @@
+{
+  "previous": {
+    "package": "com.touliao.app",
+    "versionCode": 81,
+    "versionName": "8.1.24",
+    "sha256": "0631c12bd21cd7abd1518d4357b8f617bbe65c699b4fe82b27ab4deeb3568763",
+    "bytes": 56808304,
+    "certificateSha256": "345e9485b4220e607c40afee304f16ca00f87d6f080184423defc0ea1e85983c",
+    "abis": [
+      "arm64-v8a",
+      "armeabi-v7a",
+      "x86",
+      "x86_64"
+    ],
+    "v1": true,
+    "v2": true,
+    "v3": true,
+    "verificationBuildTools": "34.0.0"
+  },
+  "release": {
+    "package": "com.touliao.app",
+    "versionCode": 82,
+    "versionName": "8.1.25",
+    "sha256": "6a7dde4ce989a41f525c365296c2047608c65cf652a1242cd2ce5a6ef58bc5b9",
+    "bytes": 56836978,
+    "certificateSha256": "345e9485b4220e607c40afee304f16ca00f87d6f080184423defc0ea1e85983c",
+    "abis": [
+      "arm64-v8a",
+      "armeabi-v7a",
+      "x86",
+      "x86_64"
+    ],
+    "v1": true,
+    "v2": true,
+    "v3": true,
+    "verificationBuildTools": "34.0.0"
+  },
+  "signerMatches": true,
+  "upgradeVersionIncreases": true,
+  "releaseConfiguration": true,
+  "productionEndpoint": "https://touliao.cc",
+  "commit": "9733b33199c2587740fca0486cd0bc6e597cc7af"
+}

@@ -1,5 +1,6 @@
 package com.touliao.app.feature.profile
 
+import androidx.compose.foundation.layout.heightIn
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
@@ -21,8 +22,6 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.ripple.rememberRipple
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
@@ -31,7 +30,7 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
+import com.touliao.app.ui.components.TouliaoField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -87,7 +86,7 @@ fun ProfileEditScreen(
         topBar = {
             TopAppBar(
                 title = { Text("个人资料") },
-                navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回") } },
+                navigationIcon = { IconButton(onClick = onBack) { Icon(com.touliao.app.ui.TouliaoIcons.Back, contentDescription = "返回") } },
             )
         },
     ) { padding ->
@@ -128,7 +127,7 @@ fun ProfileEditScreen(
                             )
                             EditDivider()
                             EditRow(label = "我的二维码", onClick = onOpenMyQr, trailingContent = {
-                                Icon(TouliaoIcons.QrCode, contentDescription = null, tint = VxinBrand, modifier = Modifier.size(20.dp))
+                                Icon(TouliaoIcons.Qrcode, contentDescription = null, tint = VxinBrand, modifier = Modifier.size(com.touliao.app.ui.IconSize.Sm))
                             })
                         }
                     }
@@ -187,9 +186,9 @@ private fun EditGroupCard(modifier: Modifier = Modifier, content: @Composable an
     Column(
         modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(16.dp))
+            .clip(RoundedCornerShape(12.dp))
             .background(MaterialTheme.colorScheme.surface)
-            .border(0.5.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(16.dp)),
+            .border(0.5.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(12.dp)),
         content = content,
     )
 }
@@ -210,7 +209,7 @@ private fun EditRow(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .height(52.dp)
+            .heightIn(min = 52.dp)
             .then(
                 if (clickable) Modifier.clickable(
                     interactionSource = remember { MutableInteractionSource() },
@@ -230,7 +229,7 @@ private fun EditRow(
         }
         if (clickable) {
             Spacer(Modifier.width(8.dp))
-            Icon(TouliaoIcons.ChevronRight, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f), modifier = Modifier.size(16.dp))
+            Icon(TouliaoIcons.Disclosure, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f), modifier = Modifier.size(com.touliao.app.ui.IconSize.Xs))
         }
     }
 }
@@ -248,7 +247,7 @@ private fun EditTextDialog(
         onDismissRequest = { if (!saving) onDismiss() },
         title = { Text(title) },
         text = {
-            OutlinedTextField(
+            TouliaoField(
                 value = text,
                 onValueChange = { text = it },
                 singleLine = true,

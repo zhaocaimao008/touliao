@@ -1,6 +1,10 @@
 package com.touliao.app.feature.settings
 
+import androidx.compose.foundation.layout.heightIn
 import android.content.Context
+import com.touliao.app.ui.components.TouliaoSettingSection as SettingsGroupCard
+import com.touliao.app.ui.components.TouliaoSettingDivider as HubDivider
+import com.touliao.app.ui.components.TouliaoSettingRow as HubRow
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -19,8 +23,6 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.ripple.rememberRipple
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
@@ -138,7 +140,7 @@ fun SettingsHomeScreen(
         topBar = {
             TopAppBar(
                 title = { Text("设置") },
-                navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回") } },
+                navigationIcon = { IconButton(onClick = onBack) { Icon(com.touliao.app.ui.TouliaoIcons.Back, contentDescription = "返回") } },
             )
         },
     ) { padding ->
@@ -148,20 +150,20 @@ fun SettingsHomeScreen(
                 com.touliao.app.feature.safety.SafetyReportButton()
                 Spacer(Modifier.height(16.dp))
                 SettingsGroupCard(Modifier.padding(horizontal = 16.dp)) {
-                    HubRow(TouliaoIcons.Bell, "消息通知", onClick = onOpenNotifications)
+                    HubRow(TouliaoIcons.Notification, "消息通知", onClick = onOpenNotifications)
                     HubDivider()
-                    HubRow(TouliaoIcons.Shield, "隐私与安全", onClick = onOpenPrivacy)
+                    HubRow(TouliaoIcons.Security, "隐私与安全", onClick = onOpenPrivacy)
                     HubDivider()
-                    HubRow(TouliaoIcons.Palette, "外观", onClick = onOpenAppearance)
+                    HubRow(TouliaoIcons.Appearance, "外观", onClick = onOpenAppearance)
                     HubDivider()
-                    HubRow(TouliaoIcons.Devices, "登录设备管理", onClick = onOpenSessions)
+                    HubRow(TouliaoIcons.Device, "登录设备管理", onClick = onOpenSessions)
                 }
                 Spacer(Modifier.height(12.dp))
                 SettingsGroupCard(Modifier.padding(horizontal = 16.dp)) {
                     val clearingIndicator: (@Composable () -> Unit)? =
                         if (state.clearing) ({ CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp, color = VxinBrand) }) else null
                     HubRow(
-                        TouliaoIcons.Trash, "清除缓存",
+                        TouliaoIcons.Delete, "清除缓存",
                         trailing = if (state.clearing) null else formatBytes(state.cacheBytes),
                         trailingContent = clearingIndicator,
                         onClick = { showClearConfirm = true },
@@ -189,7 +191,7 @@ fun SettingsHomeScreen(
             onDismissRequest = { showClearConfirm = false },
             title = { Text("清除缓存") },
             text = { Text("将清除本地图片缓存与离线消息缓存，不影响服务器上的聊天记录。") },
-            confirmButton = { TextButton(onClick = { viewModel.clearCache(); showClearConfirm = false }) { Text("清除", color = Color(0xFFFF3B30)) } },
+            confirmButton = { TextButton(onClick = { viewModel.clearCache(); showClearConfirm = false }) { Text("清除", color = com.touliao.app.ui.theme.VxinError) } },
             dismissButton = { TextButton(onClick = { showClearConfirm = false }) { Text("取消") } },
         )
     }
@@ -206,56 +208,5 @@ fun SettingsHomeScreen(
             viewModel = updateViewModel,
             onDismiss = { showUpdateDialog = false },
         )
-    }
-}
-
-@Composable
-private fun SettingsGroupCard(modifier: Modifier = Modifier, content: @Composable androidx.compose.foundation.layout.ColumnScope.() -> Unit) {
-    Column(
-        modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(16.dp))
-            .background(MaterialTheme.colorScheme.surface)
-            .border(0.5.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(16.dp)),
-        content = content,
-    )
-}
-
-@Composable
-private fun HubDivider() {
-    HorizontalDivider(modifier = Modifier.padding(start = 52.dp), thickness = 0.5.dp, color = MaterialTheme.colorScheme.outlineVariant)
-}
-
-@Composable
-private fun HubRow(
-    icon: ImageVector,
-    title: String,
-    trailing: String? = null,
-    trailingColor: Color? = null,
-    trailingContent: (@Composable () -> Unit)? = null,
-    onClick: () -> Unit,
-) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(52.dp)
-            .clickable(
-                interactionSource = remember { MutableInteractionSource() },
-                indication = rememberRipple(bounded = true),
-                onClick = onClick,
-            )
-            .padding(horizontal = 16.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(20.dp))
-        Spacer(Modifier.width(12.dp))
-        Text(title, Modifier.weight(1f), color = MaterialTheme.colorScheme.onSurface, fontSize = com.touliao.app.ui.theme.VxinTextSize.md)
-        if (trailingContent != null) {
-            trailingContent()
-            Spacer(Modifier.width(8.dp))
-        } else if (trailing != null) {
-            Text(trailing, color = trailingColor ?: MaterialTheme.colorScheme.onSurfaceVariant, fontSize = com.touliao.app.ui.theme.VxinTextSize.sm2, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(end = 8.dp))
-        }
-        Icon(TouliaoIcons.ChevronRight, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f), modifier = Modifier.size(16.dp))
     }
 }

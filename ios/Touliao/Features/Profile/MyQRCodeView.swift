@@ -10,12 +10,13 @@ struct MyQRCodeView: View {
     private let repo = ProfileRepository.shared
 
     var body: some View {
+        ScrollView {
         VStack(spacing: 16) {
             if let user = session.currentUser {
                 InitialAvatar(name: user.username.isEmpty ? "?" : user.username, size: 64)
-                Text(user.username).font(.headline)
+                Text(user.username).touliaoText(.headline, weight: .semibold)
                 if !user.wechatId.isEmpty {
-                    Text("投聊号: \(user.wechatId)").font(.footnote).foregroundColor(.vxinTextSecondary)
+                    Text("投聊号: \(user.wechatId)").touliaoText(.secondary).foregroundColor(.vxinTextSecondary)
                 }
             }
 
@@ -33,12 +34,15 @@ struct MyQRCodeView: View {
             }
 
             Text("扫一扫上面的二维码，添加我为好友")
-                .font(.footnote).foregroundColor(.vxinTextSecondary)
+                .touliaoText(.secondary).foregroundColor(.vxinTextSecondary)
             Spacer()
         }
         .padding(24)
+        .frame(maxWidth: .infinity)
+        }
         .navigationTitle("我的二维码")
         .navigationBarTitleDisplayMode(.inline)
+        .touliaoPage()
         .task { await load() }
     }
 

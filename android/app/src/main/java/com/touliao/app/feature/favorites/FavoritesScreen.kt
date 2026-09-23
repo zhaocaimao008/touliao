@@ -6,6 +6,8 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
@@ -14,8 +16,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -60,7 +60,7 @@ fun FavoritesScreen(
             TopAppBar(
                 title = { Text("收藏") },
                 navigationIcon = {
-                    onBack?.let { cb -> IconButton(onClick = cb) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回") } }
+                    onBack?.let { cb -> IconButton(onClick = cb) { Icon(com.touliao.app.ui.TouliaoIcons.Back, contentDescription = "返回") } }
                 },
             )
         },
@@ -93,8 +93,8 @@ fun FavoritesScreen(
                     state.searching -> CircularProgressIndicator(Modifier.align(Alignment.Center))
                     shown.isEmpty() -> {
                         val isFiltering = state.query.isNotBlank() || state.typeFilter.isNotBlank()
-                        if (isFiltering) com.touliao.app.ui.components.EmptyState(icon = "🔍", title = "没有匹配的收藏", subtitle = "换个关键词或类型试试", modifier = Modifier.align(Alignment.Center))
-                        else com.touliao.app.ui.components.EmptyState(icon = "⭐", title = "暂无收藏", subtitle = "长按消息可收藏到这里", modifier = Modifier.align(Alignment.Center))
+                        if (isFiltering) com.touliao.app.ui.components.EmptyState(icon = com.touliao.app.ui.TouliaoIcons.Search, title = "没有匹配的收藏", subtitle = "换个关键词或类型试试", modifier = Modifier.align(Alignment.Center))
+                        else com.touliao.app.ui.components.EmptyState(icon = com.touliao.app.ui.TouliaoIcons.Favorite, title = "暂无收藏", subtitle = "长按消息可收藏到这里", modifier = Modifier.align(Alignment.Center))
                     }
                     else -> LazyColumn(Modifier.fillMaxSize()) {
                         items(shown, key = { it.id }) { item ->
@@ -143,8 +143,16 @@ private fun FavoriteRow(item: Collection, resolveUrl: (String?) -> String?, onLo
                 contentScale = ContentScale.Fit,
                 modifier = Modifier.heightIn(max = 200.dp),
             )
-            "file" -> Text("📄 ${item.content.ifBlank { "文件" }}", style = MaterialTheme.typography.bodyLarge)
-            "video" -> Text("🎬 ${item.content.ifBlank { "视频" }}", style = MaterialTheme.typography.bodyLarge)
+            "file" -> Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                com.touliao.app.ui.TouliaoGlyph(com.touliao.app.ui.TouliaoIcons.FileContent, size = com.touliao.app.ui.IconSize.Sm, color = com.touliao.app.ui.IconColor.Secondary)
+                Spacer(Modifier.width(8.dp))
+                Text(item.content.ifBlank { "文件" }, style = MaterialTheme.typography.bodyLarge)
+            }
+            "video" -> Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                com.touliao.app.ui.TouliaoGlyph(com.touliao.app.ui.TouliaoIcons.Video, size = com.touliao.app.ui.IconSize.Sm, color = com.touliao.app.ui.IconColor.Secondary)
+                Spacer(Modifier.width(8.dp))
+                Text(item.content.ifBlank { "视频" }, style = MaterialTheme.typography.bodyLarge)
+            }
             else -> Text(item.content, style = MaterialTheme.typography.bodyLarge)
         }
         Text(if (canDownload) "点击下载 · 长按取消收藏" else "长按可取消收藏",

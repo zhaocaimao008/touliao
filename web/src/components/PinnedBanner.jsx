@@ -1,3 +1,4 @@
+import TouliaoIcon from '../ui-kit/Icon';
 import React, { memo } from 'react';
 import { useI18n } from '../contexts/I18nContext';
 
@@ -16,7 +17,7 @@ function PinnedBanner({ pinnedMessages, showPinnedDetail, onToggleDetail, onUnpi
         role="button" tabIndex={0} aria-expanded={showPinnedDetail} aria-label={t('chat.pinMessage')}
         onClick={onToggleDetail}
         onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onToggleDetail(); } }}>
-        <span className="wc-pinned-badge">📌 {t('pinned.pinned')}</span>
+        <span className="wc-pinned-badge"><TouliaoIcon name="pin" size="xs" /> {t('pinned.pinned')}</span>
         <span className="wc-pinned-text">
           {first?.type === 'image' ? t('chatlist.previewImage') : first?.content}
         </span>
@@ -27,7 +28,7 @@ function PinnedBanner({ pinnedMessages, showPinnedDetail, onToggleDetail, onUnpi
         <div className="wc-pinned-detail">
           {pinnedMessages.map(p => (
             <div key={p.msgId} className="wc-pinned-item">
-              <span className="wc-pinned-item-icon">📌</span>
+              <span className="wc-pinned-item-icon"><TouliaoIcon name="pin" size="xs" /></span>
               <div className="wc-pinned-item-body">
                 <div className="wc-pinned-item-meta">{t('pinned.pinnedByTemplate').replace('{sender}', p.senderName).replace('{by}', p.pinnedByName)}</div>
                 <div className="wc-pinned-item-text">{p.type === 'image' ? t('chatlist.previewImage') : p.content}</div>

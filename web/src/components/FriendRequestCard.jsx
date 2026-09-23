@@ -1,3 +1,4 @@
+import TouliaoIcon from '../ui-kit/Icon';
 import React, { useState, useEffect, useRef } from 'react';
 import ReactDOM from 'react-dom/client';
 import Avatar from './Avatar';
@@ -63,7 +64,7 @@ function FriendRequestCardRoot() {
         className="frc-close"
         aria-label={t('common.close')}
         onClick={(e) => { e.stopPropagation(); dismiss(); }}
-      >×</button>
+      ><TouliaoIcon name="close" size="sm" /></button>
     </div>
   );
 }

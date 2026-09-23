@@ -88,20 +88,25 @@ struct FavoritesView: View {
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                 } else {
                     List {
+                        Group {
                         ForEach(vm.shown) { item in
                             row(item)
                                 .swipeActions {
                                     Button("取消收藏", role: .destructive) { vm.remove(item) }
                                 }
                         }
+                        }.listRowBackground(Color.vxinSurface).listRowSeparatorTint(Color.vxinBorder)
                     }
                     .listStyle(.plain)
+            .scrollContentBackground(.hidden)
+            .background(Color.vxinSurface)
                 }
             }
         }
         .searchable(text: $vm.query, prompt: "搜索收藏")
         .navigationTitle("收藏")
         .navigationBarTitleDisplayMode(.inline)
+        .touliaoPage()
         .toast($vm.error)
         .task { await vm.refresh() }
     }
@@ -113,9 +118,9 @@ struct FavoritesView: View {
                 KFImage(source: src).resizable().scaledToFit().frame(maxHeight: 200)
             } else { Text("[图片]") }
         case "file":
-            Text("📄 \(item.content.isEmpty ? "文件" : item.content)")
+            Label(item.content.isEmpty ? "文件" : item.content, touliaoIcon: "fileContent")
         case "video":
-            Text("🎬 视频")
+            Label("视频", touliaoIcon: "video")
         default:
             Text(item.content)
         }

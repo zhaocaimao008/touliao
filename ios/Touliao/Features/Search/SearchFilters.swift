@@ -12,17 +12,17 @@ struct SearchTypeOption: Identifiable, Equatable {
 }
 
 let messageSearchTypes: [SearchTypeOption] = [
-    .init(value: "", label: "全部", icon: "○"),
-    .init(value: "text", label: "文本", icon: "文"),
-    .init(value: "image", label: "图片", icon: "▧"),
-    .init(value: "voice", label: "语音", icon: "◖"),
-    .init(value: "video", label: "视频", icon: "▶"),
-    .init(value: "file", label: "文件", icon: "▤"),
-    .init(value: "contact_card", label: "名片", icon: "人"),
-    .init(value: "red_packet", label: "红包", icon: "包"),
-    .init(value: "transfer", label: "转账", icon: "¥"),
-    .init(value: "merged", label: "合并转发", icon: "☷"),
-    .init(value: "call", label: "通话", icon: "☎"),
+    .init(value: "", label: "全部", icon: "allTypes"),
+    .init(value: "text", label: "文本", icon: "text"),
+    .init(value: "image", label: "图片", icon: "image"),
+    .init(value: "voice", label: "语音", icon: "voice"),
+    .init(value: "video", label: "视频", icon: "video"),
+    .init(value: "file", label: "文件", icon: "fileContent"),
+    .init(value: "contact_card", label: "名片", icon: "contact"),
+    .init(value: "red_packet", label: "红包", icon: "redPacket"),
+    .init(value: "transfer", label: "转账", icon: "transfer"),
+    .init(value: "merged", label: "合并转发", icon: "mergedMessages"),
+    .init(value: "call", label: "通话", icon: "phone"),
 ]
 
 /// 时间筛选：空串=不限 | today=今天 | 7d=近7天 | 30d=近30天（秒级 from/to）
@@ -61,7 +61,7 @@ func buildSearchFilterParams(type: String, timeRange: String, senderId: String,
 
 /// 结果行类型图标
 func messageSearchTypeIcon(_ type: String) -> String {
-    messageSearchTypes.first { $0.value == type }?.icon ?? "•"
+    messageSearchTypes.first { $0.value == type }?.icon ?? "allTypes"
 }
 
 /// 解析结构化消息 content（名片/红包/转账/合并转发 的 JSON 字段），坏 JSON 返回空字典

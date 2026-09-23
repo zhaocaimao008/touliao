@@ -15,49 +15,50 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
+import com.touliao.app.ui.TouliaoButton
+import com.touliao.app.ui.TouliaoButtonVariant
 import com.touliao.app.ui.theme.VxinBrand
 import com.touliao.app.ui.theme.VxinTextPrimary
 import com.touliao.app.ui.theme.VxinTextSecondary
 
 /**
- * 统一空态：emoji 图标置于品牌色圆形柔和徽章内 + 主文案 + 可选副文案。
+ * 统一空态：线性图标置于品牌色圆形柔和徽章内 + 主文案 + 可选副文案。
  * 居中显示，用于列表/结果为空时提升观感与友好度（对齐 Web 空态）。
  */
 @Composable
 fun EmptyState(
-    icon: String,
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
     title: String,
     subtitle: String? = null,
     modifier: Modifier = Modifier,
+    isError: Boolean = false,
+    actionLabel: String? = null,
+    onAction: (() -> Unit)? = null,
 ) {
     Column(
-        modifier = modifier.fillMaxSize().padding(32.dp),
+        modifier = modifier.fillMaxSize().padding(com.touliao.app.ui.theme.TouliaoMetrics.space8),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center,
     ) {
-        // 图标徽章：极光靛柔和圆底，替代裸 emoji（对齐 Web cl-empty-icon）
+        // 图标徽章：主题柔和圆底，替代裸 emoji（对齐 Web cl-empty-icon）
         Box(
             modifier = Modifier
                 .size(80.dp)
                 .clip(CircleShape)
-                .background(
-                    Brush.radialGradient(
-                        listOf(VxinBrand.copy(alpha = 0.16f), VxinBrand.copy(alpha = 0.06f))
-                    )
-                ),
+                .background(androidx.compose.material3.MaterialTheme.colorScheme.primaryContainer),
             contentAlignment = Alignment.Center,
         ) {
-            Text(icon, fontSize = 36.sp)
+            androidx.compose.material3.Icon(
+                icon, contentDescription = null, modifier = Modifier.size(com.touliao.app.ui.IconSize.Lg), tint = if (isError) androidx.compose.material3.MaterialTheme.colorScheme.error else VxinBrand,
+            )
         }
         Spacer(Modifier.height(16.dp))
         Text(
             title,
-            color = VxinTextPrimary,
+            color = if (isError) androidx.compose.material3.MaterialTheme.colorScheme.error else VxinTextPrimary,
             fontSize = com.touliao.app.ui.theme.VxinTextSize.md,
             fontWeight = FontWeight.Medium,
             textAlign = TextAlign.Center,
@@ -70,6 +71,10 @@ fun EmptyState(
                 fontSize = com.touliao.app.ui.theme.VxinTextSize.sm2,
                 textAlign = TextAlign.Center,
             )
+        }
+        if (actionLabel != null && onAction != null) {
+            Spacer(Modifier.height(com.touliao.app.ui.theme.TouliaoMetrics.space4))
+            TouliaoButton(text = actionLabel, onClick = onAction, variant = TouliaoButtonVariant.SECONDARY)
         }
     }
 }

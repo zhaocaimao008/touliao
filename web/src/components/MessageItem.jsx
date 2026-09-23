@@ -1,3 +1,5 @@
+import TouliaoIcon from '../ui-kit/Icon';
+
 import React, { memo } from 'react';
 import Avatar from './Avatar';
 import { mediaUrl, resolveMediaUrl, getThumbUrl, useMediaCredentials } from '../utils/url';
@@ -121,7 +123,7 @@ const MessageItem = memo(function MessageItem({ item, cbRef, measure }) {
       {multiSelect && (
         <div style={{ display: 'flex', alignItems: 'center', marginRight: 8, flexShrink: 0, alignSelf: 'center' }}>
           <div style={{ width: 20, height: 20, borderRadius: 'var(--radius-full)', border: `2px solid ${isSelected ? 'var(--green)' : 'var(--border-default)'}`, background: isSelected ? 'var(--green)' : 'var(--text-inverse)', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'background var(--dur-fast), border-color var(--dur-fast)' }}>
-            {isSelected && <span style={{ color: 'var(--text-inverse)', fontSize: 'var(--text-sm)', fontWeight: 700, lineHeight: 1 }}>✓</span>}
+            {isSelected && <span style={{ color: 'var(--text-inverse)', fontSize: 'var(--text-sm)', fontWeight: 700, lineHeight: 1 }}><TouliaoIcon name="check" size="xs" /></span>}
           </div>
         </div>
       )}
@@ -161,13 +163,13 @@ const MessageItem = memo(function MessageItem({ item, cbRef, measure }) {
                 role="button" tabIndex={0} aria-label={t('messageItem.sendFailedRetry')}
                 onClick={() => cbs.retryMessage(msg)}
                 onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); cbs.retryMessage(msg); } }}
-              >❗</div>
+              ><TouliaoIcon name="error" size="sm" /></div>
             ) : isLastMine && convType === 'private' ? (
               showRead
-                ? <div className="wc-msg-read wc-msg-status-read" data-testid="msg-read-status">✓✓ {t('messageItem.read')}</div>
+                ? <div className="wc-msg-read wc-msg-status-read" data-testid="msg-read-status"><TouliaoIcon name="read" size="xs" /> {t('messageItem.read')}</div>
                 : showDelivered
-                  ? <div className="wc-msg-read wc-msg-status-delivered">✓✓ {t('messageItem.delivered')}</div>
-                  : <div className="wc-msg-read wc-msg-status-sent">✓ {t('messageItem.sent')}</div>
+                  ? <div className="wc-msg-read wc-msg-status-delivered"><TouliaoIcon name="delivered" size="xs" /> {t('messageItem.delivered')}</div>
+                  : <div className="wc-msg-read wc-msg-status-sent"><TouliaoIcon name="check" size="xs" /> {t('messageItem.sent')}</div>
             ) : null
           )}
           {/* 定时消息标记：气泡左上角「定时」角标 */}
@@ -300,9 +302,7 @@ const MessageItem = memo(function MessageItem({ item, cbRef, measure }) {
                     width: 48, height: 48, borderRadius: '50%', background: 'rgba(0,0,0,.5)',
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
                   }}>
-                    <svg viewBox="0 0 24 24" style={{ width: 24, height: 24, fill: '#fff', marginLeft: 3 }}>
-                      <path d="M8 5v14l11-7z"/>
-                    </svg>
+                    <TouliaoIcon name="play" style={{marginLeft:3}} tone="onDark" size="md" />
                   </span>
                 </div>
               );
@@ -320,9 +320,7 @@ const MessageItem = memo(function MessageItem({ item, cbRef, measure }) {
                    }}
                    className="wc-msg-file-link" data-testid="msg-file">
                   <div className="wc-msg-file-icon" aria-hidden="true">
-                    <svg viewBox="0 0 24 24" style={{ width: 28, height: 28, fill: 'var(--brand-primary)' }}>
-                      <path d="M6 2h9l5 5v13a2 2 0 01-2 2H6a2 2 0 01-2-2V4a2 2 0 012-2zm8 1.5V8h4.5L14 3.5z" />
-                    </svg>
+                    <TouliaoIcon name="fileContent" size="lg" />
                   </div>
                   <div>
                     <div className="wc-msg-file-name">{msg.content}</div>
@@ -368,7 +366,7 @@ const MessageItem = memo(function MessageItem({ item, cbRef, measure }) {
                   onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); cbs.openRedPacket(rp.packetId); } }}
                 >
                   <div className="wc-redpacket-body">
-                    <div className="wc-redpacket-icon">🧧</div>
+                    <div className="wc-redpacket-icon"><TouliaoIcon name="redPacket" size="lg" /></div>
                     <div className="wc-redpacket-info">
                       <div className="wc-redpacket-greeting">
                         {rp.greeting || t('messageItem.redPacketFallbackGreeting')}
@@ -388,7 +386,7 @@ const MessageItem = memo(function MessageItem({ item, cbRef, measure }) {
               return (
                 <div className="wc-transfer-card" aria-label={t('messageItem.transferAriaLabelTemplate').replace('{amount}', tf.amount)}>
                   <div className="wc-transfer-body">
-                    <div className="wc-transfer-icon">💸</div>
+                    <div className="wc-transfer-icon"><TouliaoIcon name="transfer" size="lg" /></div>
                     <div className="wc-transfer-info">
                       <div className="wc-transfer-amount">¥ {tf.amount} {t('chat.coinUnit')}</div>
                       {tf.note ? <div className="wc-transfer-note">{tf.note}</div> : null}

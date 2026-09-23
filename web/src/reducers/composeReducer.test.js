@@ -6,7 +6,7 @@ const S = (over = {}) => ({ ...initialComposeState, ...over });
 describe('composeReducer', () => {
   it('初始状态：空输入、非语音、无编辑/回复', () => {
     expect(initialComposeState).toEqual({
-      input: '', voiceMode: false, editingMsg: null, replyTo: null,
+      input: '', mode: 'TEXT', emojiTab: 'emoji', editingMsg: null, replyTo: null,
     });
   });
 
@@ -26,17 +26,17 @@ describe('composeReducer', () => {
       expect(composeReducer(S({ input: '@zh' }), { type: 'REPLACE_INPUT', value: '@zhang ' }).input).toBe('@zhang ');
     });
     it('文本操作不改动其他字段', () => {
-      const s = S({ voiceMode: true, replyTo: { id: 1 } });
+      const s = S({ mode: 'VOICE', replyTo: { id: 1 } });
       const n = composeReducer(s, { type: 'SET_INPUT', value: 'x' });
-      expect(n.voiceMode).toBe(true);
+      expect(n.mode).toBe('VOICE');
       expect(n.replyTo).toEqual({ id: 1 });
     });
   });
 
   describe('语音模式', () => {
     it('TOGGLE_VOICE 翻转', () => {
-      expect(composeReducer(S(), { type: 'TOGGLE_VOICE' }).voiceMode).toBe(true);
-      expect(composeReducer(S({ voiceMode: true }), { type: 'TOGGLE_VOICE' }).voiceMode).toBe(false);
+      expect(composeReducer(S(), { type: 'TOGGLE_VOICE' }).mode).toBe('VOICE');
+      expect(composeReducer(S({ mode: 'VOICE' }), { type: 'TOGGLE_VOICE' }).mode).toBe('KEYBOARD');
     });
   });
 
@@ -92,9 +92,9 @@ describe('composeReducer', () => {
       expect(n.replyTo).toBeNull();
     });
     it('RESET：载入草稿 + 全清编辑/回复/语音', () => {
-      const s = S({ input: 'old', voiceMode: true, editingMsg: { id: 1, content: 'c' }, replyTo: { id: 2 } });
+      const s = S({ input: 'old', mode: 'VOICE', editingMsg: { id: 1, content: 'c' }, replyTo: { id: 2 } });
       const n = composeReducer(s, { type: 'RESET', draft: '草稿' });
-      expect(n).toEqual({ input: '草稿', voiceMode: false, editingMsg: null, replyTo: null });
+      expect(n).toEqual({ input: '草稿', mode: 'TEXT', emojiTab: 'emoji', editingMsg: null, replyTo: null });
     });
     it('RESET 无草稿 → 输入为空', () => {
       const n = composeReducer(S({ input: 'old' }), { type: 'RESET' });
@@ -109,5 +109,34 @@ describe('composeReducer', () => {
       expect(() => composeReducer(frozen, { type: 'SET_INPUT', value: 'b' })).not.toThrow();
       expect(s.input).toBe('a');
     });
+  });
+});
+
+describe('composer presentation exclusivity (DS-015)', () => {
+  it('Emoji → voice → more → keyboard retains the draft and only one mode', () => {
+    let state = S({ input: '中文草稿' });
+    for (const [action, expected] of [
+      [{ type: 'TOGGLE_PANEL', panel: 'emoji' }, 'EMOJI'],
+      [{ type: 'TOGGLE_VOICE' }, 'VOICE'],
+      [{ type: 'TOGGLE_PANEL', panel: 'more' }, 'MORE'],
+      [{ type: 'TOGGLE_PANEL', panel: 'more' }, 'KEYBOARD'],
+    ]) {
+      state = composeReducer(state, action);
+      expect(state.mode).toBe(expected);
+      expect(state.input).toBe('中文草稿');
+    }
+  });
+  it('blur cannot overwrite an attachment or recording mode', () => {
+    for (const mode of ['VOICE', 'EMOJI', 'MORE']) {
+      expect(composeReducer(S({ mode }), { type: 'BLUR_INPUT' }).mode).toBe(mode);
+    }
+  });
+  it('stickers are an emoji subpanel; switching to voice hides both', () => {
+    let state = composeReducer(S(), { type: 'TOGGLE_PANEL', panel: 'stickers' });
+    expect(state).toMatchObject({ mode: 'EMOJI', emojiTab: 'stickers' });
+    state = composeReducer(state, { type: 'TOGGLE_VOICE' });
+    expect(state.mode).toBe('VOICE');
+    state = composeReducer(state, { type: 'START_EDIT', msg: { id: 1, content: 'edit' } });
+    expect(state).toMatchObject({ mode: 'KEYBOARD', input: 'edit' });
   });
 });

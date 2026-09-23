@@ -9,15 +9,15 @@ struct AddFriendView: View {
         VStack(spacing: 12) {
             HStack(spacing: 12) {
                 Button { showScanner = true } label: {
-                    Label("扫一扫", systemImage: "qrcode.viewfinder")
+                    Label("扫一扫", touliaoIcon: "scan")
                         .frame(maxWidth: .infinity)
                 }
-                .buttonStyle(.borderedProminent).tint(.vxinGreen)
+                .buttonStyle(.borderedProminent).foregroundColor(.vxinOnPrimary).tint(.vxinGreen)
 
                 NavigationLink {
                     MyQRCodeView()
                 } label: {
-                    Label("我的二维码", systemImage: "qrcode")
+                    Label("我的二维码", touliaoIcon: "qrcode")
                         .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.bordered)
@@ -26,7 +26,7 @@ struct AddFriendView: View {
 
             HStack {
                 TextField("手机号 / 投聊号 / 用户名", text: $vm.query)
-                    .textFieldStyle(.roundedBorder)
+                    .textFieldStyle(TouliaoTextFieldStyle())
                     .autocorrectionDisabled(true)
                     .textInputAutocapitalization(.never)
                     .onSubmit { vm.search() }
@@ -37,39 +37,44 @@ struct AddFriendView: View {
             .padding(.horizontal)
 
             if let message = vm.message {
-                Text(message).font(.footnote).foregroundColor(.vxinGreen)
+                Text(message).touliaoText(.secondary).foregroundColor(.vxinGreen)
             }
 
             if vm.searching {
                 ProgressView().padding()
             } else if vm.searched && vm.results.isEmpty {
-                VxinEmptyState(systemImage: "magnifyingglass", title: "未找到用户", subtitle: "换个手机号 / 投聊号试试")
+                VxinEmptyState(icon: "search", title: "未找到用户", subtitle: "换个手机号 / 投聊号试试")
             }
 
             List(vm.results) { user in
+                Group {
                 HStack(spacing: 12) {
                     InitialAvatar(name: user.username.isEmpty ? "?" : user.username, size: 44)
                     VStack(alignment: .leading, spacing: 2) {
                         Text(user.username.isEmpty ? "未命名" : user.username)
                         if !user.wechatId.isEmpty {
-                            Text("投聊号: \(user.wechatId)").font(.caption).foregroundColor(.vxinTextSecondary)
+                            Text("投聊号: \(user.wechatId)").touliaoText(.caption).foregroundColor(.vxinTextSecondary)
                         }
                     }
                     Spacer()
                     let sent = vm.sentIds.contains(user.id)
                     Button(sent ? "已发送" : "添加") { vm.sendRequest(user) }
-                        .buttonStyle(.borderedProminent)
+                        .buttonStyle(.borderedProminent).foregroundColor(.vxinOnPrimary)
                         .tint(.vxinGreen)
                         .disabled(sent)
                 }
+                }.listRowBackground(Color.vxinSurface).listRowSeparatorTint(Color.vxinBorder)
             }
             .listStyle(.plain)
+            .scrollContentBackground(.hidden)
+            .background(Color.vxinSurface)
 
             Spacer()
         }
         .padding(.top, 12)
         .navigationTitle("添加好友")
         .navigationBarTitleDisplayMode(.inline)
+        .touliaoPage()
         // 扫码资料卡 Sheet
         .sheet(isPresented: Binding(
             get: { vm.scannedUserId != nil },
@@ -126,16 +131,16 @@ private struct ScannedUserProfileSheet: View {
             InitialAvatar(name: detail.username.isEmpty ? "?" : detail.username, size: 72)
 
             Text(detail.username.isEmpty ? "未命名" : detail.username)
-                .font(.title3).fontWeight(.semibold)
+                .touliaoText(.headline).fontWeight(.semibold)
 
             if !detail.wechatId.isEmpty {
                 Text("投聊号: \(detail.wechatId)")
-                    .font(.caption).foregroundColor(.vxinTextSecondary)
+                    .touliaoText(.caption).foregroundColor(.vxinTextSecondary)
             }
 
             if !detail.bio.isEmpty {
                 Text(detail.bio)
-                    .font(.subheadline).foregroundColor(.vxinTextSecondary)
+                    .touliaoText(.secondary).foregroundColor(.vxinTextSecondary)
                     .multilineTextAlignment(.center)
             }
 
@@ -149,14 +154,14 @@ private struct ScannedUserProfileSheet: View {
                     .frame(maxWidth: .infinity)
             } else if detail.hasPendingRequest || alreadySent {
                 Text("好友申请已发送，等待对方确认")
-                    .font(.subheadline).foregroundColor(.vxinTextSecondary)
+                    .touliaoText(.secondary).foregroundColor(.vxinTextSecondary)
                 Spacer().frame(height: 8)
                 Button("关闭") { vm.dismissScannedUser() }
                     .buttonStyle(.bordered)
                     .frame(maxWidth: .infinity)
             } else {
                 Button("申请添加好友") { vm.sendRequestFromScanned() }
-                    .buttonStyle(.borderedProminent)
+                    .buttonStyle(.borderedProminent).foregroundColor(.vxinOnPrimary)
                     .tint(.vxinGreen)
                     .frame(maxWidth: .infinity)
                 Button("取消") { vm.dismissScannedUser() }

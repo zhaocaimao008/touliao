@@ -1,5 +1,6 @@
 package com.touliao.app.feature.moments
 
+import androidx.compose.material3.MaterialTheme
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -19,8 +20,6 @@ import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
@@ -72,7 +71,7 @@ fun MomentComposeScreen(
         topBar = {
             TopAppBar(
                 title = { Text("发表") },
-                navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回") } },
+                navigationIcon = { IconButton(onClick = onBack) { Icon(com.touliao.app.ui.TouliaoIcons.Back, contentDescription = "返回") } },
                 actions = {
                     TextButton(onClick = viewModel::publish, enabled = !state.publishing) {
                         if (state.publishing) CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
@@ -113,7 +112,7 @@ fun MomentComposeScreen(
                         Modifier.fillMaxWidth(0.6f).aspectRatio(16f / 9f).clip(RoundedCornerShape(com.touliao.app.ui.theme.VxinRadius.sm))
                             .clickable { videoPicker.launch("video/*") },
                         contentAlignment = Alignment.Center,
-                    ) { Text("＋", color = VxinTextSecondary) }
+                    ) { com.touliao.app.ui.TouliaoGlyph(com.touliao.app.ui.TouliaoIcons.Add, color = VxinTextSecondary, size = com.touliao.app.ui.IconSize.Md) }
                 } else {
                     Box(
                         Modifier.fillMaxWidth(0.6f).aspectRatio(16f / 9f)
@@ -126,16 +125,16 @@ fun MomentComposeScreen(
                                 .clickable { viewModel.removeVideo() },
                             contentAlignment = Alignment.Center,
                         ) {
-                            Text("▶", color = Color.White, fontSize = com.touliao.app.ui.theme.VxinTextSize.xxl)
+                            com.touliao.app.ui.TouliaoGlyph(com.touliao.app.ui.TouliaoIcons.Play, color = com.touliao.app.ui.IconColor.OnDark, size = com.touliao.app.ui.IconSize.Md)
                         }
-                        Text(
-                            "✕",
-                            color = Color.White,
+                        com.touliao.app.ui.TouliaoGlyph(
+                            com.touliao.app.ui.TouliaoIcons.Close, label = "移除视频", size = com.touliao.app.ui.IconSize.Md,
+                            color = com.touliao.app.ui.IconColor.OnDark,
                             modifier = Modifier
                                 .align(Alignment.TopEnd)
                                 .clip(RoundedCornerShape(com.touliao.app.ui.theme.VxinRadius.thumb))
                                 .clickable { viewModel.removeVideo() }
-                                .padding(horizontal = 6.dp),
+                                .padding(12.dp),
                         )
                     }
                 }
@@ -150,7 +149,7 @@ fun MomentComposeScreen(
                 items(state.images, key = { it }) { uri ->
                     Box(Modifier.padding(2.dp).aspectRatio(1f)) {
                         AsyncImage(uri, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize().clip(RoundedCornerShape(com.touliao.app.ui.theme.VxinRadius.sm)))
-                        Text("✕", color = Color.White, modifier = Modifier.align(Alignment.TopEnd).clip(RoundedCornerShape(com.touliao.app.ui.theme.VxinRadius.thumb)).clickable { viewModel.removeImage(uri) }.padding(horizontal = 6.dp))
+                        com.touliao.app.ui.TouliaoGlyph(com.touliao.app.ui.TouliaoIcons.Close, color = com.touliao.app.ui.IconColor.OnDark, modifier = Modifier.align(Alignment.TopEnd).clip(RoundedCornerShape(com.touliao.app.ui.theme.VxinRadius.thumb)).size(com.touliao.app.ui.IconTouchTarget.Android).clickable { viewModel.removeImage(uri) }.padding(12.dp), size = com.touliao.app.ui.IconSize.Md)
                     }
                 }
                 if (state.images.size < 9) {
@@ -159,7 +158,7 @@ fun MomentComposeScreen(
                             Modifier.padding(2.dp).aspectRatio(1f).clip(RoundedCornerShape(com.touliao.app.ui.theme.VxinRadius.sm))
                                 .clickable { picker.launch("image/*") },
                             contentAlignment = Alignment.Center,
-                        ) { Text("＋", color = VxinTextSecondary) }
+                        ) { com.touliao.app.ui.TouliaoGlyph(com.touliao.app.ui.TouliaoIcons.Add, color = VxinTextSecondary, size = com.touliao.app.ui.IconSize.Md) }
                     }
                 }
             }
@@ -208,7 +207,7 @@ fun MomentComposeScreen(
                                 verticalAlignment = Alignment.CenterVertically,
                             ) {
                                 Text(f.displayName.ifBlank { "用户" }, modifier = Modifier.weight(1f))
-                                Text(if (checked) "✓" else "", color = VxinGreen)
+                                if (checked) com.touliao.app.ui.TouliaoGlyph(com.touliao.app.ui.TouliaoIcons.Check, color = VxinGreen, size = com.touliao.app.ui.IconSize.Xs)
                             }
                         }
                     }
@@ -247,6 +246,6 @@ private fun VideoThumb(uri: Uri, modifier: Modifier = Modifier) {
                 contentScale = ContentScale.Crop,
                 modifier = Modifier.fillMaxSize(),
             )
-        } ?: Text("🎬", fontSize = com.touliao.app.ui.theme.VxinTextSize.lg)
+        } ?: com.touliao.app.ui.TouliaoGlyph(com.touliao.app.ui.TouliaoIcons.Video, size = com.touliao.app.ui.IconSize.Md)
     }
 }

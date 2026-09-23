@@ -1,6 +1,9 @@
+import { EmptyState } from './StateViews';
+import TouliaoIcon from '../ui-kit/Icon';
 import React, { useState, useEffect, useCallback, useRef, useMemo, memo, Suspense, lazy } from 'react';
 import axios from 'axios';
 import Avatar from './Avatar';
+
 import UserProfile from './UserProfile';
 import './ContactList.css';
 import { GroupAvatar } from './GroupAvatar';
@@ -222,39 +225,40 @@ export default function ContactList({ onStartChat, searchQuery = '', addFriendRe
         {/* 联系人主列表 */}
         {tab === 'contacts' && (
           <>
-            {/* 功能入口 */}
+            {/* 功能入口：真实功能保持原有处理函数 */}
+            <div className="tl-contact-shortcuts">
             <EntryRow
-              icon={<IcoPersonAdd width="18" height="18" fill="var(--text-inverse)" />}
+              icon={<IcoPersonAdd tone="onDark" size="sm" />}
               color="var(--icon-bg-newfriend)" label={t('contacts.newFriends')} badge={requests.length}
               onClick={() => setTab('requests')} testid="cl-new-friends-entry"
             />
             <EntryRow
-              icon={<IcoContacts width="18" height="18" fill="var(--text-inverse)" />}
+              icon={<IcoContacts tone="onDark" size="sm" />}
               color="var(--icon-bg-group)" label={t('contacts.groupChats')} badge={0}
               onClick={() => setTab('groups')}
             />
             <EntryRow
-              icon={<IcoPersonAdd width="18" height="18" fill="var(--text-inverse)" />}
+              icon={<IcoPersonAdd tone="onDark" size="sm" />}
               color="var(--brand-500)" label={t('contacts.addFriend')} badge={0}
               onClick={() => setShowAddFriend(true)}
             />
             <EntryRow
-              icon={<svg viewBox="0 0 24 24" width="18" height="18" fill="var(--text-inverse)"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg>}
+              icon={<TouliaoIcon name="blocked" size="sm" />}
               color="var(--icon-bg-neutral)" label={t('contacts.blacklist')} badge={0}
               onClick={() => { fetchBlocked(); setTab('blocked'); }}
             />
             <EntryRow
-              icon={<svg viewBox="0 0 24 24" width="18" height="18" fill="var(--text-inverse)"><path d="M17.63 5.84C17.27 5.33 16.67 5 16 5L5 5.01C3.9 5.01 3 5.9 3 7v10c0 1.1.9 1.99 2 1.99L16 19c.67 0 1.27-.33 1.63-.84L22 12l-4.37-6.16z"/></svg>}
+              icon={<TouliaoIcon name="tag" size="sm" />}
               color="var(--icon-bg-label)" label={t('contacts.friendLabels')} badge={0}
               onClick={() => { fetchLabels(); setTab('labels'); }}
             />
             <EntryRow
-              icon={<svg viewBox="0 0 24 24" width="18" height="18" fill="var(--text-inverse)"><path d="M20 9V7c0-1.1-.9-2-2-2h-3c0-1.66-1.34-3-3-3S9 3.34 9 5H6c-1.1 0-2 .9-2 2v2c-1.66 0-3 1.34-3 3s1.34 3 3 3v4c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2v-4c1.66 0 3-1.34 3-3s-1.34-3-3-3zm-12 3v-2h2v2H8zm2 4H8v-2h2v2zm2 0v-2h2v2h-2zm2-4v-2h2v2h-2zm2 4h-2v-2h2v2z"/></svg>}
+              icon={<TouliaoIcon name="chat" size="sm" />}
               color="var(--brand-500)" label={t('contacts.aiAssistant')} badge={aiBots.length}
               onClick={() => setTab('ai')}
             />
             <EntryRow
-              icon={<svg viewBox="0 0 24 24" width="18" height="18" fill="var(--text-inverse)"><path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/></svg>}
+              icon={<TouliaoIcon name="fileContent" size="sm" />}
               color="var(--icon-bg-filehelper)" label={t('contacts.fileHelper')} badge={0}
               onClick={async () => {
                 try {
@@ -264,6 +268,7 @@ export default function ContactList({ onStartChat, searchQuery = '', addFriendRe
               }}
             />
 
+            </div>
             <div className="cl-divider" />
 
             {/* 字母分组联系人 */}
@@ -287,20 +292,13 @@ export default function ContactList({ onStartChat, searchQuery = '', addFriendRe
               </div>
             )}
             {contactsLoaded && contacts.length === 0 && !searchQuery && (
-              <div className="cl-empty" role="status">
-                <svg viewBox="0 0 48 48" width="48" height="48" fill="none" className="cl-empty-icon">
+              <EmptyState className="cl-empty" icon={<svg viewBox="0 0 48 48" width="48" height="48" fill="none" className="cl-empty-icon">
                   <circle cx="24" cy="20" r="10" fill="#E8ECF0"/>
                   <path d="M8 40c0-8.84 7.16-16 16-16s16 7.16 16 16" stroke="#D0D7E3" strokeWidth="2" strokeLinecap="round"/>
-                </svg>
-                <div className="cl-empty-text">{t('contacts.noContacts')}</div>
-                <div className="cl-empty-sub">{t('contacts.searchToAddFriend')}</div>
-                <button className="cl-add-btn" onClick={() => setShowAddFriend(true)}>{t('contacts.addFriendCta')}</button>
-              </div>
+                </svg>} title={<>{t('contacts.noContacts')}</>} desc={<>{t('contacts.searchToAddFriend')}</>} />
             )}
             {searchQuery && filtered.length === 0 && (
-              <div className="cl-empty" role="status">
-                <div className="cl-empty-text">{t('contacts.notFoundTemplate').replace('{query}', searchQuery)}</div>
-              </div>
+              <EmptyState className="cl-empty" icon={null} title={<>{t('contacts.notFoundTemplate').replace('{query}', searchQuery)}</>} />
             )}
           </>
         )}
@@ -323,12 +321,7 @@ export default function ContactList({ onStartChat, searchQuery = '', addFriendRe
             {requestsSubTab === 'received' && (
               <>
                 {requests.length === 0 && (
-                  <div className="cl-empty" role="status">
-                    <svg viewBox="0 0 24 24" width="40" height="40" fill="#D0D7E3" className="cl-empty-icon">
-                      <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z"/>
-                    </svg>
-                    <div className="cl-empty-text">{t('contacts.noNewRequests')}</div>
-                  </div>
+                  <EmptyState className="cl-empty" icon={<TouliaoIcon name="contact" className="cl-empty-icon" tone="secondary" size="xl" />} title={<>{t('contacts.noNewRequests')}</>} />
                 )}
                 {requests.map(r => (
                   <div key={r.id} className="req-item" data-testid="friend-request-item">
@@ -352,9 +345,7 @@ export default function ContactList({ onStartChat, searchQuery = '', addFriendRe
             {requestsSubTab === 'sent' && (
               <>
                 {sentRequests.length === 0 && (
-                  <div className="cl-empty" role="status">
-                    <div className="cl-empty-text">{t('contacts.noSentRequests')}</div>
-                  </div>
+                  <EmptyState className="cl-empty" icon={null} title={<>{t('contacts.noSentRequests')}</>} />
                 )}
                 {sentRequests.map(r => (
                   <div key={r.id} className="req-item">
@@ -381,9 +372,7 @@ export default function ContactList({ onStartChat, searchQuery = '', addFriendRe
           <>
             <SectionHeader title={t('contacts.aiAssistant')} onBack={() => setTab('contacts')} />
             {aiBots.length === 0 && (
-              <div className="cl-empty" role="status">
-                <div className="cl-empty-text">{t('contacts.noAiAssistants')}</div>
-              </div>
+              <EmptyState className="cl-empty" icon={null} title={<>{t('contacts.noAiAssistants')}</>} />
             )}
             {aiBots.map(b => (
               <div key={b.id} className="wc-contact-item"
@@ -407,7 +396,7 @@ export default function ContactList({ onStartChat, searchQuery = '', addFriendRe
                   <div className="wc-contact-item-name">{b.name}</div>
                   <div className="wc-contact-item-sub">{b.description || t('contacts.aiBotIdTemplate').replace('{id}', b.wechat_id)}</div>
                 </div>
-                <IcoBack width="14" height="14" fill="var(--text-tertiary)" />
+                <IcoBack style={{color:"var(--text-tertiary)"}} size="xs" />
               </div>
             ))}
           </>
@@ -418,9 +407,7 @@ export default function ContactList({ onStartChat, searchQuery = '', addFriendRe
           <>
             <SectionHeader title={t('contacts.blacklist')} onBack={() => setTab('contacts')} />
             {blockedUsers.length === 0 && (
-              <div className="cl-empty" role="status">
-                <div className="cl-empty-text">{t('contacts.blacklistEmpty')}</div>
-              </div>
+              <EmptyState className="cl-empty" icon={null} title={<>{t('contacts.blacklistEmpty')}</>} />
             )}
             {blockedUsers.map(u => (
               <div key={u.id} className="req-item">
@@ -458,13 +445,11 @@ export default function ContactList({ onStartChat, searchQuery = '', addFriendRe
                   <div className="wc-contact-item-name">{g.name}</div>
                   <div className="wc-contact-item-sub">{t('contacts.memberCountTemplate').replace('{count}', g.memberCount)}</div>
                 </div>
-                <IcoBack width="14" height="14" fill="var(--text-tertiary)" />
+                <IcoBack style={{color:"var(--text-tertiary)"}} size="xs" />
               </div>
             ))}
             {groups.length === 0 && (
-              <div className="cl-empty" role="status">
-                <div className="cl-empty-groups">{t('contacts.noGroups')}</div>
-              </div>
+              <EmptyState className="cl-empty" icon={null} title={<>{t('contacts.noGroups')}</>} />
             )}
           </>
         )}
@@ -616,12 +601,12 @@ function LabelsTab({ labels, contacts, onBack, onUpdate }) {
                   <div className="wc-contact-item-name">{c.remark || c.username}</div>
                 </div>
                 <div className="lt-member-checkbox" style={{ border: `2px solid ${inLabel ? 'var(--green)' : 'var(--divider)'}`, background: inLabel ? 'var(--green)' : 'transparent' }}>
-                  {inLabel && <IcoCheck width="12" height="12" fill="#fff" />}
+                  {inLabel && <IcoCheck tone="onDark" size="xs" />}
                 </div>
               </div>
             );
           })}
-          {contacts.length === 0 && <div className="cl-empty"><div className="cl-empty-text">{t('contacts.noContacts')}</div></div>}
+          {contacts.length === 0 && <EmptyState className="cl-empty" icon={null} title={<>{t('contacts.noContacts')}</>} />}
         </div>
       </>
     );
@@ -633,16 +618,16 @@ function LabelsTab({ labels, contacts, onBack, onUpdate }) {
       <div className="lt-list-header">
         <button onClick={startCreate}
           className="lt-create-btn">
-          + {t('contacts.newLabel')}
+          <TouliaoIcon name="add" size="sm" /> {t('contacts.newLabel')}
         </button>
       </div>
       {labels.length === 0 && (
-        <div className="cl-empty"><div className="cl-empty-text">{t('contacts.noLabels')}</div><div className="cl-empty-sub">{t('contacts.noLabelsSub')}</div></div>
+        <EmptyState className="cl-empty" icon={null} title={<>{t('contacts.noLabels')}</>} desc={<>{t('contacts.noLabelsSub')}</>} />
       )}
       {labels.map(label => (
         <div key={label.id} className="wc-contact-item">
           <div className="lt-label-icon-box" style={{ background: label.color || '#6D5AE6' }}>
-            <svg viewBox="0 0 24 24" width="20" height="20" fill="#fff"><path d="M17.63 5.84C17.27 5.33 16.67 5 16 5L5 5.01C3.9 5.01 3 5.9 3 7v10c0 1.1.9 1.99 2 1.99L16 19c.67 0 1.27-.33 1.63-.84L22 12l-4.37-6.16z"/></svg>
+            <TouliaoIcon name="tag" size="sm" />
           </div>
           <div className="cl-contact-info">
             <div className="wc-contact-item-name">{label.name}</div>
@@ -689,7 +674,7 @@ const ContactRow = memo(function ContactRow({ contact: c, online, onOpen }) {
 
 function EntryRow({ icon, color, label, badge, onClick, testid }) {
   return (
-    <div className="wc-contact-item gi-cp" onClick={onClick}
+    <div className="wc-contact-item tl-contact-shortcut gi-cp" onClick={onClick}
       role="button" tabIndex={0} data-testid={testid}
       onKeyDown={e => (e.key === 'Enter' || e.key === ' ') && (e.preventDefault(), onClick?.(e))}>
       <div className="cl-entry-icon-box" style={{ background: color }}>
@@ -703,7 +688,7 @@ function EntryRow({ icon, color, label, badge, onClick, testid }) {
           {badge}
         </span>
       )}
-      <IcoBack width="14" height="14" fill="var(--text-tertiary)" className="cl-entry-arrow" />
+      <IcoBack className="cl-entry-arrow" style={{color:"var(--text-tertiary)"}} size="xs" />
     </div>
   );
 }
@@ -713,7 +698,7 @@ function SectionHeader({ title, onBack }) {
   return (
     <div className="cl-section-header">
       <button onClick={onBack} className="cl-section-back">
-        <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="M15.41 16.59L10.83 12l4.58-4.59L14 6l-6 6 6 6z"/></svg>
+        <TouliaoIcon name="back" size="xs" />
         {t('common.back')}
       </button>
       <span className="cl-section-title">{title}</span>

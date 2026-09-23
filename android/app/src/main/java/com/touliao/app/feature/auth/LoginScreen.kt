@@ -15,9 +15,13 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
+import com.touliao.app.ui.components.TouliaoField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.layout.safeDrawingPadding
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -34,15 +38,12 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.activity.compose.BackHandler
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.foundation.layout.Row
 import androidx.compose.ui.platform.LocalContext
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -75,6 +76,8 @@ fun LoginScreen(
     Column(
         modifier = Modifier
             .fillMaxSize()
+            .safeDrawingPadding()
+            .verticalScroll(rememberScrollState())
             .imePadding()
             .padding(horizontal = 32.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -86,7 +89,7 @@ fun LoginScreen(
                 horizontalArrangement = Arrangement.Start,
             ) {
                 IconButton(onClick = onBack) {
-                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回")
+                    Icon(com.touliao.app.ui.TouliaoIcons.Back, contentDescription = "返回")
                 }
             }
             Spacer(Modifier.height(8.dp))
@@ -96,14 +99,14 @@ fun LoginScreen(
             modifier = Modifier
                 .size(72.dp)
                 .clip(RoundedCornerShape(com.touliao.app.ui.theme.VxinRadius.xl))
-                .background(Brush.linearGradient(listOf(VxinBrandLight, VxinBrandDark))),
+                .background(MaterialTheme.colorScheme.primary),
             contentAlignment = Alignment.Center,
         ) {
             Icon(
                 TouliaoIcons.Chat,
                 contentDescription = null,
-                tint = androidx.compose.ui.graphics.Color.White,
-                modifier = Modifier.size(38.dp),
+                tint = MaterialTheme.colorScheme.onPrimary,
+                modifier = Modifier.size(com.touliao.app.ui.IconSize.Xl),
             )
         }
         Spacer(Modifier.height(16.dp))
@@ -112,7 +115,7 @@ fun LoginScreen(
         Text("安全 · 私密 · 畅聊", fontSize = com.touliao.app.ui.theme.VxinTextSize.base, color = VxinTextSecondary)
         Spacer(Modifier.height(40.dp))
 
-        OutlinedTextField(
+        TouliaoField(
             value = state.phone,
             onValueChange = viewModel::onPhoneChange,
             label = { Text("手机号") },
@@ -122,7 +125,7 @@ fun LoginScreen(
         )
         Spacer(Modifier.height(16.dp))
         var passwordVisible by remember { mutableStateOf(false) }
-        OutlinedTextField(
+        TouliaoField(
             value = state.password,
             onValueChange = viewModel::onPasswordChange,
             label = { Text("密码") },
@@ -145,7 +148,7 @@ fun LoginScreen(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                OutlinedTextField(
+                TouliaoField(
                     value = state.captchaText,
                     onValueChange = viewModel::onCaptchaTextChange,
                     label = { Text("图形验证码") },
@@ -204,43 +207,11 @@ fun LoginScreen(
             androidx.compose.material3.Checkbox(checked = state.legalAccepted, onCheckedChange = viewModel::onLegalAccepted)
             Text("我已阅读并同意隐私政策和用户协议")
         }
-        Button(
-            onClick = viewModel::submit,
-            enabled = state.canSubmit,
-            contentPadding = androidx.compose.foundation.layout.PaddingValues(),
-            colors = ButtonDefaults.buttonColors(
-                containerColor = androidx.compose.ui.graphics.Color.Transparent,
-                disabledContainerColor = androidx.compose.ui.graphics.Color.Transparent,
-            ),
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(50.dp)
-                .testTag("login-submit-btn"),
-        ) {
-            Box(
-                Modifier
-                    .fillMaxWidth()
-                    .height(50.dp)
-                    .clip(RoundedCornerShape(com.touliao.app.ui.theme.VxinRadius.pill))
-                    .background(
-                        if (state.canSubmit)
-                            Brush.linearGradient(listOf(VxinBrandLight, VxinBrandDark))
-                        else Brush.linearGradient(listOf(VxinTextSecondary, VxinTextSecondary))
-                    ),
-                contentAlignment = Alignment.Center,
-            ) {
-                if (state.loading) {
-                    CircularProgressIndicator(
-                        modifier = Modifier.size(20.dp),
-                        color = androidx.compose.ui.graphics.Color.White,
-                        strokeWidth = 2.dp,
-                    )
-                } else {
-                    Text("登录", color = androidx.compose.ui.graphics.Color.White, fontWeight = FontWeight.SemiBold)
-                }
-            }
-        }
-
+        com.touliao.app.ui.VxinGradientButton(
+            text = "登录", onClick = viewModel::submit,
+            enabled = state.canSubmit, loading = state.loading,
+            modifier = Modifier.testTag("login-submit-btn"),
+        )
         Spacer(Modifier.height(12.dp))
         TextButton(onClick = onNavigateRegister) {
             Text("注册账号", color = VxinGreen)
@@ -257,7 +228,7 @@ fun LoginScreen(
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier.fillMaxWidth(),
             ) {
-                OutlinedTextField(
+                TouliaoField(
                     value = state.tenantCode,
                     onValueChange = viewModel::onTenantCodeChange,
                     label = { Text("企业代码") },
@@ -280,7 +251,7 @@ fun LoginScreen(
                 fontSize = com.touliao.app.ui.theme.VxinTextSize.sm2,
             )
 
-            OutlinedTextField(
+            TouliaoField(
                 value = state.serverUrl,
                 onValueChange = viewModel::onServerUrlChange,
                 label = { Text("服务器地址") },

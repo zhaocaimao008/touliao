@@ -12,39 +12,40 @@ struct SettingsHomeView: View {
             VStack(spacing: 12) {
                 LegalLinks()
                 SafetyReportButton(label: "举报与客服 / 我的工单")
-                HubCard {
+                TouliaoSettingSection {
                     NavigationLink(destination: NotificationSettingsView()) {
-                        HubRow(icon: "bell", title: "消息通知")
+                        TouliaoSettingRow(icon: "notification", title: "消息通知")
                     }.buttonStyle(.plain)
-                    HubDivider()
+                    TouliaoSettingDivider()
                     NavigationLink(destination: PrivacySecurityView()) {
-                        HubRow(icon: "checkmark.shield", title: "隐私与安全")
+                        TouliaoSettingRow(icon: "security", title: "隐私与安全")
                     }.buttonStyle(.plain)
-                    HubDivider()
+                    TouliaoSettingDivider()
                     NavigationLink(destination: AppearanceSettingsView()) {
-                        HubRow(icon: "paintpalette", title: "外观")
+                        TouliaoSettingRow(icon: "appearance", title: "外观")
                     }.buttonStyle(.plain)
-                    HubDivider()
+                    TouliaoSettingDivider()
                     NavigationLink(destination: SessionsView()) {
-                        HubRow(icon: "laptopcomputer.and.iphone", title: "登录设备管理")
+                        TouliaoSettingRow(icon: "device", title: "登录设备管理")
                     }.buttonStyle(.plain)
                 }
-                HubCard {
+                TouliaoSettingSection {
                     Button { showClearConfirm = true } label: {
-                        HubRow(icon: "trash", title: "清除缓存", trailing: clearing ? nil : formatBytes(cacheBytes), showsSpinner: clearing)
+                        TouliaoSettingRow(icon: "delete", title: "清除缓存", trailing: clearing ? nil : formatBytes(cacheBytes), showsSpinner: clearing)
                     }.buttonStyle(.plain)
-                    HubDivider()
+                    TouliaoSettingDivider()
                     Button { showAbout = true } label: {
-                        HubRow(icon: "info.circle", title: "关于 投聊", trailing: ProfileView.shortVer)
+                        TouliaoSettingRow(icon: "info", title: "关于 投聊", trailing: ProfileView.shortVer)
                     }.buttonStyle(.plain)
                 }
             }
             .padding(.horizontal, 16)
             .padding(.top, 16)
         }
-        .background(Color(UIColor.systemGroupedBackground).ignoresSafeArea())
+        .background(Color.vxinBackground.ignoresSafeArea())
         .navigationTitle("设置")
         .navigationBarTitleDisplayMode(.inline)
+        .touliaoPage()
         .task { refreshCacheSize() }
         .alert("清除缓存", isPresented: $showClearConfirm) {
             Button("取消", role: .cancel) {}
@@ -100,50 +101,4 @@ private func directorySize(_ url: URL) -> Int64 {
 private func formatBytes(_ bytes: Int64) -> String {
     let mb = Double(bytes) / 1024.0 / 1024.0
     return mb < 0.1 ? "0 MB" : String(format: "%.1f MB", mb)
-}
-
-private struct HubCard<Content: View>: View {
-    @ViewBuilder var content: Content
-    var body: some View {
-        VStack(spacing: 0) { content }
-            .background(Color(UIColor.secondarySystemGroupedBackground))
-            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-            .overlay(
-                RoundedRectangle(cornerRadius: 16, style: .continuous)
-                    .stroke(Color(UIColor.separator), lineWidth: 0.5)
-            )
-    }
-}
-
-private struct HubDivider: View {
-    var body: some View {
-        Divider().padding(.leading, 52)
-    }
-}
-
-private struct HubRow: View {
-    let icon: String
-    let title: String
-    var trailing: String? = nil
-    var showsSpinner: Bool = false
-
-    var body: some View {
-        HStack(spacing: 12) {
-            Image(systemName: icon)
-                .foregroundColor(Color(UIColor.secondaryLabel))
-                .frame(width: 22)
-            Text(title).foregroundColor(Color(UIColor.label))
-            Spacer()
-            if showsSpinner {
-                ProgressView().scaleEffect(0.7)
-            } else if let trailing {
-                Text(trailing).foregroundColor(Color(UIColor.secondaryLabel)).font(.subheadline)
-            }
-            Image(systemName: "chevron.right")
-                .font(.caption).foregroundColor(Color(UIColor.secondaryLabel).opacity(0.6))
-        }
-        .padding(.horizontal, 16)
-        .frame(minHeight: 52)
-        .contentShape(Rectangle())
-    }
 }

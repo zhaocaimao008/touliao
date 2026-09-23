@@ -1,5 +1,7 @@
 import React, { memo, useState } from 'react';
 import { mediaUrl, getThumbUrl, useMediaCredentials } from '../utils/url';
+import { avatarPx } from '../ui-kit/avatarMetrics';
+export { avatarPx, AVATAR_TIERS } from '../ui-kit/avatarMetrics';
 
 // 无头像时的字母头像配色：AURORA 极光系多彩，按名字 hash 稳定取色，去掉"整页灰"
 const COLORS = [
@@ -21,24 +23,14 @@ export function getColor(name) {
   return COLORS[Math.abs(hash) % COLORS.length];
 }
 
-export const AVATAR_TIERS = {
-  micro: 24,  // 微：群聊发送者小头像、会话多账号头像
-  xs: 28,     // 特小：账号切换行
-  sm: 36,     // 小：消息气泡发送者、成员列表、通知行
-  md: 40,     // 中：会话/联系人/朋友圈列表（默认）
-  lg: 48,     // 大：好友请求、新朋友行
-  xl: 64,     // 特大：个人资料卡、二维码名片
-  hero: 92,   // 主头像：「我」页头部横幅
-};
-export const avatarPx = (size) => (typeof size === 'string' ? AVATAR_TIERS[size] || 40 : size);
-
-export default memo(function Avatar({ src, name = '', size = 'md', style = {}, online = false, className: _className = '', onClick }) {
+export default memo(function Avatar({ src, name = '', size = 'list', style = {}, online = false, className = '', onClick }) {
   useMediaCredentials();
   const thumbUrl = mediaUrl(getThumbUrl(src));
   const originalUrl = mediaUrl(src);
   const px = avatarPx(size);
   const radius = Math.max(3, Math.round(px * 0.13)); // 微信风方圆角(原 0.22 偏圆)
-  const baseStyle = { width: px, height: px, borderRadius: radius, overflow: 'hidden', flexShrink: 0, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', position: 'relative', ...style };
+  // Wrapper layout must never override the face's centering/fallback geometry.
+  const baseStyle = { width: px, height: px, borderRadius: radius, overflow: 'hidden', flexShrink: 0, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', position: 'relative' };
   const letter = (name || '?')[0].toUpperCase();
 
   // 图片加载失败（如服务器上文件不存在）时回退到字母头像，避免显示浏览器碎图图标。
@@ -55,17 +47,20 @@ export default memo(function Avatar({ src, name = '', size = 'md', style = {}, o
 
   return (
     <div
+      className={className || undefined}
       style={{ position: 'relative', display: 'inline-flex', flexShrink: 0, cursor: onClick ? 'pointer' : undefined, ...style }}
       onClick={onClick}
       role={onClick ? 'button' : undefined}
+      aria-label={onClick ? name || undefined : undefined}
       tabIndex={onClick ? 0 : undefined}
       onKeyDown={onClick ? e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClick(e); } } : undefined}
     >
       {showImg
         ? <>
             {/* 字母垫底：图片加载出来前透出彩色字母而非空白，加载完被图覆盖（无 opacity 切换，规避缓存图不触发 onLoad 的失效） */}
-            <div aria-hidden="true" style={{ ...baseStyle, position: 'absolute', inset: 0, background: getColor(name), color: 'var(--text-inverse)', fontSize: px * 0.42, fontWeight: 600 }}>{letter}</div>
+            <div className="wc-avatar-face wc-avatar-fallback" aria-hidden="true" style={{ ...baseStyle, position: 'absolute', inset: 0, background: getColor(name), color: 'var(--text-inverse)', fontSize: px * 0.42, fontWeight: 600 }}>{letter}</div>
             <img
+              className="wc-avatar-face"
               src={thumbFailed ? originalUrl : thumbUrl}
               alt={name}
               loading="lazy"
@@ -78,7 +73,7 @@ export default memo(function Avatar({ src, name = '', size = 'md', style = {}, o
               style={{ ...baseStyle, objectFit: 'cover', position: 'relative', zIndex: 1 }}
             />
           </>
-        : <div style={{ ...baseStyle, background: getColor(name), color: 'var(--text-inverse)', fontSize: px * 0.42, fontWeight: 600, transition: 'opacity .15s' }}>{letter}</div>
+        : <div className="wc-avatar-face wc-avatar-fallback" style={{ ...baseStyle, background: getColor(name), color: 'var(--text-inverse)', fontSize: px * 0.42, fontWeight: 600, transition: 'opacity .15s' }}>{letter}</div>
       }
       {online && <span className="wc-online-dot" />}
     </div>

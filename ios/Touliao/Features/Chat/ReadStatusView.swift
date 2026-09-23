@@ -99,14 +99,14 @@ struct ReadStatusDetailSheet: View {
                 } else if !model.isGroup {
                     // 私聊：对方已读/未读
                     HStack(spacing: 12) {
-                        Text(model.peerRead ? "✓✓" : "✓")
-                            .font(.title3.bold())
+                        TouliaoIcon(model.peerRead ? "read" : "check", size: .sm)
+                            .touliaoText(.headline, weight: .bold)
                             .foregroundColor(model.peerRead ? .vxinGreen : .vxinTextSecondary)
                         VStack(alignment: .leading, spacing: 2) {
                             Text(model.peerRead ? "对方已读" : "对方未读")
-                                .font(.body)
+                                .touliaoText(.body)
                             if !model.peerName.isEmpty {
-                                Text(model.peerName).font(.footnote).foregroundColor(.vxinTextSecondary)
+                                Text(model.peerName).touliaoText(.secondary).foregroundColor(.vxinTextSecondary)
                             }
                         }
                         Spacer()
@@ -114,6 +114,7 @@ struct ReadStatusDetailSheet: View {
                     .padding()
                 } else {
                     List {
+                        Group {
                         Section {
                             Button {
                                 guard model.readCount > 0 else { return }
@@ -121,16 +122,16 @@ struct ReadStatusDetailSheet: View {
                             } label: {
                                 HStack {
                                     Text("已读 \(model.readCount)/\(model.recipientCount)")
-                                        .foregroundColor(.primary)
+                                        .foregroundColor(.vxinText)
                                     Spacer()
                                     if model.readCount > 0 {
                                         Text(expanded ? "收起" : "展开")
-                                            .font(.footnote).foregroundColor(.vxinGreen)
+                                            .touliaoText(.secondary).foregroundColor(.vxinGreen)
                                     }
                                 }
                             }
                             if model.readCount == 0 {
-                                Text("暂无成员已读").font(.footnote).foregroundColor(.vxinTextSecondary)
+                                Text("暂无成员已读").touliaoText(.secondary).foregroundColor(.vxinTextSecondary)
                             }
                         }
                         if expanded {
@@ -143,11 +144,13 @@ struct ReadStatusDetailSheet: View {
                                 }
                             }
                         }
+                        }.listRowBackground(Color.vxinSurface).listRowSeparatorTint(Color.vxinBorder)
                     }
                 }
             }
             .navigationTitle("已读状态")
             .navigationBarTitleDisplayMode(.inline)
+        .touliaoPage()
             .toolbar { ToolbarItem(placement: .confirmationAction) { Button("完成") { dismiss() } } }
         }
         .task { await load() }

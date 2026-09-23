@@ -1,5 +1,6 @@
 package com.touliao.app.feature.profile
 
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -28,7 +29,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
-import androidx.compose.material3.OutlinedTextField
+import com.touliao.app.ui.components.TouliaoField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -56,6 +57,11 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
 import com.touliao.app.feature.update.UpdateCheckDialog
 import com.touliao.app.feature.update.UpdateViewModel
+import com.touliao.app.ui.theme.TouliaoMetrics
+import com.touliao.app.ui.components.TouliaoSettingSection
+import com.touliao.app.ui.components.TouliaoSectionHeader
+import com.touliao.app.ui.components.TouliaoSettingRow
+import com.touliao.app.ui.components.TouliaoSettingDivider
 import com.touliao.app.ui.TouliaoIcons
 import com.touliao.app.ui.components.InitialAvatar
 import com.touliao.app.ui.theme.VxinBrand
@@ -68,103 +74,17 @@ private object Tok {
     val XS = 4.dp;  val S = 8.dp;  val M = 12.dp
     val L = 16.dp;  val XL = 20.dp; val XXL = 24.dp
     // brand（投聊极光靛，不复制 v信绿）
-    val Green   = VxinBrand
-    val GreenBg = VxinBrandMuted
-    val Red     = Color(0xFFFF3B30)
+    val Green: Color @Composable get() = VxinBrand
+    val GreenBg: Color @Composable get() = VxinBrandMuted
+    val Red: Color @Composable get() = com.touliao.app.ui.theme.VxinError
     // shape / size
-    val cardRadius = 16.dp
-    val avatarRadius = 14.dp
-    val avatarSize = 66.dp
-    val iconSize = 22.dp
-    val rowHeight = 56.dp
+    val cardRadius = TouliaoMetrics.radiusCard
+    val avatarRadius = 12.dp
+    val avatarSize = TouliaoMetrics.avatarHero
+    val iconSize = com.touliao.app.ui.IconSize.Sm
+    val rowHeight = TouliaoMetrics.settingHeight
     // 平板/雷电最大内容宽度（避免控件横向拉太宽）
     val maxContentWidth = 600.dp
-}
-
-// ── Shared components（动态主题色，Light/Dark 自动切换）────────────────────────
-
-@Composable
-private fun VxCard(modifier: Modifier = Modifier, content: @Composable ColumnScope.() -> Unit) {
-    Column(
-        modifier = modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(Tok.cardRadius))
-            .background(MaterialTheme.colorScheme.surface)
-            .border(0.5.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(Tok.cardRadius)),
-        content = content,
-    )
-}
-
-@Composable
-private fun SectionHeader(text: String) {
-    Text(
-        text = text,
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(start = Tok.XL, top = Tok.XL, bottom = Tok.S),
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
-        fontSize = 14.sp,
-        fontWeight = FontWeight.Medium,
-    )
-}
-
-@Composable
-private fun RowDivider() {
-    HorizontalDivider(
-        modifier = Modifier.padding(start = Tok.L + Tok.XXL + Tok.M),
-        thickness = 0.5.dp,
-        color = MaterialTheme.colorScheme.outlineVariant,
-    )
-}
-
-@Composable
-private fun SettingsRow(
-    icon: ImageVector,
-    title: String,
-    trailing: String? = null,
-    iconColor: Color? = null,
-    modifier: Modifier = Modifier,
-    onClick: () -> Unit,
-) {
-    Row(
-        modifier = modifier
-            .fillMaxWidth()
-            .height(Tok.rowHeight)
-            .clickable(
-                interactionSource = remember { MutableInteractionSource() },
-                indication = rememberRipple(bounded = true),
-                onClick = onClick,
-            )
-            .padding(horizontal = Tok.L),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Box(modifier = Modifier.size(Tok.XXL), contentAlignment = Alignment.Center) {
-            Icon(icon, contentDescription = title, tint = iconColor ?: MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(Tok.iconSize))
-        }
-        Spacer(Modifier.width(Tok.M))
-        Text(
-            text = title,
-            modifier = Modifier.weight(1f),
-            fontSize = 16.5.sp,
-            color = MaterialTheme.colorScheme.onSurface,
-        )
-        if (trailing != null) {
-            Text(
-                text = trailing,
-                fontSize = 15.sp,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.padding(end = Tok.S),
-            )
-        }
-        Icon(
-            TouliaoIcons.ChevronRight,
-            contentDescription = null,
-            tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
-            modifier = Modifier.size(16.dp),
-        )
-    }
 }
 
 // ── ProfileScreen ──────────────────────────────────────────────────────────────
@@ -277,53 +197,53 @@ fun ProfileScreen(
                             onClick = onOpenMyQr,
                             modifier = Modifier.testTag("profile-my-qr"),
                         ) {
-                            Icon(TouliaoIcons.QrCode, contentDescription = "我的二维码", tint = Tok.Green, modifier = Modifier.size(22.dp))
+                            Icon(TouliaoIcons.Qrcode, contentDescription = "我的二维码", tint = Tok.Green, modifier = Modifier.size(com.touliao.app.ui.IconSize.Md))
                         }
-                        Icon(TouliaoIcons.ChevronRight, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f), modifier = Modifier.size(16.dp))
+                        Icon(TouliaoIcons.Disclosure, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f), modifier = Modifier.size(com.touliao.app.ui.IconSize.Xs))
                     }
                 }
 
                 // ── 2. 账户与服务 ──────────────────────────────────────────
-                SectionHeader("账户与服务")
-                VxCard(Modifier.padding(horizontal = Tok.L).padding(bottom = Tok.M)) {
-                    SettingsRow(TouliaoIcons.Phone, "手机号", trailing = maskedPhone(user?.phone), onClick = { showChangePhoneDialog = true })
-                    RowDivider()
-                    SettingsRow(TouliaoIcons.Wallet, "我的钱包", onClick = onOpenWallet, modifier = Modifier.testTag("profile-wallet"))
-                    RowDivider()
-                    SettingsRow(TouliaoIcons.PhoneCall, "通话记录", onClick = onOpenCallHistory, modifier = Modifier.testTag("profile-call-history"))
-                    RowDivider()
-                    SettingsRow(TouliaoIcons.Devices, "登录设备管理", onClick = onOpenSessions, modifier = Modifier.testTag("profile-sessions"))
-                    RowDivider()
-                    SettingsRow(TouliaoIcons.Lock, "修改密码", onClick = { showChangePasswordDialog = true })
+                TouliaoSectionHeader("账户与服务")
+                TouliaoSettingSection(Modifier.padding(horizontal = Tok.L).padding(bottom = Tok.M)) {
+                    TouliaoSettingRow(TouliaoIcons.PhoneNumber, "手机号", trailing = maskedPhone(user?.phone), onClick = { showChangePhoneDialog = true })
+                    TouliaoSettingDivider()
+                    TouliaoSettingRow(TouliaoIcons.Wallet, "我的钱包", onClick = onOpenWallet, modifier = Modifier.testTag("profile-wallet"))
+                    TouliaoSettingDivider()
+                    TouliaoSettingRow(TouliaoIcons.Phone, "通话记录", onClick = onOpenCallHistory, modifier = Modifier.testTag("profile-call-history"))
+                    TouliaoSettingDivider()
+                    TouliaoSettingRow(TouliaoIcons.Device, "登录设备管理", onClick = onOpenSessions, modifier = Modifier.testTag("profile-sessions"))
+                    TouliaoSettingDivider()
+                    TouliaoSettingRow(TouliaoIcons.Lock, "修改密码", onClick = { showChangePasswordDialog = true })
                 }
 
                 // ── 3. 设置（子项收拢进独立设置页）─────────────────────────
-                VxCard(Modifier.padding(horizontal = Tok.L).padding(top = Tok.M).padding(bottom = Tok.M)) {
-                    SettingsRow(TouliaoIcons.Gear, "设置", onClick = onOpenSettings)
+                TouliaoSettingSection(Modifier.padding(horizontal = Tok.L).padding(top = Tok.M).padding(bottom = Tok.M)) {
+                    TouliaoSettingRow(TouliaoIcons.Settings, "设置", onClick = onOpenSettings)
                 }
 
                 // ── 4. 其他 ────────────────────────────────────────────────
-                SectionHeader("其他")
-                VxCard(Modifier.padding(horizontal = Tok.L).padding(bottom = Tok.M)) {
-                    SettingsRow(TouliaoIcons.UserPlus, "邀请好友", onClick = onOpenInviteFriend)
-                    RowDivider()
+                TouliaoSectionHeader("其他")
+                TouliaoSettingSection(Modifier.padding(horizontal = Tok.L).padding(bottom = Tok.M)) {
+                    TouliaoSettingRow(TouliaoIcons.AddFriend, "邀请好友", onClick = onOpenInviteFriend)
+                    TouliaoSettingDivider()
                     val switchTrailing = "${user?.username?.ifBlank { "当前" } ?: "当前"} · 当前"
-                    SettingsRow(TouliaoIcons.Users, "切换账号", trailing = switchTrailing, onClick = { showSwitchAccount = true })
+                    TouliaoSettingRow(TouliaoIcons.Group, "切换账号", trailing = switchTrailing, onClick = { showSwitchAccount = true })
                 }
 
                 // ── 5. 退出登录 ───────────────────────────────────────────
-                VxCard(Modifier.padding(horizontal = Tok.L).padding(bottom = Tok.M)) {
+                TouliaoSettingSection(Modifier.padding(horizontal = Tok.L).padding(bottom = Tok.M)) {
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(54.dp)
+                            .heightIn(min = 52.dp)
                             .clickable(
                                 interactionSource = remember { MutableInteractionSource() },
                                 indication = rememberRipple(bounded = true),
                             ) { showLogoutDialog = true },
                         contentAlignment = Alignment.Center,
                     ) {
-                        Text("退出登录", color = Tok.Red, fontSize = 16.5.sp)
+                        Text("退出登录", color = Tok.Red, fontSize = 16.sp)
                     }
                 }
 
@@ -451,7 +371,7 @@ private fun AccountSwitchSheet(
                     val isCurrent = acc.id == activeId
                     Row(
                         Modifier.fillMaxWidth()
-                            .height(Tok.rowHeight)
+                            .heightIn(min = Tok.rowHeight)
                             .clickable(enabled = !isCurrent) { onSwitch(acc.id) }
                             .padding(horizontal = Tok.L),
                         verticalAlignment = Alignment.CenterVertically,
@@ -461,7 +381,7 @@ private fun AccountSwitchSheet(
                         Column(Modifier.weight(1f)) {
                             Text(
                                 acc.username.ifBlank { "未命名" },
-                                fontSize = 15.sp,
+                                fontSize = 14.sp,
                                 color = MaterialTheme.colorScheme.onSurface,
                                 maxLines = 1,
                             )
@@ -485,7 +405,7 @@ private fun AccountSwitchSheet(
                 }
                 Row(
                     Modifier.fillMaxWidth()
-                        .height(Tok.rowHeight)
+                        .heightIn(min = Tok.rowHeight)
                         .clickable { onAddAccount() }
                         .padding(horizontal = Tok.L),
                     verticalAlignment = Alignment.CenterVertically,
@@ -494,7 +414,7 @@ private fun AccountSwitchSheet(
                         Icon(TouliaoIcons.Add, contentDescription = null, tint = Tok.Green)
                     }
                     Spacer(Modifier.width(Tok.M))
-                    Text("添加账号", fontSize = 15.sp, color = Tok.Green)
+                    Text("添加账号", fontSize = 14.sp, color = Tok.Green)
                 }
                 Spacer(Modifier.height(Tok.XXL))
             }
@@ -525,14 +445,14 @@ fun ChangePhoneDialog(
                     Text("当前手机号：$currentPhone", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
                     Spacer(Modifier.size(Tok.S))
                 }
-                OutlinedTextField(
+                TouliaoField(
                     value = newPhone,
                     onValueChange = { newPhone = it.filter { c -> c.isDigit() || c == '+' }.take(16) },
                     label = { Text("新手机号") }, singleLine = true,
                     enabled = !changing, modifier = Modifier.fillMaxWidth(),
                 )
                 Spacer(Modifier.size(Tok.S))
-                OutlinedTextField(
+                TouliaoField(
                     value = password, onValueChange = { password = it },
                     label = { Text("登录密码") }, singleLine = true, enabled = !changing,
                     visualTransformation = if (showPassword) VisualTransformation.None else PasswordVisualTransformation(),
@@ -573,21 +493,21 @@ fun ChangePasswordDialog(
         title = { Text("修改密码") },
         text = {
             Column {
-                OutlinedTextField(
+                TouliaoField(
                     value = oldPassword, onValueChange = { oldPassword = it },
                     label = { Text("原密码") }, singleLine = true, enabled = !changing,
                     visualTransformation = PasswordVisualTransformation(),
                     modifier = Modifier.fillMaxWidth(),
                 )
                 Spacer(Modifier.size(Tok.S))
-                OutlinedTextField(
+                TouliaoField(
                     value = newPassword, onValueChange = { newPassword = it },
                     label = { Text("新密码（至少 6 位）") }, singleLine = true, enabled = !changing,
                     visualTransformation = PasswordVisualTransformation(),
                     modifier = Modifier.fillMaxWidth(),
                 )
                 Spacer(Modifier.size(Tok.S))
-                OutlinedTextField(
+                TouliaoField(
                     value = confirmPassword, onValueChange = { confirmPassword = it },
                     label = { Text("确认新密码") }, singleLine = true, enabled = !changing,
                     isError = mismatch,
@@ -628,7 +548,7 @@ fun DeleteAccountDialog(
                     color = Tok.Red, style = MaterialTheme.typography.bodySmall,
                 )
                 Spacer(Modifier.size(Tok.S))
-                OutlinedTextField(
+                TouliaoField(
                     value = password, onValueChange = { password = it },
                     label = { Text("登录密码（用于验证身份）") }, singleLine = true, enabled = !deleting,
                     visualTransformation = PasswordVisualTransformation(),

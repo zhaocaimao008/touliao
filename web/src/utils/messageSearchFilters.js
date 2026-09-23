@@ -1,15 +1,15 @@
 export const MESSAGE_SEARCH_TYPES = [
-  { value: '', labelKey: 'gs.allTypes', icon: '○' },
-  { value: 'text', labelKey: 'gs.typeText', icon: '文' },
-  { value: 'image', labelKey: 'gs.typeImage', icon: '▧' },
-  { value: 'voice', labelKey: 'gs.typeVoice', icon: '◖' },
-  { value: 'video', labelKey: 'gs.typeVideo', icon: '▶' },
-  { value: 'file', labelKey: 'gs.typeFile', icon: '▤' },
-  { value: 'contact_card', labelKey: 'gs.typeContactCard', icon: '人' },
-  { value: 'red_packet', labelKey: 'gs.typeRedPacket', icon: '包' },
-  { value: 'transfer', labelKey: 'gs.typeTransfer', icon: '¥' },
-  { value: 'merged', labelKey: 'gs.typeMerged', icon: '☷' },
-  { value: 'call', labelKey: 'gs.typeCall', icon: '☎' },
+  { value: '', labelKey: 'gs.allTypes', icon: 'allTypes' },
+  { value: 'text', labelKey: 'gs.typeText', icon: 'text' },
+  { value: 'image', labelKey: 'gs.typeImage', icon: 'image' },
+  { value: 'voice', labelKey: 'gs.typeVoice', icon: 'voice' },
+  { value: 'video', labelKey: 'gs.typeVideo', icon: 'video' },
+  { value: 'file', labelKey: 'gs.typeFile', icon: 'fileContent' },
+  { value: 'contact_card', labelKey: 'gs.typeContactCard', icon: 'contact' },
+  { value: 'red_packet', labelKey: 'gs.typeRedPacket', icon: 'redPacket' },
+  { value: 'transfer', labelKey: 'gs.typeTransfer', icon: 'transfer' },
+  { value: 'merged', labelKey: 'gs.typeMerged', icon: 'mergedMessages' },
+  { value: 'call', labelKey: 'gs.typeCall', icon: 'phone' },
 ];
 
 const TYPE_BY_VALUE = new Map(MESSAGE_SEARCH_TYPES.map(option => [option.value, option]));
@@ -45,7 +45,7 @@ function compact(label, detail = '') {
 }
 
 export function messageSearchTypeIcon(type) {
-  return TYPE_BY_VALUE.get(type)?.icon || '•';
+  return TYPE_BY_VALUE.get(type)?.icon || 'allTypes';
 }
 
 export function formatSearchMessageSummary(message, t) {

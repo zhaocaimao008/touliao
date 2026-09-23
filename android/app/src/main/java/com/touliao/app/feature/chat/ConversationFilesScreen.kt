@@ -19,8 +19,6 @@ import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.ExperimentalMaterialApi
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.pullrefresh.PullRefreshIndicator
 import androidx.compose.material.pullrefresh.pullRefresh
 import androidx.compose.material.pullrefresh.rememberPullRefreshState
@@ -97,7 +95,7 @@ fun ConversationFilesScreen(
                 title = { Text("聊天文件") },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回")
+                        Icon(com.touliao.app.ui.TouliaoIcons.Back, contentDescription = "返回")
                     }
                 },
             )
@@ -122,15 +120,16 @@ fun ConversationFilesScreen(
                         CircularProgressIndicator(Modifier.align(Alignment.Center))
 
                     state.error != null && state.items.isEmpty() ->
-                        Text(
-                            state.error!!,
-                            color = MaterialTheme.colorScheme.error,
+                        EmptyState(
+                            icon = com.touliao.app.ui.TouliaoIcons.Warning,
+                            title = "加载失败", subtitle = state.error, isError = true,
+                            actionLabel = "重试", onAction = viewModel::loadFirst,
                             modifier = Modifier.align(Alignment.Center),
                         )
 
                     state.items.isEmpty() ->
                         EmptyState(
-                            icon = "📁",
+                            icon = com.touliao.app.ui.TouliaoIcons.Folder,
                             title = "暂无文件",
                             subtitle = "该会话下的图片、视频与文件会在这里汇总",
                             modifier = Modifier.align(Alignment.Center),
@@ -206,7 +205,7 @@ private fun FileGridItem(
                 .padding(2.dp)
                 .aspectRatio(1f)
                 .clip(RoundedCornerShape(com.touliao.app.ui.theme.VxinRadius.sm))
-                .background(Color(0x11000000))
+                .background(MaterialTheme.colorScheme.surfaceVariant)
                 .clickable(onClick = onClick),
         ) {
             AsyncImage(
@@ -220,7 +219,7 @@ private fun FileGridItem(
                 Box(
                     Modifier.fillMaxSize().background(Color(0x22000000)),
                     contentAlignment = Alignment.Center,
-                ) { Text("▶", color = Color.White, fontSize = 22.sp) }
+                ) { com.touliao.app.ui.TouliaoGlyph(com.touliao.app.ui.TouliaoIcons.Play, color = com.touliao.app.ui.IconColor.OnDark, size = com.touliao.app.ui.IconSize.Md) }
             }
         }
         // 文件：图标 + 文件名 + 发送者 + 时间（单列行）
@@ -233,7 +232,7 @@ private fun FileGridItem(
                     .padding(horizontal = 12.dp, vertical = 10.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Text("📄", fontSize = 28.sp)
+                com.touliao.app.ui.TouliaoGlyph(com.touliao.app.ui.TouliaoIcons.FileContent, size = com.touliao.app.ui.IconSize.Md)
                 Spacer(Modifier.size(12.dp))
                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                     Text(

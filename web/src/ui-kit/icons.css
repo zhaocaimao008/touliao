@@ -1,0 +1,38 @@
+/* Generated from icon-registry.json; geometry/size/tint have one owner. */
+:root {
+  --icon-xs: 16px;
+  --icon-sm: 20px;
+  --icon-md: 24px;
+  --icon-lg: 32px;
+  --icon-xl: 40px;
+}
+html.touliao-ui body {
+  --icon-primary: var(--tl-text);
+  --icon-secondary: var(--tl-readable-muted);
+  --icon-tertiary: var(--tl-readable-muted);
+  --icon-selected: var(--tl-primary);
+  --icon-disabled: var(--tl-text-disabled);
+  --icon-danger: var(--tl-readable-danger);
+  --icon-on-dark: #ffffff;
+  --icon-on-light: #17212e;
+  --icon-on-accent: var(--tl-primary-foreground);
+}
+html.touliao-ui body svg.tl-icon { fill: none !important; flex-shrink: 0; vertical-align: middle; }
+html.touliao-ui body .tl-icon-button { display: inline-flex; align-items: center; justify-content: center; min-width: 36px; min-height: 36px; }
+html.touliao-ui body .tl-icon-button:disabled { color: var(--icon-disabled); }
+html.touliao-ui body .wc-ctx-item { display: flex; align-items: center; gap: 8px; }
+html.touliao-ui body .wc-ctx-item.danger { color: var(--icon-danger); }
+html.touliao-ui body .tl-icon-label { display: inline-flex; align-items: center; gap: 8px; }
+html.touliao-ui body .tl-icon-placeholder { display: inline-flex; align-items: center; justify-content: center; color: var(--icon-secondary); }
+html.touliao-ui body :is(.wc-tool-btn, .wc-send-btn, .wc-more-icon, .wc-chat-header-btn, .m-tab-ico, .wc-sidebar-btn, .cm-circle-btn-icon, .gcm-control) { --tl-icon-size: var(--icon-md); }
+html.touliao-ui body .wc-state-icon { --tl-icon-size: var(--icon-xl); }
+html.touliao-ui body .wc-more-icon { color: var(--icon-on-dark); }
+html.touliao-ui body .cm-circle-btn-icon { color: var(--icon-on-dark); }
+html.touliao-ui body :is(.wc-voice-play-icon, .wc-voice-play-icon-offset) { color: inherit; }
+
+html.touliao-ui body .m-tab-ico svg.tl-icon { width: var(--icon-md); height: var(--icon-md); }
+html.touliao-ui body :is(.gi-fill-red, .gi-stroke-red) { color: var(--icon-danger); }
+html.touliao-ui body .cm-circle-btn-icon { display: flex; align-items: center; justify-content: center; }
+@media (max-width: 767px) {
+  html.touliao-ui body :is(.tl-icon-button, .wc-send-btn, .wc-modal-close, .gi-close-btn, .wc-back-btn, .wc-card-picker-close) { min-width: 44px; min-height: 44px; }
+}

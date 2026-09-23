@@ -54,10 +54,6 @@ import androidx.compose.material3.TextButton
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.automirrored.filled.Send
-import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -159,7 +155,7 @@ fun ChatScreen(
             if (viewModel.isGroup) viewModel.startGroupCall(v) else viewModel.startCall(v)
         } else if (v != null) {
             // 被拒绝后此前纯静默——点了通话按钮、权限框拒绝后界面毫无反应，像没反应过来一样。
-            android.widget.Toast.makeText(context, "需要麦克风/摄像头权限才能发起通话", android.widget.Toast.LENGTH_SHORT).show()
+            com.touliao.app.ui.components.TouliaoFeedback.show(context, "需要麦克风/摄像头权限才能发起通话", com.touliao.app.ui.components.FeedbackKind.ERROR)
         }
     }
     fun launchCall(video: Boolean) {
@@ -185,7 +181,7 @@ fun ChatScreen(
         if (granted) viewModel.startRecording()
         // 被拒绝后此前纯静默——用户点了语音按钮、弹了系统权限框、拒绝后界面毫无反应，
         // 像坏了一样。加一条提示至少让用户知道发生了什么（不做"去设置"引导，仅提示原因）。
-        else android.widget.Toast.makeText(context, "需要麦克风权限才能发送语音", android.widget.Toast.LENGTH_SHORT).show()
+        else com.touliao.app.ui.components.TouliaoFeedback.show(context, "需要麦克风权限才能发送语音", com.touliao.app.ui.components.FeedbackKind.ERROR)
     }
     val backgroundPicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
         uri?.let { viewModel.setBackground(it) }
@@ -284,11 +280,11 @@ fun ChatScreen(
                 com.touliao.app.core.util.saveTextToDownloads(context, filename, content)
             }.onSuccess { savedPath ->
                 kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
-                    android.widget.Toast.makeText(context, "聊天记录已导出：$savedPath", android.widget.Toast.LENGTH_LONG).show()
+                    com.touliao.app.ui.components.TouliaoFeedback.show(context, "聊天记录已导出：$savedPath", com.touliao.app.ui.components.FeedbackKind.SUCCESS)
                 }
             }.onFailure { e ->
                 kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
-                    android.widget.Toast.makeText(context, "导出保存失败：${e.message ?: "未知错误"}", android.widget.Toast.LENGTH_SHORT).show()
+                    com.touliao.app.ui.components.TouliaoFeedback.show(context, "导出保存失败：${e.message ?: "未知错误"}", com.touliao.app.ui.components.FeedbackKind.ERROR)
                 }
             }
         }
@@ -315,46 +311,62 @@ fun ChatScreen(
     // 被踢/群解散 → 自动返回
     LaunchedEffect(state.closed) { if (state.closed) onBack() }
 
+    val compactHeader = androidx.compose.ui.platform.LocalDensity.current.fontScale > 1.3f ||
+        androidx.compose.ui.platform.LocalConfiguration.current.screenWidthDp < 380
     Scaffold(
         topBar = {
             TopAppBar(
                 title = {
                     Column {
-                        Text(state.title.ifBlank { "聊天" }, modifier = Modifier.testTag("chat-title"))
-                        if (state.peerTyping) {
+                        Text(if (compactHeader && state.peerTyping) "输入中 · ${state.title.ifBlank { "聊天" }}" else state.title.ifBlank { "聊天" }, modifier = Modifier.testTag("chat-title"), maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+                        if (state.peerTyping && !compactHeader) {
                             Text("对方正在输入…", fontSize = com.touliao.app.ui.theme.VxinTextSize.xs, color = VxinGreen)
                         }
                     }
                 },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回")
+                        Icon(com.touliao.app.ui.TouliaoIcons.Back, contentDescription = "返回")
                     }
                 },
                 actions = {
                     viewModel.peerUserId()?.let { peer -> com.touliao.app.feature.safety.SafetyReportButton("user", peer, "举报用户") }
-                    IconButton(onClick = { viewModel.openSearch() }, modifier = Modifier.testTag("chat-search-btn").semantics { contentDescription = "搜索" }) { Text("🔍", style = MaterialTheme.typography.titleMedium) }
+                    if (!compactHeader) {
+                    IconButton(onClick = { viewModel.openSearch() }, modifier = Modifier.testTag("chat-search-btn").semantics { contentDescription = "搜索" }) { com.touliao.app.ui.TouliaoGlyph(com.touliao.app.ui.TouliaoIcons.Search, size = com.touliao.app.ui.IconSize.Md) }
                     // 群聊：语音/视频按钮受后台开关控制（关闭即隐藏）；私聊不受影响
                     if (!viewModel.isGroup || state.groupVoiceCallEnabled) {
-                        IconButton(onClick = { launchCall(false) }, modifier = Modifier.testTag("chat-call-audio-btn").semantics { contentDescription = "语音通话" }) { Text("📞", style = MaterialTheme.typography.titleMedium) }
+                        IconButton(onClick = { launchCall(false) }, modifier = Modifier.testTag("chat-call-audio-btn").semantics { contentDescription = "语音通话" }) { com.touliao.app.ui.TouliaoGlyph(com.touliao.app.ui.TouliaoIcons.Phone, size = com.touliao.app.ui.IconSize.Md) }
                     }
                     if (!viewModel.isGroup || state.groupVideoCallEnabled) {
-                        IconButton(onClick = { launchCall(true) }, modifier = Modifier.testTag("chat-call-video-btn").semantics { contentDescription = "视频通话" }) { Text("📹", style = MaterialTheme.typography.titleMedium) }
+                        IconButton(onClick = { launchCall(true) }, modifier = Modifier.testTag("chat-call-video-btn").semantics { contentDescription = "视频通话" }) { com.touliao.app.ui.TouliaoGlyph(com.touliao.app.ui.TouliaoIcons.Video, size = com.touliao.app.ui.IconSize.Md) }
                     }
                     if (viewModel.isGroup) {
                         IconButton(onClick = { onOpenGroupInfo(viewModel.conversationId) }) {
-                            Icon(Icons.Filled.MoreVert, contentDescription = "群聊信息")
+                            Icon(com.touliao.app.ui.TouliaoIcons.GroupInfo, contentDescription = "群聊信息")
                         }
                     }
-                    // 聊天背景设置
+                    }
+                    // Compact headers keep the title readable and expose every existing action in the menu.
                     Box {
-                        IconButton(onClick = { showChatMenu = true }, modifier = Modifier.semantics { contentDescription = "聊天背景" }) { Text("🖼", style = MaterialTheme.typography.titleMedium) }
+                        IconButton(onClick = { showChatMenu = true }, modifier = Modifier.semantics { contentDescription = "聊天选项" }) { Icon(com.touliao.app.ui.TouliaoIcons.More, contentDescription = null, tint = VxinTextSecondary) }
                         DropdownMenu(expanded = showChatMenu, onDismissRequest = { showChatMenu = false }) {
+                            if (compactHeader) {
+                                DropdownMenuItem(text = { Text("搜索聊天记录") }, onClick = { showChatMenu = false; viewModel.openSearch() })
+                                if (!viewModel.isGroup || state.groupVoiceCallEnabled) {
+                                    DropdownMenuItem(text = { Text("语音通话") }, onClick = { showChatMenu = false; launchCall(false) })
+                                }
+                                if (!viewModel.isGroup || state.groupVideoCallEnabled) {
+                                    DropdownMenuItem(text = { Text("视频通话") }, onClick = { showChatMenu = false; launchCall(true) })
+                                }
+                                if (viewModel.isGroup) {
+                                    DropdownMenuItem(text = { Text("群聊信息") }, onClick = { showChatMenu = false; onOpenGroupInfo(viewModel.conversationId) })
+                                }
+                            }
                             DropdownMenuItem(text = { Text(if (state.background.isBlank()) "设置聊天背景" else "更换聊天背景") }, onClick = {
                                 showChatMenu = false; backgroundPicker.launch("image/*")
                             })
                             if (state.background.isNotBlank()) {
-                                DropdownMenuItem(text = { Text("清除聊天背景", color = Color(0xFFFA5151)) }, onClick = {
+                                DropdownMenuItem(text = { Text("清除聊天背景", color = com.touliao.app.ui.theme.VxinError) }, onClick = {
                                     showChatMenu = false; viewModel.clearBackground()
                                 })
                             }
@@ -402,7 +414,7 @@ fun ChatScreen(
                     TextButton(
                         onClick = { viewModel.batchDeleteSelected() },
                         enabled = state.selectedIds.isNotEmpty(),
-                    ) { Text("删除", color = Color(0xFFFA5151)) }
+                    ) { Text("删除", color = com.touliao.app.ui.theme.VxinError) }
                 }
             } else {
             // imePadding 提到整个底栏：键盘弹出时回复条/输入框/面板一起上移；
@@ -411,7 +423,7 @@ fun ChatScreen(
                 // 编辑态横幅(微信式: 输入框内编辑, 显示"编辑消息" + 原文 + 取消)
                 editTarget?.let { target ->
                     Row(
-                        Modifier.fillMaxWidth().background(Color(0x11000000)).padding(horizontal = 12.dp, vertical = 6.dp),
+                        Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surfaceVariant).padding(horizontal = 12.dp, vertical = 6.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         Text(
@@ -419,12 +431,12 @@ fun ChatScreen(
                             Modifier.weight(1f), color = VxinTextSecondary, fontSize = com.touliao.app.ui.theme.VxinTextSize.sm,
                             maxLines = 1, overflow = TextOverflow.Ellipsis,
                         )
-                        Text("✕", Modifier.clickable { editTarget = null }.padding(start = 8.dp), color = VxinTextSecondary)
+                        com.touliao.app.ui.TouliaoGlyph(com.touliao.app.ui.TouliaoIcons.Close, Modifier.size(com.touliao.app.ui.IconTouchTarget.Android).clickable { editTarget = null }.padding(start = 8.dp), color = VxinTextSecondary, size = com.touliao.app.ui.IconSize.Md)
                     }
                 }
                 state.replyingTo?.let { r ->
                     Row(
-                        Modifier.fillMaxWidth().background(Color(0x11000000)).padding(horizontal = 12.dp, vertical = 6.dp),
+                        Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surfaceVariant).padding(horizontal = 12.dp, vertical = 6.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         Text(
@@ -432,7 +444,7 @@ fun ChatScreen(
                             Modifier.weight(1f), color = VxinTextSecondary, fontSize = com.touliao.app.ui.theme.VxinTextSize.sm,
                             maxLines = 1, overflow = TextOverflow.Ellipsis,
                         )
-                        Text("✕", Modifier.clickable { viewModel.cancelReply() }.padding(start = 8.dp), color = VxinTextSecondary)
+                        com.touliao.app.ui.TouliaoGlyph(com.touliao.app.ui.TouliaoIcons.Close, Modifier.size(com.touliao.app.ui.IconTouchTarget.Android).clickable { viewModel.cancelReply() }.padding(start = 8.dp), color = VxinTextSecondary, size = com.touliao.app.ui.IconSize.Md)
                     }
                 }
                 MessageInputBar(
@@ -518,7 +530,7 @@ fun ChatScreen(
             } else if (!state.loading && state.messages.isEmpty() && state.pending.isEmpty()) {
                 // 空会话友好提示(对齐微信「打个招呼吧」)
                 com.touliao.app.ui.components.EmptyState(
-                    icon = "👋",
+                    icon = com.touliao.app.ui.TouliaoIcons.AddFriend,
                     title = "还没有消息",
                     subtitle = "发条消息，打个招呼吧",
                     modifier = Modifier.align(Alignment.Center),
@@ -556,7 +568,7 @@ fun ChatScreen(
                                     fontSize = com.touliao.app.ui.theme.VxinTextSize.xs,
                                     modifier = Modifier
                                         .clip(RoundedCornerShape(com.touliao.app.ui.theme.VxinRadius.sm))
-                                        .background(Color(0x11000000))
+                                        .background(MaterialTheme.colorScheme.surfaceVariant)
                                         .padding(horizontal = 8.dp, vertical = 2.dp),
                                 )
                             }
@@ -590,7 +602,7 @@ fun ChatScreen(
                                     Modifier.size(22.dp).clip(CircleShape)
                                         .background(if (checked) VxinGreen else Color(0x22000000)),
                                     contentAlignment = Alignment.Center,
-                                ) { if (checked) Text("✓", color = Color.White, fontSize = com.touliao.app.ui.theme.VxinTextSize.sm2) }
+                                ) { if (checked) com.touliao.app.ui.TouliaoGlyph(com.touliao.app.ui.TouliaoIcons.Check, color = com.touliao.app.ui.IconColor.OnDark, size = com.touliao.app.ui.IconSize.Xs) }
                                 Box(Modifier.weight(1f)) {
                                     MessageBubble(
                                         msg = msg,
@@ -717,7 +729,7 @@ fun ChatScreen(
                         Modifier.padding(horizontal = 12.dp, vertical = 7.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        Text("↓", color = VxinGreen, fontSize = com.touliao.app.ui.theme.VxinTextSize.sm2)
+                        com.touliao.app.ui.TouliaoGlyph(com.touliao.app.ui.TouliaoIcons.ScrollDown, color = VxinGreen, size = com.touliao.app.ui.IconSize.Xs)
                         Spacer(Modifier.width(4.dp))
                         Text("$newMsgCount 条新消息", color = VxinGreen, fontSize = com.touliao.app.ui.theme.VxinTextSize.sm2)
                     }
@@ -839,7 +851,7 @@ fun ChatScreen(
                                 Text(p.senderName.ifBlank { "成员" }, fontSize = com.touliao.app.ui.theme.VxinTextSize.sm, color = VxinTextSecondary)
                                 Text(pinnedPreview(p), maxLines = 2, overflow = TextOverflow.Ellipsis)
                             }
-                            TextButton(onClick = { viewModel.unpinMessage(p.msgId) }) { Text("取消", color = Color(0xFFFA5151)) }
+                            TextButton(onClick = { viewModel.unpinMessage(p.msgId) }) { Text("取消", color = com.touliao.app.ui.theme.VxinError) }
                         }
                         HorizontalDivider(thickness = 0.5.dp)
                     }
@@ -1025,7 +1037,7 @@ fun ChatScreen(
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
                             Text(label, Modifier.weight(1f))
-                            if (state.burnAfter == secs) Text("✓", color = com.touliao.app.ui.theme.VxinBrand)
+                            if (state.burnAfter == secs) com.touliao.app.ui.TouliaoGlyph(com.touliao.app.ui.TouliaoIcons.Check, color = com.touliao.app.ui.theme.VxinBrand, size = com.touliao.app.ui.IconSize.Xs)
                         }
                     }
                 }
@@ -1117,12 +1129,12 @@ private fun pinnedPreview(p: com.touliao.app.data.model.PinnedMessage): String =
 @Composable
 private fun AnnouncementBanner(text: String, onClick: () -> Unit) {
     Row(
-        modifier = Modifier.fillMaxWidth().background(Color(0xFFEAF4FF)).clickable(onClick = onClick).padding(horizontal = 12.dp, vertical = 8.dp),
+        modifier = Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.primaryContainer).clickable(onClick = onClick).padding(horizontal = 12.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text("📢", fontSize = com.touliao.app.ui.theme.VxinTextSize.base)
+        com.touliao.app.ui.TouliaoGlyph(com.touliao.app.ui.TouliaoIcons.Announcement, size = com.touliao.app.ui.IconSize.Xs)
         Spacer(Modifier.size(8.dp))
-        Text("群公告", color = Color(0xFF3B82F6), fontSize = com.touliao.app.ui.theme.VxinTextSize.sm, maxLines = 1)
+        Text("群公告", color = MaterialTheme.colorScheme.primary, fontSize = com.touliao.app.ui.theme.VxinTextSize.sm, maxLines = 1)
         Spacer(Modifier.size(8.dp))
         // 置顶轮播：单行横向滚动展示（basicMarquee），点按看全文
         Text(
@@ -1138,10 +1150,10 @@ private fun AnnouncementBanner(text: String, onClick: () -> Unit) {
 private fun PinnedBanner(pinned: List<com.touliao.app.data.model.PinnedMessage>, onClick: () -> Unit) {
     val latest = pinned.firstOrNull() ?: return
     Row(
-        modifier = Modifier.fillMaxWidth().background(Color(0xFFFFF7E6)).clickable(onClick = onClick).padding(horizontal = 12.dp, vertical = 8.dp),
+        modifier = Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surfaceVariant).clickable(onClick = onClick).padding(horizontal = 12.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text("📌", fontSize = com.touliao.app.ui.theme.VxinTextSize.base)
+        com.touliao.app.ui.TouliaoGlyph(com.touliao.app.ui.TouliaoIcons.Pin, size = com.touliao.app.ui.IconSize.Xs)
         Spacer(Modifier.size(8.dp))
         Text(pinnedPreview(latest), Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis, fontSize = com.touliao.app.ui.theme.VxinTextSize.sm2)
         if (pinned.size > 1) Text("${pinned.size} 条", color = VxinTextSecondary, fontSize = com.touliao.app.ui.theme.VxinTextSize.sm)
@@ -1217,9 +1229,9 @@ private fun MessageBubble(
                 }
                 isMine && msg.localStatus == LocalMsgStatus.FAILED -> {
                     Text(
-                        text = "❗发送失败，点击重发",
+                        text = "发送失败，点击重发",
                         fontSize = com.touliao.app.ui.theme.VxinTextSize.xs2,
-                        color = Color(0xFFE64545),
+                        color = com.touliao.app.ui.theme.VxinError,
                         modifier = Modifier
                             .clip(RoundedCornerShape(com.touliao.app.ui.theme.VxinRadius.tag))
                             .clickable(onClick = onRetry)
@@ -1228,27 +1240,24 @@ private fun MessageBubble(
                     )
                 }
                 isMine && showReadStatus -> {
-                    Text(
-                        text = if (isRead) "✓✓ 已读" else "✓",
-                        fontSize = com.touliao.app.ui.theme.VxinTextSize.xs2,
-                        color = if (isRead) VxinGreen else VxinTextSecondary,
-                    )
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        com.touliao.app.ui.TouliaoGlyph(if (isRead) com.touliao.app.ui.TouliaoIcons.Read else com.touliao.app.ui.TouliaoIcons.Check, size = com.touliao.app.ui.IconSize.Xs, color = if (isRead) VxinGreen else VxinTextSecondary)
+                        if (isRead) Text("已读", fontSize = com.touliao.app.ui.theme.VxinTextSize.xs2, color = VxinGreen)
+                    }
                 }
             }
             // 定时消息角标（后端到点后才出现，is_scheduled=1 表示由定时任务发送）
             if (msg.isScheduled == 1) {
-                Text(
-                    "⏱ 定时",
-                    fontSize = com.touliao.app.ui.theme.VxinTextSize.xs2,
-                    color = VxinTextSecondary,
-                    modifier = Modifier.padding(vertical = 1.dp),
-                )
+                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(vertical = 1.dp)) {
+                    com.touliao.app.ui.TouliaoGlyph(com.touliao.app.ui.TouliaoIcons.Schedule, size = com.touliao.app.ui.IconSize.Xs, color = VxinTextSecondary)
+                    Text("定时", fontSize = com.touliao.app.ui.theme.VxinTextSize.xs2, color = VxinTextSecondary)
+                }
             }
             // 被回复消息引用条：被引用消息已撤回/删除(deleted!=0)时整块不渲染，UI 无痕
             msg.replyTo?.takeIf { it.deleted == 0 }?.let { rt ->
                 Box(
                     Modifier.widthIn(max = 260.dp).clip(RoundedCornerShape(com.touliao.app.ui.theme.VxinRadius.sm))
-                        .background(Color(0x11000000))
+                        .background(MaterialTheme.colorScheme.surfaceVariant)
                         .clickable { rt.id.takeIf { it.isNotBlank() }?.let(onReplyClick) }
                         .padding(horizontal = 8.dp, vertical = 4.dp),
                 ) {
@@ -1297,44 +1306,44 @@ private fun MessageBubble(
                 DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
                     // 表情回应行已按用户要求移除(长按菜单不再弹表情包)
                     if (msg.type == "text") {
-                        DropdownMenuItem(text = { Text("复制") }, onClick = {
+                        DropdownMenuItem(leadingIcon = { Icon(com.touliao.app.ui.TouliaoIcons.Copy, contentDescription = null, modifier = Modifier.size(com.touliao.app.ui.IconSize.Sm), tint = com.touliao.app.ui.IconColor.Secondary) }, text = { Text("复制") }, onClick = {
                             clipboard.setText(androidx.compose.ui.text.AnnotatedString(msg.content)); menuOpen = false
                         })
                     }
-                    DropdownMenuItem(text = { Text("回复") }, onClick = { onReply(); menuOpen = false })
+                    DropdownMenuItem(leadingIcon = { Icon(com.touliao.app.ui.TouliaoIcons.Reply, contentDescription = null, modifier = Modifier.size(com.touliao.app.ui.IconSize.Sm), tint = com.touliao.app.ui.IconColor.Secondary) }, text = { Text("回复") }, onClick = { onReply(); menuOpen = false })
                     if (msg.type != "red_packet") {
-                        DropdownMenuItem(text = { Text("转发") }, onClick = { onForward(); menuOpen = false })
+                        DropdownMenuItem(leadingIcon = { Icon(com.touliao.app.ui.TouliaoIcons.Forward, contentDescription = null, modifier = Modifier.size(com.touliao.app.ui.IconSize.Sm), tint = com.touliao.app.ui.IconColor.Secondary) }, text = { Text("转发") }, onClick = { onForward(); menuOpen = false })
                     }
                     // 分享到第三方软件：文本 + 图片/视频/文件/文档
                     if (msg.type == "text" || (msg.type in listOf("image", "video", "file") && !msg.file_url.isNullOrBlank())) {
-                        DropdownMenuItem(text = { Text("分享到…") }, onClick = { onShare(); menuOpen = false })
+                        DropdownMenuItem(leadingIcon = { Icon(com.touliao.app.ui.TouliaoIcons.Share, contentDescription = null, modifier = Modifier.size(com.touliao.app.ui.IconSize.Sm), tint = com.touliao.app.ui.IconColor.Secondary) }, text = { Text("分享到…") }, onClick = { onShare(); menuOpen = false })
                     }
                     if (canEdit) {
-                        DropdownMenuItem(text = { Text("编辑") }, onClick = { onEdit(); menuOpen = false })
+                        DropdownMenuItem(leadingIcon = { Icon(com.touliao.app.ui.TouliaoIcons.Edit, contentDescription = null, modifier = Modifier.size(com.touliao.app.ui.IconSize.Sm), tint = com.touliao.app.ui.IconColor.Secondary) }, text = { Text("编辑") }, onClick = { onEdit(); menuOpen = false })
                     }
                     if (canPin) {
-                        DropdownMenuItem(text = { Text(if (isPinned) "取消置顶" else "置顶") }, onClick = { onTogglePin(); menuOpen = false })
+                        DropdownMenuItem(leadingIcon = { Icon(com.touliao.app.ui.TouliaoIcons.Pin, contentDescription = null, modifier = Modifier.size(com.touliao.app.ui.IconSize.Sm), tint = com.touliao.app.ui.IconColor.Secondary) }, text = { Text(if (isPinned) "取消置顶" else "置顶") }, onClick = { onTogglePin(); menuOpen = false })
                     }
                     if (msg.type != "red_packet") {
-                        DropdownMenuItem(text = { Text("收藏") }, onClick = { onCollect(); menuOpen = false })
+                        DropdownMenuItem(leadingIcon = { Icon(com.touliao.app.ui.TouliaoIcons.Favorite, contentDescription = null, modifier = Modifier.size(com.touliao.app.ui.IconSize.Sm), tint = com.touliao.app.ui.IconColor.Secondary) }, text = { Text("收藏") }, onClick = { onCollect(); menuOpen = false })
                     }
                     if (msg.type == "image") {
-                        DropdownMenuItem(text = { Text("复制图片") }, onClick = { onCopyImage(); menuOpen = false })
-                        DropdownMenuItem(text = { Text("收藏表情") }, onClick = { onCollectSticker(); menuOpen = false })
-                        DropdownMenuItem(text = { Text("保存图片") }, onClick = { onSaveImage(); menuOpen = false })
+                        DropdownMenuItem(leadingIcon = { Icon(com.touliao.app.ui.TouliaoIcons.Copy, contentDescription = null, modifier = Modifier.size(com.touliao.app.ui.IconSize.Sm), tint = com.touliao.app.ui.IconColor.Secondary) }, text = { Text("复制图片") }, onClick = { onCopyImage(); menuOpen = false })
+                        DropdownMenuItem(leadingIcon = { Icon(com.touliao.app.ui.TouliaoIcons.Favorite, contentDescription = null, modifier = Modifier.size(com.touliao.app.ui.IconSize.Sm), tint = com.touliao.app.ui.IconColor.Secondary) }, text = { Text("收藏表情") }, onClick = { onCollectSticker(); menuOpen = false })
+                        DropdownMenuItem(leadingIcon = { Icon(com.touliao.app.ui.TouliaoIcons.Download, contentDescription = null, modifier = Modifier.size(com.touliao.app.ui.IconSize.Sm), tint = com.touliao.app.ui.IconColor.Secondary) }, text = { Text("保存图片") }, onClick = { onSaveImage(); menuOpen = false })
                     }
                     // 撤回：自己消息，或群主/管理员撤回群内他人消息（对全员生效）
                     // 删除：彻底删除，双方都不可见（原「仅自己删除」语义已改为复用 vanish，与撤回同权限）
                     if (isMine || (canManage && !isMine)) {
-                        DropdownMenuItem(text = { Text("撤回", color = Color(0xFFFA5151)) }, onClick = { showRecallConfirm = true; menuOpen = false })
+                        DropdownMenuItem(leadingIcon = { Icon(com.touliao.app.ui.TouliaoIcons.Recall, contentDescription = null, modifier = Modifier.size(com.touliao.app.ui.IconSize.Sm), tint = com.touliao.app.ui.IconColor.Danger) }, text = { Text("撤回", color = com.touliao.app.ui.theme.VxinError) }, onClick = { showRecallConfirm = true; menuOpen = false })
                     }
                     if (canViewReadStatus(msg, myId)) {
-                        DropdownMenuItem(text = { Text("已读状态") }, onClick = { onReadStatus(); menuOpen = false })
+                        DropdownMenuItem(leadingIcon = { Icon(com.touliao.app.ui.TouliaoIcons.Selected, contentDescription = null, modifier = Modifier.size(com.touliao.app.ui.IconSize.Sm), tint = com.touliao.app.ui.IconColor.Secondary) }, text = { Text("已读状态") }, onClick = { onReadStatus(); menuOpen = false })
                     }
                     HorizontalDivider()
                     DropdownMenuItem(text = { Text("举报消息") }, onClick = { reportType = "message"; menuOpen = false })
                     DropdownMenuItem(text = { Text("举报用户") }, onClick = { reportType = "user"; menuOpen = false })
-                    DropdownMenuItem(text = { Text("多选") }, onClick = { onMultiSelect(); menuOpen = false })
+                    DropdownMenuItem(leadingIcon = { Icon(com.touliao.app.ui.TouliaoIcons.Multiselect, contentDescription = null, modifier = Modifier.size(com.touliao.app.ui.IconSize.Sm), tint = com.touliao.app.ui.IconColor.Secondary) }, text = { Text("多选") }, onClick = { onMultiSelect(); menuOpen = false })
                 }
             }
             if (msg.edited == 1) {
@@ -1348,7 +1357,7 @@ private fun MessageBubble(
                         val mine = r.mine(myId)
                         Box(
                             Modifier.padding(end = 4.dp).clip(RoundedCornerShape(com.touliao.app.ui.theme.VxinRadius.badge))
-                                .background(if (mine) VxinGreen.copy(alpha = 0.15f) else Color(0x11000000))
+                                .background(if (mine) VxinGreen.copy(alpha = 0.15f) else MaterialTheme.colorScheme.surfaceVariant)
                                 .then(if (mine) Modifier.border(0.5.dp, VxinGreen.copy(alpha = 0.6f), RoundedCornerShape(com.touliao.app.ui.theme.VxinRadius.badge)) else Modifier)
                                 .clickable { onReact(r.emoji) }
                                 .padding(horizontal = 6.dp, vertical = 1.dp),
@@ -1364,7 +1373,7 @@ private fun MessageBubble(
             onDismissRequest = { showRecallConfirm = false },
             title = { Text("撤回消息") },
             text = { Text("撤回这条消息？对方不会再看到这条消息") },
-            confirmButton = { TextButton(onClick = { onRecall(); showRecallConfirm = false }) { Text("撤回", color = Color(0xFFFA5151)) } },
+            confirmButton = { TextButton(onClick = { onRecall(); showRecallConfirm = false }) { Text("撤回", color = com.touliao.app.ui.theme.VxinError) } },
             dismissButton = { TextButton(onClick = { showRecallConfirm = false }) { Text("取消") } },
         )
     }
@@ -1419,12 +1428,12 @@ private fun MessageContent(
                         .clickable { onImageClick() },
                     loading = {
                         // 加载中灰底占位 + 转圈(对齐微信,避免空白闪烁)
-                        Box(Modifier.size(140.dp).background(Color(0x11000000)), contentAlignment = Alignment.Center) {
+                        Box(Modifier.size(140.dp).background(MaterialTheme.colorScheme.surfaceVariant), contentAlignment = Alignment.Center) {
                             CircularProgressIndicator(Modifier.size(22.dp), strokeWidth = 2.dp)
                         }
                     },
                     error = {
-                        Box(Modifier.size(140.dp).background(Color(0x11000000)), contentAlignment = Alignment.Center) {
+                        Box(Modifier.size(140.dp).background(MaterialTheme.colorScheme.surfaceVariant), contentAlignment = Alignment.Center) {
                             Text("图片加载失败", color = VxinTextSecondary, fontSize = com.touliao.app.ui.theme.VxinTextSize.sm)
                         }
                     },
@@ -1439,14 +1448,14 @@ private fun MessageContent(
                             horizontalArrangement = Arrangement.spacedBy(6.dp),
                             modifier = Modifier.width(voiceBubbleWidth(msg.duration)),
                         ) {
-                            if (!isMine) Text("▶", color = bubbleTextColor(isMine), fontSize = com.touliao.app.ui.theme.VxinTextSize.sm2)
+                            if (!isMine) com.touliao.app.ui.TouliaoGlyph(com.touliao.app.ui.TouliaoIcons.Play, color = bubbleTextColor(isMine), size = com.touliao.app.ui.IconSize.Md)
                             Text(
                                 if (msg.duration > 0) "${msg.duration}″" else "语音",
                                 color = bubbleTextColor(isMine), fontSize = com.touliao.app.ui.theme.VxinTextSize.sm2,
                                 modifier = Modifier.weight(1f),
                                 textAlign = if (isMine) TextAlign.End else TextAlign.Start,
                             )
-                            if (isMine) Text("▶", color = bubbleTextColor(isMine), fontSize = com.touliao.app.ui.theme.VxinTextSize.sm2)
+                            if (isMine) com.touliao.app.ui.TouliaoGlyph(com.touliao.app.ui.TouliaoIcons.Play, color = bubbleTextColor(isMine), size = com.touliao.app.ui.IconSize.Md)
                         }
                     }
                 }
@@ -1465,7 +1474,7 @@ private fun MessageContent(
                         }
                     }
                 }
-                "video" -> MediaCard(isMine, onClick = onOpenFile) { Text("▶ 视频", color = bubbleTextColor(isMine)) }
+                "video" -> MediaCard(isMine, onClick = onOpenFile) { Row(verticalAlignment = Alignment.CenterVertically) { com.touliao.app.ui.TouliaoGlyph(com.touliao.app.ui.TouliaoIcons.Video, color = bubbleTextColor(isMine)); Spacer(Modifier.width(8.dp)); Text("视频", color = bubbleTextColor(isMine)) } }
                 // F4a 合并转发：聊天记录卡片（标题 + 前两条摘要 + 查看N条），点击弹详情
                 "merged" -> {
                     val merged = com.touliao.app.data.model.parseMergedContent(msg.content)
@@ -1494,7 +1503,7 @@ private fun MessageContent(
                         }
                         if (merged.items.size > 2) {
                             Spacer(Modifier.size(2.dp))
-                            Text("…", color = bubbleTextColor(isMine).copy(alpha = 0.5f), fontSize = com.touliao.app.ui.theme.VxinTextSize.sm)
+                            com.touliao.app.ui.TouliaoGlyph(com.touliao.app.ui.TouliaoIcons.More, color = bubbleTextColor(isMine).copy(alpha = 0.5f), size = com.touliao.app.ui.IconSize.Md)
                         }
                         Spacer(Modifier.size(6.dp))
                         Text(
@@ -1529,10 +1538,10 @@ private fun PendingBubble(p: PendingUpload, onRetry: () -> Unit, onDismiss: () -
         // 失败时：气泡左侧显示红色感叹号，点击重试（对齐微信）
         if (p.failed) {
             Box(
-                Modifier.size(20.dp).clip(CircleShape).background(Color(0xFFFA5151))
+                Modifier.size(20.dp).clip(CircleShape).background(com.touliao.app.ui.theme.VxinError)
                     .clickable { onRetry() },
                 contentAlignment = Alignment.Center,
-            ) { Text("!", color = Color.White, fontSize = com.touliao.app.ui.theme.VxinTextSize.sm2) }
+            ) { com.touliao.app.ui.TouliaoGlyph(com.touliao.app.ui.TouliaoIcons.Error, color = MaterialTheme.colorScheme.onError, size = com.touliao.app.ui.IconSize.Xs) }
             Spacer(Modifier.size(6.dp))
         }
         Column(horizontalAlignment = Alignment.End) {
@@ -1577,13 +1586,13 @@ private fun PendingBubble(p: PendingUpload, onRetry: () -> Unit, onDismiss: () -
 }
 
 @Composable
-private fun TextBubble(content: String, isMine: Boolean) {
+internal fun TextBubble(content: String, isMine: Boolean) {
     Box(
         modifier = Modifier
             .widthIn(max = 280.dp)
-            .clip(RoundedCornerShape(com.touliao.app.ui.theme.VxinRadius.md))
+            .clip(RoundedCornerShape(com.touliao.app.ui.theme.VxinRadius.bubble))
             .background(bubbleBrush(isMine))
-            .padding(horizontal = 14.dp, vertical = 9.dp),
+            .padding(horizontal = 12.dp, vertical = 8.dp),
     ) {
         Text(highlightMentions(content, isMine), color = bubbleTextColor(isMine))
     }
@@ -1592,10 +1601,11 @@ private fun TextBubble(content: String, isMine: Boolean) {
 private val MENTION_RE = Regex("@[^\\s@]+")
 
 /** 高亮文本中的 @用户名 */
+@Composable
 private fun highlightMentions(content: String, isMine: Boolean): androidx.compose.ui.text.AnnotatedString {
     if (!content.contains('@')) return androidx.compose.ui.text.AnnotatedString(content)
     // @提及高亮：我方靛底用浅色、对方白底用品牌深色，均保证可读
-    val color = if (isMine) Color(0xFFEAE6FF) else VxinBrandDark
+    val color = if (isMine) Color.White else VxinBrandDark
     return androidx.compose.ui.text.buildAnnotatedString {
         var last = 0
         MENTION_RE.findAll(content).forEach { mr ->
@@ -1614,7 +1624,7 @@ private fun MediaCard(isMine: Boolean, onClick: () -> Unit, content: @Composable
     Box(
         modifier = Modifier
             .widthIn(max = 240.dp)
-            .clip(RoundedCornerShape(com.touliao.app.ui.theme.VxinRadius.md))
+            .clip(RoundedCornerShape(com.touliao.app.ui.theme.VxinRadius.bubble))
             .background(bubbleBrush(isMine))
             .clickable(onClick = onClick)
             .padding(horizontal = 14.dp, vertical = 12.dp),
@@ -1625,19 +1635,18 @@ private fun MediaCard(isMine: Boolean, onClick: () -> Unit, content: @Composable
 @Composable
 private fun bubbleBg(isMine: Boolean): Color =
     if (isMine) VxinBubbleMine
-    else if (isSystemInDarkTheme()) VxinBubbleOtherDark else Color.White
+    else com.touliao.app.ui.theme.LocalTouliaoPalette.current.messageIncoming
 
 // 我方气泡渐变笔刷：极光靛 → 青碧（对齐 web --grad-brand），对方气泡回退纯色
 @Composable
 private fun bubbleBrush(isMine: Boolean): Brush =
-    if (isMine) Brush.linearGradient(listOf(VxinBrandLight, VxinBubbleMine, VxinTeal))
-    else SolidColor(bubbleBg(false))
+    SolidColor(bubbleBg(isMine))
 
 // 气泡文字：我方靛底=白字；对方白/深灰底=深/浅字
 @Composable
 private fun bubbleTextColor(isMine: Boolean): Color =
     if (isMine) VxinBubbleMineText
-    else if (isSystemInDarkTheme()) VxinBubbleTextDark else VxinBubbleText
+    else com.touliao.app.ui.theme.LocalTouliaoPalette.current.text
 
 /** 语音气泡宽度：随时长在 72dp(≤1s/未知)~168dp(≥30s)间线性增长，对齐成熟IM"越长气泡越宽"的直觉。 */
 private fun voiceBubbleWidth(durationSeconds: Int): androidx.compose.ui.unit.Dp {
@@ -1682,7 +1691,7 @@ private fun MessageInputBar(
         if (recording) {
             Text(
                 "● 录音中…点击麦克风停止并发送",
-                color = Color(0xFFFA5151),
+                color = com.touliao.app.ui.theme.VxinError,
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
             )
         }
@@ -1692,10 +1701,10 @@ private fun MessageInputBar(
         ) {
             // 语音输入切换（对齐微信左侧麦克风）
             IconButton(onClick = onMicClick, modifier = Modifier.testTag("chat-voice-btn").semantics { contentDescription = if (recording) "停止录音" else "语音输入" }) {
-                Text(if (recording) "⏹" else "🎤", style = MaterialTheme.typography.titleMedium)
+                Icon(if (recording) com.touliao.app.ui.TouliaoIcons.Stop else com.touliao.app.ui.TouliaoIcons.Microphone, contentDescription = null, tint = VxinTextSecondary, modifier = Modifier.size(com.touliao.app.ui.IconSize.Md))
             }
             if (showMention) {
-                IconButton(onClick = onMention, modifier = Modifier.semantics { contentDescription = "提及成员" }) { Text("@", style = MaterialTheme.typography.titleMedium) }
+                IconButton(onClick = onMention, modifier = Modifier.semantics { contentDescription = "提及成员" }) { Icon(com.touliao.app.ui.TouliaoIcons.Mention, contentDescription = null, tint = VxinTextSecondary, modifier = Modifier.size(com.touliao.app.ui.IconSize.Md)) }
             }
             OutlinedTextField(
                 value = value,
@@ -1707,7 +1716,7 @@ private fun MessageInputBar(
             Spacer(Modifier.size(2.dp))
             // 表情面板切换
             IconButton(onClick = onToggleEmoji, modifier = Modifier.testTag("chat-emoji-btn").semantics { contentDescription = if (emojiPanelOpen) "切换键盘" else "表情" }) {
-                Text(if (emojiPanelOpen) "⌨" else "😀", style = MaterialTheme.typography.titleMedium)
+                Icon(if (emojiPanelOpen) com.touliao.app.ui.TouliaoIcons.Keyboard else com.touliao.app.ui.TouliaoIcons.Emoji, contentDescription = null, tint = VxinTextSecondary, modifier = Modifier.size(com.touliao.app.ui.IconSize.Md))
             }
             // 有文字 → 发送键；无文字 → +(功能面板)。对齐微信输入栏交互。
             if (hasText || sending) {
@@ -1716,7 +1725,7 @@ private fun MessageInputBar(
                         CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp)
                     } else {
                         Icon(
-                            Icons.AutoMirrored.Filled.Send,
+                            com.touliao.app.ui.TouliaoIcons.Send,
                             contentDescription = "发送",
                             tint = VxinGreen,
                         )
@@ -1724,10 +1733,9 @@ private fun MessageInputBar(
                 }
             } else {
                 IconButton(onClick = onToggleFunc, modifier = Modifier.testTag("chat-more-btn").semantics { contentDescription = if (funcPanelOpen) "收起功能" else "更多功能" }) {
-                    Text(
-                        if (funcPanelOpen) "✕" else "＋",
-                        style = MaterialTheme.typography.titleLarge,
-                        color = VxinTextSecondary,
+                    Icon(
+                        if (funcPanelOpen) com.touliao.app.ui.TouliaoIcons.Close else com.touliao.app.ui.TouliaoIcons.Add,
+                        contentDescription = null, tint = VxinTextSecondary, modifier = Modifier.size(com.touliao.app.ui.IconSize.Md),
                     )
                 }
             }
@@ -1751,35 +1759,48 @@ private fun FunctionPanel(
     // 没有专门的"视频"入口——用户在相册选图片时系统选择器被限定成只显示图片，视频压根选不出来，
     // 这正是"安卓没有上传视频的选项"这个反馈的根因。新增独立视频入口(video/*)。
     val items = buildList {
-        add(Triple("🖼", "图片", onPickImage))
-        add(Triple("🎬", "视频", onPickVideo))
-        add(Triple("📎", "文件", onPickFile))
-        if (onScreenshot != null) add(Triple("📷", "截屏", onScreenshot))
-        add(Triple("🧧", "红包", onRedPacket))
-        if (onTransfer != null) add(Triple("💸", "转账", onTransfer))
-        if (onSchedule != null) add(Triple("⏰", "定时发送", onSchedule))
-        if (onScheduleList != null) add(Triple("📋", "定时列表", onScheduleList))
+        add(Triple(com.touliao.app.ui.TouliaoIcons.Image, "图片", onPickImage))
+        add(Triple(com.touliao.app.ui.TouliaoIcons.Video, "视频", onPickVideo))
+        add(Triple(com.touliao.app.ui.TouliaoIcons.File, "文件", onPickFile))
+        if (onScreenshot != null) add(Triple(com.touliao.app.ui.TouliaoIcons.Screenshot, "截屏", onScreenshot))
+        add(Triple(com.touliao.app.ui.TouliaoIcons.RedPacket, "红包", onRedPacket))
+        if (onTransfer != null) add(Triple(com.touliao.app.ui.TouliaoIcons.Transfer, "转账", onTransfer))
+        if (onSchedule != null) add(Triple(com.touliao.app.ui.TouliaoIcons.Schedule, "定时发送", onSchedule))
+        if (onScheduleList != null) add(Triple(com.touliao.app.ui.TouliaoIcons.Calendar, "定时列表", onScheduleList))
     }
+    val columns = if (androidx.compose.ui.platform.LocalDensity.current.fontScale > 1.3f) 3 else 4
     LazyVerticalGrid(
-        columns = GridCells.Fixed(4),
+        columns = GridCells.Fixed(columns),
         modifier = Modifier
             .fillMaxWidth()
             .heightIn(max = 220.dp)
-            .background(Color(0xFFF2F2F2))
+            .testTag("chat-function-panel")
+            .background(MaterialTheme.colorScheme.surfaceVariant)
             .padding(vertical = 12.dp),
     ) {
-        gridItems(items) { (emoji, label, onClick) ->
-            val tag = when (label) { "图片" -> "chat-attach-image"; "视频" -> "chat-attach-video"; "文件" -> "chat-attach-file"; else -> "chat-attach-redpacket" }
+        gridItems(items) { (icon, label, onClick) ->
+            val tag = when (label) {
+                "图片" -> "chat-attach-image"; "视频" -> "chat-attach-video"; "文件" -> "chat-attach-file"
+                "截屏" -> "chat-attach-screenshot"; "转账" -> "chat-attach-transfer"
+                "定时发送" -> "chat-attach-schedule"; "定时列表" -> "chat-attach-schedule-list"
+                else -> "chat-attach-redpacket"
+            }
             Column(
                 horizontalAlignment = Alignment.CenterHorizontally,
-                modifier = Modifier.padding(vertical = 8.dp).testTag(tag).clickable(onClick = onClick),
+                modifier = Modifier.fillMaxWidth().heightIn(min = 84.dp)
+                    .testTag(tag).clickable(onClick = onClick).padding(vertical = 8.dp),
             ) {
                 Box(
-                    Modifier.size(56.dp).clip(RoundedCornerShape(com.touliao.app.ui.theme.VxinRadius.md)).background(Color.White),
+                    Modifier.size(56.dp).clip(RoundedCornerShape(com.touliao.app.ui.theme.VxinRadius.md))
+                        .background(MaterialTheme.colorScheme.surface),
                     contentAlignment = Alignment.Center,
-                ) { Text(emoji, fontSize = 26.sp) }
+                ) {
+                    Icon(icon, contentDescription = null, modifier = Modifier.size(com.touliao.app.ui.IconSize.Md),
+                        tint = if (label == "红包") MaterialTheme.colorScheme.error else VxinTextSecondary)
+                }
                 Spacer(Modifier.size(6.dp))
-                Text(label, fontSize = com.touliao.app.ui.theme.VxinTextSize.sm, color = VxinTextSecondary)
+                Text(label, fontSize = com.touliao.app.ui.theme.VxinTextSize.sm,
+                    color = VxinTextSecondary, textAlign = TextAlign.Center)
             }
         }
     }
@@ -1831,12 +1852,12 @@ private fun ScheduleMessageDialog(
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Ascii),
                 )
                 error?.let {
-                    Text(it, color = Color(0xFFFA5151), fontSize = com.touliao.app.ui.theme.VxinTextSize.sm)
+                    Text(it, color = com.touliao.app.ui.theme.VxinError, fontSize = com.touliao.app.ui.theme.VxinTextSize.sm)
                 }
                 Text(
                     "• 至少 15 分钟后，不超过 30 天\n• 到点后后端自动发送",
                     fontSize = com.touliao.app.ui.theme.VxinTextSize.xs,
-                    color = Color(0xFF888888),
+                    color = com.touliao.app.ui.theme.VxinTextSecondary,
                 )
             }
         },
@@ -1882,7 +1903,7 @@ private fun ScheduledMessagesDialog(
                     CircularProgressIndicator(Modifier.size(24.dp))
                 }
             } else if (messages.isEmpty()) {
-                Text("暂无待发送的定时消息", color = Color(0xFF888888))
+                Text("暂无待发送的定时消息", color = com.touliao.app.ui.theme.VxinTextSecondary)
             } else {
                 LazyColumn(Modifier.heightIn(max = 320.dp)) {
                     items(messages) { msg ->
@@ -1895,11 +1916,11 @@ private fun ScheduledMessagesDialog(
                                 Text(msg.content, maxLines = 2, overflow = TextOverflow.Ellipsis, fontSize = com.touliao.app.ui.theme.VxinTextSize.base)
                                 Text(
                                     "⏰ ${sdf.format(java.util.Date(msg.send_at * 1000))}",
-                                    fontSize = com.touliao.app.ui.theme.VxinTextSize.xs, color = Color(0xFF888888),
+                                    fontSize = com.touliao.app.ui.theme.VxinTextSize.xs, color = com.touliao.app.ui.theme.VxinTextSecondary,
                                 )
                             }
                             TextButton(enabled = msg.status == "pending" || msg.status == "recovery_required", onClick = { onCancel(msg.id) }) {
-                                Text("取消", color = Color(0xFFFA5151), fontSize = com.touliao.app.ui.theme.VxinTextSize.sm)
+                                Text("取消", color = com.touliao.app.ui.theme.VxinError, fontSize = com.touliao.app.ui.theme.VxinTextSize.sm)
                             }
                         }
                         HorizontalDivider(thickness = 0.5.dp)
@@ -1920,12 +1941,12 @@ private fun StickerEmojiPanel(
     onUploadSticker: () -> Unit = {},
 ) {
     var tab by remember { mutableStateOf(0) }
-    Column(Modifier.fillMaxWidth().heightIn(max = 240.dp).background(Color(0xFFF2F2F2))) {
+    Column(Modifier.fillMaxWidth().heightIn(max = 240.dp).background(MaterialTheme.colorScheme.surfaceVariant)) {
         Row(Modifier.fillMaxWidth().padding(8.dp), verticalAlignment = Alignment.CenterVertically) {
             TextButton(onClick = { tab = 0 }) { Text("表情", color = if (tab == 0) VxinGreen else VxinTextSecondary) }
             TextButton(onClick = { tab = 1 }) { Text("贴纸", color = if (tab == 1) VxinGreen else VxinTextSecondary) }
             Spacer(Modifier.weight(1f))
-            if (tab == 1) TextButton(onClick = onUploadSticker) { Text("＋ 添加", color = VxinGreen) }
+            if (tab == 1) TextButton(onClick = onUploadSticker) { Row(verticalAlignment = Alignment.CenterVertically) { com.touliao.app.ui.TouliaoGlyph(com.touliao.app.ui.TouliaoIcons.Add, color = VxinGreen); Spacer(Modifier.width(8.dp)); Text("添加", color = VxinGreen) } }
         }
         if (tab == 0) {
             LazyVerticalGrid(columns = GridCells.Fixed(8), modifier = Modifier.fillMaxWidth().heightIn(max = 190.dp)) {
@@ -1972,7 +1993,7 @@ private fun RedPacketCard(
             .padding(12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text("🧧", fontSize = 28.sp)
+        com.touliao.app.ui.TouliaoGlyph(com.touliao.app.ui.TouliaoIcons.RedPacket, size = com.touliao.app.ui.IconSize.Lg)
         Spacer(Modifier.size(10.dp))
         Column {
             Text(
@@ -2002,7 +2023,7 @@ private fun TransferCard(
             .padding(12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text("💸", fontSize = 26.sp)
+        com.touliao.app.ui.TouliaoGlyph(com.touliao.app.ui.TouliaoIcons.Transfer, size = com.touliao.app.ui.IconSize.Lg)
         Spacer(Modifier.size(10.dp))
         Column {
             Text(
@@ -2053,7 +2074,7 @@ private fun SendTransferDialog(
                     enabled = !sending,
                     modifier = Modifier.fillMaxWidth(),
                 )
-                err?.let { Spacer(Modifier.size(4.dp)); Text(it, color = Color(0xFFFA5151), fontSize = com.touliao.app.ui.theme.VxinTextSize.sm) }
+                err?.let { Spacer(Modifier.size(4.dp)); Text(it, color = com.touliao.app.ui.theme.VxinError, fontSize = com.touliao.app.ui.theme.VxinTextSize.sm) }
             }
         },
         confirmButton = {
@@ -2110,7 +2131,7 @@ private fun SendRedPacketDialog(
                     label = { Text("祝福语（可选）") }, singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
                 )
-                err?.let { Text(it, color = Color(0xFFFA5151), fontSize = com.touliao.app.ui.theme.VxinTextSize.sm) }
+                err?.let { Text(it, color = com.touliao.app.ui.theme.VxinError, fontSize = com.touliao.app.ui.theme.VxinTextSize.sm) }
             }
         },
         confirmButton = {
@@ -2143,7 +2164,7 @@ private fun RedPacketDetailDialog(
     val canClaim = mine == null && claimedAmount == null && !finished
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("🧧 ${detail.senderName.ifBlank { "好友" }} 的红包") },
+        title = { Row(verticalAlignment = Alignment.CenterVertically) { com.touliao.app.ui.TouliaoGlyph(com.touliao.app.ui.TouliaoIcons.RedPacket); Spacer(Modifier.width(8.dp)); Text("${detail.senderName.ifBlank { "好友" }} 的红包") } },
         text = {
             Column {
                 Text(detail.greeting.ifBlank { "恭喜发财，大吉大利" }, color = VxinTextSecondary)
@@ -2201,7 +2222,7 @@ private fun MessageSearchOverlay(
                     Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 8.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    IconButton(onClick = onClose) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "关闭搜索") }
+                    IconButton(onClick = onClose) { Icon(com.touliao.app.ui.TouliaoIcons.Close, contentDescription = "关闭搜索") }
                     val focus = remember { androidx.compose.ui.focus.FocusRequester() }
                     LaunchedEffect(Unit) { kotlinx.coroutines.delay(100); runCatching { focus.requestFocus() } }
                     OutlinedTextField(

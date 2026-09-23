@@ -1,3 +1,6 @@
+import CallControl from '../ui-kit/CallControl';
+import useFocusTrap from '../hooks/useFocusTrap';
+import TouliaoIcon from '../ui-kit/Icon';
 import React, { useState, useEffect, useRef, useCallback, useId } from 'react';
 import axios from 'axios';
 import Avatar from './Avatar';
@@ -62,40 +65,6 @@ function useResponsiveGrid(tileCount) {
 }
 
 // ── Hook: Focus Trap（弹窗内 Tab 循环） ──────────────────────
-function useFocusTrap(open) {
-  const containerRef = useRef(null);
-  useEffect(() => {
-    if (!open) return;
-    const container = containerRef.current;
-    if (!container) return;
-    const focusableSel = 'button:not(:disabled), [href], input:not(:disabled), select:not(:disabled), textarea:not(:disabled), [tabindex]:not([tabindex="-1"])';
-    const focusable = () => [...container.querySelectorAll(focusableSel)].filter(el => el.getClientRects().length > 0);
-    const prevFocus = document.activeElement;
-    const focusFirst = () => {
-      const els = focusable();
-      if (els.length) els[0].focus();
-    };
-    focusFirst();
-    const handler = (e) => {
-      if (e.key !== 'Tab') return;
-      const els = focusable();
-      if (!els.length) return;
-      const first = els[0], last = els[els.length - 1];
-      if (e.shiftKey) {
-        if (document.activeElement === first) { e.preventDefault(); last.focus(); }
-      } else {
-        if (document.activeElement === last) { e.preventDefault(); first.focus(); }
-      }
-    };
-    container.addEventListener('keydown', handler);
-    return () => {
-      container.removeEventListener('keydown', handler);
-      prevFocus?.focus();
-    };
-  }, [open]);
-  return containerRef;
-}
-
 // ── Hook: WebRTC 群通话信令与连接管理 ──────────────────────────
 function useGroupCallWebRTC({ socket, user: _user, session, nameOf: _nameOf, onClose }) {
   const { t } = useI18n();
@@ -724,16 +693,16 @@ export default function GroupCallModal({ socket, user, session, nameOf, onClose 
         </fieldset>}
       </section>}
       <nav aria-label={t('groupCall.controls')} className="gcm-controls">
-        <CtrlBtn icon={<CallIcon kind="camera" off={!selfHasVideo || cameraOff} />}
+        <CallControl className="gcm-control" icon={<CallIcon kind="camera" off={!selfHasVideo || cameraOff} />}
           label={!selfHasVideo || cameraOff ? t('call.turnCameraOn') : t('call.turnCameraOff')}
           pressed={selfHasVideo && !cameraOff} disabled={!mediaReady}
           onClick={selfHasVideo ? webrtc.toggleCamera : webrtc.upgradeToVideo} />
-        <CtrlBtn icon={<CallIcon kind="mic" off={muted || !mediaReady} />}
+        <CallControl className="gcm-control" icon={<CallIcon kind="mic" off={muted || !mediaReady} />}
           label={muted ? t('call.unmute') : t('call.mute')} pressed={muted} disabled={!mediaReady}
           onClick={webrtc.toggleMute} />
-        <CtrlBtn icon={<CallIcon kind="output" />} label={t('groupCall.audioSettings')}
+        <CallControl className="gcm-control" icon={<CallIcon kind="output" />} label={t('groupCall.audioSettings')}
           pressed={showAudioSettings} onClick={() => setShowAudioSettings(value => !value)} />
-        <CtrlBtn icon={<CallIcon kind="hangup" />} label={t('call.hangup')} danger onClick={webrtc.hangup} />
+        <CallControl className="gcm-control" icon={<CallIcon kind="hangup" />} label={t('call.hangup')} danger onClick={webrtc.hangup} />
       </nav>
     </div>
     {minimized && <aside ref={miniRef} className="gcm-mini" aria-label={t('groupCall.minimized')}
@@ -822,20 +791,7 @@ function Tile({ stream, streamForRef, isVideo, info, self, badge, level }) {
 
 // ── 控制按钮 ─────────────────────────────────────────────────
 function CallIcon({ kind, off }) {
-  return <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-    {kind === 'mic' && <><rect x="9" y="3" width="6" height="12" rx="3" /><path d="M5 10v2a7 7 0 0 0 14 0v-2M12 19v3M8 22h8" /></>}
-    {kind === 'camera' && <><rect x="3" y="6" width="12" height="12" rx="2" /><path d="m15 10 6-4v12l-6-4" /></>}
-    {kind === 'output' && <><path d="M4 9h4l5-4v14l-5-4H4zM17 9a5 5 0 0 1 0 6M20 6a9 9 0 0 1 0 12" /></>}
-    {kind === 'minimize' && <path d="M5 17h14" />}
-    {kind === 'restore' && <path d="M5 10V5h5M14 5h5v5M19 14v5h-5M10 19H5v-5" />}
-    {kind === 'hangup' && <path d="M3 15v-4c5-5 13-5 18 0v4l-5-1v-3a15 15 0 0 0-8 0v3z" />}
-    {off && <path d="m3 3 18 18" />}
-  </svg>;
-}
-
-function CtrlBtn({ icon, label, pressed, danger, disabled, onClick }) {
-  return <button type="button" className={`gcm-control${danger ? ' gcm-control--danger' : ''}`}
-    aria-label={label} aria-pressed={pressed} disabled={disabled} onClick={onClick}>
-    <span className="gcm-control-icon">{icon}</span><span>{label}</span>
-  </button>;
+  const name = { mic: off ? 'microphoneMuted' : 'microphone', camera: off ? 'cameraOff' : 'video',
+    output: off ? 'speakerOff' : 'speaker', minimize: 'minimize', restore: 'fullscreen', hangup: 'hangup' }[kind];
+  return <TouliaoIcon name={name} role="call" />;
 }

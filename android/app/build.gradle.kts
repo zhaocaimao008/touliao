@@ -15,8 +15,9 @@ android {
         applicationId = "com.touliao.app"
         minSdk = 24
         targetSdk = 34
-        versionCode = 81
-        versionName = "8.1.24"
+        testInstrumentationRunner = "com.touliao.app.review.ReviewRunner"
+        versionCode = 83
+        versionName = "8.1.26"
 
         // 默认服务器地址（运行时可在 App 内切换并持久化覆盖）
         buildConfigField("String", "DEFAULT_SERVER_URL", "\"https://touliao.cc\"")
@@ -49,6 +50,8 @@ android {
             }
         }
     }
+
+    sourceSets.getByName("androidTest").assets.srcDir("../../scripts/native-review")
 
     buildTypes {
         debug {
@@ -150,4 +153,12 @@ dependencies {
 
     // Unit tests (pure JVM; offline msgCache 语义基线对齐 Web vitest)
     testImplementation(libs.junit)
+    androidTestImplementation(platform(libs.androidx.compose.bom))
+    androidTestImplementation("androidx.compose.ui:ui-test-junit4")
+    androidTestImplementation("androidx.test:runner:1.5.2")
+    androidTestImplementation("androidx.test:rules:1.5.0")
+    androidTestImplementation("androidx.test.espresso:espresso-core:3.5.1")
+    androidTestImplementation("androidx.test.ext:junit:1.1.5")
+    androidTestImplementation("com.google.dagger:hilt-android-testing:2.50")
+    kspAndroidTest("com.google.dagger:hilt-android-compiler:2.50")
 }

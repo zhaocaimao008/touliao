@@ -1,4 +1,6 @@
-import React, { useEffect, useRef, useState, useCallback } from 'react';
+import TouliaoIcon from '../ui-kit/Icon';
+import useFocusTrap from '../hooks/useFocusTrap';
+import React, { useEffect, useRef, useState } from 'react';
 import { mediaUrl, useMediaCredentials } from '../utils/url';
 import { startDownload, subscribe, cancelDownload, retryDownload } from '../utils/downloadManager';
 import { shareMessage, canShare } from '../utils/share';
@@ -68,14 +70,14 @@ function PdfRenderer({ url, onLoaded, onError }) {
         position: 'fixed', bottom: 90, left: '50%', transform: 'translateX(-50%)',
         display: 'flex', gap: 8, background: 'rgba(0,0,0,.6)', borderRadius: 20, padding: '6px 14px',
       }}>
-        <button onClick={() => setScale(s => Math.max(0.5, s - 0.25))} style={zoomBtnStyle}>－</button>
-        <span style={{ color: '#fff', fontSize: 13, alignSelf: 'center' }}>{Math.round(scale * 100)}%</span>
-        <button onClick={() => setScale(s => Math.min(3, s + 0.25))} style={zoomBtnStyle}>＋</button>
+        <button onClick={() => setScale(s => Math.max(0.5, s - 0.25))} style={zoomBtnStyle} aria-label={t('imagePreview.zoomOut')}><TouliaoIcon name="minimize" size="sm" /></button>
+        <span style={{ color: 'var(--icon-on-dark)', fontSize: 13, alignSelf: 'center' }}>{Math.round(scale * 100)}%</span>
+        <button onClick={() => setScale(s => Math.min(3, s + 0.25))} style={zoomBtnStyle} aria-label={t('imagePreview.zoomIn')}><TouliaoIcon name="add" size="sm" /></button>
       </div>
     </div>
   );
 }
-const zoomBtnStyle = { border: 'none', background: 'transparent', color: '#fff', fontSize: 18, cursor: 'pointer', width: 24 };
+const zoomBtnStyle = { border: 'none', background: 'transparent', color: 'var(--icon-on-dark)', fontSize: 18, cursor: 'pointer', width: 44, height: 44 };
 
 function DocxRenderer({ url, onLoaded, onError }) {
   const { t } = useI18n();
@@ -271,15 +273,6 @@ function PptxRenderer({ url, onLoaded, onError }) {
   );
 }
 
-function iconFor(kind) {
-  // 统一走 SVG，不用 emoji（正式 UI 规范要求）
-  const paths = {
-    pdf: 'M6 2h9l5 5v13a2 2 0 01-2 2H6a2 2 0 01-2-2V4a2 2 0 012-2zm8 1.5V8h4.5L14 3.5zM8 13h1.5a1.5 1.5 0 000-3H8v3zm0 1.5V17h1v-2.5H8zm4-3.5h1.2c1 0 1.8.7 1.8 1.75S14.2 14.5 13.2 14.5H13V17h-1v-6zm1 3.5h.2c.4 0 .7-.3.7-.75s-.3-.75-.7-.75H13v1.5zM17 11h1v6h-1v-2.5h1.5V13H18v-1h1.5v-1H17z',
-    generic: 'M6 2h9l5 5v13a2 2 0 01-2 2H6a2 2 0 01-2-2V4a2 2 0 012-2zm8 1.5V8h4.5L14 3.5z',
-  };
-  return paths[kind] || paths.generic;
-}
-
 /**
  * 文档/文件全屏预览：PDF/Word/Excel/PPT/TXT/MD/CSV 走对应渲染器 App 内预览；
  * 其他不支持内部预览的格式（zip/rar/doc(旧)/ppt(旧)等二进制）进入"文件详情页"
@@ -296,12 +289,7 @@ export default function FilePreview({ fileUrl, filename, mimeType, fileSize, onC
   const [dl, setDl] = useState(null);
   const dlIdRef = useRef(null);
 
-  const handleKeyDown = useCallback((e) => { if (e.key === 'Escape') onClose(); }, [onClose]);
-  useEffect(() => {
-    window.addEventListener('keydown', handleKeyDown);
-    document.body.style.overflow = 'hidden';
-    return () => { window.removeEventListener('keydown', handleKeyDown); document.body.style.overflow = ''; };
-  }, [handleKeyDown]);
+  const modalRef = useFocusTrap(true, { onEscape: onClose, lockScroll: true });
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- generic 类型无需异步加载，直接同步置为 ready
@@ -322,7 +310,7 @@ export default function FilePreview({ fileUrl, filename, mimeType, fileSize, onC
 
   return (
     <div
-      role="dialog" aria-modal="true" aria-label={t('filePreview.title')} data-testid="file-preview"
+      ref={modalRef} tabIndex={-1} className="tl-file-preview" role="dialog" aria-modal="true" aria-label={t('filePreview.title')} data-testid="file-preview"
       style={{
         position: 'fixed', inset: 0, zIndex: 'var(--z-top)', background: 'rgba(0,0,0,.85)',
         display: 'flex', flexDirection: 'column', animation: 'fadeIn .18s ease-out',
@@ -331,11 +319,11 @@ export default function FilePreview({ fileUrl, filename, mimeType, fileSize, onC
       {/* 顶部栏：返回 + 文件名 + 更多(下载) */}
       <div style={{
         display: 'flex', alignItems: 'center', gap: 12, padding: '12px 16px',
-        background: 'rgba(0,0,0,.5)', color: '#fff', flexShrink: 0,
+        background: 'rgba(0,0,0,.5)', color: 'var(--icon-on-dark)', flexShrink: 0,
       }}>
         <button onClick={onClose} aria-label={t('common.back')} data-testid="file-preview-close"
-          style={{ border: 'none', background: 'transparent', color: '#fff', fontSize: 20, cursor: 'pointer', padding: 4 }}>
-          ‹
+          style={{ border: 'none', background: 'transparent', color: 'var(--icon-on-dark)', fontSize: 20, cursor: 'pointer', padding: 4 }}>
+          <TouliaoIcon name="back" size="md" />
         </button>
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ fontSize: 15, fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{filename}</div>
@@ -343,21 +331,21 @@ export default function FilePreview({ fileUrl, filename, mimeType, fileSize, onC
         </div>
         {canShare() && (
           <button onClick={() => shareMessage({ fileUrl, filename, title: filename })} aria-label={t('filePreview.share')}
-            style={{ border: 'none', background: 'transparent', color: '#fff', fontSize: 14, cursor: 'pointer', padding: 4 }}>
+            style={{ border: 'none', background: 'transparent', color: 'var(--icon-on-dark)', fontSize: 14, cursor: 'pointer', padding: 4 }}>
             {t('filePreview.share')}
           </button>
         )}
       </div>
 
       {/* 主体 */}
-      <div style={{ flex: 1, overflow: 'hidden', position: 'relative', background: kind === 'generic' ? 'transparent' : '#525659' }}>
+      <div className="tl-file-preview-body" style={{ background: kind === 'generic' ? 'transparent' : '#525659' }}>
         {loadState === 'loading' && (
-          <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff' }}>
+          <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--icon-on-dark)' }}>
             正在加载文档…
           </div>
         )}
         {loadState === 'error' && (
-          <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', gap: 12, alignItems: 'center', justifyContent: 'center', color: '#fff' }}>
+          <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', gap: 12, alignItems: 'center', justifyContent: 'center', color: 'var(--icon-on-dark)' }}>
             <div>{t('filePreview.cannotPreviewTemplate').replace('{error}', errorMsg)}</div>
             <button onClick={startSave} style={{ ...actionBtnStyle }}>{t('filePreview.downloadThenOpenElsewhere')}</button>
           </div>
@@ -371,16 +359,11 @@ export default function FilePreview({ fileUrl, filename, mimeType, fileSize, onC
         </div>
         {/* 提前触发不支持格式的 onLoaded 路径（kind==='generic' 已在 effect 里处理），这里渲染详情页内容 */}
         {kind === 'generic' && loadState === 'ready' && (
-          <div style={{
-            position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column',
-            alignItems: 'center', justifyContent: 'center', gap: 16, color: '#fff', padding: 24,
-          }}>
-            <svg viewBox="0 0 24 24" style={{ width: 64, height: 64, fill: 'rgba(255,255,255,.85)' }}>
-              <path d={iconFor('generic')} />
-            </svg>
-            <div style={{ fontSize: 16, fontWeight: 500, textAlign: 'center', wordBreak: 'break-all' }}>{filename}</div>
-            <div style={{ fontSize: 13, opacity: .7 }}>{humanSize(fileSize)}{mimeType ? ` · ${mimeType}` : ''}</div>
-            <div style={{ fontSize: 13, opacity: .6, textAlign: 'center', maxWidth: 280 }}>
+          <div className="tl-file-details" tabIndex={0} aria-label={filename}>
+            <TouliaoIcon name="fileContent" style={{color:'rgba(255,255,255,.85)'}} size="xl" />
+            <div className="tl-file-details-name">{filename}</div>
+            <div className="tl-file-details-meta">{humanSize(fileSize)}{mimeType ? ` · ${mimeType}` : ''}</div>
+            <div className="tl-file-details-description">
               该文件格式暂不支持在投聊内直接预览，可以下载保存，或下载后选择用其他应用打开。
             </div>
           </div>
@@ -398,7 +381,7 @@ export default function FilePreview({ fileUrl, filename, mimeType, fileSize, onC
           </button>
         )}
         {dl && dl.status === 'downloading' && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, color: '#fff', fontSize: 13 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, color: 'var(--icon-on-dark)', fontSize: 13 }}>
             <div style={{ width: 140, height: 6, background: 'rgba(255,255,255,.25)', borderRadius: 3, overflow: 'hidden' }}>
               <div style={{ width: `${dl.progress || 0}%`, height: '100%', background: 'var(--brand-primary)', transition: 'width .2s' }} />
             </div>
@@ -406,12 +389,12 @@ export default function FilePreview({ fileUrl, filename, mimeType, fileSize, onC
             <button onClick={() => cancelDownload(dlIdRef.current)} style={linkBtnStyle}>{t('common.cancel')}</button>
           </div>
         )}
-        {dl && dl.status === 'completed' && <div style={{ color: '#fff', fontSize: 13 }}>{t('filePreview.saved')}</div>}
+        {dl && dl.status === 'completed' && <div style={{ color: 'var(--icon-on-dark)', fontSize: 13 }}>{t('filePreview.saved')}</div>}
         {dl && dl.status === 'cancelled' && (
           <button onClick={startSave} style={actionBtnStyle}>{t('filePreview.cancelledRedownload')}</button>
         )}
         {dl && dl.status === 'failed' && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, color: '#fff', fontSize: 13 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, color: 'var(--icon-on-dark)', fontSize: 13 }}>
             <span>{t('filePreview.downloadFailed')}</span>
             <button onClick={() => retryDownload(dlIdRef.current)} style={linkBtnStyle}>{t('filePreview.retry')}</button>
           </div>
@@ -422,7 +405,7 @@ export default function FilePreview({ fileUrl, filename, mimeType, fileSize, onC
 }
 
 const actionBtnStyle = {
-  border: 'none', cursor: 'pointer', color: '#fff', fontSize: 14,
+  border: 'none', cursor: 'pointer', color: 'var(--icon-on-dark)', fontSize: 14,
   background: 'rgba(255,255,255,.18)', padding: '8px 20px', borderRadius: 20,
 };
 const linkBtnStyle = { border: 'none', background: 'transparent', color: 'var(--brand-primary)', cursor: 'pointer', fontSize: 13, textDecoration: 'underline' };

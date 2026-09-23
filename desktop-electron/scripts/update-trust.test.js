@@ -108,15 +108,16 @@ test('actual main updater handlers reject mismatched metadata and tampered compl
   fetchBuffer:async url=>url.endsWith('.sig')?valid.signature:valid.bytes,
   autoUpdater:{on:(n,fn)=>handlers[n]=fn,downloadUpdate:async()=>{downloads++}},
   log:{info(){},error(){}},mainWindow:{webContents:{send:(...args)=>events.push(args)}},
-  trustedUpdate:null,downloadedInstaller:null,updateAttempt:0,installingUpdate:false};
+  trustedUpdate:null,downloadedInstaller:null,updateAttempt:0,installingUpdate:false,updateInstallRequested:false,updateReady:false};
  vm.runInNewContext(verification+wiring+';setupAutoUpdater()',ctx);
  await handlers['update-available']({...manifest,version:'999.0.0'});
  assert.equal(downloads,0);assert.equal(ctx.trustedUpdate,null);assert(events.some(e=>e[0]==='update:error'));
  await handlers['update-available'](manifest);assert.equal(downloads,1);
  const dir=fs.mkdtempSync(path.join(os.tmpdir(),'f12-wiring-'));const filename=path.join(dir,'update.exe');
  try {
-  fs.writeFileSync(filename,bytes);await handlers['update-downloaded']({...manifest,downloadedFile:filename});assert.equal(ctx.downloadedInstaller,filename);
-  fs.writeFileSync(filename,Buffer.alloc(bytes.length,7));await handlers['update-downloaded']({...manifest,downloadedFile:filename});assert.equal(ctx.downloadedInstaller,null);
+  fs.writeFileSync(filename,bytes);await handlers['update-downloaded']({...manifest,downloadedFile:filename});assert.equal(ctx.downloadedInstaller,filename);assert.equal(ctx.updateReady,true);
+  ctx.updateReady=false;
+  fs.writeFileSync(filename,Buffer.alloc(bytes.length,7));await handlers['update-downloaded']({...manifest,downloadedFile:filename});assert.equal(ctx.downloadedInstaller,null);assert.equal(ctx.updateReady,false);
   ctx.fetchBuffer=async()=>null;await handlers['update-available'](manifest);assert.equal(ctx.trustedUpdate,null);assert.equal(downloads,1);
  } finally {fs.rmSync(dir,{recursive:true});}
 });
@@ -142,11 +143,13 @@ test('test runtime matches the repository-locked updater and YAML parser version
 
 function installHarness(platform='win32') {
  const { EventEmitter }=require('events');
- const handlers={}, events=[], children=[], spawns=[]; let quits=0;
+ const handlers={}, events=[], children=[], spawns=[]; let quits=0, updaterInstalls=0;
  const dir=fs.mkdtempSync(path.join(os.tmpdir(),'f12-ipc-')), filename=path.join(dir,'update.exe');
  fs.writeFileSync(filename,bytes);
  const ctx={process:{platform,resourcesPath:'C:/fixture/resources',env:{SystemRoot:'C:/Windows'}},path, updateTrust:trust,
    updatePolicy:policy, trustedUpdate:trust.bindManifest(input()), downloadedInstaller:filename, PROFILE:1, installingUpdate:false,
+   updateReady:true, updateInstallRequested:false, autoUpdater:{quitAndInstall:()=>updaterInstalls++},
+   strictUpdateMode:()=>{ try { trust.publishers(ctx.updatePolicy); return true; } catch { return false; } },
    isTrustedSender:e=>e.trusted, isQuitting:false, app:{quit:()=>quits++},
    mainWindow:{webContents:{send:(...args)=>events.push(args)}},ipcMain:{handle:(name,handler)=>handlers[name]=handler},
    require:name=>{ assert.equal(name,'child_process'); return {spawn:(...args)=>{
@@ -155,7 +158,7 @@ function installHarness(platform='win32') {
    }}; }};
  require('vm').runInNewContext(mainSlice("  ipcMain.handle('update:install'",'  // 更新：用户手动'),ctx);
  assert.equal(typeof handlers['update:install'],'function');
- return { ctx, events, spawns, children, filename, quits:()=>quits, install:()=>handlers['update:install']({trusted:true}),
+ return { ctx, events, spawns, children, filename, quits:()=>quits, updaterInstalls:()=>updaterInstalls, install:()=>handlers['update:install']({trusted:true}),
    untrusted:()=>handlers['update:install']({trusted:false}), close:()=>fs.rmSync(dir,{recursive:true,force:true}) };
 }
 test('actual install IPC invokes pinned helper with process execution policy and waits for complete STARTED line', async()=>{
@@ -173,16 +176,27 @@ test('actual install IPC invokes pinned helper with process execution policy and
  }finally{h.close();}
 });
 test('install IPC blocks missing state after restart, tampering, untrusted IPC and non-Windows platforms',async()=>{
- for(const scenario of ['restart','tamper','sender','policy','darwin','linux']) {
+ for(const scenario of ['restart','tamper','sender','unpinned-tamper','darwin','linux']) {
    const h=installHarness(['darwin','linux'].includes(scenario)?scenario:'win32');try {
-     if(scenario==='restart') { h.ctx.trustedUpdate=null;h.ctx.downloadedInstaller=null; }
-     if(scenario==='tamper') fs.writeFileSync(h.filename,Buffer.alloc(bytes.length,2));
-     if(scenario==='policy') h.ctx.updatePolicy={publisherThumbprints:[]};
-     await (scenario==='sender'?h.untrusted():h.install());
-     assert.equal(h.spawns.length,0,scenario);assert.equal(h.quits(),0,scenario);
-     if(scenario!=='sender') assert(h.events.some(e=>e[0]==='update:error'),scenario);
+     if(scenario==='restart') { h.ctx.trustedUpdate=null;h.ctx.downloadedInstaller=null;h.ctx.updateReady=false; }
+     if(scenario.endsWith('tamper')) fs.writeFileSync(h.filename,Buffer.alloc(bytes.length,2));
+     if(scenario==='unpinned-tamper') h.ctx.updatePolicy={publisherThumbprints:[]};
+     const run=scenario==='sender'?h.untrusted():h.install();
+     if(scenario==='restart') await assert.rejects(run,/下载完成/);
+     else if(scenario==='unpinned-tamper') await assert.rejects(run,/摘要不一致/);
+     else await run;
+     assert.equal(h.spawns.length,0,scenario);assert.equal(h.quits(),0,scenario);assert.equal(h.updaterInstalls(),0,scenario);
+     assert.equal(h.ctx.isQuitting,false,scenario);
+     if(['tamper','darwin','linux'].includes(scenario)) assert(h.events.some(e=>e[0]==='update:error'),scenario);
    }finally{h.close();}
  }
+});
+test('without publisher pins the bound installer is handed to electron-updater, never the pinned helper',async()=>{
+ const h=installHarness();try {
+   h.ctx.updatePolicy={publisherThumbprints:[]};
+   await h.install();await h.install();
+   assert.equal(h.updaterInstalls(),1);assert.equal(h.spawns.length,0);assert.equal(h.ctx.isQuitting,true);
+ }finally{h.close();}
 });
 test('helper spawn error, crash, nonzero exit and misleading stdout never report installation success',async()=>{
  for(const scenario of ['error','exit','crash','bad-stdout']) {
@@ -229,16 +243,16 @@ test('locked updater default interactive install uses the same updated and force
    _logger:{info(){}},spawnLog:(_exe,actual)=>{args=actual;return Promise.resolve();}},options);
  assert.deepEqual(args,['--updated','--force-run']);
 });
-test('actual available handler blocks non-Windows and missing publisher policy before fetching or downloading',async()=>{
+test('actual available handler blocks non-Windows before fetching and never downloads without a signed binding',async()=>{
  for(const platform of ['darwin','linux','win32']) {
    const handlers={},events=[];let downloads=0,fetches=0;
    const ctx={process:{platform}, updateTrust:trust,updatePolicy:{publisherThumbprints:[]},installingUpdate:false,
-     updateAttempt:0,trustedUpdate:null,downloadedInstaller:null,
+     updateAttempt:0,trustedUpdate:null,downloadedInstaller:null,updateInstallRequested:false,updateReady:false,
      verifyUpdateSignature:async()=>{fetches++;return 'ok';},log:{info(){},error(){}},
      mainWindow:{webContents:{send:(...args)=>events.push(args)}},
      autoUpdater:{on:(n,h)=>handlers[n]=h,downloadUpdate:async()=>downloads++}};
    require('vm').runInNewContext(mainSlice('function setupAutoUpdater()', '// ── 系统托盘')+';setupAutoUpdater();',ctx);
-   await handlers['update-available'](manifest);assert.equal(downloads,0);assert.equal(fetches,0);
-   assert(events.some(e=>e[0]==='update:error' && e[1].includes(platform==='win32'?'未配置':'当前平台')));
+   await handlers['update-available'](manifest);assert.equal(downloads,0);assert.equal(fetches,platform==='win32'?1:0);
+   assert(events.some(e=>e[0]==='update:error' && e[1].includes(platform==='win32'?'校验失败':'当前平台')));
  }
 });

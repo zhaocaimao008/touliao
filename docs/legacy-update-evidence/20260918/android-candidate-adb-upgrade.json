@@ -1,0 +1,10 @@
+{
+  "environment": "Android API 29 native emulator",
+  "oldAndNewReleaseStartup": "passed",
+  "adbInstallReplace": "passed",
+  "applicationUidPreserved": true,
+  "firstInstallTimePreserved": true,
+  "appPrivateFilePreserved": true,
+  "productionLoginOrUserDatabaseExercised": false,
+  "physicalDevice": false
+}

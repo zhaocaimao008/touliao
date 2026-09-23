@@ -1,4 +1,5 @@
 import { normalizeForwardResult } from '../utils/forwardResult';
+import TouliaoIcon from '../ui-kit/Icon';
 import React, { useState, useEffect, useMemo } from 'react';
 import axios from 'axios';
 import Avatar from './Avatar';
@@ -198,15 +199,13 @@ export default function ForwardModal({ message, messages, sourceConversationName
         {/* 标题栏 */}
         <div className="fwd-hd">
           <span className="fwd-hd-title">{t('fwd.title')}</span>
-          <button className="fwd-hd-close" onClick={onClose} aria-label={t('common.close')}>✕</button>
+          <button className="fwd-hd-close" onClick={onClose} aria-label={t('common.close')}><TouliaoIcon name="close" size="sm" /></button>
         </div>
 
         {done ? (
           <div className="fwd-done">
             <div className="fwd-done-ring">
-              <svg viewBox="0 0 24 24" style={{ width: 28, height: 28, fill: 'none', stroke: 'var(--text-inverse)', strokeWidth: 2.5, strokeLinecap: 'round', strokeLinejoin: 'round' }}>
-                <polyline points="20 6 9 17 4 12" />
-              </svg>
+              <TouliaoIcon name="forward" tone="onDark" size="lg" />
             </div>
             <div className="fwd-done-title">{result?.status === 'success' ? t('fwd.success') : result?.status === 'partial_success' ? t('fwd.partialSuccess') : t('fwd.forwardFailed')}</div>
             <div className="fwd-done-sub">
@@ -241,15 +240,13 @@ export default function ForwardModal({ message, messages, sourceConversationName
             <div className="fwd-search-wrap">
               <div className="fwd-search">
                 <span className="fwd-search-ico">
-                  <svg viewBox="0 0 24 24" style={{ width: 13, height: 13, fill: 'var(--text-tertiary)' }}>
-                    <path d="M15.5 14h-.79l-.28-.27A6.47 6.47 0 0016 9.5 6.5 6.5 0 109.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/>
-                  </svg>
+                  <TouliaoIcon name="search" style={{color:'var(--text-tertiary)'}} size="xs" />
                 </span>
                 <input className="fwd-search-inp" placeholder={t('common.search')} value={search} autoFocus onChange={e => setSearch(e.target.value)}
                   aria-label={t('fwd.searchAriaLabel')} />
                 {search && (
                   <button type="button" className="fwd-search-clr" aria-label={t('fwd.clearSearchAriaLabel')} title={t('common.clear')}
-                    onClick={() => setSearch('')}>✕</button>
+                    onClick={() => setSearch('')}><TouliaoIcon name="close" size="sm" /></button>
                 )}
               </div>
             </div>
@@ -271,9 +268,7 @@ export default function ForwardModal({ message, messages, sourceConversationName
                 <button type="button" className="fwd-sel-all" onClick={selectAllFriends}>
                   <div className={`fwd-check${allFriendsSelected ? ' checked' : ''}`}>
                     <span className="fwd-check-icon">
-                      <svg viewBox="0 0 24 24" style={{ width: 12, height: 12, fill: 'none', stroke: 'currentColor', strokeWidth: 3, strokeLinecap: 'round', strokeLinejoin: 'round', color: 'var(--text-inverse)' }}>
-                        <polyline points="20 6 9 17 4 12" />
-                      </svg>
+                      <TouliaoIcon name="check" tone="onDark" size="xs" />
                     </span>
                   </div>
                   <span className="fwd-sel-all-txt">{t('fwd.selectAllFriendsPrefix')}<em>{filteredFriends.length}</em>{t('fwd.selectAllFriendsSuffix')}</span>
@@ -283,9 +278,7 @@ export default function ForwardModal({ message, messages, sourceConversationName
                 <button type="button" className="fwd-sel-all" onClick={selectAllGroups}>
                   <div className={`fwd-check${allGroupsSelected ? ' checked' : ''}`}>
                     <span className="fwd-check-icon">
-                      <svg viewBox="0 0 24 24" style={{ width: 12, height: 12, fill: 'none', stroke: 'currentColor', strokeWidth: 3, strokeLinecap: 'round', strokeLinejoin: 'round', color: 'var(--text-inverse)' }}>
-                        <polyline points="20 6 9 17 4 12" />
-                      </svg>
+                      <TouliaoIcon name="check" tone="onDark" size="xs" />
                     </span>
                   </div>
                   <span className="fwd-sel-all-txt">{t('fwd.selectAllGroupsPrefix')}<em>{filteredGroups.length}</em>{t('fwd.selectAllGroupsSuffix')}</span>
@@ -297,9 +290,7 @@ export default function ForwardModal({ message, messages, sourceConversationName
                 <button type="button" key={f.id} className="fwd-item" onClick={() => toggleFriend(f)}>
                   <div className={`fwd-check${isFriendSelected(f) ? ' checked' : ''}`}>
                     <span className="fwd-check-icon">
-                      <svg viewBox="0 0 24 24" style={{ width: 12, height: 12, fill: 'none', stroke: 'currentColor', strokeWidth: 3, strokeLinecap: 'round', strokeLinejoin: 'round', color: 'var(--text-inverse)' }}>
-                        <polyline points="20 6 9 17 4 12" />
-                      </svg>
+                      <TouliaoIcon name="check" tone="onDark" size="xs" />
                     </span>
                   </div>
                   <Avatar src={f.avatar} name={f.remark || f.username} size='sm' />
@@ -317,9 +308,7 @@ export default function ForwardModal({ message, messages, sourceConversationName
                 <button type="button" key={g.id} className="fwd-item" onClick={() => toggleGroup(g)}>
                   <div className={`fwd-check${selected.has(g.id) ? ' checked' : ''}`}>
                     <span className="fwd-check-icon">
-                      <svg viewBox="0 0 24 24" style={{ width: 12, height: 12, fill: 'none', stroke: 'currentColor', strokeWidth: 3, strokeLinecap: 'round', strokeLinejoin: 'round', color: 'var(--text-inverse)' }}>
-                        <polyline points="20 6 9 17 4 12" />
-                      </svg>
+                      <TouliaoIcon name="check" tone="onDark" size="xs" />
                     </span>
                   </div>
                   <GroupAvatar members={g.members || []} avatar={g.avatar || g.groupAvatar} size='sm' />

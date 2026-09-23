@@ -1,4 +1,8 @@
 import LegalConsent from '../components/LegalConsent';
+import TouliaoField from '../ui-kit/Field';
+import { PrimaryButton } from '../ui-kit/Button';
+import TouliaoIcon from '../ui-kit/Icon';
+
 import { clientStorage as localStorage } from '../utils/clientStorage';
 import './auth.css';
 import React, { useState, useEffect, useCallback } from 'react';
@@ -11,6 +15,7 @@ import { saveCred, hasCred, removeCred, lastRememberedPhone } from '../utils/rem
 import { showToast } from '../utils/toast';
 import AccountWindowButton from '../components/AccountWindowButton';
 import { safeReturnPath } from '../utils/returnPath';
+import { isWindowsDesktop } from '../utils/desktopPlatform';
 
 const isElectron = !!window.__ELECTRON_CONFIG__;
 
@@ -24,8 +29,6 @@ export default function Login() {
   const [legalConsent, setLegalConsent] = useState(null);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const [focusedField, setFocusedField] = useState(null);
-  const [showPwd, setShowPwd] = useState(false);
 
   // 图形验证码：是否要求由后台开关 features.loginCaptcha 决定（GET /api/config），
   // 默认 false（不要求），避免开关拉取失败时误挡住所有人登录。
@@ -159,7 +162,7 @@ export default function Login() {
           </div>
           <h1 className="auth-brand-name auth-brand-name--brand">{t('common.appName')}</h1>
           <p className="auth-brand-desc">{t('auth.slogan')}</p>
-          <AccountWindowButton />
+          {!isWindowsDesktop() && <AccountWindowButton />}
         </div>
 
         {/* 最近登录：点击仅回填手机号。 */}
@@ -191,7 +194,7 @@ export default function Login() {
                   onClick={() => { removeCred(account.user?.phone || ''); removeAccount(account.id); }}
                   title={t('auth.removeRecord')}
                   aria-label={t('auth.removeRecord')}
-                >✕</button>
+                ><TouliaoIcon name="close" size="sm" /></button>
               </div>
             ))}
           </div>
@@ -200,66 +203,14 @@ export default function Login() {
         {/* 登录表单 */}
         <form className="auth-form" onSubmit={handleSubmit}>
           <LegalConsent value={legalConsent} onChange={setLegalConsent} />
-          <div className={`auth-field ${focusedField === 'phone' ? 'focused' : ''} ${phone ? 'has-value' : ''}`}>
-            <label className="auth-field-label" htmlFor="login-phone">{t('auth.phone')}</label>
-            <div className="auth-field-input-wrap">
-              <svg className="auth-field-icon" viewBox="0 0 20 20" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true">
-                <rect x="3" y="1" width="14" height="18" rx="3"/>
-                <line x1="8" y1="15" x2="12" y2="15"/>
-              </svg>
-              <input
-                id="login-phone"
-                data-testid="login-phone-input"
-                className="auth-field-input"
-                type="tel"
-                inputMode="tel"
-                autoComplete="username"
-                placeholder={t('auth.phonePlaceholder')}
-                value={phone}
-                onChange={e => setPhone(e.target.value)}
-                onFocus={() => setFocusedField('phone')}
-                onBlur={() => setFocusedField(null)}
-                required
-              />
-            </div>
-          </div>
-
-          <div className={`auth-field ${focusedField === 'password' ? 'focused' : ''} ${password ? 'has-value' : ''}`}>
-            <label className="auth-field-label" htmlFor="login-password">{t('auth.password')}</label>
-            <div className="auth-field-input-wrap">
-              <svg className="auth-field-icon" viewBox="0 0 20 20" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true">
-                <rect x="3" y="9" width="14" height="10" rx="2"/>
-                <path d="M6 9V6a4 4 0 018 0v3"/>
-              </svg>
-              <input
-                id="login-password"
-                data-testid="login-password-input"
-                className="auth-field-input"
-                type={showPwd ? 'text' : 'password'}
-                autoComplete="current-password"
-                placeholder={t('auth.passwordPlaceholder')}
-                value={password}
-                onChange={e => setPassword(e.target.value)}
-                onFocus={() => setFocusedField('password')}
-                onBlur={() => setFocusedField(null)}
-                required
-              />
-              <button type="button" className="auth-pwd-toggle" onClick={() => setShowPwd(v => !v)} aria-label={showPwd ? t('auth.hidePassword') : t('auth.showPassword')}>
-                {showPwd ? (
-                  <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.5">
-                    <path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94"/>
-                    <path d="M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19"/>
-                    <line x1="1" y1="1" x2="23" y2="23"/>
-                  </svg>
-                ) : (
-                  <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.5">
-                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
-                    <circle cx="12" cy="12" r="3"/>
-                  </svg>
-                )}
-              </button>
-            </div>
-          </div>
+          <TouliaoField id="login-phone" data-testid="login-phone-input" label={t('auth.phone')}
+            icon={<TouliaoIcon name="phoneNumber" className="auth-field-icon" size="sm" />}
+            type="tel" inputMode="tel" autoComplete="username" placeholder={t('auth.phonePlaceholder')}
+            value={phone} onChange={e => setPhone(e.target.value)} required aria-describedby={error ? 'login-error' : undefined} />
+          <TouliaoField id="login-password" data-testid="login-password-input" label={t('auth.password')}
+            icon={<TouliaoIcon name="lock" className="auth-field-icon" size="sm" />} variant="PASSWORD"
+            autoComplete="current-password" placeholder={t('auth.passwordPlaceholder')}
+            value={password} onChange={e => setPassword(e.target.value)} required aria-describedby={error ? 'login-error' : undefined} />
 
           {captchaRequired && (
             <div className="auth-field">
@@ -294,10 +245,8 @@ export default function Login() {
           )}
 
           {error && (
-            <div className="auth-error" role="alert" data-testid="auth-error-text">
-              <svg viewBox="0 0 16 16" width="14" height="14" fill="currentColor">
-                <path d="M8 1a7 7 0 100 14A7 7 0 008 1zM7 5h2v4H7V5zm0 5h2v2H7v-2z"/>
-              </svg>
+            <div id="login-error" className="auth-error" role="alert" data-testid="auth-error-text">
+              <TouliaoIcon name="error" size="xs" />
               {error}
             </div>
           )}
@@ -316,18 +265,15 @@ export default function Login() {
             <Link to="/forgot-password" className="auth-link" style={{ fontSize: 'var(--text-sm2)' }}>{t('auth.forgotPasswordLink')}</Link>
           </div>
 
-          <button type="submit" className="auth-submit" data-testid="login-submit-btn" disabled={loading || !legalConsent?.accepted || !phone || !password || (captchaRequired && !captchaText)}>
-            {loading ? (
-              <span className="auth-spinner" />
-            ) : (
-              t('auth.loginBtn')
-            )}
-          </button>
+          <PrimaryButton type="submit" className="auth-submit" data-testid="login-submit-btn" loading={loading} disabled={!legalConsent?.accepted || !phone || !password || (captchaRequired && !captchaText)}>
+            {t('auth.loginBtn')}
+          </PrimaryButton>
         </form>
 
         <p className="auth-footer">
           {t('auth.noAccountYet')}<Link to="/register" className="auth-link">{t('auth.registerNew')}</Link>
         </p>
+        {isWindowsDesktop() && <div className="windows-account-entry"><AccountWindowButton /></div>}
 
         {/* 下载客户端 — 仅网页端显示 */}
         {!isElectron && (
@@ -355,9 +301,7 @@ export default function Login() {
         <div className="auth-server">
           {!showServer ? (
             <button type="button" className="auth-server-toggle" data-testid="login-switch-server-toggle" onClick={() => setShowServer(true)}>
-              <svg viewBox="0 0 24 24" width="13" height="13" fill="currentColor" style={{ marginRight: 5, verticalAlign: '-2px' }}>
-                <path d="M4 1h16a1 1 0 011 1v4a1 1 0 01-1 1H4a1 1 0 01-1-1V2a1 1 0 011-1zm0 8h16a1 1 0 011 1v4a1 1 0 01-1 1H4a1 1 0 01-1-1v-4a1 1 0 011-1zm2-5a1 1 0 100 2 1 1 0 000-2zm0 8a1 1 0 100 2 1 1 0 000-2z"/>
-              </svg>
+              <TouliaoIcon name="server" style={{marginRight:5,verticalAlign:'-2px'}} size="xs" />
               {currentServer ? `${t('auth.currentServerLabel')}${currentServer.replace(/^https?:\/\//, '')} · ` : ''}{t('auth.switchServer')}
             </button>
           ) : (

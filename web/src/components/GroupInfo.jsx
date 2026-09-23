@@ -1,4 +1,8 @@
 import ReportButton from './ReportDialog';
+import TouliaoField from '../ui-kit/Field';
+import { PrimaryButton, SecondaryButton, DangerButton } from '../ui-kit/Button';
+import TouliaoSwitch from '../ui-kit/Switch';
+import TouliaoIcon from '../ui-kit/Icon';
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import axios from 'axios';
 import { FixedSizeList } from 'react-window';
@@ -44,9 +48,7 @@ function GroupAvatarUpload({ info, isAdmin, uploading, inputRef, onAvatarClick, 
           {uploading
             ? <span className="gi-av-uploading">{t('groupInfo.uploading')}</span>
             : <>
-                <svg viewBox="0 0 24 24" className="gi-av-icon">
-                  <path d="M12 15.2A3.2 3.2 0 0 1 8.8 12 3.2 3.2 0 0 1 12 8.8a3.2 3.2 0 0 1 3.2 3.2 3.2 3.2 0 0 1-3.2 3.2M20 4h-3.17L15 2H9L7.17 4H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2z"/>
-                </svg>
+                <TouliaoIcon name="group" className="gi-av-icon" size="sm" />
                 <span className="gi-av-hint">{t('groupInfo.changeAvatarLabel')}</span>
               </>
           }
@@ -55,25 +57,6 @@ function GroupAvatarUpload({ info, isAdmin, uploading, inputRef, onAvatarClick, 
       {isAdmin && (
         <input ref={inputRef} type="file" accept="image/*" className="gi-av-input" onChange={onChange} />
       )}
-    </div>
-  );
-}
-
-/* ── 微信风格 Toggle 开关 ── */
-function Toggle({ on, onChange, disabled, label }) {
-  return (
-    <div
-      role="switch"
-      aria-checked={on}
-      aria-disabled={disabled || undefined}
-      aria-label={label}
-      tabIndex={disabled ? -1 : 0}
-      onClick={() => !disabled && onChange(!on)}
-      onKeyDown={e => { if (!disabled && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); onChange(!on); } }}
-      className="gi-toggle"
-      style={{ background: on ? 'var(--green)' : 'var(--border-default)', cursor: disabled ? 'not-allowed' : 'pointer', opacity: disabled ? 0.5 : 1 }}
-    >
-      <div className="gi-toggle-thumb" style={{ transform: on ? 'translateX(18px)' : 'translateX(0)' }} />
     </div>
   );
 }
@@ -370,7 +353,7 @@ export default function GroupInfo({ conversation, currentUserId, onClose, onLeav
   /* 移出成员 */
   const kickMember = async (uid) => {
     const name = info.members.find(m => m.id === uid)?.username || t('groupInfo.unknownUser');
-    if (!(await showConfirm(t('groupInfo.confirmKickTemplate').replace('{name}', name)))) return;
+    if (!(await showConfirm(t('groupInfo.confirmKickTemplate').replace('{name}', name), { variant: 'DANGER' }))) return;
     try {
       await axios.delete(`/api/messages/conversation/${conversation.id}/members/${uid}`);
       setInfo(i => ({ ...i, members: i.members.filter(m => m.id !== uid) }));
@@ -404,7 +387,7 @@ export default function GroupInfo({ conversation, currentUserId, onClose, onLeav
 
   /* 退出群聊（非群主）*/
   const leaveGroup = async () => {
-    if (!(await showConfirm(t('groupInfo.confirmLeaveGroup')))) return;
+    if (!(await showConfirm(t('groupInfo.confirmLeaveGroup'), { variant: 'DANGER' }))) return;
     try {
       await axios.post(`/api/messages/conversation/${conversation.id}/leave`);
       onLeave?.();
@@ -413,7 +396,7 @@ export default function GroupInfo({ conversation, currentUserId, onClose, onLeav
 
   /* 解散群聊（仅群主）*/
   const dissolveGroup = async () => {
-    if (!(await showConfirm(t('groupInfo.confirmDissolveGroup')))) return;
+    if (!(await showConfirm(t('groupInfo.confirmDissolveGroup'), { variant: 'DANGER' }))) return;
     try {
       await axios.post(`/api/messages/conversation/${conversation.id}/dissolve`);
       onLeave?.();
@@ -422,7 +405,7 @@ export default function GroupInfo({ conversation, currentUserId, onClose, onLeav
 
   const clearMessages = async () => {
     const name = info?.name || conversation.name || t('groupInfo.thisGroupFallback');
-    if (!(await showConfirm(t('groupInfo.confirmClearMessagesTemplate').replace('{name}', name)))) return;
+    if (!(await showConfirm(t('groupInfo.confirmClearMessagesTemplate').replace('{name}', name), { variant: 'DANGER' }))) return;
     try {
       await axios.delete(`/api/messages/conversation/${conversation.id}/messages`);
       onCleared?.();
@@ -495,7 +478,7 @@ export default function GroupInfo({ conversation, currentUserId, onClose, onLeav
           className="gi-close-btn"
           onClick={onClose}
           aria-label={t('groupInfo.closeAriaLabel')}
-        >✕</button>
+        ><TouliaoIcon name="close" size="sm" /></button>
       </div>
 
       <div className="gi-body">
@@ -514,8 +497,8 @@ export default function GroupInfo({ conversation, currentUserId, onClose, onLeav
           <div className="gi-f1">
             {editName ? (
               <div className="gi-fca gi-gap6">
-                <input value={nameVal} onChange={e => setNameVal(e.target.value)}
-                  className="gi-name-edit" data-testid="group-rename-input" maxLength={30}
+                <TouliaoField value={nameVal} onChange={e => setNameVal(e.target.value)}
+                  className="tl-field-inline" controlClassName="gi-name-edit" data-testid="group-rename-input" maxLength={30}
                   aria-label={t('groupInfo.groupNameAriaLabel')} autoFocus
                   onKeyDown={e => { if (e.key === 'Enter') saveName(); if (e.key === 'Escape') setEditName(false); }} />
                 <button className="gi-btn-edit" data-testid="group-rename-save" onClick={saveName}>{t('common.save')}</button>
@@ -524,7 +507,7 @@ export default function GroupInfo({ conversation, currentUserId, onClose, onLeav
             ) : (
               <div className="gi-name-row">
                 <span className="gi-name">{info.name}</span>
-                {isAdmin && <button className="gi-btn-name" onClick={() => setEditName(true)} aria-label={t('groupInfo.editNameAriaLabel')}>✎</button>}
+                {isAdmin && <button className="gi-btn-name" onClick={() => setEditName(true)} aria-label={t('groupInfo.editNameAriaLabel')}><TouliaoIcon name="edit" size="sm" /></button>}
               </div>
             )}
             <div className="gi-meta">
@@ -538,9 +521,7 @@ export default function GroupInfo({ conversation, currentUserId, onClose, onLeav
         <div className="gi-section gi-section-pad">
           <div className="gi-fcsb" style={{ marginBottom: editAnn ? 8 : 6 }}>
             <div className="gi-fca gi-gap5">
-              <svg viewBox="0 0 24 24" className="gi-s14 gi-fill-warn">
-                <path d="M18 11v2H6v-2h12zm-6-7L6.35 7H4v10h2.35L12 20l5.65-3H20V7h-2.35L12 4zm4 13.02l-4 2.26-4-2.26V9h8v8.02z"/>
-              </svg>
+              <TouliaoIcon name="owner" className="gi-s14 gi-fill-warn" size="sm" />
               <span className="gi-sec-tit">{t('groupInfo.announcementTitle')}</span>
             </div>
             {isAdmin && !editAnn && (
@@ -549,13 +530,13 @@ export default function GroupInfo({ conversation, currentUserId, onClose, onLeav
           </div>
           {editAnn ? (
             <>
-              <textarea value={annVal} onChange={e => setAnnVal(e.target.value)}
-                className="gi-ann-textarea" maxLength={500}
+              <TouliaoField className="tl-field-inline" variant="MULTILINE" value={annVal} onChange={e => setAnnVal(e.target.value)}
+                controlClassName="gi-ann-textarea" maxLength={500}
                 autoFocus placeholder={t('groupInfo.announcementPlaceholder')} aria-label={t('groupInfo.announcementAriaLabel')}
                 onKeyDown={e => { if (e.key === 'Escape') setEditAnn(false); }} />
               <div className="gi-ann-bar">
-                <button className="gi-btn-cancel" onClick={() => setEditAnn(false)}>{t('common.cancel')}</button>
-                <button className="gi-btn-save" onClick={saveAnn}>{t('common.save')}</button>
+                <SecondaryButton className="gi-btn-cancel" onClick={() => setEditAnn(false)}>{t('common.cancel')}</SecondaryButton>
+                <PrimaryButton className="gi-btn-save" onClick={saveAnn}>{t('common.save')}</PrimaryButton>
               </div>
             </>
           ) : (
@@ -578,9 +559,7 @@ export default function GroupInfo({ conversation, currentUserId, onClose, onLeav
               onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setShowManage(v => !v); } }}
             >
               <div className="gi-ic30 gi-ic-mg-header">
-                <svg viewBox="0 0 24 24" className="gi-s16 gi-fill-white">
-                  <path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm0 4l5 2.18V11c0 3.5-2.33 6.79-5 7.93-2.67-1.14-5-4.43-5-7.93V7.18L12 5z"/>
-                </svg>
+                <TouliaoIcon name="settings" className="gi-s16 gi-fill-white" size="sm" />
               </div>
               <div className="gi-f1">
                 <span className="gi-text14 gi-fw5">{t('groupInfo.manageTitle')}</span>
@@ -590,7 +569,7 @@ export default function GroupInfo({ conversation, currentUserId, onClose, onLeav
                   </div>
                 )}
               </div>
-              <IcoBack className="gi-s14 gi-fill-grey" style={{ transform: showManage ? 'rotate(90deg)' : 'none', transition: 'transform 0.15s' }} />
+              <IcoBack className="gi-s14 gi-fill-grey" style={{transform:showManage?'rotate(90deg)':'none',transition:'transform 0.15s'}} />
             </div>
 
             {showManage && (
@@ -598,25 +577,25 @@ export default function GroupInfo({ conversation, currentUserId, onClose, onLeav
                 {/* 全员禁言 */}
                 <div className="gi-mg-row">
                   <div className="gi-ic28 gi-ic-mg1">
-                    <svg viewBox="0 0 24 24" className="gi-s14 gi-fill-warn"><path d="M16.5 12c0-1.77-1.02-3.29-2.5-4.03v2.21l2.45 2.45c.03-.2.05-.41.05-.63zm2.5 0c0 .94-.2 1.82-.54 2.64l1.51 1.51C20.63 14.91 21 13.5 21 12c0-4.28-2.99-7.86-7-8.77v2.06c2.89.86 5 3.54 5 6.71zM4.27 3L3 4.27 7.73 9H3v6h4l5 5v-6.73l4.25 4.25c-.67.52-1.42.93-2.25 1.18v2.06c1.38-.31 2.63-.95 3.69-1.81L19.73 21 21 19.73l-9-9L4.27 3zM12 4L9.91 6.09 12 8.18V4z"/></svg>
+                    <TouliaoIcon name="mute" className="gi-s14 gi-fill-warn" size="sm" />
                   </div>
                   <div className="gi-f1">
                     <div className="gi-mg-label">{t('groupInfo.muteAllLabel')}</div>
                     <div className="gi-mg-desc">{t('groupInfo.muteAllDesc')}</div>
                   </div>
-                  <Toggle on={!!info.mute_all} onChange={toggleMuteAll} disabled={togglingMute} label={t('groupInfo.muteAllLabel')} />
+                  <TouliaoSwitch value={!!info.mute_all} onChange={toggleMuteAll} disabled={togglingMute} label={t('groupInfo.muteAllLabel')} />
                 </div>
 
                 {/* 禁止私聊 */}
                 <div className="gi-mg-row">
                   <div className="gi-ic28 gi-ic-mg2">
-                    <svg viewBox="0 0 24 24" className="gi-s14 gi-fill-green"><path d="M20 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4l-8 5-8-5V6l8 5 8-5v2z"/></svg>
+                    <TouliaoIcon name="lock" className="gi-s14 gi-fill-green" size="sm" />
                   </div>
                   <div className="gi-f1">
                     <div className="gi-mg-label">{t('groupInfo.noPrivateChatLabel')}</div>
                     <div className="gi-mg-desc">{t('groupInfo.noPrivateChatDesc')}</div>
                   </div>
-                  <Toggle on={!!info.no_private_chat} onChange={toggleNoPrivateChat} disabled={togglingNoPrivate} label={t('groupInfo.noPrivateChatLabel')} />
+                  <TouliaoSwitch value={!!info.no_private_chat} onChange={toggleNoPrivateChat} disabled={togglingNoPrivate} label={t('groupInfo.noPrivateChatLabel')} />
                 </div>
 
                 {/* 禁止群成员互相添加好友 */}
@@ -628,7 +607,7 @@ export default function GroupInfo({ conversation, currentUserId, onClose, onLeav
                     <div className="gi-mg-label">{t('groupInfo.noAddFriendLabel')}</div>
                     <div className="gi-mg-desc">{t('groupInfo.noAddFriendDesc')}</div>
                   </div>
-                  <Toggle on={!!info.no_add_friend} onChange={toggleNoAddFriend} disabled={togglingNoAddFriend} label={t('groupInfo.noAddFriendLabel')} />
+                  <TouliaoSwitch value={!!info.no_add_friend} onChange={toggleNoAddFriend} disabled={togglingNoAddFriend} label={t('groupInfo.noAddFriendLabel')} />
                 </div>
 
                 {/* 允许普通成员邀请 */}
@@ -640,7 +619,7 @@ export default function GroupInfo({ conversation, currentUserId, onClose, onLeav
                     <div className="gi-mg-label">{t('groupInfo.memberInviteLabel')}</div>
                     <div className="gi-mg-desc">{t('groupInfo.memberInviteDesc')}</div>
                   </div>
-                  <Toggle on={!!info.member_can_invite} onChange={toggleMemberInvite} disabled={togglingMemberInvite} label={t('groupInfo.memberInviteLabel')} />
+                  <TouliaoSwitch value={!!info.member_can_invite} onChange={toggleMemberInvite} disabled={togglingMemberInvite} label={t('groupInfo.memberInviteLabel')} />
                 </div>
 
                 {isOwner && (
@@ -659,19 +638,19 @@ export default function GroupInfo({ conversation, currentUserId, onClose, onLeav
           <div className="gi-warn">
             {info.mute_all && (
               <div className="gi-warn-row">
-                <svg viewBox="0 0 24 24" className="gi-s12 gi-warn-icon"><path d="M16.5 12c0-1.77-1.02-3.29-2.5-4.03v2.21l2.45 2.45c.03-.2.05-.41.05-.63zm2.5 0c0 .94-.2 1.82-.54 2.64l1.51 1.51C20.63 14.91 21 13.5 21 12c0-4.28-2.99-7.86-7-8.77v2.06c2.89.86 5 3.54 5 6.71zM4.27 3L3 4.27 7.73 9H3v6h4l5 5v-6.73l4.25 4.25c-.67.52-1.42.93-2.25 1.18v2.06c1.38-.31 2.63-.95 3.69-1.81L19.73 21 21 19.73l-9-9L4.27 3zM12 4L9.91 6.09 12 8.18V4z"/></svg>
+                <TouliaoIcon name="mute" className="gi-s12 gi-warn-icon" size="sm" />
                 {t('groupInfo.muteAllWarning')}
               </div>
             )}
             {info.no_private_chat && (
               <div className="gi-warn-row">
-                <svg viewBox="0 0 24 24" className="gi-s12 gi-warn-icon"><path d="M12 1C5.925 1 1 5.925 1 12s4.925 11 11 11 11-4.925 11-11S18.075 1 12 1zm-1 5h2v6h-2zm0 8h2v2h-2z"/></svg>
+                <TouliaoIcon name="warning" className="gi-s12 gi-warn-icon" size="sm" />
                 {t('groupInfo.noPrivateChatWarning')}
               </div>
             )}
             {info.no_add_friend && (
               <div className="gi-warn-row">
-                <svg viewBox="0 0 24 24" className="gi-s12 gi-warn-icon"><path d="M12 1C5.925 1 1 5.925 1 12s4.925 11 11 11 11-4.925 11-11S18.075 1 12 1zm-1 5h2v6h-2zm0 8h2v2h-2z"/></svg>
+                <TouliaoIcon name="warning" className="gi-s12 gi-warn-icon" size="sm" />
                 {t('groupInfo.noAddFriendWarning')}
               </div>
             )}
@@ -690,9 +669,7 @@ export default function GroupInfo({ conversation, currentUserId, onClose, onLeav
             {/* 仅管理员显示搜索框（用于快速找人踢出） */}
             {isAdmin && (
               <div className="gi-ml-search">
-                <svg viewBox="0 0 24 24" className="gi-s13 gi-search-icon">
-                  <path d="M15.5 14h-.79l-.28-.27A6.47 6.47 0 0016 9.5 6.5 6.5 0 109.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/>
-                </svg>
+                <TouliaoIcon name="search" className="gi-s13 gi-search-icon" size="sm" />
                 <input
                   value={kickSearch}
                   onChange={e => setKickSearch(e.target.value)}
@@ -701,7 +678,7 @@ export default function GroupInfo({ conversation, currentUserId, onClose, onLeav
                   className="gi-ml-si"
                 />
                 {kickSearch && (
-                  <button className="gi-clear-search" onClick={() => setKickSearch('')} aria-label={t('groupInfo.clearSearchAriaLabel')}>✕</button>
+                  <button className="gi-clear-search" onClick={() => setKickSearch('')} aria-label={t('groupInfo.clearSearchAriaLabel')}><TouliaoIcon name="close" size="sm" /></button>
                 )}
               </div>
             )}
@@ -711,7 +688,7 @@ export default function GroupInfo({ conversation, currentUserId, onClose, onLeav
             {/* 邀请按钮：管理员始终可见；普通成员需群开启了允许成员邀请 */}
             {!kickSearch && (isAdmin || info.member_can_invite) && (
               <div className="gi-inv-row" role="button" tabIndex={0} onClick={openInvite} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openInvite(); } }}>
-                <div className="gi-inv-box">+</div>
+                <div className="gi-inv-box"><TouliaoIcon name="addMember" size="md" /></div>
                 <span className="gi-inv-txt">{t('groupInfo.inviteMember')}</span>
               </div>
             )}
@@ -754,18 +731,18 @@ export default function GroupInfo({ conversation, currentUserId, onClose, onLeav
           </div>
           <div className="gi-row">
             <span className="gi-label">{t('chatlist.muteChat')}</span>
-            <Toggle
+            <TouliaoSwitch
               label={t('chatlist.muteChat')}
-              on={myMuted}
+              value={myMuted}
               disabled={savingSetting}
               onChange={toggleMute}
             />
           </div>
           <div className="gi-row">
             <span className="gi-label">{t('chatlist.pinChat')}</span>
-            <Toggle
+            <TouliaoSwitch
               label={t('chatlist.pinChat')}
-              on={myPinned}
+              value={myPinned}
               disabled={savingSetting}
               onChange={togglePin}
             />
@@ -787,17 +764,17 @@ export default function GroupInfo({ conversation, currentUserId, onClose, onLeav
           <div className="gi-nk-bd">
             {editNickname ? (
               <>
-                <input
+                <TouliaoField
                   autoFocus
                   value={nicknameVal}
                   onChange={e => setNicknameVal(e.target.value)}
                   placeholder={t('groupInfo.nicknamePlaceholder')}
                   maxLength={30}
                   aria-label={t('groupInfo.nicknameAriaLabel')}
-                  className="gi-nick-input"
+                  className="tl-field-inline" controlClassName="gi-nick-input"
                   onKeyDown={e => { if (e.key === 'Enter') saveNickname(); if (e.key === 'Escape') setEditNickname(false); }}
                 />
-                <button className="gi-btn-save-sm" onClick={saveNickname}>{t('common.save')}</button>
+                <PrimaryButton className="gi-btn-save-sm" onClick={saveNickname}>{t('common.save')}</PrimaryButton>
                 <button className="gi-btn-xl-sm" onClick={() => setEditNickname(false)}>{t('common.cancel')}</button>
               </>
             ) : (
@@ -818,7 +795,7 @@ export default function GroupInfo({ conversation, currentUserId, onClose, onLeav
           {(isAdmin || info.member_can_invite) && (
             <button type="button" className="gi-qr-row" onClick={copyInviteLink} disabled={copyingInviteLink}>
               <span className="gi-text14">{copyingInviteLink ? t('common.loading') : t('groupInfo.copyInviteLink')}</span>
-              <svg viewBox="0 0 24 24" className="gi-s14 gi-chevron"><path d="M3.9 12c0-1.71 1.39-3.1 3.1-3.1h4V7H7a5 5 0 000 10h4v-1.9H7A3.1 3.1 0 013.9 12zM8 13h8v-2H8v2zm9-6h-4v1.9h4a3.1 3.1 0 010 6.2h-4V17h4a5 5 0 000-10z"/></svg>
+              <TouliaoIcon name="link" className="gi-s14 gi-chevron" size="sm" />
             </button>
           )}
         </div>
@@ -833,17 +810,17 @@ export default function GroupInfo({ conversation, currentUserId, onClose, onLeav
 
         {/* 操作按钮区 */}
         <div className="gi-actions">
-          <button onClick={clearMessages} className="gi-btn-danger">
+          <DangerButton onClick={clearMessages} className="gi-btn-danger">
             {t('groupInfo.clearMessagesBtn')}
-          </button>
+          </DangerButton>
           {isOwner ? (
-            <button onClick={dissolveGroup} data-testid="group-dissolve-btn" className="gi-btn-danger">
+            <DangerButton onClick={dissolveGroup} data-testid="group-dissolve-btn" className="gi-btn-danger">
               {t('groupInfo.dissolveGroupBtn')}
-            </button>
+            </DangerButton>
           ) : (
-            <button onClick={leaveGroup} data-testid="group-leave-btn" className="gi-btn-danger">
+            <DangerButton onClick={leaveGroup} data-testid="group-leave-btn" className="gi-btn-danger">
               {t('chatlist.leaveGroup')}
-            </button>
+            </DangerButton>
           )}
         </div>
       </div>
@@ -854,7 +831,7 @@ export default function GroupInfo({ conversation, currentUserId, onClose, onLeav
           <div className="wc-modal gi-qr-panel" role="dialog" aria-modal="true" aria-label={t('groupInfo.qrTitle')}>
             <div className="wc-modal-header">
               <span className="wc-modal-title">{t('groupInfo.qrTitle')}</span>
-              <button className="wc-modal-close" onClick={() => setShowQR(false)} aria-label={t('home.closeQr')}>✕</button>
+              <button className="wc-modal-close" onClick={() => setShowQR(false)} aria-label={t('home.closeQr')}><TouliaoIcon name="close" size="sm" /></button>
             </div>
             <div className="gi-qr-wrap">
               {qrData ? (
@@ -894,7 +871,7 @@ export default function GroupInfo({ conversation, currentUserId, onClose, onLeav
           <div className="wc-modal wide" role="dialog" aria-modal="true" aria-label={t('groupInfo.transferOwnership')}>
             <div className="wc-modal-header">
               <span className="wc-modal-title">{t('groupInfo.transferOwnership')}</span>
-              <button type="button" className="wc-modal-close" onClick={() => setShowTransferOwner(false)} disabled={transferringOwner} aria-label={t('common.close')}>✕</button>
+              <button type="button" className="wc-modal-close" onClick={() => setShowTransferOwner(false)} disabled={transferringOwner} aria-label={t('common.close')}><TouliaoIcon name="close" size="sm" /></button>
             </div>
             <div className="wc-modal-body">
               <div className="gi-inv-hint">{t('groupInfo.transferOwnerHint')}</div>
@@ -918,7 +895,7 @@ export default function GroupInfo({ conversation, currentUserId, onClose, onLeav
           <div className="wc-modal wide" role="dialog" aria-modal="true" aria-label={t('groupInfo.inviteMember')}>
             <div className="wc-modal-header">
               <span className="wc-modal-title">{t('groupInfo.inviteMember')}</span>
-              <button className="wc-modal-close" onClick={() => setShowInvite(false)} aria-label={t('groupInfo.closeInviteAriaLabel')}>✕</button>
+              <button className="wc-modal-close" onClick={() => setShowInvite(false)} aria-label={t('groupInfo.closeInviteAriaLabel')}><TouliaoIcon name="close" size="sm" /></button>
             </div>
             <div className="wc-modal-body">
               <div className="gi-inv-hint">{t('groupInfo.selectFromContactsTemplate').replace('{n}', selectedInvite.size)}</div>
@@ -927,7 +904,7 @@ export default function GroupInfo({ conversation, currentUserId, onClose, onLeav
                   ? <div className="gi-inv-empty">{t('groupInfo.allFriendsInGroup')}</div>
                   : myContacts.map(c => (
                     <div key={c.id} className="wc-group-member-item" role="checkbox" tabIndex={0} aria-checked={selectedInvite.has(c.id)} onClick={() => setSelectedInvite(prev => { const s = new Set(prev); s.has(c.id) ? s.delete(c.id) : s.add(c.id); return s; })} onKeyDown={e => (e.key === 'Enter' || e.key === ' ') && setSelectedInvite(prev => { const s = new Set(prev); s.has(c.id) ? s.delete(c.id) : s.add(c.id); return s; })}>
-                      <div className={`wc-group-check${selectedInvite.has(c.id) ? ' checked' : ''}`}>{selectedInvite.has(c.id) ? '✓' : ''}</div>
+                      <div className={`wc-group-check${selectedInvite.has(c.id) ? ' checked' : ''}`}>{selectedInvite.has(c.id) ? <TouliaoIcon name="check" size="xs" /> : null}</div>
                       <Avatar src={c.avatar} name={c.remark || c.username} size='sm' />
                       <span className="gi-inv-name">{c.remark || c.username}</span>
                     </div>

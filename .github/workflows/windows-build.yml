@@ -40,6 +40,10 @@ jobs:
         working-directory: desktop-electron
         run: npm ci
 
+      - name: Desktop unit tests (update trust, update feedback, downloads, profiles)
+        working-directory: desktop-electron
+        run: node --test scripts/update-trust.test.js scripts/update-feedback.test.cjs scripts/downloads.test.cjs scripts/profiles.test.js
+
       - name: Require publisher credentials for production release
         if: startsWith(github.ref, 'refs/tags/desktop-v') || inputs.deploy == true
         shell: pwsh

@@ -1,10 +1,17 @@
 import LegalConsent from './LegalConsent';
 import ReportButton from './ReportDialog';
+import { DangerButton, PrimaryButton, SecondaryButton } from '../ui-kit/Button';
+import TouliaoField from '../ui-kit/Field';
+import { TextButton } from '../ui-kit/Button';
+import TouliaoSwitch from '../ui-kit/Switch';
+import { SettingCell as CRow, SettingSection as Card } from '../ui-kit/Settings';
+import TouliaoIcon from '../ui-kit/Icon';
 import { clientStorage as localStorage } from '../utils/clientStorage';
 import React, { useEffect, useState, useRef, useCallback } from 'react';
 import axios from 'axios';
 import Avatar from './Avatar';
 import AuthImage from './AuthImage';
+
 import { IcoBack, IcoCheck } from './Icons';
 import { useAuth } from '../contexts/AuthContext';
 import { useSettings } from '../contexts/SettingsContext';
@@ -14,6 +21,7 @@ import { setIncomingRingtone } from '../utils/callTones';
 import { showConfirm, showToast } from '../utils/toast';
 import { copyToClipboard } from '../utils/clipboard';
 import { testServerConnection, resolveTenantCode } from '../utils/config';
+import { isWindowsDesktop } from '../utils/desktopPlatform';
 
 /* ─── 小工具 ─── */
 // role="button" 的 div 应同时支持 Enter 和空格触发（空格默认会滚动页面，需 preventDefault）
@@ -25,30 +33,14 @@ const ChevronRight = () => (
   <IcoBack className="wc-chevron" />
 );
 
-function Toggle({ checked, onChange, disabled }) {
-  return (
-    <button type="button" className={`wc-switch${checked ? ' on' : ''}`}
-      onClick={e => { e.stopPropagation(); if (!disabled) onChange?.(!checked); }}
-      disabled={disabled}
-      aria-pressed={checked}>
-      <span />
-    </button>
-  );
-}
-
-/* ─── SVG icons ─── */
-const Ico = ({ d }) => <svg className="wc-ico" viewBox="0 0 24 24"><path d={d}/></svg>;
-const IcoDesktop = () => <Ico d="M20 18c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2H4c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2H0v2h24v-2h-4zm-8-1c-.55 0-1-.45-1-1s.45-1 1-1 1 .45 1 1-.45 1-1 1zm8-3H4V6h16v8z"/>;
-const IcoMoon    = () => <Ico d="M12 3c-4.97 0-9 4.03-9 9s4.03 9 9 9 9-4.03 9-9c0-.46-.04-.92-.1-1.36-.98 1.37-2.58 2.26-4.4 2.26-2.98 0-5.4-2.42-5.4-5.4 0-1.81.89-3.42 2.26-4.4-.44-.06-.9-.1-1.36-.1z"/>;
-const IcoBell    = () => <Ico d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.9 2 2 2zm6-6v-5c0-3.07-1.64-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.63 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z"/>;
-const IcoShield  = () => <Ico d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm0 10.99h7c-.53 4.12-3.28 7.79-7 8.94V12H5V6.3l7-3.11v8.8z"/>;
-const IcoServer  = () => <Ico d="M4 1h16a1 1 0 011 1v4a1 1 0 01-1 1H4a1 1 0 01-1-1V2a1 1 0 011-1zm0 8h16a1 1 0 011 1v4a1 1 0 01-1 1H4a1 1 0 01-1-1v-4a1 1 0 011-1zm0 8h16a1 1 0 011 1v4a1 1 0 01-1 1H4a1 1 0 01-1-1v-4a1 1 0 011-1zM6 4a1 1 0 100 2 1 1 0 000-2zm0 8a1 1 0 100 2 1 1 0 000-2zm0 8a1 1 0 100 2 1 1 0 000-2z"/>;
-const IcoKeyboard = () => <Ico d="M20 5H4c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm-9 3h2v2h-2V8zm0 3h2v2h-2v-2zM8 8h2v2H8V8zm0 3h2v2H8v-2zm-1 5H5v-2h2v2zm0-3H5v-2h2v2zm0-3H5V8h2v2zm10 6H7v-2h10v2zm0-3h-2v-2h2v2zm0-3h-2V8h2v2zm3 6h-2v-2h2v2zm0-3h-2v-2h2v2zm0-3h-2V8h2v2z"/>;
-const IcoQR      = () => (
-  <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
-    <path d="M3 11h8V3H3v8zm2-6h4v4H5V5zM3 21h8v-8H3v8zm2-6h4v4H5v-4zM13 3v8h8V3h-8zm6 6h-4V5h4v4zM13 13h2v2h-2zM15 15h2v2h-2zM13 17h2v2h-2zM17 13h2v2h-2zM19 15h2v2h-2zM17 17h2v2h-2zM19 19h2v2h-2zM15 19h2v2h-2z"/>
-  </svg>
-);
+/* Supplied design icon geometry; existing settings actions are unchanged. */
+const IcoDesktop = () => <TouliaoIcon name="device" className="wc-ico" />;
+const IcoMoon = () => <TouliaoIcon name="appearance" className="wc-ico" />;
+const IcoBell = () => <TouliaoIcon name="notification" className="wc-ico" />;
+const IcoShield = () => <TouliaoIcon name="security" className="wc-ico" />;
+const IcoServer = () => <TouliaoIcon name="server" className="wc-ico" />;
+const IcoKeyboard = () => <TouliaoIcon name="adjustments" className="wc-ico" />;
+const IcoQR = () => <TouliaoIcon name="qrcode"  />;
 
 /* ─── 通用 UI 零件 ─── */
 function PageBg({ children }) {
@@ -59,7 +51,7 @@ function PageHeader({ title, onBack, right }) {
   const { t } = useI18n();
   return (
     <div className="wc-page-header">
-      <button className="wc-page-header-back" onClick={onBack}>‹ {t('common.back')}</button>
+      <button className="wc-page-header-back" onClick={onBack}><TouliaoIcon name="back" size="sm" /> {t('common.back')}</button>
       <span className="wc-page-header-title">{title}</span>
       <div className="wc-page-header-right">{right}</div>
     </div>
@@ -70,31 +62,7 @@ function SLabel({ children }) {
   return <div className="wc-slabel">{children}</div>;
 }
 
-function Card({ children, style, className }) {
-  return <div className={`wc-card${className ? ' ' + className : ''}`} style={style}>{children}</div>;
-}
 
-function CRow({ icon, bg, label, value, desc, onClick, right, danger }) {
-  return (
-    <div className={`wc-crow${onClick ? ' wc-crow-clickable' : ''}`}
-      onClick={onClick}
-      role="button" tabIndex={onClick ? 0 : undefined}
-      onKeyDown={onClick ? activateOnKey(onClick) : undefined}>
-      {icon && (
-        <div className="wc-crow-icon" style={{ background: bg }}>
-          {icon}
-        </div>
-      )}
-      <div className="wc-crow-body">
-        <div className={danger ? 'wc-crow-label wc-crow-label-danger' : 'wc-crow-label'}>{label}</div>
-        {desc && <div className="wc-crow-desc">{desc}</div>}
-      </div>
-      {value != null && <span className={`wc-crow-value${onClick ? ' wc-crow-value-gap' : ''}`}>{value}</span>}
-      {right}
-      {onClick && !right && <ChevronRight />}
-    </div>
-  );
-}
 
 /* ── 修改昵称 ── */
 function EditName({ user, updateUser, onBack }) {
@@ -126,15 +94,15 @@ function EditName({ user, updateUser, onBack }) {
     <PageBg>
       <PageHeader title={t('profile.editNickname')} onBack={onBack}
         right={
-          <button className="wc-save-btn" onClick={save} disabled={saving}>
+          <TextButton className="wc-save-btn" onClick={save} disabled={saving}>
             {saving ? t('profile.savingShort') : t('common.save')}
-          </button>
+          </TextButton>
         }
       />
       <div className="wc-edit-pad">
         <Card>
           <div className="wc-edit-wrap">
-            <input
+            <TouliaoField className="tl-field-inline"
               value={username}
               onChange={e => { setUsername(e.target.value); setError(''); }}
               onKeyDown={e => e.key === 'Enter' && save()}
@@ -142,7 +110,7 @@ function EditName({ user, updateUser, onBack }) {
               autoFocus
               placeholder={t('profile.nicknamePlaceholder')}
               aria-label={t('profile.editNickname')}
-              className="wc-edit-input"
+              controlClassName="wc-edit-input"
             />
             <span className="wc-edit-counter">{username.length}/{MAX}</span>
           </div>
@@ -183,22 +151,22 @@ function EditBio({ user, updateUser, onBack }) {
     <PageBg>
       <PageHeader title={t('profile.editBio')} onBack={onBack}
         right={
-          <button className="wc-save-btn" onClick={save} disabled={saving}>
+          <TextButton className="wc-save-btn" onClick={save} disabled={saving}>
             {saving ? t('profile.savingShort') : t('common.save')}
-          </button>
+          </TextButton>
         }
       />
       <div className="wc-edit-pad">
         <Card>
           <div className="wc-edit-wrap">
-            <textarea
+            <TouliaoField className="tl-field-inline" variant="MULTILINE"
               value={bio}
               onChange={e => { setBio(e.target.value); setError(''); }}
               maxLength={MAX}
               autoFocus
               placeholder={t('profile.bioPlaceholder')}
               aria-label={t('profile.editBio')}
-              className="wc-edit-input wc-edit-textarea"
+              controlClassName="wc-edit-input wc-edit-textarea"
               rows={3}
             />
             <span className="wc-edit-counter">{bio.length}/{MAX}</span>
@@ -244,9 +212,9 @@ function ChangePhone({ user, updateUser, onBack }) {
     <PageBg>
       <PageHeader title={t('profile.changePhoneTitle')} onBack={onBack}
         right={
-          <button className="wc-save-btn" onClick={save} disabled={saving}>
+          <TextButton className="wc-save-btn" onClick={save} disabled={saving}>
             {saving ? t('profile.savingShort') : t('common.save')}
-          </button>
+          </TextButton>
         }
       />
       <div className="wc-edit-pad">
@@ -258,20 +226,20 @@ function ChangePhone({ user, updateUser, onBack }) {
             </div>
             <div>
               <label htmlFor="cp-phone" className="profile-field-label-block">{t('profile.newPhone')}</label>
-              <input
+              <TouliaoField className="tl-field-inline"
                 id="cp-phone"
                 type="tel"
                 value={newPhone}
                 onChange={e => { setNewPhone(e.target.value); setError(''); }}
                 placeholder={t('profile.newPhonePlaceholder')}
                 aria-label={t('profile.newPhone')}
-                className="wc-edit-input"
+                controlClassName="wc-edit-input"
                 autoFocus
               />
             </div>
             <div>
               <label htmlFor="cp-pass" className="profile-field-label-block">{t('profile.loginPasswordVerify')}</label>
-              <input
+              <TouliaoField className="tl-field-inline"
                 id="cp-pass"
                 type="password"
                 value={password}
@@ -279,7 +247,7 @@ function ChangePhone({ user, updateUser, onBack }) {
                 onKeyDown={e => e.key === 'Enter' && save()}
                 placeholder={t('profile.loginPasswordPlaceholder')}
                 aria-label={t('profile.loginPasswordVerify')}
-                className="wc-edit-input"
+                controlClassName="wc-edit-input"
               />
             </div>
           </div>
@@ -323,9 +291,9 @@ function ChangePassword({ onBack }) {
     <PageBg>
       <PageHeader title={t('profile.changePasswordTitle')} onBack={onBack}
         right={
-          <button className="wc-save-btn" onClick={save} disabled={saving}>
+          <TextButton className="wc-save-btn" onClick={save} disabled={saving}>
             {saving ? t('profile.savingShort') : t('common.save')}
-          </button>
+          </TextButton>
         }
       />
       <div className="wc-edit-pad">
@@ -333,27 +301,27 @@ function ChangePassword({ onBack }) {
           <div className="profile-phone-body">
             <div>
               <label htmlFor="cpw-old" className="profile-field-label-block">{t('profile.oldPassword')}</label>
-              <input
+              <TouliaoField className="tl-field-inline"
                 id="cpw-old" type="password" value={oldPassword}
                 onChange={e => { setOldPassword(e.target.value); setError(''); }}
-                placeholder={t('profile.oldPasswordPlaceholder')} aria-label={t('profile.oldPassword')} className="wc-edit-input" autoFocus
+                placeholder={t('profile.oldPasswordPlaceholder')} aria-label={t('profile.oldPassword')} controlClassName="wc-edit-input" autoFocus
               />
             </div>
             <div>
               <label htmlFor="cpw-new" className="profile-field-label-block">{t('profile.newPassword')}</label>
-              <input
+              <TouliaoField className="tl-field-inline"
                 id="cpw-new" type="password" value={newPassword}
                 onChange={e => { setNewPassword(e.target.value); setError(''); }}
-                placeholder={t('profile.newPasswordPlaceholder')} aria-label={t('profile.newPassword')} className="wc-edit-input"
+                placeholder={t('profile.newPasswordPlaceholder')} aria-label={t('profile.newPassword')} controlClassName="wc-edit-input"
               />
             </div>
             <div>
               <label htmlFor="cpw-confirm" className="profile-field-label-block">{t('profile.confirmNewPassword')}</label>
-              <input
+              <TouliaoField className="tl-field-inline"
                 id="cpw-confirm" type="password" value={confirmPassword}
                 onChange={e => { setConfirmPassword(e.target.value); setError(''); }}
                 onKeyDown={e => e.key === 'Enter' && save()}
-                placeholder={t('profile.confirmNewPasswordPlaceholder')} aria-label={t('profile.confirmNewPassword')} className="wc-edit-input"
+                placeholder={t('profile.confirmNewPasswordPlaceholder')} aria-label={t('profile.confirmNewPassword')} controlClassName="wc-edit-input"
               />
             </div>
           </div>
@@ -376,7 +344,7 @@ function DeleteAccountPage({ onBack }) {
   const submit = async () => {
     if (saving) return;
     if (!password) { setError(t('profile.deletePasswordPrompt')); return; }
-    if (!(await showConfirm(t('profile.deleteConfirm')))) return;
+    if (!(await showConfirm(t('profile.deleteConfirm'), { variant: 'DANGER' }))) return;
     setSaving(true);
     setError('');
     try {
@@ -399,11 +367,11 @@ function DeleteAccountPage({ onBack }) {
             </div>
             <div>
               <label htmlFor="del-pass" className="profile-field-label-block">{t('profile.loginPasswordVerify')}</label>
-              <input
+              <TouliaoField className="tl-field-inline"
                 id="del-pass" type="password" value={password}
                 onChange={e => { setPassword(e.target.value); setError(''); }}
                 onKeyDown={e => e.key === 'Enter' && submit()}
-                placeholder={t('profile.loginPasswordPlaceholder')} aria-label={t('profile.loginPasswordVerify')} className="wc-edit-input" autoFocus
+                placeholder={t('profile.loginPasswordPlaceholder')} aria-label={t('profile.loginPasswordVerify')} controlClassName="wc-edit-input" autoFocus
               />
             </div>
           </div>
@@ -520,13 +488,13 @@ function InviteFriends({ onBack }) {
             {loading ? '……' : (data?.code || '—')}
           </div>
           <div className="profile-invite-actions">
-            <button className="wc-save-btn" onClick={() => copyText(data?.code, 'code')} disabled={!data?.code}>
+            <TextButton className="wc-save-btn" onClick={() => copyText(data?.code, 'code')} disabled={!data?.code}>
               {copied === 'code' ? t('profile.copied') : t('profile.copyInviteCode')}
-            </button>
+            </TextButton>
             {inviteLink && (
-              <button className="wc-save-btn" onClick={() => copyText(inviteLink, 'link')}>
+              <TextButton className="wc-save-btn" onClick={() => copyText(inviteLink, 'link')}>
                 {copied === 'link' ? t('profile.copied') : t('profile.copyInviteLink')}
-              </button>
+              </TextButton>
             )}
           </div>
           <div className="profile-invite-hint">
@@ -584,7 +552,7 @@ function DeviceList({ onBack }) {
   };
 
   const removeAllSessions = async () => {
-    if (!(await showConfirm(t('profile.confirmExitAllDevices')))) return;
+    if (!(await showConfirm(t('profile.confirmExitAllDevices'), { variant: 'DANGER' }))) return;
     try {
       await axios.delete('/api/auth/sessions');
       setSessions(s => s.filter(x => x.current));
@@ -595,10 +563,10 @@ function DeviceList({ onBack }) {
 
   const icon = (p = '') => {
     const pl = p.toLowerCase();
-    if (pl.includes('windows')) return '🖥️';
-    if (pl.includes('mac')) return '💻';
-    if (pl.includes('iphone') || pl.includes('ipad') || pl.includes('android')) return '📱';
-    return '🌐';
+    if (pl.includes('windows')) return <TouliaoIcon name="computer" size="md" />;
+    if (pl.includes('mac')) return <TouliaoIcon name="laptop" size="md" />;
+    if (pl.includes('iphone') || pl.includes('ipad') || pl.includes('android')) return <TouliaoIcon name="phoneNumber" size="md" />;
+    return <TouliaoIcon name="device" size="md" />;
   };
 
   return (
@@ -623,7 +591,7 @@ function DeviceList({ onBack }) {
                   </div>
                   {s.current
                     ? <span className="wc-badge-current">{t('profile.currentBadge')}</span>
-                    : <button className="wc-btn-exit" onClick={() => removeSession(s.id)}>{t('profile.exitDevice')}</button>
+                    : <DangerButton className="wc-btn-exit" onClick={() => removeSession(s.id)}>{t('profile.exitDevice')}</DangerButton>
                   }
                 </div>
               ))
@@ -633,7 +601,7 @@ function DeviceList({ onBack }) {
         <div className="wc-device-hint">{t('profile.exitDeviceHint')}</div>
         {sessions.some(s => !s.current) && (
           <div className="wc-section-pad profile-mt-8">
-            <button className="wc-btn-exit-all" onClick={removeAllSessions}>{t('profile.exitAllOtherDevices')}</button>
+            <DangerButton className="wc-btn-exit-all" onClick={removeAllSessions}>{t('profile.exitAllOtherDevices')}</DangerButton>
           </div>
         )}
       </div>
@@ -657,9 +625,9 @@ function AppearanceSettings({ onBack }) {
       <div className="wc-appearance-pad">
         <div className="wc-appearance-row">
           {[
-            { label: t('profile.lightMode'), mode: 'light', emoji: '☀️', bg: '#FFFFFF', border: '#E5E5EA', textColor: '#333' },
-            { label: t('profile.darkMode'),  mode: 'dark',  emoji: '🌙', bg: '#1C1C1E', border: '#48484A', textColor: '#EBEBF5' },
-            { label: t('profile.followSystem'), mode: 'auto',  emoji: '🌗', bg: 'linear-gradient(105deg,#FFFFFF 50%,#1C1C1E 50%)', border: '#B0B4BC', textColor: '#888' },
+            { label: t('profile.lightMode'), mode: 'light', emoji: <TouliaoIcon name="lightMode"  />, bg: '#FFFFFF', border: '#E5E5EA', textColor: '#333' },
+            { label: t('profile.darkMode'),  mode: 'dark',  emoji: <TouliaoIcon name="darkMode"  />, bg: '#1C1C1E', border: '#48484A', textColor: '#EBEBF5' },
+            { label: t('profile.followSystem'), mode: 'auto',  emoji: <TouliaoIcon name="device"  />, bg: 'linear-gradient(105deg,#FFFFFF 50%,#1C1C1E 50%)', border: '#B0B4BC', textColor: '#888' },
           ].map(({ label, mode, emoji, bg, border, textColor }) => (
             <button key={mode} type="button"
               className="wc-appearance-btn"
@@ -681,6 +649,7 @@ function AppearanceSettings({ onBack }) {
         <div className="wc-appearance-row">
           {[
             // 每套皮肤: 按钮底色 = 聊天气泡预览(自己/对方), 选中描边用其主色
+            { key: 'touliao', label: t('ui.skinTouliao'), bg: 'var(--tl-surface)', accent: '#2864f0', dot: '#2864f0' },
             { key: 'aurora', label: t('profile.skinAurora'), bg: 'linear-gradient(105deg,#FBFAFE 50%,#E7E4F0 50%)', accent: '#6D5AE6', dot: '#6D5AE6' },
             { key: 'wechat', label: t('profile.skinWechat'), bg: 'linear-gradient(105deg,#95EC69 50%,#FFFFFF 50%)', accent: '#07C160', dot: '#07C160' },
             { key: 'wecom',  label: t('profile.skinWecom'),  bg: 'linear-gradient(105deg,#D6E8FD 50%,#FFFFFF 50%)', accent: '#2070E0', dot: '#2070E0' },
@@ -711,7 +680,7 @@ function AppearanceSettings({ onBack }) {
                 className={`wc-font-btn${fontSize === key ? ' active' : ''}`}
                 aria-pressed={fontSize === key}
                 onClick={() => setFontSize(key)}>
-                <span className="wc-font-preview" style={{ fontSize: size }}>A</span>
+                <span className="wc-font-preview" style={{ fontSize: size }}>{isWindowsDesktop() ? '字 Aa' : 'A'}</span>
                 <span className="wc-font-label">{label}</span>
               </button>
             ))}
@@ -726,7 +695,7 @@ function AppearanceSettings({ onBack }) {
         <Card>
           {SUPPORTED_LANGS.map(({ code, name }) => (
             <CRow key={code} label={name} onClick={() => setLang(code)}
-              right={lang === code ? <IcoCheck width="18" height="18" fill="var(--green)" /> : null}
+              right={lang === code ? <IcoCheck tone="selected" size="sm" /> : null}
             />
           ))}
         </Card>
@@ -794,13 +763,13 @@ function NotificationSettings({ onBack }) {
       <div className="wc-notif-pad">
         <Card>
           <CRow label={t('profile.lockScreenNotify')} desc={t('profile.lockScreenNotifyDesc')}
-            right={<Toggle checked={messageNotify} onChange={v => { setMessageNotify(v); saveSettings('messageNotify', v); }} disabled={saving} />} />
+            right={<TouliaoSwitch value={messageNotify} onChange={v => { setMessageNotify(v); saveSettings('messageNotify', v); }} disabled={saving} />} />
           <CRow label={t('profile.detailPreview')} desc={t('profile.detailPreviewDesc')}
-            right={<Toggle checked={preview} onChange={v => { setPreview(v); saveSettings('detailPreview', v); }} disabled={saving} />} />
+            right={<TouliaoSwitch value={preview} onChange={v => { setPreview(v); saveSettings('detailPreview', v); }} disabled={saving} />} />
           <CRow label={t('profile.notifySound')}
-            right={<Toggle checked={notifySound} onChange={setNotifySound} />} />
+            right={<TouliaoSwitch value={notifySound} onChange={setNotifySound} />} />
           <CRow label={t('profile.notifyVibrate')}
-            right={<Toggle checked={vibrate} onChange={v => { setVibrate(v); saveSettings('vibrate', v); }} disabled={saving} />} />
+            right={<TouliaoSwitch value={vibrate} onChange={v => { setVibrate(v); saveSettings('vibrate', v); }} disabled={saving} />} />
         </Card>
       </div>
 
@@ -809,7 +778,7 @@ function NotificationSettings({ onBack }) {
       <div className="wc-notif-pad">
         <Card>
           <CRow label={t('profile.quietHoursToggle')} desc={t('profile.quietHoursDesc')}
-            right={<Toggle checked={quietEnabled} onChange={v => { setQuietEnabled(v); saveSettings('quietEnabled', v); }} disabled={saving} />} />
+            right={<TouliaoSwitch value={quietEnabled} onChange={v => { setQuietEnabled(v); saveSettings('quietEnabled', v); }} disabled={saving} />} />
           {quietEnabled && (
             <>
               <CRow label={t('profile.quietStartTime')}
@@ -889,9 +858,9 @@ function PrivacySettings({ user, onBack }) {
         <div className="wc-privacy-desc">{t('profile.addMethodsDesc')}</div>
         <Card>
           <CRow label={t('profile.addByIdLabel')} desc={user?.wechat_id ? `${t('profile.touliaoIdLabel')}: ${user.wechat_id}` : t('profile.notAssigned')}
-            right={<Toggle checked={settings.addByVxinId} onChange={v => setFlag('addByVxinId', v)} />} />
+            right={<TouliaoSwitch value={settings.addByVxinId} onChange={v => setFlag('addByVxinId', v)} />} />
           <CRow label={t('profile.addByPhoneLabel')} desc={user?.phone || ''}
-            right={<Toggle checked={settings.addByPhone} onChange={v => setFlag('addByPhone', v)} />} />
+            right={<TouliaoSwitch value={settings.addByPhone} onChange={v => setFlag('addByPhone', v)} />} />
         </Card>
       </div>
     </PageBg>
@@ -904,13 +873,13 @@ function PrivacySettings({ user, onBack }) {
         <Card className="wc-privacy-card-mt">
           <CRow label={t('profile.addMethodsEntry')} desc={t('profile.addMethodsEntryDesc')} onClick={() => setPage('add-methods')} />
           <CRow label={t('profile.requireVerifyLabel')} desc={t('profile.requireVerifyDesc')}
-            right={<Toggle checked={settings.requireVerify} onChange={v => setFlag('requireVerify', v)} />} />
+            right={<TouliaoSwitch value={settings.requireVerify} onChange={v => setFlag('requireVerify', v)} />} />
           <CRow label={t('profile.noDirectGroupInviteLabel')} desc={t('profile.noDirectGroupInviteDesc')}
-            right={<Toggle checked={settings.noDirectGroupInvite} onChange={v => setFlag('noDirectGroupInvite', v)} />} />
+            right={<TouliaoSwitch value={settings.noDirectGroupInvite} onChange={v => setFlag('noDirectGroupInvite', v)} />} />
           <CRow label={t('profile.profileVisibleLabel')} desc={t('profile.profileVisibleDesc')}
-            right={<Toggle checked={settings.profileVisible} onChange={v => setFlag('profileVisible', v)} />} />
+            right={<TouliaoSwitch value={settings.profileVisible} onChange={v => setFlag('profileVisible', v)} />} />
           <CRow label={t('profile.blockUnknownLabel')} desc={t('profile.blockUnknownDesc')}
-            right={<Toggle checked={settings.blockUnknownMessages} onChange={v => setFlag('blockUnknownMessages', v)} />} />
+            right={<TouliaoSwitch value={settings.blockUnknownMessages} onChange={v => setFlag('blockUnknownMessages', v)} />} />
         </Card>
       </div>
     </PageBg>
@@ -973,12 +942,10 @@ function AccountSwitcher({ user, accounts, login, switchAccount }) {
 
       <div onClick={toggleForm} className="wc-add-row" role="button" tabIndex={0} onKeyDown={e => activateOnKey(toggleForm)(e)}>
         <div className="wc-add-icon-wrap" style={{ borderColor: showForm ? 'var(--green)' : undefined }}>
-          <svg className="wc-add-icon-svg" style={{ fill: showForm ? 'var(--green)' : undefined }} viewBox="0 0 24 24">
-            <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/>
-          </svg>
+          <TouliaoIcon name="add" className="wc-add-icon-svg" style={{color:showForm?'var(--green)':undefined}} size="sm" />
         </div>
         <span className="wc-add-label" style={{ color: showForm ? 'var(--green)' : undefined }}>{t('profile.addAccount')}</span>
-        <IcoBack className="wc-add-chevron" style={{ transform: showForm ? 'rotate(90deg)' : undefined }} />
+        <IcoBack className="wc-add-chevron" style={{transform:showForm?'rotate(90deg)':undefined}} />
       </div>
 
       {showForm && (
@@ -987,12 +954,12 @@ function AccountSwitcher({ user, accounts, login, switchAccount }) {
             <span className="wc-add-info-text">{t('profile.addAccountHint')}</span>
           </div>
           <form onSubmit={doAdd} className="wc-add-form-inner">
-            <input ref={phoneRef} type="tel" placeholder={t('profile.phoneLabel')} aria-label={t('profile.phoneLabel')} value={form.phone}
+            <TouliaoField ref={phoneRef} type="tel" placeholder={t('profile.phoneLabel')} aria-label={t('profile.phoneLabel')} value={form.phone}
               onChange={e => setForm(f => ({ ...f, phone: e.target.value }))}
-              className="wc-add-form-input" />
-            <input type="password" placeholder={t('profile.passwordLabel')} aria-label={t('profile.passwordLabel')} value={form.password}
+              className="tl-field-inline" controlClassName="wc-add-form-input" />
+            <TouliaoField type="password" placeholder={t('profile.passwordLabel')} aria-label={t('profile.passwordLabel')} value={form.password}
               onChange={e => setForm(f => ({ ...f, password: e.target.value }))}
-              className="wc-add-form-input" />
+              className="tl-field-inline" controlClassName="wc-add-form-input" />
             {error && <div className="wc-add-form-error" role="alert">{error}</div>}
             <button type="submit" disabled={loading} className="wc-add-form-submit">
               {loading ? t('profile.loggingIn') : t('profile.loginAndSwitch')}
@@ -1079,7 +1046,7 @@ function ProfileDetail({ user, updateUser, onBack, navigateTo }) {
       <div className="pf-hero">
         <div className="pf-hero-bg" aria-hidden="true" />
         <button className="pf-hero-qr" onClick={() => setShowQR(true)} title={t('profile.myQrCode')} aria-label={t('profile.myQrCode')}>
-          <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M3 3h8v8H3V3zm2 2v4h4V5H5zm8-2h8v8h-8V3zm2 2v4h4V5h-4zM3 13h8v8H3v-8zm2 2v4h4v-4H5zm11-2h2v2h-2v-2zm3 0h2v2h-2v-2zm-3 3h2v2h-2v-2zm3 0h2v5h-5v-2h3v-3zm-3 3h2v2h-2v-2z"/></svg>
+          <TouliaoIcon name="qrcode" size="sm" />
         </button>
         <div className="pf-hero-inner">
           <div className="pf-avatar-wrap" role="button" tabIndex={0}
@@ -1087,7 +1054,7 @@ function ProfileDetail({ user, updateUser, onBack, navigateTo }) {
             aria-label={t('profile.changeAvatar')}>
             <Avatar src={user?.avatar} name={user?.username} size='hero' />
             <span className="pf-avatar-edit" aria-hidden="true">
-              <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04a1 1 0 0 0 0-1.41l-2.34-2.34a1 1 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>
+              <TouliaoIcon name="edit" size="xs" />
             </span>
             {uploading && <div className="pf-avatar-uploading">{t('profile.uploading')}</div>}
           </div>
@@ -1097,7 +1064,7 @@ function ProfileDetail({ user, updateUser, onBack, navigateTo }) {
             <button className="pf-vid-chip" onClick={copyVid} title={t('profile.clickToCopyTouliaoId')}>
               <span className="pf-vid-label">{t('profile.touliaoIdLabel')}</span>
               <span className="pf-vid-value">{user.wechat_id}</span>
-              <svg viewBox="0 0 24 24" width="13" height="13" fill="currentColor" aria-hidden="true"><path d="M16 1H4a2 2 0 0 0-2 2v14h2V3h12V1zm3 4H8a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h11a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2zm0 16H8V7h11v14z"/></svg>
+              <TouliaoIcon name="copy" aria-hidden="true" size="xs" />
             </button>
           )}
         </div>
@@ -1124,7 +1091,7 @@ function ProfileDetail({ user, updateUser, onBack, navigateTo }) {
           <div className="wc-modal home-qr-modal" role="dialog" aria-modal="true" aria-label={t('profile.myQrCode')} onClick={e => e.stopPropagation()}>
             <div className="wc-modal-header">
               <span className="wc-modal-title">{t('profile.myQrCode')}</span>
-              <button className="wc-modal-close" aria-label={t('profile.closeQrCode')} onClick={() => setShowQR(false)}>✕</button>
+              <button className="wc-modal-close" aria-label={t('profile.closeQrCode')} onClick={() => setShowQR(false)}><TouliaoIcon name="close" size="sm" /></button>
             </div>
             <div className="wc-modal-body home-qr-body">
               <AuthImage src="/api/users/me/qrcode" alt={t('profile.myQrCode')} className="home-qr-img" />
@@ -1190,12 +1157,12 @@ function ServerSettings({ onBack }) {
       <PageHeader title={t('profile.serverAddressTitle')} onBack={onBack} />
       <div className="wc-server-pad">
         <div className="wc-server-label">{t('profile.tenantCodeLabel')}</div>
-        <input
+        <TouliaoField
           value={tenantCode}
           onChange={e => { setTenantCode(e.target.value); setCodeResult(null); }}
           placeholder={t('profile.tenantCodePlaceholder')}
           aria-label={t('profile.tenantCodeLabel')}
-          className="wc-server-input"
+          className="tl-field-inline" controlClassName="wc-server-input"
         />
         {codeResult && (
           <div role="status" className="profile-test-result" style={{ color: codeResult.ok ? 'var(--green)' : 'var(--color-badge)' }}>
@@ -1204,21 +1171,21 @@ function ServerSettings({ onBack }) {
         )}
       </div>
       <div className="wc-server-btn-row">
-        <button onClick={handleResolveCode} disabled={resolving || !tenantCode.trim()} className="wc-btn-save">
+        <PrimaryButton onClick={handleResolveCode} disabled={resolving || !tenantCode.trim()} className="wc-btn-save">
           {resolving ? t('profile.tenantCodeResolving') : t('profile.tenantCodeResolve')}
-        </button>
+        </PrimaryButton>
       </div>
       <div className="wc-server-hint">
         <div className="wc-server-hint-box">{t('profile.tenantCodeHint')}</div>
       </div>
       <div className="wc-server-pad">
         <div className="wc-server-label">{t('profile.serverAddressLabel')}</div>
-        <input
+        <TouliaoField
           value={input}
           onChange={e => { setInput(e.target.value); setTestResult(null); }}
           placeholder="https://example.com"
           aria-label={t('profile.serverAddressTitle')}
-          className="wc-server-input"
+          className="tl-field-inline" controlClassName="wc-server-input"
         />
         {testResult && (
           <div role="status" className="profile-test-result" style={{ color: testResult.ok ? 'var(--green)' : 'var(--color-badge)' }}>
@@ -1227,12 +1194,12 @@ function ServerSettings({ onBack }) {
         )}
       </div>
       <div className="wc-server-btn-row">
-        <button onClick={testConn} disabled={testing} className="wc-btn-test">
+        <SecondaryButton onClick={testConn} disabled={testing} className="wc-btn-test">
           {testing ? t('profile.testing') : t('profile.testConnection')}
-        </button>
-        <button onClick={handleSave} disabled={saving || !input.trim().startsWith('http')} className="wc-btn-save">
+        </SecondaryButton>
+        <PrimaryButton onClick={handleSave} disabled={saving || !input.trim().startsWith('http')} className="wc-btn-save">
           {saving ? t('profile.switching') : t('profile.saveAndSwitch')}
-        </button>
+        </PrimaryButton>
       </div>
       <div className="wc-server-hint">
         <div className="wc-server-hint-box">
@@ -1338,9 +1305,9 @@ function ShortcutSettings({ onBack }) {
                   aria-pressed={isRec}>
                   {isRec ? t('common.cancel') : t('profile.startRecording')}
                 </button>
-                <button className="wc-btn-link" onClick={() => resetOne(key)} title={t('profile.resetDefault')}>
+                <TextButton className="wc-btn-link" onClick={() => resetOne(key)} title={t('profile.resetDefault')}>
                   {t('profile.resetShort')}
-                </button>
+                </TextButton>
               </div>
             </div>
             {st && (
@@ -1428,7 +1395,7 @@ export default function Profile({ isMobile = false }) {
           <div className="wc-modal home-qr-modal" role="dialog" aria-modal="true" aria-label={t('profile.myQrCode')} onClick={e => e.stopPropagation()}>
             <div className="wc-modal-header">
               <span className="wc-modal-title">{t('profile.myQrCode')}</span>
-              <button className="wc-modal-close" onClick={() => setShowQR(false)} aria-label={t('common.close')}>✕</button>
+              <button className="wc-modal-close" onClick={() => setShowQR(false)} aria-label={t('common.close')}><TouliaoIcon name="close" size="sm" /></button>
             </div>
             <div className="wc-modal-body home-qr-body">
               <AuthImage src="/api/users/me/qrcode" alt={t('profile.myQrCode')} className="home-qr-img" />
@@ -1441,9 +1408,9 @@ export default function Profile({ isMobile = false }) {
       {/* ── 钱包 ── */}
       <div className="wc-section-pad">
         <Card>
-          <CRow icon={<Ico d="M21 7H3a1 1 0 00-1 1v9a2 2 0 002 2h14a2 2 0 002-2v-2h-7a2 2 0 010-4h7V8a1 1 0 00-1-1zm-4 6h5v2h-5a1 1 0 010-2zM3 5h13a1 1 0 010 2H3a1 1 0 010-2z" />}
+          <CRow icon={<TouliaoIcon name="wallet" className="wc-ico" />}
             bg="var(--icon-bg-wallet)" label={t('profile.walletMenuLabel')} desc={t('profile.walletMenuDesc')} onClick={() => setSubPage('wallet')} />
-          <CRow icon={<Ico d="M16 11a4 4 0 10-4-4 4 4 0 004 4zm0 2c-3 0-8 1.5-8 4.5V20h12v-1a5.8 5.8 0 00-.3-1.8M6 8V5M4.5 6.5h3" />}
+          <CRow icon={<TouliaoIcon name="addFriend" className="wc-ico" />}
             bg="var(--icon-bg-invite)" label={t('profile.inviteMenuLabel')} desc={t('profile.inviteMenuDesc')} onClick={() => setSubPage('invite')} />
         </Card>
       </div>

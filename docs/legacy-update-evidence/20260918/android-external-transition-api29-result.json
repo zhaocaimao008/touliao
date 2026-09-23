@@ -1,0 +1,32 @@
+{
+  "environment": "Android API 29 native emulator",
+  "unmodifiedHistoricalApk": true,
+  "physicalDevice": false,
+  "productionAccountTested": false,
+  "testAccountApi": "isolated loopback fixture",
+  "updateNetwork": "unchanged historical production HTTPS endpoint",
+  "hotUpdate": false,
+  "passed": true,
+  "buildFingerprint": "Android/sdk_phone_x86_64/generic_x86_64:10/QSR1.210820.001/7663313:userdebug/test-keys",
+  "before": {
+    "versionCode": 81,
+    "versionName": "8.1.24",
+    "firstInstallTime": "2026-09-18 17:33:09",
+    "uid": "10116"
+  },
+  "transitionApkSha256": "29d51c67ac255f6af3a0d717ace35688a6fba49834925943a01e8302dedcc0bc",
+  "transitionPublished": false,
+  "cancelPreservesOldInstallation": true,
+  "after": {
+    "versionCode": 83,
+    "versionName": "8.1.26",
+    "firstInstallTime": "2026-09-18 17:33:09",
+    "uid": "10116"
+  },
+  "externalSystemInstallerUpgrade": "passed",
+  "oldClientInAppUpgrade": false,
+  "isolatedAccountSessionRestored": true,
+  "encryptedOfflineHistoryRenderedWithoutServerHistory": true,
+  "sameApplicationUidAndFirstInstallTime": true,
+  "loginCount": 1
+}

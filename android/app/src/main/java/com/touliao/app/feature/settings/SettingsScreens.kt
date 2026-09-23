@@ -14,9 +14,6 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Check
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -24,9 +21,9 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
+import com.touliao.app.ui.components.TouliaoField
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Switch
+import com.touliao.app.ui.components.TouliaoSettingToggle as ToggleRow
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -46,20 +43,6 @@ import com.touliao.app.core.storage.ThemeMode
 
 // ── 通用：设置行（标题 + 副标题 + 右侧开关） ──
 @Composable
-private fun ToggleRow(title: String, subtitle: String? = null, checked: Boolean, onChange: (Boolean) -> Unit) {
-    Row(
-        Modifier.fillMaxWidth().padding(16.dp, 12.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Column(Modifier.weight(1f)) {
-            Text(title, style = MaterialTheme.typography.bodyLarge)
-            if (subtitle != null) Text(subtitle, color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
-        }
-        Switch(checked = checked, onCheckedChange = onChange)
-    }
-}
-
-@Composable
 private fun SectionCaption(text: String) {
     Text(text, Modifier.padding(16.dp, 16.dp, 16.dp, 4.dp), color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
 }
@@ -71,7 +54,7 @@ private fun SettingsScaffold(title: String, onBack: () -> Unit, content: @Compos
         topBar = {
             TopAppBar(
                 title = { Text(title) },
-                navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回") } },
+                navigationIcon = { IconButton(onClick = onBack) { Icon(com.touliao.app.ui.TouliaoIcons.Back, contentDescription = "返回") } },
             )
         },
     ) { padding ->
@@ -163,7 +146,7 @@ fun NotificationSettingsScreen(onBack: () -> Unit, viewModel: SettingsViewModel 
                             ) {
                                 Text(label, style = MaterialTheme.typography.bodyLarge)
                                 if (s.ringtone == key) {
-                                    Icon(Icons.Filled.Check, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                                    Icon(com.touliao.app.ui.TouliaoIcons.Check, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
                                 }
                             }
                         }
@@ -240,7 +223,7 @@ private fun ThemeRow(label: String, value: ThemeMode, current: ThemeMode, onSele
         horizontalArrangement = Arrangement.SpaceBetween,
     ) {
         Text(label, style = MaterialTheme.typography.bodyLarge)
-        if (current == value) Icon(Icons.Filled.Check, contentDescription = "已选", tint = MaterialTheme.colorScheme.primary)
+        if (current == value) Icon(com.touliao.app.ui.TouliaoIcons.Check, contentDescription = "已选", tint = MaterialTheme.colorScheme.primary)
     }
 }
 
@@ -279,7 +262,7 @@ private fun QuietTimeDialog(
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
-                OutlinedTextField(
+                TouliaoField(
                     value = startText,
                     onValueChange = { startText = it; error = null },
                     label = { Text("开始时间（HH:MM）") },
@@ -287,7 +270,7 @@ private fun QuietTimeDialog(
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
                 )
-                OutlinedTextField(
+                TouliaoField(
                     value = endText,
                     onValueChange = { endText = it; error = null },
                     label = { Text("结束时间（HH:MM）") },

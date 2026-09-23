@@ -13,9 +13,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Add
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
@@ -55,11 +52,11 @@ fun FriendLabelsScreen(onBack: () -> Unit, viewModel: FriendLabelsViewModel = hi
         topBar = {
             TopAppBar(
                 title = { Text("好友标签") },
-                navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回") } },
+                navigationIcon = { IconButton(onClick = onBack) { Icon(com.touliao.app.ui.TouliaoIcons.Back, contentDescription = "返回") } },
             )
         },
         floatingActionButton = {
-            FloatingActionButton(onClick = { showCreate = true }) { Icon(Icons.Filled.Add, contentDescription = "新建标签") }
+            FloatingActionButton(onClick = { showCreate = true }) { Icon(com.touliao.app.ui.TouliaoIcons.Add, contentDescription = "新建标签") }
         },
     ) { padding ->
         Box(Modifier.fillMaxSize().padding(padding)) {
@@ -67,7 +64,7 @@ fun FriendLabelsScreen(onBack: () -> Unit, viewModel: FriendLabelsViewModel = hi
                 state.loading -> CircularProgressIndicator(Modifier.align(Alignment.Center))
                 state.error != null && state.labels.isEmpty() ->
                     Text(state.error!!, color = MaterialTheme.colorScheme.error, modifier = Modifier.align(Alignment.Center))
-                state.labels.isEmpty() -> EmptyState(icon = "🏷️", title = "还没有标签", subtitle = "点右下角 + 新建标签给好友分组", modifier = Modifier.align(Alignment.Center))
+                state.labels.isEmpty() -> EmptyState(icon = com.touliao.app.ui.TouliaoIcons.Tag, title = "还没有标签", subtitle = "点右下角 + 新建标签给好友分组", modifier = Modifier.align(Alignment.Center))
                 else -> LazyColumn(Modifier.fillMaxSize()) {
                     items(state.labels, key = { it.id }) { label ->
                         LabelRow(
@@ -133,6 +130,6 @@ private fun LabelRow(label: FriendLabel, onEditMembers: () -> Unit, onDelete: ()
             Text(label.name.ifBlank { "未命名标签" }, style = MaterialTheme.typography.bodyLarge)
             Text("${label.members.size} 位好友", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
         }
-        TextButton(onClick = onDelete) { Text("删除", color = Color(0xFFFA5151)) }
+        TextButton(onClick = onDelete) { Text("删除", color = com.touliao.app.ui.theme.VxinError) }
     }
 }

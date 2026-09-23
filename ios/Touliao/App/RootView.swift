@@ -8,13 +8,16 @@ struct RootView: View {
     @AppStorage(AppearanceStore.themeKey) private var themeRaw = AppTheme.system.rawValue
     @AppStorage(AppearanceStore.fontKey) private var fontRaw = AppFontScale.standard.rawValue
 
+    @Environment(\.dynamicTypeSize) private var systemTextSize
+
     var body: some View {
         content
             .safeAreaInset(edge: .top) {
                 if let message = session.recoveryMessage { Text(message).font(.footnote).frame(maxWidth: .infinity).padding(6).background(Color.orange.opacity(0.15)) }
             }
+            .touliaoPage()
             .preferredColorScheme((AppTheme(rawValue: themeRaw) ?? .system).colorScheme)
-            .dynamicTypeSize((AppFontScale(rawValue: fontRaw) ?? .standard).dynamicTypeSize)
+            .dynamicTypeSize(touliaoTextSize(system: systemTextSize, preference: (AppFontScale(rawValue: fontRaw) ?? .standard).dynamicTypeSize))
     }
 
     @ViewBuilder private var content: some View {

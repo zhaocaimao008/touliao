@@ -11,6 +11,38 @@ on:
         type: boolean
         required: false
         default: true
+      prepare_only:
+        description: '仅构建、验证和导出 IPA，不上传、不送审'
+        type: boolean
+        required: false
+        default: false
+      run_simulator_tests:
+        description: '仅准备模式：运行模拟器测试；仅在相同应用源码已有通过证据时可关闭'
+        type: boolean
+        required: false
+        default: true
+      prepared_run_id:
+        description: '上传已验证 IPA 的准备运行 ID；填写后不重新构建'
+        required: false
+        default: ''
+      prepared_build_number:
+        description: '已验证 IPA 的 Build Number'
+        required: false
+        default: ''
+      prepared_ipa_sha256:
+        description: '已验证 IPA 的 SHA-256'
+        required: false
+        default: ''
+      prepare_internal_testing:
+        description: '将已处理构建加入内部验收组；不邀请账号，不提交外部审核'
+        type: boolean
+        required: false
+        default: false
+      prepared_beta_review:
+        description: '将指定已验证构建加入公开测试组并提交 TestFlight 外部 Beta 审核'
+        type: boolean
+        required: false
+        default: false
   push:
     tags:
       # iOS 端专属前缀触发（见 VERSIONING.md 第 2 节）；避免裸 v*/其他端 tag 误触发。
@@ -18,7 +50,129 @@ on:
       - 'ios-v*'
 
 jobs:
+  upload_prepared:
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.prepared_run_id != '' }}
+    runs-on: macos-26
+    timeout-minutes: 35
+    permissions:
+      contents: read
+      actions: read
+    env:
+      UPLOAD_DIR: /tmp/touliao-testflight-upload
+      APP_VERSION: ${{ inputs.version }}
+      BUILD_NUMBER: ${{ inputs.prepared_build_number }}
+      EXPECTED_IPA_SHA256: ${{ inputs.prepared_ipa_sha256 }}
+      PREPARED_RUN_ID: ${{ inputs.prepared_run_id }}
+      PREPARE_INTERNAL_TESTING: ${{ inputs.prepare_internal_testing }}
+      PREPARED_BETA_REVIEW: ${{ inputs.prepared_beta_review }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check prepared artifact request
+        env:
+          PREPARE_ONLY: ${{ inputs.prepare_only }}
+          SUBMIT_REVIEW: ${{ inputs.submit_review }}
+        run: |
+          set -euo pipefail
+          test "$PREPARE_ONLY" = false
+          test "$SUBMIT_REVIEW" = false
+          [[ "$PREPARE_INTERNAL_TESTING" != true || "$PREPARED_BETA_REVIEW" != true ]]
+          [[ "$PREPARED_RUN_ID" =~ ^[0-9]+$ ]]
+          [[ "$BUILD_NUMBER" =~ ^[0-9]+$ ]]
+          [[ "$EXPECTED_IPA_SHA256" =~ ^[a-f0-9]{64}$ ]]
+          mkdir -p "$UPLOAD_DIR/evidence"
+      - name: Download the verified IPA and its evidence
+        uses: actions/download-artifact@v4
+        with:
+          name: touliao-ios-release-preparation
+          run-id: ${{ inputs.prepared_run_id }}
+          github-token: ${{ github.token }}
+          path: ${{ env.UPLOAD_DIR }}/prepared
+      - name: Verify artifact identity and check existing TestFlight build
+        id: preflight
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ASC_API_KEY_BASE64: ${{ secrets.ASC_API_KEY_BASE64 }}
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+        run: bash ios/release-preparation/upload-prepared.sh setup
+      - name: Upload the approved IPA to TestFlight
+        if: ${{ env.SKIP_IPA_UPLOAD != 'true' }}
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+        run: bash ios/release-preparation/upload-prepared.sh upload
+      - name: Wait for the exact build to finish Apple processing
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+        run: bash ios/release-preparation/upload-prepared.sh wait
+      - name: Submit the exact build for external TestFlight Beta review
+        if: ${{ inputs.prepared_beta_review }}
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+        run: bash ios/release-preparation/upload-prepared.sh beta-review
+      - name: Save upload receipt
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: touliao-ios-testflight-upload
+          path: ${{ env.UPLOAD_DIR }}/evidence/
+          if-no-files-found: warn
+      - name: Remove temporary API key
+        if: always()
+        run: rm -rf "$UPLOAD_DIR/private"
+
+  prepare:
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.prepare_only && inputs.prepared_run_id == '' }}
+    runs-on: macos-26
+    timeout-minutes: 60
+    permissions:
+      contents: read
+    env:
+      APP_VERSION: ${{ inputs.version }}
+      PREP_DIR: /tmp/touliao-release-preparation
+    steps:
+      - uses: actions/checkout@v4
+      - name: Select Xcode and generate project
+        run: bash ios/release-preparation/run.sh setup
+      - name: Validate signing materials and App Store Connect access (read only)
+        env:
+          IOS_CERTIFICATE_P12_BASE64: ${{ secrets.IOS_CERTIFICATE_P12_BASE64 }}
+          IOS_CERTIFICATE_PASSWORD: ${{ secrets.IOS_CERTIFICATE_PASSWORD }}
+          IOS_KEYCHAIN_PASSWORD: ${{ secrets.IOS_KEYCHAIN_PASSWORD }}
+          IOS_PROVISIONING_PROFILE_BASE64: ${{ secrets.IOS_PROVISIONING_PROFILE_BASE64 }}
+          ASC_API_KEY_BASE64: ${{ secrets.ASC_API_KEY_BASE64 }}
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+        run: bash ios/release-preparation/run.sh credentials
+      - name: Clean simulator build and native tests
+        if: ${{ inputs.run_simulator_tests }}
+        run: bash ios/release-preparation/run.sh simulator
+      - name: Clean signed Release build
+        run: bash ios/release-preparation/run.sh build
+      - name: Archive
+        run: bash ios/release-preparation/run.sh archive
+      - name: Verify archive and export signed IPA
+        run: bash ios/release-preparation/run.sh export
+      - name: Validate final IPA with Apple (no upload)
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+        run: bash ios/release-preparation/run.sh validate
+      - name: Save IPA and non-secret validation evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: touliao-ios-release-preparation
+          path: ${{ env.PREP_DIR }}/evidence/
+          if-no-files-found: error
+      - name: Remove temporary signing credentials
+        if: always()
+        run: bash ios/release-preparation/run.sh cleanup
+
   testflight:
+    if: ${{ !(github.event_name == 'workflow_dispatch' && (inputs.prepare_only || inputs.prepared_run_id != '')) }}
     # Apple 自 2026-04 起要求用 iOS 26 SDK(Xcode 26)构建才能上传 App Store。
     # macos-15 仅带 Xcode 16(iOS 18 SDK)，会在上传校验时 409。改用 macos-26。
     runs-on: macos-26

@@ -170,7 +170,7 @@ fun UpdateCheckDialog(
         is UpdateUiState.SecurityBlocked -> {
             AlertDialog(
                 onDismissRequest = { viewModel.dismiss(); onDismiss() },
-                title = { Text("⚠️ 安装包校验未通过") },
+                title = { Text("安装包校验未通过") },
                 text = { Text(s.message) },
                 confirmButton = {
                     TextButton(onClick = { viewModel.dismiss(); onDismiss() }) {

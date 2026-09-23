@@ -133,6 +133,7 @@ struct ConversationFilesView: View {
             }
             .navigationTitle("聊天文件")
             .navigationBarTitleDisplayMode(.inline)
+        .touliaoPage()
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("关闭") { dismiss() }
@@ -159,22 +160,13 @@ struct ConversationFilesView: View {
         if vm.loading && vm.items.isEmpty {
             ProgressView().frame(maxWidth: .infinity, maxHeight: .infinity)
         } else if let err = vm.error, vm.items.isEmpty {
-            VStack(spacing: 12) {
-                Image(systemName: "exclamationmark.triangle")
-                    .font(.system(size: 36)).foregroundColor(.vxinTextSecondary)
-                Text(err).foregroundColor(.vxinError)
-                Button("重试") { Task { await vm.loadFirst() } }.foregroundColor(.vxinGreen)
-            }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            VxinEmptyState(icon: "warning", title: "加载失败", subtitle: err, isError: true,
+                           actionTitle: "重试", action: { Task { await vm.loadFirst() } })
+                .frame(maxHeight: .infinity)
         } else if vm.items.isEmpty {
-            VStack(spacing: 12) {
-                Image(systemName: "folder")
-                    .font(.system(size: 48)).foregroundColor(.vxinTextSecondary)
-                Text("暂无文件").foregroundColor(.vxinTextSecondary)
-                Text("该会话下的图片、视频与文件会在这里汇总")
-                    .font(.caption).foregroundColor(.vxinTextSecondary)
-            }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            VxinEmptyState(icon: "folder", title: "暂无文件",
+                           subtitle: "该会话下的图片、视频与文件会在这里汇总")
+                .frame(maxHeight: .infinity)
         } else if vm.tab == .file {
             fileList
         } else {
@@ -185,6 +177,7 @@ struct ConversationFilesView: View {
     // 文件：单列行（📄图标 + 文件名 + 发送者 + 时间）
     private var fileList: some View {
         List {
+            Group {
             ForEach(vm.items) { file in
                 Button { openFile(file) } label: { FileRow(file: file) }
                     .buttonStyle(.plain)
@@ -193,8 +186,11 @@ struct ConversationFilesView: View {
             if vm.loadingMore {
                 HStack { Spacer(); ProgressView(); Spacer() }.listRowSeparator(.hidden)
             }
+            }.listRowBackground(Color.vxinSurface).listRowSeparatorTint(Color.vxinBorder)
         }
         .listStyle(.plain)
+            .scrollContentBackground(.hidden)
+            .background(Color.vxinSurface)
         .refreshable { await vm.loadFirst() }
     }
 
@@ -247,16 +243,16 @@ private struct FileRow: View {
 
     var body: some View {
         HStack(spacing: 12) {
-            Text("📄").font(.system(size: 28))
+            TouliaoIcon("fileContent", size: .lg).foregroundColor(.vxinGreen)
             VStack(alignment: .leading, spacing: 3) {
                 Text(file.displayName)
-                    .font(.body).lineLimit(1)
+                    .touliaoText(.body).lineLimit(1)
                 HStack(spacing: 8) {
                     Text(file.senderName.isEmpty ? "某人" : file.senderName)
-                        .font(.caption2).foregroundColor(.vxinTextSecondary).lineLimit(1)
+                        .touliaoText(.caption).foregroundColor(.vxinTextSecondary).lineLimit(1)
                     Spacer()
                     Text(formatChatTime(file.createdAt))
-                        .font(.caption2).foregroundColor(.vxinTextSecondary)
+                        .touliaoText(.caption).foregroundColor(.vxinTextSecondary)
                 }
             }
         }
@@ -272,15 +268,21 @@ private struct MediaGridCell: View {
 
     var body: some View {
         ZStack {
-            Color.gray.opacity(0.12)
-            KFImage(source: MediaUrlResolver.kfSource(resolved: resolve(file.fileUrl)))
-                .resizable()
-                .scaledToFill()
+            Color.vxinSurfaceSecondary
+            if file.type == "file" {
+                VStack(spacing: 8) {
+                    TouliaoIcon("fileContent", size: .lg).foregroundColor(.vxinGreen)
+                    Text(file.displayName).touliaoText(.caption).foregroundColor(.vxinText)
+                        .lineLimit(2).multilineTextAlignment(.center)
+                }.padding(8)
+            } else {
+                KFImage(source: MediaUrlResolver.kfSource(resolved: resolve(file.fileUrl)))
+                    .resizable().scaledToFill()
+            }
             // 视频角标：半透明播放标识
             if file.type == "video" {
                 Color.black.opacity(0.18)
-                Image(systemName: "play.circle.fill")
-                    .font(.system(size: 30)).foregroundColor(.white.opacity(0.9))
+                TouliaoIcon("play", size: .lg).foregroundColor(IconColor.onDark.opacity(0.9))
             }
         }
         .aspectRatio(1, contentMode: .fill)
@@ -312,7 +314,7 @@ private struct FilePreviewImageView: View {
             VStack {
                 HStack {
                     Button { onClose() } label: {
-                        Image(systemName: "xmark").foregroundColor(.white).padding()
+                        TouliaoIcon("close").foregroundColor(IconColor.onDark).padding()
                     }
                     .accessibilityLabel("关闭")
                     Spacer()

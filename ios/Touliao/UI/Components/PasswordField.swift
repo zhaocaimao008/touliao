@@ -10,6 +10,8 @@ struct PasswordField: View {
 
     @State private var visible = false
     @FocusState private var focused: Bool
+    @Environment(\.touliaoFieldError) private var error
+    @Environment(\.isEnabled) private var enabled
 
     var body: some View {
         HStack(spacing: 8) {
@@ -32,18 +34,25 @@ struct PasswordField: View {
                 // 切换后保持焦点，避免键盘收起
                 focused = true
             } label: {
-                Image(systemName: visible ? "eye.slash" : "eye")
+                TouliaoIcon(visible ? "hidePassword" : "showPassword")
                     .foregroundColor(.vxinTextSecondary)
+                    .frame(minWidth: 44, minHeight: 44)
             }
             .buttonStyle(.borderless)
             .accessibilityLabel(visible ? "隐藏密码" : "显示密码")
         }
-        .padding(.horizontal, 8)
-        .frame(minHeight: 36)
-        .background(
-            RoundedRectangle(cornerRadius: VxinRadius.sm)
-                .stroke(Color.gray.opacity(0.4), lineWidth: 1)
+        .touliaoText(.body)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 2)
+        .frame(minHeight: TouliaoMetrics.fieldHeight)
+        .background(Color.vxinSurface)
+        .clipShape(RoundedRectangle(cornerRadius: TouliaoMetrics.radiusControl))
+        .overlay(
+            RoundedRectangle(cornerRadius: TouliaoMetrics.radiusControl)
+                .stroke(error != nil ? Color.vxinError : focused ? Color.vxinBrand : Color.vxinBorder,
+                        lineWidth: focused ? TouliaoMetrics.borderFocus : TouliaoMetrics.borderDefault)
         )
+        .opacity(enabled ? 1 : Double(TouliaoMetrics.disabledOpacity))
     }
 }
 

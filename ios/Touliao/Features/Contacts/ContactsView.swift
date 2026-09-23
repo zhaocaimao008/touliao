@@ -27,58 +27,56 @@ struct ContactsView: View {
 
     var body: some View {
         List {
+            Group {
             Section {
                 Button(action: onRequests) {
                     HStack {
-                        Text("新的朋友").foregroundColor(.primary)
+                        Text("新的朋友").foregroundColor(.vxinText)
                         Spacer()
                         if vm.requestCount > 0 {
-                            Text("\(vm.requestCount)")
-                                .font(.caption2).foregroundColor(.white)
-                                .padding(.horizontal, 6).padding(.vertical, 2)
-                                .background(Color.vxinError).clipShape(Capsule())
+                            TouliaoBadge(count: vm.requestCount)
                         }
-                        Image(systemName: "chevron.right").foregroundColor(.vxinTextSecondary).font(.caption)
+                        TouliaoIcon("disclosure", size: .xs).foregroundColor(.vxinTextSecondary)
                     }
                 }
                 Button(action: onOpenLabels) {
                     HStack {
-                        Text("好友标签").foregroundColor(.primary)
+                        Text("好友标签").foregroundColor(.vxinText)
                         Spacer()
-                        Image(systemName: "chevron.right").foregroundColor(.vxinTextSecondary).font(.caption)
+                        TouliaoIcon("disclosure", size: .xs).foregroundColor(.vxinTextSecondary)
                     }
                 }
                 Button(action: onOpenBlocked) {
                     HStack {
-                        Text("黑名单").foregroundColor(.primary)
+                        Text("黑名单").foregroundColor(.vxinText)
                         Spacer()
-                        Image(systemName: "chevron.right").foregroundColor(.vxinTextSecondary).font(.caption)
+                        TouliaoIcon("disclosure", size: .xs).foregroundColor(.vxinTextSecondary)
                     }
                 }
                 Button(action: { vm.showAiBots.toggle() }) {
                     HStack {
-                        Text(vm.showAiBots ? "AI 助手 (\\(vm.aiBots.count))" : "AI 助手").foregroundColor(.primary)
+                        Text(vm.showAiBots ? "AI 助手 (\(vm.aiBots.count))" : "AI 助手").foregroundColor(.vxinText)
                         Spacer()
-                        Image(systemName: vm.showAiBots ? "chevron.up" : "chevron.right")
-                            .foregroundColor(.vxinTextSecondary).font(.caption)
+                        TouliaoIcon(vm.showAiBots ? "collapse" : "disclosure")
+                            .foregroundColor(.vxinTextSecondary).touliaoText(.caption)
                     }
                 }
                 if vm.showAiBots {
                     if vm.aiBots.isEmpty {
-                        Text("暂无 AI 助手").font(.footnote).foregroundColor(.vxinTextSecondary)
+                        Text("暂无 AI 助手").touliaoText(.secondary).foregroundColor(.vxinTextSecondary)
                     } else {
                         ForEach(vm.aiBots) { bot in
                             Button { Task { if let conv = await vm.startAiChat(bot) { onStartChat(conv) } } } label: {
                                 HStack(spacing: 12) {
                                     InitialAvatar(name: bot.name.isEmpty ? "?" : bot.name, size: 40)
                                     VStack(alignment: .leading, spacing: 2) {
-                                        Text(bot.name.isEmpty ? bot.username : bot.name).foregroundColor(.primary)
+                                        Text(bot.name.isEmpty ? bot.username : bot.name).foregroundColor(.vxinText)
                                         if !bot.description.isEmpty {
-                                            Text(bot.description).font(.caption).foregroundColor(.vxinTextSecondary).lineLimit(1)
+                                            Text(bot.description).touliaoText(.caption).foregroundColor(.vxinTextSecondary).lineLimit(1)
                                         }
                                     }
                                     Spacer()
-                                    Image(systemName: "chevron.right").foregroundColor(.vxinTextSecondary).font(.caption)
+                                    TouliaoIcon("disclosure", size: .xs).foregroundColor(.vxinTextSecondary)
                                 }
                             }
                         }
@@ -101,14 +99,14 @@ struct ContactsView: View {
                                     }
                                 }
                             VStack(alignment: .leading, spacing: 2) {
-                                Text(contact.displayName.isEmpty ? "未命名" : contact.displayName).foregroundColor(.primary)
+                                Text(contact.displayName.isEmpty ? "未命名" : contact.displayName).foregroundColor(.vxinText)
                                 if !contact.bio.isEmpty {
-                                    Text(contact.bio).font(.caption).foregroundColor(.vxinTextSecondary).lineLimit(1)
+                                    Text(contact.bio).touliaoText(.caption).foregroundColor(.vxinTextSecondary).lineLimit(1)
                                 }
                                 // 特权账户：离线时展示精确最后在线时间（后端仅对特权账户返回 lastOnlineAt）
                                 if !vm.onlineIds.contains(contact.id),
                                    let ts = contact.lastOnlineAt, ts > 0 {
-                                    Text(formatLastOnline(ts)).font(.caption2).foregroundColor(.vxinTextSecondary).lineLimit(1)
+                                    Text(formatLastOnline(ts)).touliaoText(.caption).foregroundColor(.vxinTextSecondary).lineLimit(1)
                                 }
                             }
                             Spacer()
@@ -122,9 +120,12 @@ struct ContactsView: View {
                     }
                 }
             }
+            }.listRowBackground(Color.vxinSurface).listRowSeparatorTint(Color.vxinBorder)
         }
         .sheet(item: $reportTarget) { SafetyReportView(target: $0) }
         .listStyle(.plain)
+            .scrollContentBackground(.hidden)
+            .background(Color.vxinSurface)
         .alert("设置备注", isPresented: .constant(remarkTarget != nil)) {
             TextField("留空恢复默认昵称", text: $remarkText)
             Button("取消", role: .cancel) { remarkTarget = nil }
@@ -144,12 +145,13 @@ struct ContactsView: View {
         }
         .navigationTitle("通讯录")
         .navigationBarTitleDisplayMode(.inline)
+        .touliaoPage()
         .toolbar {
             ToolbarItem(placement: .navigationBarTrailing) {
                 HStack {
-                    Button(action: onCreateGroup) { Image(systemName: "person.3") }
+                    Button(action: onCreateGroup) { TouliaoIcon("group", size: .md) }
                         .accessibilityLabel("发起群聊")
-                    Button(action: onAddFriend) { Image(systemName: "plus") }
+                    Button(action: onAddFriend) { TouliaoIcon("add", size: .md) }
                         .accessibilityLabel("添加好友")
                 }
             }

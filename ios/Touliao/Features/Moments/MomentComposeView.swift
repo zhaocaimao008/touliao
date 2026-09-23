@@ -111,6 +111,7 @@ struct MomentComposeView: View {
     var body: some View {
         NavigationStack {
             Form {
+                Group {
                 Section {
                     TextField("这一刻的想法…", text: $vm.content, axis: .vertical).lineLimit(3...8)
                 }
@@ -137,7 +138,7 @@ struct MomentComposeView: View {
                             }
                         }
                         PhotosPicker(selection: $pickerItems, maxSelectionCount: 9, matching: .images) {
-                            Label("添加图片", systemImage: "photo.on.rectangle")
+                            Label("添加图片", touliaoIcon: "image")
                         }
                     } else {
                         if let url = vm.videoURL {
@@ -153,29 +154,28 @@ struct MomentComposeView: View {
                                 .frame(width: 160, height: 120)
                                 .clipShape(RoundedRectangle(cornerRadius: VxinRadius.sm))
                                 .overlay {
-                                    Image(systemName: "play.circle.fill")
-                                        .font(.system(size: 30))
-                                        .foregroundColor(.white)
+                                    TouliaoIcon("play", size: .lg)
+                                        .foregroundColor(IconColor.onDark)
                                         .shadow(color: .black.opacity(0.35), radius: 3)
                                 }
                                 Button { vm.clearVideo() } label: {
-                                    Image(systemName: "xmark.circle.fill")
-                                        .font(.title3)
-                                        .foregroundColor(.white)
+                                    TouliaoIcon("close", size: .md)
+                                        .foregroundColor(IconColor.onDark)
+                                        .frame(width: IconTouchTarget.ios, height: IconTouchTarget.ios)
                                         .shadow(color: .black.opacity(0.4), radius: 2)
                                 }
                                 .padding(6)
                                 .accessibilityLabel("移除视频")
                             }
-                            Text(url.lastPathComponent).font(.caption).foregroundColor(.vxinTextSecondary).lineLimit(1)
+                            Text(url.lastPathComponent).touliaoText(.caption).foregroundColor(.vxinTextSecondary).lineLimit(1)
                         } else {
                             // 选视频：FileRepresentation 落盘（不整体进内存），iCloud 视频系统自动下载
                             PhotosPicker(selection: $videoItem, matching: .videos) {
-                                Label("选择视频", systemImage: "video")
+                                Label("选择视频", touliaoIcon: "video")
                             }
                         }
                         Text("视频与图片不能同时发布，单个视频不超过 200MB。")
-                            .font(.caption).foregroundColor(.vxinTextSecondary)
+                            .touliaoText(.caption).foregroundColor(.vxinTextSecondary)
                     }
                 }
                 Section("谁可以看") {
@@ -199,27 +199,32 @@ struct MomentComposeView: View {
                     }
                 }
                 if let error = vm.error {
-                    Text(error).foregroundColor(.vxinError).font(.footnote)
+                    Text(error).foregroundColor(.vxinError).touliaoText(.secondary)
                 }
+                }.listRowBackground(Color.vxinSurface).listRowSeparatorTint(Color.vxinBorder)
             }
             .sheet(isPresented: $showFriendPicker) {
                 NavigationStack {
                     List(vm.friends) { f in
+                        Group {
                         Button { vm.toggleFriend(f.id) } label: {
                             HStack {
-                                Image(systemName: vm.visibleTo.contains(f.id) ? "checkmark.circle.fill" : "circle").foregroundColor(.vxinGreen)
+                                TouliaoIcon(vm.visibleTo.contains(f.id) ? "selected" : "unselected").foregroundColor(.vxinGreen)
                                 InitialAvatar(name: f.displayName.isEmpty ? "?" : f.displayName, size: 32)
-                                Text(f.displayName.isEmpty ? "用户" : f.displayName).foregroundColor(.primary).lineLimit(1)
+                                Text(f.displayName.isEmpty ? "用户" : f.displayName).foregroundColor(.vxinText).lineLimit(1)
                             }
                         }
+                        }.listRowBackground(Color.vxinSurface).listRowSeparatorTint(Color.vxinBorder)
                     }
                     .navigationTitle(vm.visibility == "include" ? "选择可见好友" : "选择不给谁看")
                     .navigationBarTitleDisplayMode(.inline)
+        .touliaoPage()
                     .toolbar { ToolbarItem(placement: .confirmationAction) { Button("完成") { showFriendPicker = false } } }
                     .overlay { if vm.friends.isEmpty { Text("暂无好友").foregroundColor(.vxinTextSecondary) } }
                 }
             }
             .navigationTitle("发表").navigationBarTitleDisplayMode(.inline)
+        .touliaoPage()
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("取消") { vm.clearVideo(); dismiss() }

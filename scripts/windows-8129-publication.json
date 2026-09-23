@@ -1,0 +1,17 @@
+{
+  "version": "8.1.29",
+  "buildRun": "35464783766",
+  "buildCommit": "08c6734506a7b9766995979aff4c566dae64bc67",
+  "authorization": "User explicitly authorized this delivered 8.1.29 artifact without a Windows publisher certificate: 直接给我推送，不要证书. Only this exact artifact; Ed25519 and hash checks remain required; default production certificate gate is unchanged.",
+  "authenticode": false,
+  "previousVersion": "8.1.27",
+  "previousInstallerSha256": "c2ae64ec1316d5f033b9f2afa25b3eb5bfbf56f978d8abe99b20b21c2cbcf7e0",
+  "previousManifestSha256": "b3a645998a6ff1f8bcc0f8c5deeda7c9d50381cc35be66ec5467fcd6041cec4f",
+  "previousSignatureSha256": "7c12800da728ac02e497bb34052497cae43a20b245cb738cc02cc3b42bee30a9",
+  "files": {
+    "latest.yml": "6134990b4f0c50bfcc9ba89f835215639524418785fdb2a4e40652b4380c0a7e",
+    "latest.yml.sig": "613829eabb08a031d4d632962fe984a12735b659a980f0080c507cafb4395cc9",
+    "touliao-8.1.29-setup.exe": "fb1ff74ee67ea20e74335e881f960bc38d16e107b631b93843f7286ceebdf6a7",
+    "touliao-8.1.29-setup.exe.blockmap": "d2bda1c5ea74d7048a22deb72ae4ee47814b1d7c9e63729d74ff8d0abc5ca162"
+  }
+}

@@ -51,6 +51,8 @@ private struct CallMinimizedBubble: View {
                         }
                 )
                 .onTapGesture { manager.setMinimized(false) }
+                .accessibilityLabel("返回通话")
+                .accessibilityAddTraits(.isButton)
         }
         .allowsHitTesting(true)
     }
@@ -60,7 +62,7 @@ private struct CallMinimizedBubble: View {
             if state.isVideo && state.remoteVideoActive && state.stage == .connected {
                 RTCVideoViewRepresentable(track: manager.remoteVideoTrack)
             } else {
-                Color(white: 0.15)
+                TouliaoMedia.surface
                 InitialAvatar(name: state.peerName.isEmpty ? "?" : state.peerName, size: bubbleSize)
             }
             if state.stage != .connected {
@@ -82,11 +84,19 @@ private struct CallMinimizedBubble: View {
 
 private struct CallView: View {
     @ObservedObject var manager: CallManager
-    private var state: CallState { manager.state }
+    #if DEBUG
+    var iconReviewState: CallState? = nil
+    #endif
+    private var state: CallState {
+        #if DEBUG
+        if let iconReviewState { return iconReviewState }
+        #endif
+        return manager.state
+    }
 
     var body: some View {
         ZStack {
-            Color(white: 0.1).ignoresSafeArea()
+            TouliaoMedia.canvas.ignoresSafeArea()
 
             if state.isVideo && state.remoteVideoActive && state.stage == .connected {
                 RTCVideoViewRepresentable(track: manager.remoteVideoTrack)
@@ -104,19 +114,15 @@ private struct CallView: View {
                     }
                 }
             } else {
+                ScrollView {
                 VStack(spacing: 16) {
-                    Spacer().frame(height: 80)
-                    InitialAvatar(name: state.peerName.isEmpty ? "?" : state.peerName, size: 96)
+                    InitialAvatar(name: state.peerName.isEmpty ? "?" : state.peerName, size: TouliaoMetrics.avatarCall)
                     Text(state.peerName.isEmpty ? "通话" : state.peerName)
-                        .font(.title2).foregroundColor(.white)
+                        .touliaoText(.title).foregroundColor(.white)
                     statusOrDuration
-                    Spacer()
                 }
-            }
-
-            VStack {
-                Spacer()
-                controls.padding(.bottom, 48)
+                .frame(maxWidth: .infinity).padding(.horizontal, 24).padding(.top, 72).padding(.bottom, 24)
+                }
             }
 
             // 2026-08-29新增：通话小窗入口。仅在"已经在通话流程中"(呼出/连接中/已接通)显示，
@@ -125,11 +131,12 @@ private struct CallView: View {
                 VStack {
                     HStack {
                         Button { manager.setMinimized(true) } label: {
-                            Image(systemName: "chevron.down")
-                                .font(.headline).foregroundColor(.white)
-                                .frame(width: 36, height: 36)
+                            TouliaoIcon("minimize", size: .md)
+                                .foregroundColor(IconColor.onDark)
+                                .frame(width: 44, height: 44)
                                 .background(Color.white.opacity(0.15)).clipShape(Circle())
                         }
+                        .accessibilityLabel("最小化通话")
                         .padding(.leading, 16)
                         Spacer()
                     }
@@ -138,7 +145,17 @@ private struct CallView: View {
                 .padding(.top, 8)
             }
         }
-        .task { await ensurePermissions() }
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            controls.padding(.horizontal, 16).padding(.vertical, 16)
+                .background(Color.black.opacity(0.50))
+        }
+        .task {
+            #if DEBUG
+            // The icon gallery renders fixture state only, without opening audio/video sessions.
+            if iconReviewState != nil { return }
+            #endif
+            await ensurePermissions()
+        }
         // 结束态的自动consumeEnded延时已挪到 CallManager.cleanup() 里统一调度(不依赖某个具体
         // UI是否挂载——通话小窗状态下CallView根本不在视图树里，onChange不会触发)。
     }
@@ -148,16 +165,16 @@ private struct CallView: View {
         if state.stage == .connected, let start = state.connectedAt {
             TimelineView(.periodic(from: start, by: 1)) { context in
                 Text(formatCallDuration(from: start, now: context.date))
-                    .font(.subheadline).foregroundColor(Color(white: 0.7))
+                    .touliaoText(.secondary).foregroundColor(TouliaoMedia.secondary)
                     .monospacedDigit()
             }
         } else if state.stage == .ended, let start = state.connectedAt {
             // 接通过再结束：定格显示「通话时长 mm:ss」
             Text("通话时长 " + formatCallDuration(from: start, now: state.endedAt ?? Date()))
-                .font(.subheadline).foregroundColor(Color(white: 0.7)).monospacedDigit()
+                .touliaoText(.secondary).foregroundColor(TouliaoMedia.secondary).monospacedDigit()
         } else {
             Text(statusText)
-                .font(.subheadline).foregroundColor(Color(white: 0.7))
+                .touliaoText(.secondary).foregroundColor(TouliaoMedia.secondary)
         }
         // 通话质量指示：getStats 2s 采样（RTT<200ms/丢包<2% 优; <500ms/<8% 中; 否则差）
         if state.stage == .connected && !state.callQuality.isEmpty {
@@ -167,7 +184,7 @@ private struct CallView: View {
             default: (.vxinSuccess, "网络良好")
             }
             Text(qText)
-                .font(.caption).foregroundColor(qColor)
+                .touliaoText(.caption).foregroundColor(qColor)
         }
     }
 
@@ -185,34 +202,26 @@ private struct CallView: View {
     @ViewBuilder private var controls: some View {
         if state.stage == .incoming {
             HStack(spacing: 24) {
-                circleButton("接听", .vxinSuccess) { manager.accept() }
-                circleButton("回复", Color(white: 0.35)) { manager.rejectAndReply() }
-                circleButton("拒绝", .red) { manager.reject() }
+                circleButton("接听", .vxinCallAccept) { manager.accept() }
+                circleButton("回复", TouliaoMedia.control) { manager.rejectAndReply() }
+                circleButton("拒绝", .vxinCallDanger) { manager.reject() }
             }
         } else {
-            HStack(spacing: 28) {
-                circleButton(state.micEnabled ? "静音" : "取消静音", Color(white: 0.35)) { manager.toggleMic() }
-                circleButton(state.speakerOn ? "听筒" : "扬声器", Color(white: 0.35)) { manager.toggleSpeaker() }
-                circleButton(state.isVideo ? "切语音" : "切视频", Color(white: 0.35)) { manager.toggleVideo() }
-                circleButton("挂断", .red) { manager.hangup() }
+            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 16), count: 3), spacing: 20) {
+                circleButton(state.micEnabled ? "静音" : "取消静音", TouliaoMedia.control) { manager.toggleMic() }
+                circleButton(state.speakerOn ? "听筒" : "扬声器", TouliaoMedia.control) { manager.toggleSpeaker() }
+                circleButton(state.isVideo ? "切语音" : "切视频", TouliaoMedia.control) { manager.toggleVideo() }
+                circleButton("挂断", .vxinCallDanger) { manager.hangup() }
                 if state.isVideo {
-                    circleButton(state.cameraEnabled ? "关摄像头" : "开摄像头", Color(white: 0.35)) { manager.toggleCamera() }
-                    circleButton("翻转", Color(white: 0.35)) { manager.switchCamera() }
+                    circleButton(state.cameraEnabled ? "关摄像头" : "开摄像头", TouliaoMedia.control) { manager.toggleCamera() }
+                    circleButton("翻转", TouliaoMedia.control) { manager.switchCamera() }
                 }
             }
         }
     }
 
     private func circleButton(_ label: String, _ color: Color, _ action: @escaping () -> Void) -> some View {
-        VStack(spacing: 4) {
-            Button(action: action) {
-                Text(String(label.prefix(2)))
-                    .font(.caption).foregroundColor(.white)
-                    .frame(width: 60, height: 60)
-                    .background(color).clipShape(Circle())
-            }
-            Text(label).font(.caption2).foregroundColor(Color(white: 0.8))
-        }
+        CallActionButton(label: label, color: color, action: action)
     }
 
     private func ensurePermissions() async {
@@ -253,3 +262,14 @@ private struct RTCVideoViewRepresentable: UIViewRepresentable {
         }
     }
 }
+
+#if DEBUG
+extension CallHostView {
+    // Render production call UI with a fixture state; never change the live call manager.
+    static func iconReview(video: Bool, incoming: Bool) -> some View {
+        CallView(manager: .shared, iconReviewState: CallState(
+            stage: incoming ? .incoming : .connected, peerId: "review-peer", peerName: "李明",
+            isVideo: video, connectedAt: Date().addingTimeInterval(-65)))
+    }
+}
+#endif

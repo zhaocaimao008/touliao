@@ -1,0 +1,16 @@
+[
+    {
+        "time":  "2026-09-19T06:15:14.7742241+00:00",
+        "button":  "\u0026Next \u003e",
+        "driver":  "Win32 BM_CLICK",
+        "process":  "touliao-8.1.27-setup",
+        "window":  "?? Setup "
+    },
+    {
+        "time":  "2026-09-19T06:15:23.2599867+00:00",
+        "button":  "\u0026Finish",
+        "driver":  "Win32 BM_CLICK",
+        "process":  "touliao-8.1.27-setup",
+        "window":  "?? Setup "
+    }
+]

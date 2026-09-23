@@ -1,0 +1,47 @@
+[2026-09-19 06:14:58.498] [info]  投聊 Desktop v2 启动
+[2026-09-19 06:14:58.567] [warn]  [RemoteConfig] https://touliao.cc/config.json 失败: connect EACCES 13.212.117.22:443
+[2026-09-19 06:14:58.604] [warn]  [RemoteConfig] https://www.touliao.cc/config.json 失败: connect EACCES 13.212.117.22:443
+[2026-09-19 06:14:58.605] [info]  [RemoteConfig] 远程不可达，沿用 store/默认: https://touliao.cc
+[2026-09-19 06:14:58.785] [info]  更新公钥自检通过：合法 Ed25519 公钥
+[2026-09-19 06:14:58.788] [info]  CSP: 已用 1 个内联脚本哈希替代 unsafe-inline
+[2026-09-19 06:14:58.789] [info]  [Startup] Creating main window
+[2026-09-19 06:14:58.831] [info]  [Startup] Creating tray
+[2026-09-19 06:14:58.846] [info]  [Startup] Registering integrations
+[2026-09-19 06:15:02.548] [info]  Checking for update
+[2026-09-19 06:15:02.553] [info]  Generated new staging user ID: 81a57a0d-6d28-564d-a895-214f40c3206d
+[2026-09-19 06:15:02.635] [error] Error: Error: net::ERR_NETWORK_ACCESS_DENIED
+    at SimpleURLLoaderWrapper.<anonymous> (node:electron/js2c/browser_init:2:140354)
+    at SimpleURLLoaderWrapper.emit (node:events:514:28)
+[2026-09-19 06:15:02.636] [error] 更新错误: net::ERR_NETWORK_ACCESS_DENIED
+[2026-09-19 06:15:05.665] [info]  Checking for update
+[2026-09-19 06:15:06.360] [info]  Found version 8.1.27 (url: touliao-8.1.27-setup.exe)
+[2026-09-19 06:15:06.360] [info]  发现新版本: 8.1.27
+[2026-09-19 06:15:07.090] [info]  更新验签：元数据签名校验通过
+[2026-09-19 06:15:07.091] [info]  Downloading update from touliao-8.1.27-setup.exe
+[2026-09-19 06:15:07.093] [warn]  disableWebInstaller is set to false, you should set it to true if you do not plan on using a web installer. This will default to true in a future version.
+[2026-09-19 06:15:07.094] [info]  Download block maps (old: "https://touliao.cc/downloads/updates/touliao-8.1.26-setup.exe.blockmap", new: https://touliao.cc/downloads/updates/touliao-8.1.27-setup.exe.blockmap)
+[2026-09-19 06:15:07.247] [info]  Checking for update
+[2026-09-19 06:15:08.017] [info]  Found version 8.1.27 (url: touliao-8.1.27-setup.exe)
+[2026-09-19 06:15:08.018] [info]  发现新版本: 8.1.27
+[2026-09-19 06:15:08.258] [info]  File has 194 changed blocks
+[2026-09-19 06:15:08.272] [info]  Full: 106,263.04 KB, To download: 4,130.09 KB (4%)
+[2026-09-19 06:15:08.274] [info]  更新验签：元数据签名校验通过
+[2026-09-19 06:15:08.274] [info]  Downloading update (already in progress)
+[2026-09-19 06:15:09.895] [info]  New version 8.1.27 has been downloaded to C:\Users\runneradmin\AppData\Local\touliao-desktop-updater\pending\touliao-8.1.27-setup.exe
+[2026-09-19 06:15:09.900] [info]  更新已下载: 8.1.27
+[2026-09-19 06:15:12.454] [info]  Install on explicit quitAndInstall
+[2026-09-19 06:15:12.455] [info]  Install: isSilent: false, isForceRunAfter: true
+[2026-09-19 06:15:12.455] [info]  Executing: C:\Users\runneradmin\AppData\Local\touliao-desktop-updater\pending\touliao-8.1.27-setup.exe with args: --updated,--force-run
+[2026-09-19 06:15:12.534] [info]  Update installer has already been triggered. Quitting application.
+[2026-09-19 06:15:31.200] [info]  投聊 Desktop v2 启动
+[2026-09-19 06:15:31.262] [warn]  [RemoteConfig] https://touliao.cc/config.json 失败: connect EACCES 13.212.117.22:443
+[2026-09-19 06:15:31.267] [warn]  [RemoteConfig] https://www.touliao.cc/config.json 失败: connect EACCES 13.212.117.22:443
+[2026-09-19 06:15:31.267] [info]  [RemoteConfig] 远程不可达，沿用 store/默认: https://touliao.cc
+[2026-09-19 06:15:31.281] [info]  已清理渲染缓存目录: Cache
+[2026-09-19 06:15:31.286] [info]  已清理渲染缓存目录: Code Cache
+[2026-09-19 06:15:31.288] [info]  已清理渲染缓存目录: GPUCache
+[2026-09-19 06:15:31.348] [info]  更新公钥自检通过：合法 Ed25519 公钥
+[2026-09-19 06:15:31.349] [info]  CSP: 已用 1 个内联脚本哈希替代 unsafe-inline
+[2026-09-19 06:15:31.350] [info]  [Startup] Creating main window
+[2026-09-19 06:15:31.390] [info]  [Startup] Creating tray
+[2026-09-19 06:15:31.403] [info]  [Startup] Registering integrations

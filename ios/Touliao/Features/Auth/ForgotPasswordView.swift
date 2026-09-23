@@ -8,41 +8,44 @@ struct ForgotPasswordView: View {
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
+        ScrollView {
         VStack(spacing: 16) {
             Spacer()
 
             ZStack {
                 RoundedRectangle(cornerRadius: VxinRadius.lg, style: .continuous)
-                    .fill(LinearGradient(colors: [.vxinBrandLight, .vxinBrandDark],
-                                         startPoint: .topLeading, endPoint: .bottomTrailing))
+                    .fill(Color.vxinBrand)
                     .frame(width: 64, height: 64)
-                    .shadow(color: .vxinBrand.opacity(0.4), radius: 10, y: 5)
-                Image(systemName: "lock.rotation")
-                    .font(.system(size: 26)).foregroundColor(.white)
+                TouliaoIcon("passwordReset", size: .lg).foregroundColor(.vxinOnPrimary)
             }
             .padding(.bottom, 4)
             Text("忘记密码")
-                .font(.title.bold())
-                .foregroundColor(.primary)
+                .touliaoText(.title, weight: .bold)
+                .foregroundColor(.vxinText)
             Text("密码重置服务暂时不可用")
-                .font(.subheadline)
+                .touliaoText(.secondary)
                 .foregroundColor(.vxinTextSecondary)
                 .padding(.bottom, 16)
 
             Text("为保护账号安全，当前不支持在线重置密码。\n请联系管理员协助处理。")
-                .font(.body)
-                .foregroundColor(.primary)
+                .touliaoText(.body)
+                .foregroundColor(.vxinText)
                 .multilineTextAlignment(.center)
 
             Button("返回登录") { dismiss() }
-                .font(.subheadline)
+                .touliaoText(.secondary)
                 .foregroundColor(.vxinTextSecondary)
                 .padding(.top, 16)
 
             Spacer()
         }
         .padding(.horizontal, 32)
+        .padding(.vertical, 24)
+        }
+        .scrollDismissesKeyboard(.interactively)
+        .touliaoPage()
         .navigationTitle("忘记密码")
         .navigationBarTitleDisplayMode(.inline)
+        .touliaoPage()
     }
 }

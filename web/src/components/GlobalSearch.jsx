@@ -1,12 +1,15 @@
+import TouliaoIcon, { iconForMessageType } from '../ui-kit/Icon';
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import axios from 'axios';
 import Avatar from './Avatar';
+import { EmptyState, ErrorState } from './StateViews';
+import { TextButton } from '../ui-kit/Button';
 import { GroupAvatar } from './GroupAvatar';
 import { useI18n } from '../contexts/I18nContext';
 import {
   buildMessageSearchParams,
   formatSearchMessageSummary,
-  messageSearchTypeIcon,
+
   MESSAGE_SEARCH_TYPES,
 } from '../utils/messageSearchFilters';
 
@@ -38,6 +41,8 @@ export default function GlobalSearch({ query, onSelectConv, onNetworkSearch }) {
   const [messages, setMessages] = useState([]);
   const [searchingMsg, setSearchingMsg] = useState(false);
   const [convError, setConvError] = useState(null);
+  const [messageError, setMessageError] = useState(null);
+  const [retry, setRetry] = useState(0);
   const [typeFilter, setTypeFilter] = useState('');
   const [timeRange, setTimeRange] = useState('');
   const [senderId, setSenderId] = useState('');
@@ -71,7 +76,7 @@ export default function GlobalSearch({ query, onSelectConv, onNetworkSearch }) {
         // [GlobalSearch] Failed to load conversations — suppressed
         setConvError(errorMsg);
       });
-  }, [query, t]);
+  }, [query, t, retry]);
 
   const q = query.trim().toLowerCase();
 
@@ -116,6 +121,7 @@ export default function GlobalSearch({ query, onSelectConv, onNetworkSearch }) {
     const ac = new AbortController();
     const timer = setTimeout(() => {
       setSearchingMsg(true);
+      setMessageError(null);
       const params = buildMessageSearchParams({ query: q, type: typeFilter, timeRange, senderId });
       axios.get('/api/messages/search', { params, signal: ac.signal })
         .then(r => {
@@ -133,11 +139,11 @@ export default function GlobalSearch({ query, onSelectConv, onNetworkSearch }) {
             return [...byId.values()].sort((a, b) => a.name.localeCompare(b.name));
           });
         })
-        .catch(err => { if (!axios.isCancel?.(err) && err.code !== 'ERR_CANCELED') setMessages([]); })
+        .catch(err => { if (!axios.isCancel?.(err) && err.code !== 'ERR_CANCELED') { setMessages([]); setMessageError(err.response?.data?.error || err.message); } })
         .finally(() => { if (!ac.signal.aborted) setSearchingMsg(false); });
     }, 300);
     return () => { clearTimeout(timer); ac.abort(); };
-  }, [q, typeFilter, timeRange, senderId]);
+  }, [q, typeFilter, timeRange, senderId, retry]);
 
   const openContact = async (c) => {
     try {
@@ -172,10 +178,11 @@ export default function GlobalSearch({ query, onSelectConv, onNetworkSearch }) {
   return (
     <div className="gs-scroll">
       {/* 会话加载失败提示（此前静默吞掉，导致会话搜索结果为空却无任何反馈） */}
-      {convError && (
-        <div role="alert" className="gs-searching" style={{ color: 'var(--color-badge)' }}>
-          {convError}
-        </div>
+      {hasQuery && (convError || messageError) && (
+        <ErrorState desc={convError || messageError} onRetry={() => {
+          if (convError) loadedRef.current = false;
+          setRetry(value => value + 1);
+        }} />
       )}
       {/* 联系人 */}
       {matchedContacts.length > 0 && (
@@ -214,7 +221,7 @@ export default function GlobalSearch({ query, onSelectConv, onNetworkSearch }) {
               onKeyDown={e => (e.key === 'Enter' || e.key === ' ') && (e.preventDefault(), openConversation(g))}>
               {g.type === 'filehelper' ? (
                 <div className="gs-filehelper-icon">
-                  <svg viewBox="0 0 24 24" width="20" height="20" fill="var(--text-inverse)"><path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/></svg>
+                  <TouliaoIcon name="fileContent" tone="onDark" size="sm" />
                 </div>
               ) : (
                 <GroupAvatar members={g.members || []} avatar={g.avatar} size='md' />
@@ -274,7 +281,7 @@ export default function GlobalSearch({ query, onSelectConv, onNetworkSearch }) {
                   {m.senderName} {m.convType === 'group' ? t('gs.inGroupTemplate').replace('{name}', m.convName) : ''}
                 </div>
                 <div className="gs-msg-text">
-                  <span className="gs-msg-type-icon" aria-hidden="true">{messageSearchTypeIcon(m.type)}</span>
+                  <span className="gs-msg-type-icon" aria-hidden="true"><TouliaoIcon name={iconForMessageType(m.type)} size="xs" /></span>
                   {highlight(formatSearchMessageSummary(m, t), q)}
                 </div>
               </div>
@@ -288,15 +295,13 @@ export default function GlobalSearch({ query, onSelectConv, onNetworkSearch }) {
       )}
 
       {/* 降级兜底：仅在有实际查询词时展示,避免清空输入时闪出「去网络搜索『』」空串 */}
-      {empty && !actualSearching && q && (
-        <div
-          onClick={() => onNetworkSearch(query)}
-          className="gs-network-row"
-          role="button" tabIndex={0}
-          onKeyDown={e => (e.key === 'Enter' || e.key === ' ') && (e.preventDefault(), onNetworkSearch(query))}>
-          <svg viewBox="0 0 24 24" width="16" height="16" fill="var(--green)" className="gs-network-icon"><path d="M15.5 14h-.79l-.28-.27A6.47 6.47 0 0016 9.5 6.5 6.5 0 109.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg>
-          <span>{t('gs.noLocalResultsPrefix')}<span className="gs-highlight">「{query}」</span></span>
-        </div>
+      {empty && !actualSearching && !convError && !messageError && q && (
+        <EmptyState icon={null} title={t('gs.noLocalResultsPrefix')} action={
+          <TextButton className="gs-network-row" onClick={() => onNetworkSearch(query)}>
+            <TouliaoIcon name="search" className="gs-network-icon" tone="selected" size="xs" />
+            <span className="gs-highlight">「{query}」</span>
+          </TextButton>
+        } />
       )}
     </div>
   );

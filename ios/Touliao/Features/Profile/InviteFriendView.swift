@@ -8,16 +8,17 @@ struct InviteFriendView: View {
 
     private enum Tok {
         static let green     = Color.vxinBrand
-        static let secondary = Color(UIColor.secondaryLabel)
+        static let secondary = Color.vxinTextSecondary
     }
 
     var body: some View {
         Form {
+            Group {
             if let inv = invite {
                 Section("我的邀请码") {
                     HStack {
                         Text(inv.code.isEmpty ? "—" : inv.code)
-                            .font(.system(size: 22, weight: .semibold, design: .monospaced))
+                            .touliaoText(.title, weight: .semibold, design: .monospaced)
                             .foregroundColor(Tok.green)
                         Spacer()
                         Button(copied ? "已复制" : "复制") {
@@ -26,7 +27,7 @@ struct InviteFriendView: View {
                             copied = true
                             DispatchQueue.main.asyncAfter(deadline: .now() + 2) { copied = false }
                         }
-                        .buttonStyle(.borderedProminent)
+                        .buttonStyle(.borderedProminent).foregroundColor(.vxinOnPrimary)
                         .tint(Tok.green)
                         .disabled(inv.code.isEmpty)
                     }
@@ -48,7 +49,7 @@ struct InviteFriendView: View {
                             HStack(spacing: 10) {
                                 InitialAvatar(name: u.username.isEmpty ? "?" : u.username, size: 32)
                                 Text(u.username.isEmpty ? "未命名" : u.username)
-                                    .font(.system(size: 15))
+                                    .touliaoText(.secondary)
                             }
                         }
                     }
@@ -58,9 +59,11 @@ struct InviteFriendView: View {
                     HStack { Spacer(); ProgressView(); Spacer() }
                 }
             }
+            }.listRowBackground(Color.vxinSurface).listRowSeparatorTint(Color.vxinBorder)
         }
         .navigationTitle("邀请好友")
         .navigationBarTitleDisplayMode(.inline)
+        .touliaoPage()
         .task {
             invite = try? await repo.myInvite()
         }

@@ -1,0 +1,24 @@
+{
+  "checkedAt": "2026-09-18T17:32:41.420421+00:00",
+  "productionWritesThisTask": false,
+  "files": {
+    "android-version.json": {
+      "url": "https://touliao.cc/downloads/touliao-android-version.json",
+      "httpStatus": 200,
+      "sha256": "eaffeb0f2047d2c530210367f8bc4123b4019296a453e8d799781028c80462a5",
+      "equalsBefore": true
+    },
+    "windows-latest.yml": {
+      "url": "https://touliao.cc/downloads/updates/latest.yml",
+      "httpStatus": 200,
+      "sha256": "ca6c4724c333853e50d65aa7d13090101ee621eeef7520bdaed5c05d0f5e21d3",
+      "equalsBefore": true
+    },
+    "windows-latest.yml.sig": {
+      "url": "https://touliao.cc/downloads/updates/latest.yml.sig",
+      "httpStatus": 200,
+      "sha256": "489b66d87dc134d78b41100cc464046771edcaba32ffeb1f3591f5abfdf315d3",
+      "equalsBefore": true
+    }
+  }
+}

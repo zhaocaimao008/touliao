@@ -1,0 +1,89 @@
+/* Desktop rail → list → conversation; native titlebar remains owned by Electron. */
+html.touliao-ui body { --panel-w: var(--tl-layout-conversation-list); --size-sidebar: var(--tl-layout-navigation-rail); --header-h: var(--tl-layout-header-height); }
+html.touliao-ui body .wc-app { height: 100%; padding: 0; gap: 0; background: var(--tl-background); }
+html.touliao-ui body :is(.wc-sidebar, .wc-panel, .home-chat-area) { border-radius: 0; box-shadow: none; }
+html.touliao-ui body .wc-sidebar { width: var(--tl-layout-navigation-rail); min-width: var(--tl-layout-navigation-rail); background: var(--tl-surface-secondary); border-right: 1px solid var(--tl-border); }
+html.touliao-ui body .wc-sidebar-btns { padding: 0 8px; gap: 8px; margin-top: 20px; }
+html.touliao-ui body .wc-sidebar-btn { min-height: 56px; height: auto; border-radius: 12px; color: var(--tl-readable-muted); transform: none; }
+html.touliao-ui body .wc-sidebar-btn :is(.icon, .wc-sidebar-label) { color: inherit; }
+html.touliao-ui body .wc-sidebar-btn.active,
+html.touliao-ui body .wc-sidebar-btn.active:hover { background: var(--tl-primary-soft); color: var(--tl-primary); box-shadow: none; }
+html.touliao-ui body .wc-sidebar-label { font-size: 12px; }
+html.touliao-ui body .wc-sidebar-btn .tl-icon { width: 24px; height: 24px; }
+html.touliao-ui body .wc-panel { width: var(--panel-w); min-width: var(--panel-w); border-right: 1px solid var(--tl-border); background: var(--tl-surface); }
+html.touliao-ui body .tl-panel-heading { display: flex; align-items: center; min-height: 64px; padding: 20px 20px 8px; }
+html.touliao-ui body .tl-panel-heading h1 { font-size: var(--tl-size-page); line-height: 1.3; margin: 0; font-weight: 600; }
+html.touliao-ui body .wc-panel-topbar { height: auto; min-height: 56px; padding: 8px 16px 12px; gap: 8px; border-bottom: 0; background: var(--tl-surface) !important; }
+html.touliao-ui body .wc-search { height: 40px; border-radius: var(--tl-radius-control); background: var(--tl-surface-secondary); }
+html.touliao-ui body .wc-search input { font-size: 14px; }
+html.touliao-ui body .tl-conversation-filters { display: flex; gap: 4px; padding: 0 16px 12px; border-bottom: 1px solid var(--tl-border); }
+html.touliao-ui body .tl-conversation-filters button { padding: 6px 12px; min-height: 36px; border: 0; border-radius: 8px; background: transparent; color: var(--tl-readable-muted); font-size: 14px; }
+html.touliao-ui body .tl-conversation-filters button[aria-selected='true'] { background: var(--tl-primary-soft); color: var(--tl-primary); font-weight: 600; }
+html.touliao-ui body .wc-chat-item { width: calc(100% - 16px); margin-inline: 8px; border-radius: 12px; }
+html.touliao-ui body .wc-chat-item.active,
+html.touliao-ui body .wc-chat-item.active:hover { background: var(--tl-primary-soft) !important; box-shadow: none; }
+html.touliao-ui body .wc-chat-item.active::before { content: ''; position: absolute; left: -8px; top: 22px; bottom: 22px; width: 3px; background: var(--tl-primary); border-radius: 3px; }
+html.touliao-ui body .wc-chat-item.active .wc-chat-item-name { color: var(--tl-text); }
+html.touliao-ui body .wc-chat-item.active :is(.wc-chat-item-preview, .wc-chat-item-time) { color: var(--tl-readable-muted); }
+html.touliao-ui body .wc-chat-item.active .wc-chat-item-avatar > * { box-shadow: none; }
+html.touliao-ui body .wc-chat-item-name { font-size: max(14px, var(--font-name)); font-weight: 500; }
+html.touliao-ui body .wc-chat-item-preview { font-size: max(12px, var(--font-preview)); }
+html.touliao-ui body .wc-chat-item-time { font-size: 12px; font-variant-numeric: tabular-nums; }
+html.touliao-ui body .wc-chat-item-draft { color: var(--tl-readable-danger); }
+html.touliao-ui body .wc-chat-item-badge { min-width: 18px; height: 18px; font-size: 12px; }
+html.touliao-ui body :is(.wc-chat, .wc-messages) { background: var(--tl-background); }
+html.touliao-ui body .wc-chat-header { min-height: 64px; height: 64px; padding: 0 24px; border-bottom: 1px solid var(--tl-border); background: var(--tl-surface) !important; }
+html.touliao-ui body .wc-chat-header-name { font-size: 18px; font-weight: 600; }
+html.touliao-ui body .wc-chat-header-btn { width: 36px; height: 36px; min-width: 36px; color: var(--tl-readable-muted); border-radius: 8px; }
+html.touliao-ui body .wc-messages { padding: 20px 24px; }
+html.touliao-ui body .wc-msg-bubble { padding: 8px 12px; border-radius: 16px; font-size: var(--font-msg); line-height: 1.6; max-width: 560px; overflow-wrap: anywhere; box-shadow: none; }
+html.touliao-ui body .wc-msg-bubble.mine { background: var(--tl-message-outgoing) !important; color: var(--tl-message-outgoing-text) !important; border: 0; border-top-right-radius: 4px; box-shadow: none; }
+html.touliao-ui body .wc-msg-bubble.other { background: var(--tl-message-incoming); color: var(--tl-text); border: 1px solid var(--tl-border); border-top-left-radius: 4px; }
+html.touliao-ui body .wc-msg-bubble::after { display: none; }
+html.touliao-ui body .wc-msg-bubble.mine a { color: var(--tl-message-outgoing-text) !important; text-decoration: underline; text-underline-offset: 3px; }
+html.touliao-ui body .wc-msg-bubble.mine :is(.wc-msg-file-name, .wc-msg-file-size, .wc-msg-edited, .wc-voice-duration) { color: var(--tl-message-outgoing-text) !important; }
+html.touliao-ui body .wc-msg-bubble.mine :is(.wc-voice-play-icon, .wc-voice-play-icon-offset) { fill: var(--tl-message-outgoing) !important; }
+html.touliao-ui body .wc-msg-bubble.mine .wc-msg-reply:not(.wc-msg-reply--on-media) { background: #0001; border-left-color: var(--tl-message-outgoing-text); }
+html.touliao-ui body .wc-msg-bubble.mine .wc-msg-reply:not(.wc-msg-reply--on-media) :is(.wc-msg-reply-name, .wc-msg-reply-text) { color: var(--tl-message-outgoing-text) !important; }
+html.touliao-ui body .wc-msg-bubble:has(.wc-msg-img, .wc-msg-video, .wc-msg-sticker, .wc-redpacket-card, .wc-contact-card) { background: transparent !important; padding: 0; border: 0; }
+html.touliao-ui body :is(.wc-msg-time, .wc-msg-read, .wc-msg-sender) { font-size: 12px; color: var(--tl-readable-muted); }
+html.touliao-ui body .wc-msg-time span { background: transparent; backdrop-filter: none; padding: 0; }
+html.touliao-ui body .wc-input-area { background: var(--tl-surface) !important; border-top: 1px solid var(--tl-border); }
+html.touliao-ui body .wc-input-toolbar { min-height: 44px; height: auto; padding: 4px 16px; gap: 4px; }
+html.touliao-ui body .wc-tool-btn { width: 36px; height: 36px; min-width: 36px; border-radius: 8px; color: var(--tl-readable-muted); transform: none; }
+html.touliao-ui body .wc-tool-btn:hover { background: var(--tl-primary-soft); color: var(--tl-primary); transform: none; }
+html.touliao-ui body .wc-input-box { padding: 4px 24px; border: 0; border-radius: 0; }
+html.touliao-ui body .wc-input-box:focus-within { box-shadow: none; }
+html.touliao-ui body .wc-textarea { min-height: 64px; max-height: 140px; font-size: var(--font-msg); line-height: 1.6; }
+html.touliao-ui body .wc-textarea:focus-visible { outline: none; }
+html.touliao-ui body .wc-input-area:focus-within { box-shadow: inset 0 2px 0 var(--tl-focus); }
+html.touliao-ui body .wc-input-footer { padding: 8px 24px 16px; gap: 12px; }
+html.touliao-ui body .wc-send-btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 36px; padding: 6px 16px; border-radius: 8px; font-size: 14px; }
+html.touliao-ui body .wc-send-btn.active { color: var(--tl-primary-foreground); }
+html.touliao-ui body .tl-send-hint { margin-right: auto; color: var(--tl-readable-muted); font-size: 12px; }
+
+@media (max-width: 1099px) and (min-width: 768px) {
+  html.touliao-ui body { --panel-w: var(--tl-layout-conversation-list-minimum); }
+}
+@media (max-width: 767px) {
+  html.touliao-ui body :is(.m-app, .m-page, .m-content) { background: var(--tl-surface); }
+  html.touliao-ui body .m-topbar { min-height: 52px; background: var(--tl-surface); border-bottom: 0; padding-inline: 16px; }
+  html.touliao-ui body .m-title { font-size: 22px; }
+  html.touliao-ui body .m-search { min-height: 40px; margin: 8px 16px 12px; border: 1px solid var(--tl-border-strong); border-radius: 12px; background: var(--tl-surface-secondary); }
+  html.touliao-ui body .m-tabbar { background: var(--tl-surface); border-top: 1px solid var(--tl-border); }
+  html.touliao-ui body .m-tab { color: var(--tl-readable-muted); }
+  html.touliao-ui body .m-tab.active { color: var(--tl-primary); }
+  html.touliao-ui body .wc-chat-header { padding: 0 12px; min-height: 56px; height: 56px; }
+  html.touliao-ui body .wc-chat-header-name { font-size: 18px; }
+  html.touliao-ui body .wc-chat-header-btn { min-width: 44px; width: 44px; height: 44px; }
+  html.touliao-ui body .wc-messages { padding: 16px; }
+  html.touliao-ui body .wc-msg-body { max-width: 82%; min-width: 0; }
+  html.touliao-ui body :is(.wc-msg-bubble, .wc-textarea) { font-size: calc(var(--font-msg) + 2px); }
+  html.touliao-ui body .wc-msg-bubble { max-width: 100%; }
+  html.touliao-ui body .wc-input-toolbar { flex-wrap: wrap; padding: 4px 12px; }
+  html.touliao-ui body .wc-tool-btn { min-width: 44px; width: 44px; height: 44px; }
+  html.touliao-ui body .wc-input-box { padding: 4px 16px; }
+  html.touliao-ui body .wc-textarea { min-height: 48px; max-height: 100px; }
+  html.touliao-ui body .wc-input-footer { padding: 8px 16px max(8px, env(safe-area-inset-bottom)); }
+  html.touliao-ui body .tl-send-hint { display: none; }
+}

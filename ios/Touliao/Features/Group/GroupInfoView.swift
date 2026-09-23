@@ -43,22 +43,22 @@ struct GroupInfoView: View {
                 ProgressView()
             } else if let info = vm.info {
                 List {
+                    Group {
                     SafetyReportButton(targetType: "group", targetId: conversationId, label: "举报群")
                     // Hero 横幅：极光靛渐变 + 大群头像 + 群名 + 成员数（对齐 Android/资料页）
                     Section {
                         VStack(spacing: 10) {
                             groupHeroAvatar(info)
-                            if vm.uploadingAvatar { ProgressView().tint(.white) }
+                            if vm.uploadingAvatar { ProgressView().tint(.vxinBrand) }
                             Text(info.name.isEmpty ? "未命名群聊" : info.name)
-                                .font(.title3.bold()).foregroundColor(.white)
+                                .touliaoText(.title, weight: .bold).foregroundColor(.vxinText)
                             Text("\(info.members.count) 名成员")
-                                .font(.footnote).foregroundColor(.white.opacity(0.85))
+                                .touliaoText(.secondary).foregroundColor(.vxinTextSecondary)
                         }
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 24)
                         .background(
-                            LinearGradient(colors: [.vxinBrandLight, .vxinBrand, .vxinTeal],
-                                           startPoint: .topLeading, endPoint: .bottomTrailing)
+                            Color.vxinSurface
                         )
                         .listRowInsets(EdgeInsets())
                         .overlay {
@@ -75,10 +75,10 @@ struct GroupInfoView: View {
                             if info.canManage { showRename = true }
                         } label: {
                             HStack {
-                                Text("群名称").foregroundColor(.primary)
+                                Text("群名称").foregroundColor(.vxinText)
                                 Spacer()
                                 Text(info.name.isEmpty ? "未命名群聊" : info.name).foregroundColor(.vxinTextSecondary)
-                                if info.canManage { Image(systemName: "chevron.right").font(.caption).foregroundColor(.vxinTextSecondary) }
+                                if info.canManage { TouliaoIcon("disclosure", size: .xs).foregroundColor(.vxinTextSecondary) }
                             }
                         }
                         .disabled(!info.canManage)
@@ -89,11 +89,11 @@ struct GroupInfoView: View {
                             if info.canManage { showAnnouncement = true }
                         } label: {
                             HStack(alignment: .top) {
-                                Text("群公告").foregroundColor(.primary).frame(width: 64, alignment: .leading)
+                                Text("群公告").foregroundColor(.vxinText).frame(width: 64, alignment: .leading)
                                 Text(info.announcement.isEmpty ? (info.canManage ? "点击设置群公告" : "暂无群公告") : info.announcement)
                                     .foregroundColor(.vxinTextSecondary)
                                     .frame(maxWidth: .infinity, alignment: .leading)
-                                if info.canManage { Image(systemName: "chevron.right").font(.caption).foregroundColor(.vxinTextSecondary) }
+                                if info.canManage { TouliaoIcon("disclosure", size: .xs).foregroundColor(.vxinTextSecondary) }
                             }
                         }
                         .disabled(!info.canManage)
@@ -104,10 +104,10 @@ struct GroupInfoView: View {
                             showNickname = true
                         } label: {
                             HStack {
-                                Text("我的群昵称").foregroundColor(.primary)
+                                Text("我的群昵称").foregroundColor(.vxinText)
                                 Spacer()
                                 Text(info.myNickname(myId).isEmpty ? "未设置" : info.myNickname(myId)).foregroundColor(.vxinTextSecondary)
-                                Image(systemName: "chevron.right").font(.caption).foregroundColor(.vxinTextSecondary)
+                                TouliaoIcon("disclosure", size: .xs).foregroundColor(.vxinTextSecondary)
                             }
                         }
 
@@ -116,7 +116,7 @@ struct GroupInfoView: View {
                             GroupQrView(conversationId: conversationId)
                         } label: {
                             HStack {
-                                Text("群聊二维码").foregroundColor(.primary)
+                                Text("群聊二维码").foregroundColor(.vxinText)
                                 Spacer()
                                 Text("邀请进群").foregroundColor(.vxinTextSecondary)
                             }
@@ -129,10 +129,10 @@ struct GroupInfoView: View {
                                 vm.copyInviteLink()
                             } label: {
                                 HStack {
-                                    Text("复制邀请链接").foregroundColor(.primary)
+                                    Text("复制邀请链接").foregroundColor(.vxinText)
                                     Spacer()
                                     Text(vm.copyingInviteLink ? "生成中…" : "🔗 复制")
-                                        .font(.footnote).foregroundColor(.vxinTextSecondary)
+                                        .touliaoText(.secondary).foregroundColor(.vxinTextSecondary)
                                 }
                             }
                             .disabled(vm.copyingInviteLink)
@@ -142,7 +142,7 @@ struct GroupInfoView: View {
                     Section("群成员 (\(info.members.count))") {
                         Button(action: onInvite) {
                             HStack {
-                                Image(systemName: "plus.circle.fill").foregroundColor(.vxinGreen)
+                                TouliaoIcon("add").foregroundColor(.vxinGreen)
                                 Text("邀请成员").foregroundColor(.vxinGreen)
                             }
                         }
@@ -153,15 +153,15 @@ struct GroupInfoView: View {
                                     Text(member.displayName.isEmpty ? "未命名" : member.displayName)
                                     if member.role != "member" {
                                         Text(member.role == "owner" ? "群主" : "管理员")
-                                            .font(.caption).foregroundColor(.vxinGreen)
+                                            .touliaoText(.caption).foregroundColor(.vxinGreen)
                                     }
                                 }
                                 Spacer()
                                 if info.isOwner && member.role != "owner" {
                                     Button(member.role == "admin" ? "取消管理" : "设管理") { vm.setRole(member, makeAdmin: member.role != "admin") }
-                                        .buttonStyle(.borderless).font(.caption)
+                                        .buttonStyle(.borderless).touliaoText(.caption)
                                     Button("转让") { transferTarget = member }
-                                        .buttonStyle(.borderless).font(.caption)
+                                        .buttonStyle(.borderless).touliaoText(.caption)
                                 }
                                 if info.canManage && member.role != "owner" {
                                     Button("移除", role: .destructive) { kickTarget = member }
@@ -186,6 +186,7 @@ struct GroupInfoView: View {
                             Button("退出群聊", role: .destructive) { showLeaveConfirm = true }
                         }
                     }
+                    }.listRowBackground(Color.vxinSurface).listRowSeparatorTint(Color.vxinBorder)
                 }
             } else {
                 Text(vm.error ?? "加载失败").foregroundColor(.vxinError)
@@ -193,6 +194,7 @@ struct GroupInfoView: View {
         }
         .navigationTitle("群聊信息")
         .navigationBarTitleDisplayMode(.inline)
+        .touliaoPage()
         .task { await vm.refresh() }
         // F5 邀请链接生成成功 → 写剪贴板并提示（toast 复用 error 字段承载一次性文案，项目惯例）
         .toast($vm.error)
@@ -223,10 +225,13 @@ struct GroupInfoView: View {
         .sheet(isPresented: $showAnnouncement) {
             NavigationStack {
                 Form {
+                    Group {
                     TextField("输入群公告", text: $announcementText, axis: .vertical).lineLimit(3...8)
+                    }.listRowBackground(Color.vxinSurface).listRowSeparatorTint(Color.vxinBorder)
                 }
                 .navigationTitle("群公告")
                 .navigationBarTitleDisplayMode(.inline)
+        .touliaoPage()
                 .toolbar {
                     ToolbarItem(placement: .cancellationAction) { Button("取消") { showAnnouncement = false } }
                     ToolbarItem(placement: .confirmationAction) {

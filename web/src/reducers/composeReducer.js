@@ -8,12 +8,13 @@
 // 状态协同，故不纳入本 reducer。
 //
 // state 形状：
-//   { input: string, voiceMode: boolean,
+//   { input: string, mode: 'TEXT'|'KEYBOARD'|'VOICE'|'EMOJI'|'MORE', emojiTab: 'emoji'|'stickers',
 //     editingMsg: {id,content}|null, replyTo: object|null }
 
 export const initialComposeState = {
   input: '',
-  voiceMode: false,
+  mode: 'TEXT',
+  emojiTab: 'emoji',
   editingMsg: null,
   replyTo: null,
 };
@@ -34,12 +35,25 @@ export function composeReducer(state, action) {
 
     // 语音/文字输入模式切换
     case 'TOGGLE_VOICE':
-      return { ...state, voiceMode: !state.voiceMode };
+      return { ...state, mode: state.mode === 'VOICE' ? 'KEYBOARD' : 'VOICE' };
+
+    case 'TOGGLE_PANEL': {
+      const mode = action.panel === 'more' ? 'MORE' : 'EMOJI';
+      const same = state.mode === mode && (mode !== 'EMOJI' || state.emojiTab === action.panel);
+      return { ...state, mode: same ? 'KEYBOARD' : mode, emojiTab: mode === 'EMOJI' ? action.panel : state.emojiTab };
+    }
+    case 'CLOSE_PANEL':
+      return ['EMOJI', 'MORE'].includes(state.mode) ? { ...state, mode: 'TEXT' } : state;
+    case 'FOCUS_INPUT':
+      return { ...state, mode: 'KEYBOARD' };
+    case 'BLUR_INPUT':
+      return state.mode === 'KEYBOARD' ? { ...state, mode: 'TEXT' } : state;
 
     // 开始编辑：载入原文 + 进入编辑态 + 清除回复（编辑与回复互斥）
     case 'START_EDIT':
       return {
         ...state,
+        mode: 'KEYBOARD',
         editingMsg: { id: action.msg.id, content: action.msg.content },
         input: action.msg.content,
         replyTo: null,
@@ -51,7 +65,7 @@ export function composeReducer(state, action) {
 
     // 设置回复对象：进入回复态 + 清除编辑（互斥）
     case 'SET_REPLY':
-      return { ...state, replyTo: action.msg, editingMsg: null };
+      return { ...state, replyTo: action.msg, editingMsg: null, mode: 'KEYBOARD' };
 
     // 清除回复
     case 'CLEAR_REPLY':

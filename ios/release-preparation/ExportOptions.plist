@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>method</key><string>app-store-connect</string>
+  <key>teamID</key><string>F2J52VX786</string>
+  <key>destination</key><string>export</string>
+  <key>signingStyle</key><string>manual</string>
+  <key>manageAppVersionAndBuildNumber</key><false/>
+  <key>provisioningProfiles</key>
+  <dict><key>com.touliao.app</key><string>touliao_distribution</string></dict>
+</dict>
+</plist>

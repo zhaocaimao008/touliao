@@ -1,0 +1,18 @@
+{
+  "version": "8.1.31",
+  "previousVersion": "8.1.30",
+  "buildRun": "35820271349",
+  "buildCommit": "aa98928b87ca380bebca8805711fc2771ae2caef",
+  "authorization": "User explicitly requested completing Windows8.1.31 installation/upgrade regression then publication and update-feed activation on2026-09-23. Prior self-use no-Authenticode preference persists. Exact artifact only; retain Ed25519, file integrity and rollback.",
+  "authenticode": false,
+  "candidateFeed": "https://touliao.cc/downloads/updates/candidates/8131-35820271349",
+  "previousInstallerSha256": "bb5d868c5f18cf2f9d429fe1122470b7d540ef8829fb295e1c044a947357383a",
+  "previousManifestSha256": "1914bdb856f2fa2f85483513e54d9d5ed53dd328bb603252daa9848cdd97aa66",
+  "previousSignatureSha256": "f8db236d8b1a5a449bfa70a7775e7ca2f52d5f92ae94d4d697d6ff12b705a691",
+  "files": {
+    "latest.yml": "6f699b7f0e31ad6ab413975107ef093ea9e2c3e4ddd507082852f3df5d37e947",
+    "latest.yml.sig": "90dea33e2501267a4ff54d0e978593ea56760845c6dcfba9f4369efd31506f07",
+    "touliao-8.1.31-setup.exe": "2f954f051f1bb077e25c7b9e57630542d22b8218d80610f50f0c440cf29b3bf7",
+    "touliao-8.1.31-setup.exe.blockmap": "dafcc27c81c4144fe70d8b8d3b1cff2dc80a8e51c45f21be5ff32bc2ba0f324c"
+  }
+}

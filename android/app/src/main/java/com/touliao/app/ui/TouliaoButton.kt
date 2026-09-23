@@ -1,66 +1,62 @@
 package com.touliao.app.ui
 
-import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.foundation.layout.Box
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.draw.alpha
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import com.touliao.app.ui.theme.VxinBrandDark
-import com.touliao.app.ui.theme.VxinBrandLight
-import com.touliao.app.ui.theme.VxinTextSecondary
+import androidx.compose.ui.graphics.Color
+import com.touliao.app.ui.theme.TouliaoMetrics
 
-/**
- * 投聊 主按钮：极光靛渐变实心药丸 + 加载态（对齐 Web 主按钮 / 登录注册页）。
- * 统一各处 CTA 视觉，避免重复渐变 Box 样板代码。
- */
+enum class TouliaoButtonVariant { PRIMARY, SECONDARY, GHOST, TEXT, DANGER }
+
+/** Public name retained; the supplied design uses a flat, accessible primary button. */
 @Composable
-fun VxinGradientButton(
-    text: String,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier,
-    enabled: Boolean = true,
-    loading: Boolean = false,
-) {
-    Button(
-        onClick = onClick,
-        enabled = enabled && !loading,
-        contentPadding = PaddingValues(),
+fun TouliaoButton(text: String, onClick: () -> Unit, modifier: Modifier = Modifier,
+                       enabled: Boolean = true, loading: Boolean = false,
+                       variant: TouliaoButtonVariant = TouliaoButtonVariant.PRIMARY) {
+    val palette = MaterialTheme.colorScheme
+    val surface = when (variant) {
+        TouliaoButtonVariant.PRIMARY -> palette.primary
+        TouliaoButtonVariant.SECONDARY -> palette.surfaceVariant
+        TouliaoButtonVariant.DANGER -> palette.errorContainer
+        else -> Color.Transparent
+    }
+    val foreground = when (variant) {
+        TouliaoButtonVariant.PRIMARY -> palette.onPrimary
+        TouliaoButtonVariant.SECONDARY -> palette.onSurface
+        TouliaoButtonVariant.DANGER -> palette.onErrorContainer
+        else -> palette.primary
+    }
+    Button(onClick = onClick, enabled = enabled && !loading,
         colors = ButtonDefaults.buttonColors(
-            containerColor = Color.Transparent,
-            disabledContainerColor = Color.Transparent,
+            containerColor = surface, contentColor = foreground,
+            disabledContainerColor = if (loading) surface else MaterialTheme.colorScheme.onSurface.copy(alpha = .12f),
+            disabledContentColor = if (loading) foreground else MaterialTheme.colorScheme.onSurface.copy(alpha = .38f),
         ),
-        modifier = modifier.fillMaxWidth().height(50.dp),
-    ) {
-        Box(
-            Modifier
-                .fillMaxWidth()
-                .height(50.dp)
-                .clip(RoundedCornerShape(com.touliao.app.ui.theme.VxinRadius.pill))
-                .background(
-                    if (enabled)
-                        Brush.linearGradient(listOf(VxinBrandLight, VxinBrandDark))
-                    else Brush.linearGradient(listOf(VxinTextSecondary, VxinTextSecondary))
-                ),
-            contentAlignment = Alignment.Center,
-        ) {
-            if (loading) {
-                CircularProgressIndicator(Modifier.height(20.dp), color = Color.White, strokeWidth = 2.dp)
-            } else {
-                Text(text, color = Color.White, fontWeight = FontWeight.SemiBold)
-            }
+        shape = RoundedCornerShape(TouliaoMetrics.radiusControl), contentPadding = PaddingValues(16.dp, 12.dp),
+        modifier = modifier.fillMaxWidth().heightIn(min = TouliaoMetrics.buttonHeight)) {
+        Box(contentAlignment = Alignment.Center) {
+            Text(text, style = MaterialTheme.typography.labelLarge, modifier = Modifier.alpha(if (loading) 0f else 1f))
+            if (loading) CircularProgressIndicator(Modifier.size(20.dp),
+                color = foreground, strokeWidth = 2.dp)
         }
     }
 }
+
+// Deprecated name retained as a compatibility delegate, not a separate style.
+@Composable
+fun VxinGradientButton(text: String, onClick: () -> Unit, modifier: Modifier = Modifier,
+                       enabled: Boolean = true, loading: Boolean = false) =
+    TouliaoButton(text, onClick, modifier, enabled, loading)

@@ -12,9 +12,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -60,7 +57,7 @@ fun CreateGroupScreen(
                 title = { Text("发起群聊") },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回")
+                        Icon(com.touliao.app.ui.TouliaoIcons.Back, contentDescription = "返回")
                     }
                 },
                 actions = {
@@ -82,7 +79,7 @@ fun CreateGroupScreen(
             Box(Modifier.fillMaxSize()) {
                 when {
                     state.loading -> CircularProgressIndicator(Modifier.align(Alignment.Center))
-                    state.contacts.isEmpty() -> com.touliao.app.ui.components.EmptyState(icon = "👥", title = "还没有联系人", modifier = Modifier.align(Alignment.Center))
+                    state.contacts.isEmpty() -> com.touliao.app.ui.components.EmptyState(icon = com.touliao.app.ui.TouliaoIcons.Group, title = "还没有联系人", modifier = Modifier.align(Alignment.Center))
                     else -> LazyColumn(Modifier.fillMaxSize()) {
                         items(state.contacts, key = { it.id }) { contact ->
                             SelectableContactRow(
@@ -113,7 +110,7 @@ private fun SelectableContactRow(contact: Contact, avatarUrl: String? = null, ch
         verticalAlignment = Alignment.CenterVertically,
     ) {
         if (checked) {
-            Icon(Icons.Filled.CheckCircle, contentDescription = "已选", tint = VxinGreen)
+            Icon(com.touliao.app.ui.TouliaoIcons.Selected, contentDescription = "已选", tint = VxinGreen)
         } else {
             RadioButton(selected = false, onClick = onToggle)
         }

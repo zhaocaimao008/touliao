@@ -1,0 +1,102 @@
+# 投聊 UI 设计系统实施记录
+
+原生接续已在 `20aef960` 基础上推进，当前四端状态、原生构建 / 截图与回退方法见 [Android / iOS 报告](native/NATIVE-REPORT.md)。下文此前 Web / Windows 验证记录保持，原生复现命令见新报告。
+
+## 来源、范围与恢复点
+
+- 实际取得 `/home/ubuntu/touliao-ui.zip`，名称与请求中的 `touliao-ui-kit.zip` 不同；内部七份交接文件及 42 页面、66 组件、136 图标均匹配。
+- 压缩包 SHA-256：`746211b1de546c6d82b758d1e03d1e06dec0a5611ae8f15e550a4dd547d4e229`。
+- 独立参考目录：`/home/ubuntu/design-reference/touliao-ui-20260918/touliao-ui/`。已读取 README、规范、tokens、三份清单及 handoff，并用 Chromium 打开 index.html、检查预览图。
+- 实施工作区：`/home/ubuntu/touliao-design-system-20260918`，分支 `ui/design-system-20260918`。
+- 恢复基点：`1bd57c012ee830fbd66692f0ce7ff96aac84ed1e`，包含已发布 Windows 8.1.26 的应用代码。原 main 和 Windows 工作区开始时均干净，未在原工作区改代码。
+- 本轮本地提交、不推送、不部署、不升版本、不操作生产数据。沿用先前移动端暂不修改的范围，先实施 Web/Windows 共用界面；Android/iOS 原生代码只核对和映射，迁移及真机验证列为后续事项。
+
+## 技术栈与设计决策
+
+| 平台 | 实际实现 | 复用方式与验证边界 |
+| --- | --- | --- |
+| Web | React 18、Vite 8、CSS、react-window | 现有业务组件接入设计变量、SVG 图标及布局样式 |
+| Windows | Electron 43.7、同一 React 渲染层 | 保留 preload、窗口控制、更新、IPC 与多账号隔离；本地 Linux Chromium 模拟渲染不能称为原生 Windows 验收 |
+| Android | Kotlin、Jetpack Compose、Material 3 | 原生独立 UI，不能用 Web 截图或 CSS 变更宣称已迁移 |
+| iOS | Swift、SwiftUI、原生网络和媒体集成 | 原生独立 UI，需 macOS/Xcode 和真机验证；本轮不改动 |
+
+原型 CSS 和组件表中部分尺寸与 tokens 不一致（例如导航 72/76、列表 274/300、控件 38/36）。按交接要求以 `tokens.json` 为正式变量来源，以原型判断层级与布局。仅复制设计变量及 SVG；原型人物、消息、模拟交互和 Toast 不进入正式代码。
+
+新增“投聊蓝”默认皮肤；保留已保存的极光紫、微信绿、企微蓝选择，用户可在外观中切换投聊蓝。保持系统／浅色／深色偏好及用户字体设置。
+
+## 对照清单
+
+- [42 页面映射](page-mapping.csv)：现有 Web/Windows、Android、iOS 路径、协议与能力差异。
+- [66 组件映射](component-mapping.csv)：对应组件和不应复制的演示能力。
+- [30 动作契约映射](action-mapping.csv)：按钮到真实实现的对应关系。
+
+已识别待接入：扫码认证、短信发送／未登录自助重置、独立存储统计、反馈提交、独立入群申请审批、全局文件中心。继续保留管理员协助找回、登录后改密码、设备下线、会话文件、真实群邀请等既有入口，不以原型假动作补齐。
+
+## 第一批：基础设计系统
+
+接入原始 tokens 与可校验生成的 CSS 变量、136 个 SVG 图标、既有图标组件适配；统一主题色、字体、基础按钮／输入／列表／弹窗／焦点／空态；保留旧皮肤选择和账号偏好。会话虚拟列表与实际行高统一为桌面 68、窄屏 76，修复 Web 既有重叠问题。
+
+验证：桌面模式构建通过，33 个测试文件／240 项单测通过，lint 通过；40 个 Windows 模拟／Web、1200／900／390 宽度、深浅主题场景通过，无页面横向溢出和虚拟行重叠，缩放窗口保留输入草稿。
+
+证据目录：`/home/ubuntu/touliao-design-system-evidence-20260918/`。`before/` 保留原 Windows UI 的 37 个场景；`batch1/` 为第一批 40 场景与 report.json。`baseline.json` 记录来源、恢复基点和原工作区状态。仅属于隔离测试环境的数据，不是生产聊天功能全链路验收。
+
+## 第二批：会话列表与聊天页
+
+增加基于真实会话状态的全部／未读／群聊筛选，调整桌面导航、标题、搜索、会话行、聊天气泡和输入区；替换通话、更多、发送等图标，不改消息协议与通话处理函数。保留全部旧会话操作、中文输入法、换行、文件和表情入口。
+
+验证：构建、lint、240 项单测通过；48 个布局和发送交互场景通过，覆盖输入法不误发、Shift+Enter 换行、发送确认展示及草稿清空（沿用原有乐观发送时序）、筛选及调整窗口保留草稿。另有 96 个主题／缩放／富消息／登录场景通过文字和输入框对比度检查。截图及报告位于证据目录 `batch2/`、`batch2-themes/`。实际原型全部 42 页 × 2 主题 × 2 布局的 168 张参考截图位于 `reference/`。
+
+规范冲突处理：原始浅色辅助文字在选中底色上只有约 4.21:1，错误文字也未达到规范要求。保持原始 JSON 不变，新增用于文字的加深衍生色；深色主按钮采用规范中的深色前景，语音播放图标按实际按钮底色调整。检查使用浏览器解析颜色，兼容 CSS color-mix。
+
+## 第三批：通讯录、群管理、搜索
+
+通讯录及非聊天页使用完整桌面工作区；现有入口按卡片呈现，保留文件助手、AI 入口及全部权限。统一好友申请、资料卡、添加好友、标签、建群、群资料／公告／成员管理抽屉和搜索结果；窄屏群资料覆盖会话，避免三栏挤压。
+
+验证：构建、lint、240 项单测通过；`batch3/` 保存 56 个桌面／窄屏、深浅色场景，包含真实组件的请求接受、群成员选择、群名编辑取消和权限面板检查。所有网络请求拦截在测试 fixture 内，未提交真实好友或群操作。
+
+## 第四批：资料、设置、认证、文件与通话
+
+统一个人资料、设备、隐私、通知、外观和密码表单的布局与控件；认证页恢复可见标签并跟随主题，保留验证码／多账号／服务器等实际流程。文件抽屉采用一致列表和图标；通话控制改用线性图标，静音／关摄像头保留清晰斜线状态，媒体背景保留深色及视频遮罩。现有品牌位图保持原样；原型登录页的已登录导航不复制到实际未登录界面。
+
+验证：构建、无警告 lint、240 项单测通过；`batch4/` 共 68 个桌面／窄屏、深浅色截图与断言通过，包括设备下线 DELETE、通知设置 PUT、来电拒绝 WebSocket 响应和实际文件文本预览。未验证真实双人音视频媒体连通，所有请求和来电均为隔离 fixture。`before-settings/` 保存相同场景旧版截图。
+
+## 第五批：内容页、状态与最终回归
+
+统一朋友圈、收藏、群头像、文件和上传状态图标、角标、骨架屏、错误／断网提示；补齐控件可访问名称。修正 Windows 深色模式被旧样式覆盖的字体栈，浅深色均使用 Segoe UI／Microsoft YaHei 回退栈。正文行高按设计变量统一为 1.6。
+
+长会话验收发现旧版既有滚动问题：快速发送回执会取消待执行的贴底任务，状态更新又会清空虚拟列表高度缓存，导致最新消息及失败重试入口离开可见区域。本轮只修正显示调度与按稳定行标识保留高度，窄屏的行间距也纳入测高，避免底部重试图标裁切；不改变发送、确认、重试去重和消息协议。隔离浏览器测试使用 120 条历史记录，检查阅读历史收到新消息不跳动、快速失败后入口可见、重试沿用同一 clientMsgId。
+
+最终验证与限制见 [交付报告](IMPLEMENTATION-REPORT.md)。本机前后／设计三栏对照入口：`/home/ubuntu/touliao-design-system-evidence-20260918/review.html`；168 张原型参考截图全部保留。报告明确区分现有能力、待接入能力和未做的真机联测。
+
+## 重现验证
+
+依赖按仓库 lockfile 安装；本次在隔离工作区复用既有 node_modules，未改依赖或 lockfile。
+
+```bash
+cd /home/ubuntu/touliao-design-system-20260918
+node scripts/generate-ui-tokens.cjs --check
+cd web
+npm run lint
+npm test -- --run
+npx --no-install vite build --mode desktop
+# 浏览器版另行输出，避免覆盖待验桌面产物
+npx --no-install vite build --outDir /tmp/touliao-review-web
+```
+
+浏览器脚本从仓库根目录运行。需要 Playwright 和 Chromium；可按本机安装位置设置 `PLAYWRIGHT_MODULE`、`CHROMIUM_PATH`。`UI_BUILD` 指向对应构建目录，`UI_OUTPUT` 指向各脚本独立的证据目录。所有 API、WebSocket 和 Electron 桥接均在脚本内隔离，禁止把 fixture 放入应用代码。
+
+```bash
+UI_CONTRAST=1 node scripts/design-system-smoke.cjs
+UI_CONTRAST=1 node scripts/design-system-journeys.cjs
+UI_CONTRAST=1 node scripts/design-system-settings-smoke.cjs
+UI_CONTRAST=1 node scripts/design-system-content-smoke.cjs
+node scripts/windows-theme-smoke.cjs
+node scripts/windows-ui-smoke.cjs
+python3 scripts/build-design-review.py --evidence /home/ubuntu/touliao-design-system-evidence-20260918
+```
+
+这些截图脚本默认输出目录有重叠；批量执行时为每个脚本单独指定 `UI_OUTPUT`，避免覆盖报告。
+
+## 回退
+
+原工作区和生产产物未变化。审阅旧版可在另一个目录执行 `git worktree add --detach <新目录> 1bd57c012ee830fbd66692f0ce7ff96aac84ed1e`；如以后合并本轮提交，可按从新到旧顺序逐条 `git revert <本轮提交>`。不使用全局 reset 或 clean，也不删除其他工作区。

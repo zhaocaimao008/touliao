@@ -1,3 +1,4 @@
+import TouliaoIcon from '../ui-kit/Icon';
 import React, { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
 import { mediaUrl, useMediaCredentials } from '../utils/url';
@@ -116,7 +117,7 @@ export default function Collections() {
     }
     if (c.type === 'file' || c.type === 'video') {
       const fileUrl = c.extra?.file_url;
-      const label = `${c.type === 'video' ? '🎬' : '📎'} ${c.content || (c.type === 'video' ? t('coll.typeVideo') : t('coll.typeFile'))}`;
+      const label = <span className="tl-icon-label"><TouliaoIcon name={c.type === 'video' ? 'video' : 'fileContent'} size="sm" />{c.content || (c.type === 'video' ? t('coll.typeVideo') : t('coll.typeFile'))}</span>;
       // 有 file_url 才可下载；老数据无 url 则只显示（与聊天窗口一致：点击=下载，不跳网页）
       if (!fileUrl) return <span style={{ fontSize: 'var(--text-base)', color: 'var(--text-primary)' }}>{label}</span>;
       return (
@@ -132,21 +133,21 @@ export default function Collections() {
   const TYPES = [['', t('coll.typeAll')], ['text', t('coll.typeText')], ['image', t('coll.typeImage')], ['file', t('coll.typeFile')], ['video', t('coll.typeVideo')]];
 
   return (
-    <div style={{ height: '100%', overflowY: 'auto' }}>
+    <div className="tl-collections" style={{ height: '100%', overflowY: 'auto' }}>
       {/* 搜索栏 + 类型过滤（对齐后端 /collections/search 的 q + type） */}
-      <div style={{ padding: '10px 14px', position: 'sticky', top: 0, background: 'var(--bg-panel)', zIndex: 1, borderBottom: '1px solid var(--border-color)' }}>
+      <div className="tl-collection-filters" style={{ padding: '10px 14px', position: 'sticky', top: 0, background: 'var(--bg-panel)', zIndex: 1, borderBottom: '1px solid var(--border-color)' }}>
         <div style={{ position: 'relative' }}>
           <input data-testid="collection-search-input" value={query} onChange={e => setQuery(e.target.value)}
             placeholder={t('coll.searchPlaceholder')} aria-label={t('coll.searchAriaLabel')}
             style={{ background: 'var(--bg-input-search)', color: 'var(--text-primary)', width: '100%', padding: '7px 28px 7px 10px', borderRadius: 'var(--radius-input)', border: '1px solid var(--border-color)', fontSize: 'var(--text-base)', boxSizing: 'border-box' }} />
           {query && (
             <button type="button" aria-label={t('fwd.clearSearchAriaLabel')} title={t('common.clear')} onClick={() => setQuery('')}
-              style={{ position: 'absolute', right: 3, top: '50%', transform: 'translateY(-50%)', width: 24, height: 24, border: 'none', borderRadius: 'var(--radius-full)', background: 'var(--border-color)', color: 'var(--text-secondary)', fontSize: 12, lineHeight: 1, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>✕</button>
+              style={{ position: 'absolute', right: 3, top: '50%', transform: 'translateY(-50%)', width: 24, height: 24, border: 'none', borderRadius: 'var(--radius-full)', background: 'var(--border-color)', color: 'var(--text-secondary)', fontSize: 12, lineHeight: 1, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><TouliaoIcon name="close" size="sm" /></button>
           )}
         </div>
         <div style={{ display: 'flex', gap: 6, marginTop: 8, flexWrap: 'wrap' }}>
           {TYPES.map(([val, label]) => (
-            <button key={val || 'all'} data-testid={`collection-type-${val || 'all'}`} onClick={() => setTypeFilter(val)}
+            <button key={val || 'all'} aria-pressed={typeFilter === val} data-testid={`collection-type-${val || 'all'}`} onClick={() => setTypeFilter(val)}
               style={{ fontSize: 'var(--text-sm)', padding: '11px 12px', borderRadius: 'var(--radius-bubble-tip)', cursor: 'pointer',
                 border: '1px solid var(--border-color)', display: 'inline-flex', alignItems: 'center',
                 background: typeFilter === val ? 'var(--color-primary-solid)' : 'transparent',
@@ -172,7 +173,7 @@ export default function Collections() {
         </div>
       ) : (
         shown.map(c => (
-          <div key={c.id} data-testid="collection-item" style={{ padding: '14px 18px', borderBottom: '1px solid var(--border-color)' }}>
+          <div key={c.id} className="tl-collection-card" data-testid="collection-item" style={{ padding: '14px 18px', borderBottom: '1px solid var(--border-color)' }}>
             <div style={{ marginBottom: 8 }}>{renderContent(c)}</div>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <span style={{ fontSize: 'var(--text-sm)', color: 'var(--text-tertiary)' }}>{formatDate(c.created_at)}</span>

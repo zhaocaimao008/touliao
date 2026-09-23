@@ -20,6 +20,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -115,7 +116,7 @@ fun ConversationListScreen(
                                 Text(
                                     text = if (socketStatus == SocketStatus.CONNECTING) "收取中…" else "未连接",
                                     fontSize = com.touliao.app.ui.theme.VxinTextSize.sm,
-                                    color = if (socketStatus == SocketStatus.CONNECTING) VxinTextSecondary else Color(0xFFFA5151),
+                                    color = if (socketStatus == SocketStatus.CONNECTING) VxinTextSecondary else com.touliao.app.ui.theme.VxinError,
                                     modifier = Modifier.padding(start = 4.dp),
                                 )
                             }
@@ -126,7 +127,7 @@ fun ConversationListScreen(
                     // 朋友圈入口（方案A：不占底部导航，受后台 features.moments 开关实时控制）
                     if (showMoments) {
                         IconButton(onClick = onOpenMoments) {
-                            Icon(TouliaoIcons.Moments, contentDescription = "朋友圈")
+                            Icon(TouliaoIcons.Discover, contentDescription = "朋友圈")
                         }
                     }
                     // @我的消息聚合入口
@@ -138,7 +139,7 @@ fun ConversationListScreen(
                     }
                     var addMenu by remember { mutableStateOf(false) }
                     Box {
-                        IconButton(onClick = { addMenu = true }) { Text("＋", fontSize = com.touliao.app.ui.theme.VxinTextSize.xxl) }
+                        IconButton(onClick = { addMenu = true }) { com.touliao.app.ui.TouliaoGlyph(com.touliao.app.ui.TouliaoIcons.Add, size = com.touliao.app.ui.IconSize.Md) }
                         DropdownMenu(expanded = addMenu, onDismissRequest = { addMenu = false }) {
                             DropdownMenuItem(text = { Text("文件传输助手") }, onClick = {
                                 addMenu = false
@@ -167,7 +168,7 @@ fun ConversationListScreen(
 
                 state.conversations.isEmpty() ->
                     com.touliao.app.ui.components.EmptyState(
-                        icon = "💬",
+                        icon = com.touliao.app.ui.TouliaoIcons.Chat,
                         title = "暂无会话",
                         subtitle = "去「通讯录」找好友开始聊天吧",
                         modifier = Modifier.align(Alignment.Center),
@@ -179,7 +180,7 @@ fun ConversationListScreen(
                         Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 10.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        TextButton(onClick = { showArchived = false }) { Text("‹ 返回") }
+                        TextButton(onClick = { showArchived = false }) { Row(verticalAlignment = Alignment.CenterVertically) { com.touliao.app.ui.TouliaoGlyph(com.touliao.app.ui.TouliaoIcons.Back); Text("返回") } }
                         Spacer(Modifier.width(4.dp))
                         Text("已归档会话", style = MaterialTheme.typography.titleSmall)
                         Spacer(Modifier.width(6.dp))
@@ -187,7 +188,7 @@ fun ConversationListScreen(
                     }
                     if (archivedList.isEmpty()) {
                         com.touliao.app.ui.components.EmptyState(
-                            icon = "🗄",
+                            icon = com.touliao.app.ui.TouliaoIcons.Archive,
                             title = "暂无归档会话",
                             subtitle = "长按会话可选「归档该会话」",
                             modifier = Modifier.weight(1f).align(Alignment.CenterHorizontally),
@@ -225,9 +226,9 @@ fun ConversationListScreen(
                                 verticalAlignment = Alignment.CenterVertically,
                             ) {
                                 Box(
-                                    Modifier.size(48.dp).clip(CircleShape).background(Color(0x11000000)),
+                                    Modifier.size(48.dp).clip(CircleShape).background(MaterialTheme.colorScheme.surfaceVariant),
                                     contentAlignment = Alignment.Center,
-                                ) { Text("🗄", fontSize = 22.sp) }
+                                ) { com.touliao.app.ui.TouliaoGlyph(com.touliao.app.ui.TouliaoIcons.Archive, size = com.touliao.app.ui.IconSize.Md) }
                                 Spacer(Modifier.width(12.dp))
                                 Column(Modifier.weight(1f)) {
                                     Text("已归档会话", style = MaterialTheme.typography.bodyLarge)
@@ -238,12 +239,12 @@ fun ConversationListScreen(
                                         modifier = Modifier
                                             .size(18.dp)
                                             .clip(CircleShape)
-                                            .background(Color(0xFFFA5151)),
+                                            .background(com.touliao.app.ui.theme.VxinError),
                                         contentAlignment = Alignment.Center,
                                     ) {
                                         Text(
                                             if (archiveUnread > 99) "99+" else archiveUnread.toString(),
-                                            color = Color.White, fontSize = com.touliao.app.ui.theme.VxinTextSize.xs2,
+                                            color = MaterialTheme.colorScheme.onError, fontSize = com.touliao.app.ui.theme.VxinTextSize.xs2,
                                         )
                                     }
                                 }
@@ -284,7 +285,7 @@ fun ConversationListScreen(
             onDismissRequest = { clearTarget = null },
             title = { Text("清空聊天记录") },
             text = { Text("确认清空与「${target.name.ifBlank { "该会话" }}」的聊天记录？此操作不可恢复。") },
-            confirmButton = { TextButton(onClick = { viewModel.clearMessages(target); clearTarget = null }) { Text("清空", color = Color(0xFFFA5151)) } },
+            confirmButton = { TextButton(onClick = { viewModel.clearMessages(target); clearTarget = null }) { Text("清空", color = com.touliao.app.ui.theme.VxinError) } },
             dismissButton = { TextButton(onClick = { clearTarget = null }) { Text("取消") } },
         )
     }
@@ -292,7 +293,7 @@ fun ConversationListScreen(
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun ConversationRow(
+internal fun ConversationRow(
     conv: Conversation,
     avatarUrl: String? = null,
     draft: String = "",
@@ -310,13 +311,14 @@ private fun ConversationRow(
     Row(
         modifier = Modifier
             .fillMaxWidth()
+            .heightIn(min = 76.dp)
             .testTag("conv-item-${conv.id}")
             .combinedClickable(onClick = onClick, onLongClick = { haptic.performHapticFeedback(HapticFeedbackType.LongPress); menuOpen = true })
-            .background(if (conv.pinned == 1) Color(0x11000000) else Color.Transparent)
+            .background(if (conv.pinned == 1) MaterialTheme.colorScheme.primaryContainer else Color.Transparent)
             .padding(horizontal = 16.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        InitialAvatar(name = conv.name.ifBlank { "?" }, size = 48.dp, avatarUrl = avatarUrl)
+        InitialAvatar(name = conv.name.ifBlank { "?" }, size = 44.dp, avatarUrl = avatarUrl)
         Spacer(Modifier.width(12.dp))
         Column(Modifier.weight(1f)) {
             Text(
@@ -331,7 +333,7 @@ private fun ConversationRow(
                 // 有未发送草稿：红色「[草稿]」前缀(对齐微信/Web)
                 Text(
                     text = androidx.compose.ui.text.buildAnnotatedString {
-                        withStyle(androidx.compose.ui.text.SpanStyle(color = Color(0xFFFA5151))) { append("[草稿] ") }
+                        withStyle(androidx.compose.ui.text.SpanStyle(color = com.touliao.app.ui.theme.VxinError)) { append("[草稿] ") }
                         append(draft)
                     },
                     color = VxinTextSecondary,
@@ -343,7 +345,7 @@ private fun ConversationRow(
                 // 群内有人 @我（含 @所有人）：红色「[有人@我]」前缀（对齐微信/Web）
                 Text(
                     text = androidx.compose.ui.text.buildAnnotatedString {
-                        withStyle(androidx.compose.ui.text.SpanStyle(color = Color(0xFFFA5151))) { append("[有人@我] ") }
+                        withStyle(androidx.compose.ui.text.SpanStyle(color = com.touliao.app.ui.theme.VxinError)) { append("[有人@我] ") }
                         append(previewText(conv))
                     },
                     color = VxinTextSecondary,
@@ -369,22 +371,22 @@ private fun ConversationRow(
                 // 免打扰：有未读只显示小红点(不显示数字)，并保留🔕(对齐微信)
                 conv.muted == 1 -> Row(verticalAlignment = Alignment.CenterVertically) {
                     if (conv.unreadCount > 0) {
-                        Box(Modifier.size(8.dp).clip(CircleShape).background(Color(0xFFFA5151)))
+                        Box(Modifier.size(8.dp).clip(CircleShape).background(com.touliao.app.ui.theme.VxinError))
                         Spacer(Modifier.width(4.dp))
                     }
-                    Text("🔕", fontSize = com.touliao.app.ui.theme.VxinTextSize.xs)
+                    com.touliao.app.ui.TouliaoGlyph(com.touliao.app.ui.TouliaoIcons.Mute, size = com.touliao.app.ui.IconSize.Xs)
                 }
                 // 正常会话：显示未读数字角标
                 conv.unreadCount > 0 -> Box(
                     modifier = Modifier
                         .size(18.dp)
                         .clip(CircleShape)
-                        .background(Color(0xFFFA5151)),
+                        .background(com.touliao.app.ui.theme.VxinError),
                     contentAlignment = Alignment.Center,
                 ) {
                     Text(
                         if (conv.unreadCount > 99) "99+" else conv.unreadCount.toString(),
-                        color = Color.White, fontSize = com.touliao.app.ui.theme.VxinTextSize.xs2,
+                        color = MaterialTheme.colorScheme.onError, fontSize = com.touliao.app.ui.theme.VxinTextSize.xs2,
                     )
                 }
             }
@@ -399,7 +401,7 @@ private fun ConversationRow(
             DropdownMenuItem(text = { Text(if (conv.pinned == 1) "取消置顶" else "置顶") }, onClick = { onTogglePin(); menuOpen = false })
             DropdownMenuItem(text = { Text(if (conv.muted == 1) "取消免打扰" else "消息免打扰") }, onClick = { onToggleMute(); menuOpen = false })
             DropdownMenuItem(text = { Text(if (conv.archived == 1) "取消归档" else "归档该会话") }, onClick = { onToggleArchive(); menuOpen = false })
-            DropdownMenuItem(text = { Text("清空聊天记录", color = Color(0xFFFA5151)) }, onClick = { onClear(); menuOpen = false })
+            DropdownMenuItem(text = { Text("清空聊天记录", color = com.touliao.app.ui.theme.VxinError) }, onClick = { onClear(); menuOpen = false })
         }
     }
 }

@@ -1,0 +1,20 @@
+{
+  "ui": {
+    "head": "729e08c87c50894de29092138bf05d5c2e9006d2",
+    "status": ""
+  },
+  "release": {
+    "head": "d95d69038d50d0bce840340f79a1c6e06950a50f",
+    "status": ""
+  },
+  "originalUiCommitsRetained": {
+    "aa740615": true,
+    "755aac1b": true,
+    "b4f551b7": true,
+    "31b8d322": true,
+    "20aef960": true,
+    "729e08c8": true
+  },
+  "iosChangedThisTask": false,
+  "mainHead": "45dccd9963cad8dec00ef8d13019207491016fb4"
+}

@@ -1,3 +1,4 @@
+import TouliaoIcon from '../ui-kit/Icon';
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import jsQR from 'jsqr';
 import axios from 'axios';
@@ -177,7 +178,7 @@ export default function ScanQR({ onClose }) {
         onClick={e => e.stopPropagation()}>
         <div className="wc-modal-header">
           <span className="wc-modal-title">{t('scanQR.title')}</span>
-          <button className="wc-modal-close" onClick={() => onClose()} aria-label={t('common.close')}>✕</button>
+          <button className="wc-modal-close" onClick={() => onClose()} aria-label={t('common.close')}><TouliaoIcon name="close" size="sm" /></button>
         </div>
 
         {phase === 'scanning' && (
