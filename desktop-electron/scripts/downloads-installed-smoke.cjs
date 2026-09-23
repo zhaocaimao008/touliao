@@ -35,6 +35,9 @@ async function poll(fn, label) {
     app = await electron.launch({ executablePath: process.env.TOULIAO_ELECTRON, env: { ...process.env, TOULIAO_LOG_LEVEL: 'info' } });
     const page = await app.firstWindow();
     await page.waitForFunction(() => !!window.electronAPI?.downloadFile);
+    // Finish the real unauthenticated bootstrap before installing synthetic ticket credentials.
+    // Otherwise a late /auth/me 401 correctly logs out and invalidates the fixture during retry.
+    await page.locator('#login-phone').waitFor({ timeout: 30000 });
     const runtime = await app.evaluate(({ app }) => ({ version: app.getVersion(), platform: process.platform, packaged: app.isPackaged, electron: process.versions.electron }));
     assert.equal(runtime.version, '8.1.31'); assert.equal(runtime.platform, 'win32'); assert.equal(runtime.packaged, true);
     const base = new URL(await page.evaluate(() => window.electronAPI.getServerUrl())).origin;
@@ -62,7 +65,7 @@ async function poll(fn, label) {
     const start = (id, route, filename = id + '.mp4') => page.evaluate(({ id, url, filename }) => window.downloadSmoke.start({ id, fileUrl: url, filename }), { id, url: base + '/__download_regression/' + route, filename });
     const state = id => page.evaluate(id => window.downloadSmoke.state(id), id);
     const done = async id => { await poll(async () => ['completed', 'failed', 'cancelled'].includes((await state(id)).status), id); return state(id); };
-    const verified = result => { assert.equal(result.status, 'completed'); assert.equal(hash(fs.readFileSync(result.savePath)), hash(body)); };
+    const verified = result => { assert.equal(result.status, 'completed', JSON.stringify({status:result.status,error:result.error,id:result.id})); assert.equal(hash(fs.readFileSync(result.savePath)), hash(body)); };
     let ticketFailure = false;
     await page.route(base + '/api/uploads/ticket?*', async route => {
       assert.equal(route.request().headers().authorization, 'Bearer isolated-ticket-test');

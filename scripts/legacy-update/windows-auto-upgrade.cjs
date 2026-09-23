@@ -8,7 +8,7 @@ assert.equal(process.platform, 'win32');
 const out = path.resolve('windows-auto-evidence'); fs.mkdirSync(out, { recursive: true });
 const exe = process.env.LEGACY_EXE;
 const approval = process.env.WINDOWS_UPDATE_APPROVAL || '8127';
-assert.ok(['8127', '8129', '8130'].includes(approval));
+assert.ok(['8127', '8129', '8130', '8131'].includes(approval));
 const spec = require(`../windows-${approval}-publication.json`);
 const oldVersion = spec.previousVersion, targetVersion = spec.version;
 const token = 'isolated-windows-auto-upgrade-token';

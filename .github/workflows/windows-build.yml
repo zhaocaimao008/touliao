@@ -10,6 +10,10 @@ on:
         description: Publish verified installer to production
         type: boolean
         default: false
+      verify_8131_only:
+        description: 'Verify the published 8.1.31 through the installed 8.1.30 updater'
+        type: boolean
+        default: false
       verify_8130_only:
         description: 'Verify the published exact 8.1.30 through the installed 8.1.29 updater (no publication)'
         type: boolean
@@ -29,7 +33,7 @@ on:
 
 jobs:
   build:
-    if: ${{ !inputs.publish_verified_8127 && !inputs.publish_verified_8129 && !inputs.verify_8130_only }}
+    if: ${{ !inputs.publish_verified_8127 && !inputs.publish_verified_8129 && !inputs.verify_8130_only && !inputs.verify_8131_only }}
     runs-on: windows-latest
     timeout-minutes: 45
     steps:
@@ -522,5 +526,40 @@ jobs:
         if: always()
         with:
           name: windows-8130-actual-auto-upgrade
+          path: windows-auto-evidence/
+          if-no-files-found: error
+
+  verify-existing-8131:
+    if: github.event_name == 'workflow_dispatch' && inputs.verify_8131_only && !inputs.deploy && !inputs.publish_verified_8127 && !inputs.publish_verified_8129
+    runs-on: windows-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install the actual published 8.1.30 client
+        shell: pwsh
+        run: |
+          $setup = Join-Path $env:RUNNER_TEMP 'old-8.1.30.exe'
+          Invoke-WebRequest https://touliao.cc/downloads/updates/touliao-8.1.30-setup.exe -OutFile $setup
+          if ((Get-FileHash $setup -Algorithm SHA256).Hash.ToLower() -ne 'bb5d868c5f18cf2f9d429fe1122470b7d540ef8829fb295e1c044a947357383a') { throw 'Historical installer changed' }
+          $directory = Join-Path $env:RUNNER_TEMP 'TouliaoLegacy'
+          $p = Start-Process $setup -ArgumentList @('/S', '/currentuser', "/D=$directory") -Wait -PassThru
+          if ($p.ExitCode -ne 0) { throw 'Historical installation failed' }
+          Get-Process touliao -ErrorAction SilentlyContinue | Stop-Process -Force
+          "LEGACY_EXE=$(Join-Path $directory 'touliao.exe')" >> $env:GITHUB_ENV
+          "PLAYWRIGHT_MODULE=$env:RUNNER_TEMP/legacy-driver/node_modules/playwright" >> $env:GITHUB_ENV
+          npm install --prefix "$env:RUNNER_TEMP/legacy-driver" --no-audit --no-fund playwright@1.60.0
+      - name: Verify real 8.1.30 to 8.1.31 download and native upgrade
+        env:
+          WINDOWS_UPDATE_APPROVAL: '8131'
+        run: node scripts/legacy-update/windows-auto-upgrade.cjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: windows-8131-actual-auto-upgrade
           path: windows-auto-evidence/
           if-no-files-found: error
