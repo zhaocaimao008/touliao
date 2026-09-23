@@ -11,12 +11,14 @@ const approval = process.env.WINDOWS_UPDATE_APPROVAL || '8127';
 assert.ok(['8127', '8129', '8130', '8131'].includes(approval));
 const spec = require(`../windows-${approval}-publication.json`);
 const oldVersion = spec.previousVersion, targetVersion = spec.version;
+const candidateFeed = process.env.WINDOWS_CANDIDATE_FEED || '';
+if (candidateFeed) assert.equal(candidateFeed, spec.candidateFeed);
 const token = 'isolated-windows-auto-upgrade-token';
 const user = { id: 'legacy-me', username: 'UpgradeProbe', phone: '13900000001' };
 const message = { id: 'legacy-message', conversation_id: 'legacy-chat', sender_id: 'legacy-peer', senderName: 'LegacyPeer', type: 'text', content: 'LEGACY-CACHED-MESSAGE-MUST-SURVIVE', created_at: 1789747100 };
 const conv = { id: 'legacy-chat', type: 'private', name: 'LegacyPeer', lastMessage: 'Open cached history', lastTime: 1789747200, otherUser: { id: 'legacy-peer', username: 'LegacyPeer' } };
 const report = { environment: 'GitHub Windows native VM', physicalDevice: false, productionAccountTested: false,
-  oldVersion, targetVersion, updateTraffic: 'unchanged production HTTPS endpoints',
+  oldVersion, targetVersion, updateTraffic: candidateFeed ? 'signed staged HTTPS candidate; installed app-update.yml and cached updateFeed URLs changed, application binaries unchanged' : 'unchanged production HTTPS endpoints', candidateFeed: candidateFeed || null,
   accountApiAndSocketTransport: 'isolated fixture; realtime business not tested', hotUpdate: false, passed: false };
 let loginCount = 0, historyOffline = false, active, logFile;
 function checkpoint(stage) {
@@ -102,13 +104,15 @@ async function waitFor(check, timeout) {
     report.failedCheckObserved = await page.evaluate(() => window.__updateAuditErrors);
     await page.screenshot({ path: path.join(out, '02-real-network-check-failure.png') });
     checkpoint('real-network-failure-observed');
+    // Let blocked startup config requests finish so they cannot overwrite the staged feed on recovery.
+    if (candidateFeed) await waitFor(() => fs.readFileSync(logFile, 'utf8').includes('[RemoteConfig] 远程不可达，沿用 store/默认'), 60000);
     unblockNetwork();
     // Use the unchanged check IPC, so the startup timer cannot replace Retry
     // with Install midway through a locator click and install before inspection.
     await page.evaluate(() => window.electronAPI.checkUpdate());
     report.recoveryTrigger = 'historical checkUpdate IPC after removing the OS network block';
     await waitFor(() => page.locator('.wc-update-banner').innerText().then(t => /重启.*安装/.test(t)), 240000);
-    await page.screenshot({ path: path.join(out, '03-production-update-downloaded-and-verified.png') });
+    await page.screenshot({ path: path.join(out, '03-update-downloaded-and-verified.png') });
     const log = fs.readFileSync(logFile, 'utf8');
     assert.ok(log.includes(targetVersion) && log.includes('元数据签名校验通过'));
     const pending = path.join(process.env.LOCALAPPDATA, 'touliao-desktop-updater', 'pending');
@@ -117,7 +121,7 @@ async function waitFor(check, timeout) {
     report.downloadedInstallerSha256 = crypto.createHash('sha256').update(fs.readFileSync(path.join(pending, candidates[0]))).digest('hex');
     assert.equal(report.downloadedInstallerSha256, spec.files[`touliao-${targetVersion}-setup.exe`]);
     report.signedManifestAndDownloadedBytesVerified = true;
-    checkpoint('production-update-downloaded-and-verified');
+    checkpoint(candidateFeed ? 'candidate-update-downloaded-and-verified' : 'production-update-downloaded-and-verified');
     // Keep the auto-restarted app from sending the isolated account token to a
     // real account endpoint before the test driver reattaches. Updates are fully
     // downloaded and verified already; this does not bypass updater logic.

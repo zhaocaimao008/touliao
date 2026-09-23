@@ -10,6 +10,10 @@ on:
         description: Publish verified installer to production
         type: boolean
         default: false
+      upgrade_candidate:
+        description: 'Use the exact signed staged 8.1.31 feed for pre-publication upgrade validation'
+        type: boolean
+        default: false
       verify_8131_only:
         description: 'Verify the published 8.1.31 through the installed 8.1.30 updater'
         type: boolean
@@ -553,6 +557,24 @@ jobs:
           "LEGACY_EXE=$(Join-Path $directory 'touliao.exe')" >> $env:GITHUB_ENV
           "PLAYWRIGHT_MODULE=$env:RUNNER_TEMP/legacy-driver/node_modules/playwright" >> $env:GITHUB_ENV
           npm install --prefix "$env:RUNNER_TEMP/legacy-driver" --no-audit --no-fund playwright@1.60.0
+      - name: Select staged candidate feed before publication
+        if: inputs.upgrade_candidate
+        shell: pwsh
+        run: |
+          $spec = Get-Content scripts/windows-8131-publication.json -Raw | ConvertFrom-Json
+          $feed = $spec.candidateFeed
+          if ($feed -ne 'https://touliao.cc/downloads/updates/candidates/8131-35820271349') { throw 'Unexpected candidate feed' }
+          $config = Join-Path (Split-Path $env:LEGACY_EXE) 'resources/app-update.yml'
+          $before = Get-Content $config -Raw
+          $after = $before.Replace('https://touliao.cc/downloads/updates', $feed)
+          if ($after -eq $before) { throw 'Historical feed not found' }
+          [IO.File]::WriteAllText($config, $after)
+          $storePath = Join-Path $env:APPDATA 'touliao-desktop/config.json'
+          New-Item -ItemType Directory -Path (Split-Path $storePath) -Force | Out-Null
+          $settings = if (Test-Path $storePath) { Get-Content $storePath -Raw | ConvertFrom-Json -AsHashtable } else { @{} }
+          $settings['updateFeed'] = $feed
+          [IO.File]::WriteAllText($storePath, ($settings | ConvertTo-Json -Depth 10))
+          "WINDOWS_CANDIDATE_FEED=$feed" >> $env:GITHUB_ENV
       - name: Verify real 8.1.30 to 8.1.31 download and native upgrade
         env:
           WINDOWS_UPDATE_APPROVAL: '8131'
