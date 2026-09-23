@@ -178,6 +178,12 @@ function batchEnrich(viewerId, rows, { likeLimit = 0, commentLimit = 0 } = {}) {
 }
 
 // ── 发布 ────────────────────────────────────────────────────────
+function validateContent(text, images, video) {
+  if (!text && images.length === 0 && !video) throw badRequest('内容不能为空');
+  if (text.length > 5000) throw badRequest('内容过长');
+  moderation.assertClean(text);
+}
+
 function createMoment(io, userId, { content, images, visibility, visibleTo, video, cover }) {
   // 后台开关拦截：关闭「朋友圈」后，任何客户端（含绕过 UI 的直连）都被拒绝发布。
   // 直接读 admin_settings，避免引入 admin.service 造成循环依赖；实时生效，无需重启。
@@ -205,9 +211,7 @@ function createMoment(io, userId, { content, images, visibility, visibleTo, vide
   const cov = typeof cover === 'string' ? cover.trim() : '';
   if (cov && !isAllowedUrl(cov)) throw badRequest('封面地址无效');
   if (cov && !vid) throw badRequest('封面仅用于视频动态');
-  if (!text && imgs.length === 0 && !vid) throw badRequest('内容不能为空');
-  if (text.length > 5000) throw badRequest('内容过长');
-  moderation.assertClean(text);
+  validateContent(text, imgs, vid);
   const vis = ['all', 'friends', 'private', 'include', 'exclude'].includes(visibility) ? visibility : 'all';
 
   // 分组可见：visible_to 仅保留确为好友的 id（防越权 / 脏数据）
@@ -364,7 +368,7 @@ function editMoment(userId, momentId, { content, visibility, visibleTo } = {}) {
   const nextContent = content == null ? m.content : String(content).trim();
   const imgs = safeImages(m.images);
   // 视频动态（F1 #1）：文字清空后仍有视频，不算空内容
-  if (!nextContent && imgs.length === 0 && !m.video) throw badRequest('内容不能为空');
+  validateContent(nextContent, imgs, m.video);
 
   const VALID_VIS = new Set(['all', 'friends', 'private', 'include', 'exclude']);
   const nextVis = (visibility && VALID_VIS.has(visibility)) ? visibility : m.visibility;

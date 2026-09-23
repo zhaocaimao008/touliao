@@ -187,6 +187,23 @@ module.exports = function setupRealtime(io, app) {
     const userId = socket.user.id;
     const isFirstDevice = !presence.isOnline(userId);
 
+    // Passive clients never enter socket.use: expire their receive access too.
+    // Node timers overflow above ~24.8 days, so re-arm long-lived credentials.
+    let expiryTimer;
+    socket.once('disconnect', () => clearTimeout(expiryTimer));
+    function scheduleExpiry() {
+      const remaining = socket.user.exp * 1000 - Date.now();
+      if (remaining <= 0) {
+        socket.emit('session_expired', { reason: 'Token已过期，请重新登录' });
+        socket.disconnect(true);
+        return;
+      }
+      expiryTimer = setTimeout(scheduleExpiry, Math.min(remaining, 2 ** 31 - 1));
+      expiryTimer.unref();
+    }
+    if (Number.isFinite(socket.user.exp)) scheduleExpiry();
+    if (!socket.connected) return;
+
     // A004 复审 FAIL-1：会话被删除/失效后，已建立的 socket 不得继续发消息。
     // 逐事件复检（socket.use 在每事件 handler 前执行）：
     //  - jti 黑名单（logout 删会话 → 立即失效，不等断开重连）
@@ -242,6 +259,7 @@ module.exports = function setupRealtime(io, app) {
     socket.join(socket.user.jti ? `session_${socket.user.jti}` : `legacy_user_${userId}`);
     socket.join(tokenRoom(socket.authToken));
     setImmediate(() => {
+      if (!socket.connected) return;
       try {
         // 限制加入房间数上限：极端情况下（用户在数千个群）无上限 join 会阻塞事件循环。
         // 500 与 maxGroupMembers 配置一致，覆盖绝大多数正常使用场景。

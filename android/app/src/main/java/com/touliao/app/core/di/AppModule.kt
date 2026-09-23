@@ -1,6 +1,8 @@
 package com.touliao.app.core.di
 
 import com.jakewharton.retrofit2.converter.kotlinx.serialization.asConverterFactory
+import com.touliao.app.core.storage.TokenStore
+import com.touliao.app.core.network.cancelOnOriginChange
 import com.touliao.app.core.network.AuthInterceptor
 import com.touliao.app.core.network.HostSelectionInterceptor
 import com.touliao.app.core.storage.ServerConfig
@@ -68,6 +70,7 @@ object AppModule {
     fun provideOkHttpClient(
         authInterceptor: AuthInterceptor,
         hostSelectionInterceptor: HostSelectionInterceptor,
+        tokenStore: TokenStore,
     ): OkHttpClient {
         val logging = HttpLoggingInterceptor().apply {
             level = HttpLoggingInterceptor.Level.BASIC
@@ -81,8 +84,9 @@ object AppModule {
             .callTimeout(0, TimeUnit.SECONDS)
             .addInterceptor(hostSelectionInterceptor)
             .addInterceptor(authInterceptor)
+            .addNetworkInterceptor(authInterceptor)
             .addInterceptor(logging)
-            .build()
+            .build().cancelOnOriginChange(tokenStore)
     }
 
     // 三处此前各自 new 一个裸 OkHttpClient()，默认 10s 超时，弱网/大文件(PDF/视频)必触发
@@ -91,7 +95,7 @@ object AppModule {
     @Provides
     @Singleton
     @DownloadHttpClient
-    fun provideDownloadOkHttpClient(mediaAuth: com.touliao.app.core.network.MediaAuthInterceptor): OkHttpClient {
+    fun provideDownloadOkHttpClient(mediaAuth: com.touliao.app.core.network.MediaAuthInterceptor, tokenStore: TokenStore): OkHttpClient {
         return OkHttpClient.Builder()
             .addInterceptor(mediaAuth)
             .addNetworkInterceptor(mediaAuth)
@@ -99,7 +103,7 @@ object AppModule {
             .readTimeout(60, TimeUnit.SECONDS)
             .writeTimeout(60, TimeUnit.SECONDS)
             .callTimeout(0, TimeUnit.SECONDS)
-            .build()
+            .build().cancelOnOriginChange(tokenStore)
     }
 
     @OptIn(kotlinx.serialization.ExperimentalSerializationApi::class)
