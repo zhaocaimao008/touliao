@@ -1732,13 +1732,14 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
     const form = new FormData();
     form.append('file', file);
     if (replyTo?.id) form.append('reply_to_id', replyTo.id);
-    await axios.post(`/api/messages/${conversation.id}/upload`, form, {
+    const { data } = await axios.post(`/api/messages/${conversation.id}/upload`, form, {
       headers: { 'Content-Type': 'multipart/form-data' },
       onUploadProgress: (e) => { if (e.total) onProgress?.(Math.round(e.loaded / e.total * 100)); },
       // 直传路径没有大小上限（后端 MAX_UPLOAD_BYTES 默认 200MB），全局 20s 默认对大文件/慢网络
       // 明显不够，给一个远大于正常场景的兜底值，而不是完全不设超时（那样又回到"可能永久挂起"）。
       timeout: 600000, // 10 分钟
     });
+    return data.file_url;
   }, [conversation.id, replyTo]);
 
   // ── 分片 / 断点续传上传（大文件，云存储未配置时的本地大文件通道）──
@@ -1779,8 +1780,9 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
       }
       onProgress?.(Math.round(received / file.size * 100));
     }
-    await axios.post(`/api/messages/${conversation.id}/upload-finish/${init.uploadId}`,
+    const { data } = await axios.post(`/api/messages/${conversation.id}/upload-finish/${init.uploadId}`,
       replyTo?.id ? { reply_to_id: replyTo.id } : {});
+    return data.file_url;
   }, [conversation.id, replyTo]);
 
   // ── 统一文件处理入口（handleFileUpload / handleDrop 共用）────
@@ -1837,7 +1839,8 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
     // 把刚才的翻阅动作打断。现在点发送瞬间即插入占位(图片/视频给本地 blob 预览)并贴底，
     // 广播到达后按 clientMsgId 原地替换成真实消息，行为与文字/名片发送保持一致。
     const tempId = `tmp_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-    const localPreviewUrl = (type === 'image' || type === 'video') ? URL.createObjectURL(file) : '';
+    let localPreviewUrl = (type === 'image' || type === 'video') ? URL.createObjectURL(file) : '';
+    let previewRevoked = false;
     const replySnap = replyTo ? { ...replyTo } : null;
     const optimistic = {
       id: tempId, conversation_id: conversation.id, sender_id: user.id,
@@ -1849,12 +1852,22 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
       _status: 'sending', _tempId: tempId,
     };
     const addOptimistic = () => {
+      if (previewRevoked) {
+        localPreviewUrl = URL.createObjectURL(file);
+        optimistic.file_url = localPreviewUrl;
+        previewRevoked = false;
+      }
       forceScrollRef.current = true; // 和文字/名片一致：发送瞬间无条件滚到底
       setMessages(prev => prev.some(m => m._tempId === tempId) ? prev : [...prev, optimistic]);
     };
-    const dropOptimistic = () => {
+    const updateOpenPreview = (url) => {
+      setVideoPreview(prev => prev?.url === localPreviewUrl
+        ? (url ? { ...prev, url } : null) : prev);
+    };
+    const dropOptimistic = (finalUrl) => {
+      updateOpenPreview(finalUrl);
       setMessages(prev => prev.filter(m => m._tempId !== tempId));
-      if (localPreviewUrl) URL.revokeObjectURL(localPreviewUrl);
+      if (localPreviewUrl) { URL.revokeObjectURL(localPreviewUrl); previewRevoked = true; }
     };
     dispatchCompose({ type: 'CLEAR_REPLY' });
 
@@ -1887,7 +1900,7 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
             setUploadState(null);
             // 这条兜底路径是后端直接入库+广播，没有 clientMsgId 回执可对上占位消息，
             // 只能先摘掉占位，真实消息到达后作为新行插入(见 onMsg)，不追加多余的强制滚动。
-            dropOptimistic();
+            dropOptimistic(localUrl);
             return;
           }
           throw cloudErr;
@@ -1906,7 +1919,10 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
           clientMsgId: tempId, // 与占位消息用同一个 id：onMsg 按 client_msg_id 原地替换占位，不重复
         }, (res) => {
           if (!res?.success) { showToast(res?.error || t('chat.fileSendFailed'), 'error'); dropOptimistic(); }
-          else if (localPreviewUrl) setTimeout(() => URL.revokeObjectURL(localPreviewUrl), 5000);
+          else {
+            updateOpenPreview(publicUrl);
+            if (localPreviewUrl) setTimeout(() => URL.revokeObjectURL(localPreviewUrl), 5000);
+          }
         });
         // 缩略图：仅图片且后端确实发了 thumbUploadUrl(jpg/jpeg/png/webp)才生成上传；
         // 不 await——不能拖慢/阻塞消息发送，消息已经用原图 URL 正常发出去了。

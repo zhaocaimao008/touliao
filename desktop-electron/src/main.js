@@ -138,15 +138,6 @@ let mainWindow = null;
 let tray = null;
 let _trayBaseIcon = null;    // 托盘正常态图标缓存（闪烁时还原用）
 let _trayFlashTimer = null;  // 托盘闪烁定时器句柄
-// 下一个下载项的文件名（渲染进程经 file:download 传入，will-download 消费一次）
-let g_pendingDownloadName = null;
-// 2026-08-29 统一附件系统：下载完成后是否自动用系统默认应用打开该文件。
-// 默认 false——PDF/Word/Excel/PPT/图片/视频/音频这些格式投聊自己就能App内预览
-// (见 web 端 FilePreview/ImagePreview/VideoPreview)，用户点"保存到本地"只是想要
-// 一份本地文件，不需要（也不应该）再弹出系统默认程序（Windows上PDF的系统默认
-// 程序常年是Edge，这正是本次要修的"点PDF跳浏览器"根因）。只有点了"用其他应用
-// 打开"这个需要用户主动选择的动作时才传 true。
-let g_pendingAutoOpen = false;
 let isQuitting = false;
 let updateReady = false;
 let updateInstallRequested = false;
@@ -348,13 +339,9 @@ function setupSecurity() {
   // 禁止任何设备访问（HID / 串口 / USB / 蓝牙 / 屏幕共享选源）
   ses.setDevicePermissionHandler(() => false);
 
-  // 文件下载：主进程接管（渲染进程跑 file://，fetch 跨域取 /uploads 会被 CORS 拦、<a download> 跨域也失效）。
-  // 流式落盘到「下载」目录、不弹保存框，完成后用系统默认应用打开 → 满足「不跳网页、下完直接点开」。
+  // 浏览器原生媒体控件 / 链接触发的下载；应用按钮由独立下载任务管理。
   ses.on('will-download', (_e, item) => {
-    const raw = g_pendingDownloadName || item.getFilename() || `file_${Date.now()}`;
-    g_pendingDownloadName = null;
-    const autoOpen = g_pendingAutoOpen;
-    g_pendingAutoOpen = false;
+    const raw = item.getFilename() || `file_${Date.now()}`;
     const safe = String(raw).replace(/[/\\:*?"<>|\x00-\x1f]/g, '_').slice(0, 120) || `file_${Date.now()}`;
     // 同名去重：设了显式保存路径就绕过 Electron 的自动改名,这里手动补「file (1).ext」,避免静默覆盖已存在文件
     const dir = app.getPath('downloads');
@@ -375,8 +362,6 @@ function setupSecurity() {
       if (NO_AUTO_OPEN_EXTS.has(ext)) {
         log.info('下载完成（可执行类，不自动打开，仅定位）:', savePath);
         shell.showItemInFolder(savePath);
-      } else if (autoOpen) {
-        shell.openPath(savePath).catch(() => {});
       } else {
         log.info('下载完成（App内可预览的格式，不自动打开，仅落盘）:', savePath);
       }
@@ -834,25 +819,10 @@ function setupIPC() {
   ipcMain.handle('window:close',       () => mainWindow?.close());
   ipcMain.handle('window:isMaximized', () => mainWindow?.isMaximized() ?? false);
 
-  // 文件下载：渲染进程请求 → 主进程 downloadURL（配合 setupSecurity 的 will-download 落盘+打开）
-  ipcMain.handle('file:download', (_e, payload) => {
-    if (!isTrustedSender(_e)) return;
-    const url = payload?.url;
-    if (typeof url !== 'string' || !url || !mainWindow) return;
-    // 安全：仅允许从当前后端 / 已配置 CDN 下载。否则被注入的渲染进程可让主进程
-    // 从任意域拉文件并自动打开（drive-by 下载）。API_ORIGIN/CDN_ORIGIN 为 let，
-    // 随 switchServer 动态更新，故在调用时求值（与 CSP connect-src 白名单同源）。
-    let origin;
-    try { origin = new URL(url).origin; } catch { log.warn('file:download 非法 URL:', url); return; }
-    const allowed = [API_ORIGIN, CDN_ORIGIN].filter(Boolean);
-    if (!allowed.includes(origin)) {
-      log.warn('file:download 拒绝非白名单来源:', origin);
-      return;
-    }
-    g_pendingDownloadName = (typeof payload?.filename === 'string' && payload.filename.trim())
-      ? payload.filename.trim() : null;
-    g_pendingAutoOpen = payload?.autoOpen === true;
-    mainWindow.webContents.downloadURL(url);
+  require('./lib/downloads').registerDownloadIPC({
+    ipcMain, isTrustedSender, shell, noAutoOpenExts: NO_AUTO_OPEN_EXTS,
+    getDirectory: () => app.getPath('downloads'),
+    allowedOrigins: () => [API_ORIGIN, CDN_ORIGIN].filter(Boolean),
   });
 
   // 复制图片到系统剪贴板：渲染进程跑在 file://，图片是跨源 https(带 ?token=)，

@@ -1,7 +1,7 @@
 import TouliaoIcon from '../ui-kit/Icon';
 import useFocusTrap from '../hooks/useFocusTrap';
-import React from 'react';
-import { downloadFile } from '../utils/download';
+import React, { useEffect, useState } from 'react';
+import { downloadFile, startDownload, subscribe, getState, cancelDownload, retryDownload } from '../utils/downloadManager';
 import { shareMessage, canShare } from '../utils/share';
 import { useI18n } from '../contexts/I18nContext';
 import { mediaUrl, useMediaCredentials } from '../utils/url';
@@ -23,6 +23,22 @@ export default function VideoPreview({ url: fileUrl, name, onClose }) {
   useMediaCredentials();
   const url = mediaUrl(fileUrl);
   const { t } = useI18n();
+  const [downloadSnapshot, setDownload] = useState(() => getState(fileUrl));
+  const download = downloadSnapshot?.id === fileUrl ? downloadSnapshot : null;
+  const uploading = String(fileUrl).startsWith('blob:');
+  const busy = download && ['pending', 'downloading'].includes(download.status);
+  useEffect(() => {
+    return subscribe(fileUrl, setDownload);
+  }, [fileUrl]);
+  const handleDownload = () => {
+    if (uploading || busy) return;
+    if (!window.__ELECTRON_CONFIG__) {
+      downloadFile(fileUrl, name || filenameFromUrl(fileUrl));
+      return;
+    }
+    if (download?.status === 'failed' || download?.status === 'cancelled') retryDownload(fileUrl);
+    else startDownload({ fileUrl, filename: name || filenameFromUrl(fileUrl) });
+  };
   const modalRef = useFocusTrap(true, { onEscape: onClose, lockScroll: true, initialFocus: '[data-testid="video-lightbox-close"]' });
 
   return (
@@ -41,6 +57,7 @@ export default function VideoPreview({ url: fileUrl, name, onClose }) {
         data-testid="video-lightbox-player"
         src={url}
         controls
+        controlsList="nodownload"
         autoPlay
         playsInline
         onClick={(e) => e.stopPropagation()}
@@ -58,11 +75,13 @@ export default function VideoPreview({ url: fileUrl, name, onClose }) {
         style={{
           position: 'absolute', bottom: 30, left: '50%',
           transform: 'translateX(-50%)',
-          display: 'flex', alignItems: 'center', gap: 12, zIndex: 10,
+          display: 'flex', alignItems: 'center', justifyContent: 'center', flexWrap: 'wrap',
+          gap: 12, zIndex: 10, width: 'max-content', maxWidth: '92vw',
         }}
       >
         <button
-          onClick={(e) => { e.stopPropagation(); downloadFile(url, name || filenameFromUrl(url)); }}
+          onClick={handleDownload}
+          disabled={uploading || busy}
           aria-label={t('videoPreview.download')}
           style={{
             border: 'none', cursor: 'pointer',
@@ -74,9 +93,19 @@ export default function VideoPreview({ url: fileUrl, name, onClose }) {
           }}
         >
           <TouliaoIcon name="download" tone="onDark" size="xs" />
-          {t('videoPreview.downloadShort')}
+          {t(uploading ? 'videoPreview.uploading' : busy ? 'videoPreview.downloading' : download?.status === 'failed' ? 'filePreview.retry' : 'videoPreview.downloadShort')}
         </button>
-        {canShare() && (
+        {busy && <button onClick={() => cancelDownload(fileUrl)} style={{
+          border: 'none', borderRadius: 'var(--radius-2xl)', padding: '8px 20px',
+          color: 'var(--text-inverse)', background: 'rgba(255,255,255,.18)', cursor: 'pointer',
+        }}>{t('common.cancel')}</button>}
+        <span role="status" style={{ color: '#fff', maxWidth: '80vw', overflowWrap: 'anywhere' }}>
+          {busy && (download.progress == null ? '' : `${download.progress}%`)}
+          {download?.status === 'completed' && `${t('videoPreview.saved')}${download.savePath ? ': ' + download.savePath : ''}`}
+          {download?.status === 'failed' && `${t('filePreview.downloadFailed')}: ${download.error || ''}`}
+          {download?.status === 'cancelled' && t('filePreview.cancelledRedownload')}
+        </span>
+        {!uploading && canShare() && (
           <button
             onClick={(e) => { e.stopPropagation(); shareMessage({ fileUrl: url, filename: name || filenameFromUrl(url), title: name || t('videoPreview.share') }); }}
             aria-label={t('videoPreview.share')}

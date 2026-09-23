@@ -50,7 +50,7 @@ jobs:
         run: npm ci
 
       - name: Update feedback and signature refusal regression
-        run: node --test desktop-electron/scripts/update-feedback.test.cjs
+        run: node --test desktop-electron/scripts/update-feedback.test.cjs desktop-electron/scripts/downloads.test.cjs
 
       - name: Windows typography and day/night themes
         env:
@@ -149,6 +149,22 @@ jobs:
             Get-WinEvent -FilterHashtable @{LogName='Application'; StartTime=(Get-Date).AddMinutes(-10)} -ErrorAction SilentlyContinue | Where-Object { $_.ProviderName -in @('Application Error', 'Windows Error Reporting') } | Select-Object -First 10 -ExpandProperty Message
             exit 1
           }
+
+      - name: Installed Windows download regression
+        working-directory: desktop-electron
+        shell: pwsh
+        run: |
+          $env:TOULIAO_ELECTRON = Join-Path $env:RUNNER_TEMP 'touliao-installed/touliao.exe'
+          node scripts/downloads-installed-smoke.cjs
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Upload installed download evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-download-regression
+          path: artifacts/windows-downloads
+          if-no-files-found: warn
 
       - name: Upload native update feedback evidence
         if: always()

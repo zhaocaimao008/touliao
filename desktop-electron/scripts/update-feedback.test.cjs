@@ -13,6 +13,8 @@ function harness(profile = 1) {
   updater.quitAndInstall = () => { installs++; };
   updater.checkForUpdates = async () => {};
   const context = vm.createContext({
+    require: id => { assert.equal(id, './lib/downloads'); return require('../src/lib/downloads'); },
+    shell: {}, NO_AUTO_OPEN_EXTS: new Set(), API_ORIGIN: 'https://touliao.cc', CDN_ORIGIN: '',
     autoUpdater: updater, PROFILE: profile, app: { getVersion: () => '8.1.29' },
     mainWindow: { webContents: { send: (...args) => sent.push(args) } },
     ipcMain: { handle: (name, fn) => handlers.set(name, fn) },
