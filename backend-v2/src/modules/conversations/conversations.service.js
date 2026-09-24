@@ -8,6 +8,7 @@ const { db, generateGroupNumber } = require('../../db/connection');
 const { writeAsync, write } = require('../../db/writer');
 const config = require('../../config');
 const { badRequest, forbidden, notFound } = require('../../utils/http');
+const { pagination } = require('../../utils/pagination');
 const { isMember, requireMember } = require('../messages/shared');
 const cache = require('../../utils/cache');
 const broadcaster = require('../../realtime/broadcaster');
@@ -585,7 +586,7 @@ function clearAllConversations(io, userId) {
 
 // ── 媒体列表 ────────────────────────────────────────────────────
 function media(userId, { type = 'image', limit, before }) {
-  const lim = Math.min(parseInt(limit) || 60, 200);
+  const { limit: lim } = pagination({ limit: limit === undefined ? 60 : limit }, 200);
   const bf = before ? parseInt(before) : null;
   const beforeClause = bf ? 'AND m.created_at < ?' : '';
   const params = bf ? [userId, type, bf, lim] : [userId, type, lim];

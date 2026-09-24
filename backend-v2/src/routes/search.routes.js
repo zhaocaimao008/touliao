@@ -8,6 +8,10 @@ const express = require('express');
 const router = express.Router();
 const auth = require('../middleware/auth');
 const { badRequest } = require('../utils/http');
+const { pagination } = require('../utils/pagination');
+
+// 搜索单页上限：此前两个接口不设上限，limit=-1 / 100000 会整表返回。
+const SEARCH_MAX_LIMIT = 100;
 const searchService = require('../modules/messages/search.service');
 
 /**
@@ -65,8 +69,7 @@ router.get('/messages', auth, async (req, res, next) => {
       userId,
       q,
       {
-        limit: parseInt(limit) || 50,
-        offset: parseInt(offset) || 0,
+        ...pagination({ limit: limit === undefined ? 50 : limit, offset }, SEARCH_MAX_LIMIT),
         senderOnly,
       }
     );
@@ -109,10 +112,8 @@ router.get('/global', auth, async (req, res, next) => {
       throw badRequest('缺少查询参数: q');
     }
 
-    const result = await searchService.searchGlobal(userId, q, {
-      limit: parseInt(limit) || 100,
-      offset: parseInt(offset) || 0,
-    });
+    const result = await searchService.searchGlobal(userId, q,
+      pagination({ limit: limit === undefined ? 100 : limit, offset }, SEARCH_MAX_LIMIT));
 
     res.json(result);
   } catch (err) {
