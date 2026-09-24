@@ -5,6 +5,7 @@ const { v4: uuidv4 } = require('uuid');
 const config = require('../../config');
 const { db } = require('../../db/connection');
 const { badRequest, notFound, unauthorized } = require('../../utils/http');
+const { pagination } = require('../../utils/pagination');
 const { purgeConversation, invalidateConv } = require('../messages/shared');
 const messages = require('../messages/messages.service');
 const moments = require('../moments/moments.service');
@@ -113,8 +114,7 @@ function stats(onlineCount) {
 const escapeLike = s => s.replace(/[%_\\]/g, c => '\\' + c);
 
 function listUsers({ q, limit = 30, offset = 0, banned, period, online }) {
-  const lim = Math.min(parseInt(limit) || 30, 100);
-  const off = Math.max(parseInt(offset) || 0, 0);
+  const { limit: lim, offset: off } = pagination({ limit, offset }, 100);
   const like = q ? `%${escapeLike(q)}%` : null;
   const truthy = v => v === '1' || v === 1 || v === true;
 
@@ -328,8 +328,7 @@ function deleteUser(io, id) {
 
 // ── 消息监控（今日 / 搜索）──────────────────────────────────────
 function listMessages({ q, period, limit = 30, offset = 0 }) {
-  const lim = Math.min(parseInt(limit) || 30, 100);
-  const off = Math.max(parseInt(offset) || 0, 0);
+  const { limit: lim, offset: off } = pagination({ limit, offset }, 100);
   const conds = ['m.deleted=0'], args = [];
   if (period === 'today') { conds.push('m.created_at > ?'); args.push(Math.floor(Date.now() / 1000) - 86400); }
   if (q) { conds.push("m.content LIKE ? ESCAPE '\\'"); args.push(`%${escapeLike(q)}%`); }
@@ -356,8 +355,7 @@ function deleteMessage(io, msgId) {
 
 // ── 群列表 / 详情 / 解散 ────────────────────────────────────────
 function listGroups({ q, limit = 30, offset = 0 }) {
-  const lim = Math.min(parseInt(limit) || 30, 100);
-  const off = Math.max(parseInt(offset) || 0, 0);
+  const { limit: lim, offset: off } = pagination({ limit, offset }, 100);
   const like = q ? `%${escapeLike(q)}%` : null;
   const where = q ? "AND (c.name LIKE ? ESCAPE '\\' OR c.group_number LIKE ? ESCAPE '\\')" : '';
   const args = q ? [like, like] : [];
@@ -498,7 +496,7 @@ function setFeatures({ moments, collect, inviteRequired, groupVoiceCall, groupVi
 
 // ── 邀请裂变排行榜（后台）：谁拉新最多 ─────────────────────────
 function topInviters({ limit = 20 } = {}) {
-  const lim = Math.min(parseInt(limit) || 20, 100);
+  const { limit: lim } = pagination({ limit }, 100);
   // 只统计真实存在的邀请人（invited_by 指向的用户），按被邀人数降序
   const rows = db.prepare(`
     SELECT u.id, u.username, u.wechat_id, u.avatar, u.banned,
@@ -515,8 +513,7 @@ function topInviters({ limit = 20 } = {}) {
 
 // ── 朋友圈举报队列（MO6 后台）──────────────────────────────────
 function listReports({ status = 'pending', limit = 30, offset = 0 } = {}) {
-  const lim = Math.min(parseInt(limit) || 30, 100);
-  const off = Math.max(parseInt(offset) || 0, 0);
+  const { limit: lim, offset: off } = pagination({ limit, offset }, 100);
   const st = ['pending', 'reviewed', 'dismissed'].includes(status) ? status : 'pending';
   const total = db.prepare('SELECT COUNT(*) n FROM moment_reports WHERE status=?').get(st).n;
   const rows = db.prepare(`

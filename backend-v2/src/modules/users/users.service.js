@@ -267,8 +267,7 @@ function getCollections(userId, { type, limit, offset } = {}) {
   const conds = ['user_id=?'];
   const params = [userId];
   if (type && ['text', 'image', 'file', 'video'].includes(type)) { conds.push('type=?'); params.push(type); }
-  const lim = Math.min(Math.max(parseInt(limit) || 100, 1), 100);
-  const off = Math.max(parseInt(offset) || 0, 0);
+  const { limit: lim, offset: off } = pagination({ limit: limit === undefined ? 100 : limit, offset }, 100);
   let sql = `SELECT * FROM collections WHERE ${conds.join(' AND ')} ORDER BY created_at DESC LIMIT ? OFFSET ?`;
   params.push(lim, off);
   return db.prepare(sql).all(...params).map(i => ({ ...i, extra: parseExtra(i.extra) }));
@@ -301,8 +300,7 @@ function addCollection(userId, { type, content, extra }) {
 // 注：放在 getCollection 之前定义无所谓，路由层须保证 /search 在 /:id 之前注册
 function searchCollections(userId, { q, type, limit = 20, offset = 0 } = {}) {
   const kw = (typeof q === 'string' ? q : '').trim();
-  const lim = Math.min(Math.max(parseInt(limit) || 20, 1), 50);
-  const off = Math.max(parseInt(offset) || 0, 0);
+  const { limit: lim, offset: off } = pagination({ limit, offset }, 50);
   if (!kw) return paginated([], { total: 0, limit: lim, offset: off });
 
   const conds = ['user_id=?', 'content LIKE ? ESCAPE \'\\\''];

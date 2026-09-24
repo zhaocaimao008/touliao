@@ -10,6 +10,18 @@ const auth = require('../middleware/auth');
 const adminAuth = require('../middleware/adminAuth');
 const { badRequest, forbidden } = require('../utils/http');
 const { requireMessageAccess } = require('../utils/messageAuthorization');
+const { pagination } = require('../utils/pagination');
+
+// 搜索排序 / 建议的输入边界：query、prefix 为有限长度字符串，待排序消息与建议条数有上限。
+const MAX_QUERY_LENGTH = 100;
+const MAX_RANK_MESSAGES = 500;
+const MAX_SUGGESTIONS = 20;
+function searchText(value, name, { allowEmpty = false } = {}) {
+  if (typeof value !== 'string' || value.length > MAX_QUERY_LENGTH || (!allowEmpty && !value.trim())) {
+    throw badRequest(`${name} 必须是 1-${MAX_QUERY_LENGTH} 字的字符串`);
+  }
+  return value;
+}
 
 /**
  * @swagger
@@ -34,24 +46,26 @@ const { requireMessageAccess } = require('../utils/messageAuthorization');
  */
 router.post('/search/rank', auth, async (req, res, next) => {
   try {
-    const { messages, query } = req.body;
+    const { messages } = req.body;
+    const query = searchText(req.body.query, 'query');
+    if (!Array.isArray(messages) || messages.length > MAX_RANK_MESSAGES) {
+      throw badRequest(`messages 必须是最多 ${MAX_RANK_MESSAGES} 条的数组`);
+    }
     const searchRanking = req.app.get('searchRanking');
-    
+
     if (!searchRanking) {
       throw badRequest('搜索排序引擎未初始化');
     }
 
-    // 记录搜索查询
-    await searchRanking.recordSearch(query);
+    // 只记录本人的搜索历史（供本人的建议使用）。不再写入、也不再返回全站热词：
+    // 热词由其他用户的原始搜索词构成，返回给任意登录用户会泄露他人搜索内容。
     await searchRanking.recordUserSearch(req.user.id, query);
 
-    // 排序结果
     const ranked = searchRanking.rankResults(messages, query);
 
     res.json({
       results: ranked,
       count: ranked.length,
-      trending: await searchRanking.getSearchTrending(10),
     });
   } catch (err) {
     next(err);
@@ -75,14 +89,14 @@ router.post('/search/rank', auth, async (req, res, next) => {
  */
 router.get('/search/suggestions', auth, async (req, res, next) => {
   try {
-    const { prefix = '', limit = 5 } = req.query;
+    const prefix = searchText(req.query.prefix === undefined ? '' : req.query.prefix, 'prefix', { allowEmpty: true });
+    const { limit } = pagination({ limit: req.query.limit === undefined ? 5 : req.query.limit }, MAX_SUGGESTIONS);
     const searchRanking = req.app.get('searchRanking');
+    if (!searchRanking) {
+      throw badRequest('搜索排序引擎未初始化');
+    }
 
-    const suggestions = await searchRanking.getSearchSuggestions(
-      req.user.id,
-      prefix,
-      parseInt(limit)
-    );
+    const suggestions = await searchRanking.getSearchSuggestions(req.user.id, prefix, limit);
 
     res.json({ suggestions });
   } catch (err) {

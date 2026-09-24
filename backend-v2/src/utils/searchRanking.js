@@ -139,6 +139,8 @@ class SearchRanking {
    * 获取搜索热词排行
    */
   async getSearchTrending(limit = 20) {
+    // 防御：非正整数一律按默认值，上限 50（slice 的负数参数会返回几乎全部热词）。
+    const n = Number.isSafeInteger(limit) && limit > 0 ? Math.min(limit, 50) : 20;
     try {
       const pattern = 'search:query:*';
       const keys = await redis.keys(pattern);
@@ -152,7 +154,7 @@ class SearchRanking {
 
       return Object.entries(trending)
         .sort((a, b) => b[1] - a[1])
-        .slice(0, limit)
+        .slice(0, n)
         .map(([query, count]) => ({ query, count }));
     } catch (err) {
       console.error('[Ranking] 获取热词失败:', err.message);
@@ -176,9 +178,11 @@ class SearchRanking {
   }
 
   /**
-   * 获取个性化搜索建议
+   * 获取个性化搜索建议：只来自本人的搜索历史，不混入他人的搜索词（全站热词）。
    */
   async getSearchSuggestions(userId, prefix, limit = 5) {
+    const n = Number.isSafeInteger(limit) && limit > 0 ? Math.min(limit, 20) : 5;
+    const lowerPrefix = String(prefix || '').toLowerCase();
     try {
       // 用户搜索历史
       const userPattern = `user:search:${userId}:*`;
@@ -187,23 +191,15 @@ class SearchRanking {
       const suggestions = [];
       for (const key of userKeys) {
         const query = key.replace(`user:search:${userId}:`, '');
-        if (query.toLowerCase().startsWith(prefix.toLowerCase())) {
+        if (query.toLowerCase().startsWith(lowerPrefix)) {
           const count = await redis.get(key);
           suggestions.push({ query, count: parseInt(count) || 0 });
         }
       }
 
-      // 合并全局热词
-      const trending = await this.getSearchTrending(limit);
-      for (const item of trending) {
-        if (!suggestions.find(s => s.query === item.query)) {
-          suggestions.push(item);
-        }
-      }
-
       return suggestions
         .sort((a, b) => b.count - a.count)
-        .slice(0, limit);
+        .slice(0, n);
     } catch (err) {
       console.error('[Ranking] 获取建议失败:', err.message);
       return [];

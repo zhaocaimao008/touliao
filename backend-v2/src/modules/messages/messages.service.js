@@ -1172,8 +1172,7 @@ function getReadStates(convId, userId, msgIdsParam) {
 function getConversationFiles(convId, userId, { type = 'all', offset = 0, limit = 50 }) {
   requireMember(convId, userId);
 
-  const safeLimit  = Math.min(Math.max(parseInt(limit)  || 50, 1), 100);
-  const safeOffset = Math.max(parseInt(offset) || 0, 0);
+  const { limit: safeLimit, offset: safeOffset } = pagination({ limit, offset }, 100);
 
   // type 参数映射到 SQL 条件（参数化，防 SQL 注入）
   const VALID_TYPES = { image: ['image'], video: ['video'], file: ['file'], all: ['image', 'video', 'file'] };
@@ -1221,7 +1220,7 @@ function getConversationFiles(convId, userId, { type = 'all', offset = 0, limit 
 // 改动破坏，只是拿不到新分页方式修复的"翻页时插入/删除导致重复或漏读"这个问题，
 // 直到客户端升级为止。不需要强制四端同步发版。
 function getMentions(userId, { offset = 0, limit = 20, before, beforeId }) {
-  const safeLimit = Math.min(Math.max(parseInt(limit) || 20, 1), 50);
+  const { limit: safeLimit, offset: safeOffset } = pagination({ limit, offset }, 50);
 
   // 查当前用户昵称（@提及用 @username 形式存在 content 里）
   const me = db.prepare('SELECT username FROM users WHERE id=?').get(userId);
@@ -1277,7 +1276,6 @@ function getMentions(userId, { offset = 0, limit = 20, before, beforeId }) {
     `).all(...baseParams, ...cursorParams, safeLimit + 1);
   } else {
     // 兼容分支：旧客户端 / 首屏加载（两者都不带 before）。
-    const safeOffset = Math.max(parseInt(offset) || 0, 0);
     rows = db.prepare(`
       SELECT m.id, m.conversation_id, m.content, m.created_at, m.sender_id,
              COALESCE(u.username, '') AS sender_name, c.name AS conv_name, c.type AS conv_type
