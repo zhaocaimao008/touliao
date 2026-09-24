@@ -61,9 +61,11 @@ async function scanFile(filePath, kind) {
   try {
     temp = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'touliao-media-scan-'));
     if (kind === 'image') {
+      let compression;
       try {
         const options = { limitInputPixels: 40_000_000, failOn: 'error' };
         const meta = await sharp(filePath, options).metadata();
+        compression = meta.compression;
         const pages = meta.pages || 1;
         const n = Math.min(pages, c.maxFrames);
         for (let i = 0; i < n; i++) {
@@ -72,7 +74,11 @@ async function scanFile(filePath, kind) {
             .resize({ width: 640, height: 640, fit: 'inside', withoutEnlargement: true })
             .jpeg().toFile(path.join(temp, `${String(i).padStart(3, '0')}.jpg`));
         }
-      } catch { throw new ApiError(400, '图片损坏、尺寸过大或格式无法解析', 'INVALID_MEDIA'); }
+      } catch {
+        // 预编译 sharp 只含 AVIF 解码，HEIC(HEVC) 读得出尺寸但解不出像素；旧版手机客户端会原样上传相册 HEIC
+        if (compression === 'hevc') throw new ApiError(400, '暂不支持 HEIC 格式图片，请升级投聊，或在相机设置中改用"兼容性最佳"格式', 'UNSUPPORTED_IMAGE_FORMAT');
+        throw new ApiError(400, '图片损坏、尺寸过大或格式无法解析', 'INVALID_MEDIA');
+      }
     }
     return await runWorker(['--kind', kind, '--input', path.resolve(filePath), '--work-dir', temp]);
   } finally {

@@ -73,3 +73,9 @@ test('timeout kills the worker group, rejects, removes staging and releases the 
   worker(decision('approved'));
   await expect(scanner.assertAccepted(image, 'image')).resolves.toMatchObject({ status: 'approved' });
 });
+
+test('HEVC-encoded HEIC (phone album default) gets an actionable format error, not "corrupt"', async () => {
+  const file = path.join(__dirname, 'fixtures', 'photo-hevc.heic');
+  await expect(scanner.assertAccepted(file, 'image')).rejects.toMatchObject({ status: 400, code: 'UNSUPPORTED_IMAGE_FORMAT' });
+  expect(spawn).not.toHaveBeenCalled();
+});

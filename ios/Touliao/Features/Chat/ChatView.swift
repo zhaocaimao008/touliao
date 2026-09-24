@@ -866,7 +866,7 @@ struct ChatView: View {
             defer { photoItem = nil }
             guard let data = try? await item.loadTransferable(type: Data.self) else { return }
             let image = UIImage(data: data)
-            let jpeg = image?.jpegData(compressionQuality: 0.85) ?? data
+            let jpeg = UploadImage.jpeg(from: data, quality: 0.85) ?? data
             let name = "image_\(Int(Date().timeIntervalSince1970)).jpg"
             vm.upload(data: jpeg, fileName: name, mimeType: "image/jpeg", localType: "image", preview: image)
         }
@@ -948,7 +948,7 @@ struct ChatView: View {
         Task {
             defer { bgPhotoItem = nil }
             guard let data = try? await item.loadTransferable(type: Data.self) else { return }
-            let jpeg = UIImage(data: data)?.jpegData(compressionQuality: 0.85) ?? data
+            let jpeg = UploadImage.jpeg(from: data, quality: 0.85) ?? data
             let name = "bg_\(Int(Date().timeIntervalSince1970)).jpg"
             vm.setBackground(data: jpeg, fileName: name)
         }
@@ -959,7 +959,7 @@ struct ChatView: View {
         Task {
             defer { stickerPhotoItem = nil }
             guard let data = try? await item.loadTransferable(type: Data.self) else { return }
-            let jpeg = UIImage(data: data)?.jpegData(compressionQuality: 0.9) ?? data
+            let jpeg = UploadImage.jpeg(from: data, quality: 0.9) ?? data
             let name = "sticker_\(Int(Date().timeIntervalSince1970)).jpg"
             vm.uploadSticker(data: jpeg, fileName: name)
         }

@@ -81,7 +81,7 @@ final class MomentComposeViewModel: ObservableObject {
                 var urls: [String] = []
                 if mediaMode != "video" && !images.isEmpty {
                     let datas = images.compactMap { img -> (Data, String)? in
-                        guard let d = img.jpegData(compressionQuality: 0.85) else { return nil }
+                        guard let d = UploadImage.jpeg(from: img, quality: 0.85) else { return nil }
                         return (d, "moment.jpg")
                     }
                     urls = try await repo.uploadImages(datas)
