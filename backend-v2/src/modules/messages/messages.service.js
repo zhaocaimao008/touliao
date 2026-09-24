@@ -8,6 +8,7 @@ const { db } = require('../../db/connection');
 const { writeAsync, writeBatch, SEQUENCE_PARAM } = require('../../db/writer');
 const config = require('../../config');
 const { badRequest, forbidden, notFound, conflict } = require('../../utils/http');
+const { pagination } = require('../../utils/pagination');
 const { collectionDedupKey } = require('../../utils/collections');
 const { canUseMessageCache, isMember, requireMember, memberRole, buildMessage, privateSendGuard } = require('./shared');
 const cache = require('../../utils/cache');
@@ -704,8 +705,9 @@ async function searchGlobal(userId, { q, limit = 20, offset = 0, type, from, to,
   if ((!q || !q.trim()) && !hasFilters) return { results: [], total: 0 };
   if (q && q.length > 100) throw badRequest('搜索词过长');
 
-  const safeLimit = Math.min(parseInt(limit) || 20, 50);
-  const safeOffset = Math.min(Math.max(parseInt(offset) || 0, 0), 10000);
+  // 负数/小数/非数字 limit 一律 400（SQLite 的 LIMIT -1 等于不限条数），合法值再压到上限；深翻页仍封顶 10000。
+  const { limit: safeLimit, offset: validOffset } = pagination({ limit, offset }, 50);
+  const safeOffset = Math.min(validOffset, 10000);
 
   if (hasFilters) {
     const typeList = type ? String(type).split(',').map(s => s.trim()).filter(Boolean).slice(0, 10) : null;
