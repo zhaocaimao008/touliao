@@ -156,7 +156,12 @@ async function register({ username, phone, password, inviteCode, legalConsent },
   return { token: signToken({ id, username }, jti), user };
 }
 async function login({ phone, password, captchaId, captchaText, legalConsent }, req) {
-  require('../legal/legal.service').requireConsent(legalConsent);
+  // 协议同意：注册时强制；登录时仅在客户端携带该字段时严格校验（未勾选 / null / 版本过期一律拒绝）。
+  // 已发布的 Windows 8.1.31、iOS/Android 旧包登录页没有勾选框、根本不发这个字段——2026-09-20 起
+  // 登录一律强制后，这些客户端的用户退出后就再也登不进来。缺字段视为旧客户端：允许登录，但不记录同意，
+  // 依赖已记录同意的能力（如钱包账号切换）仍然不可用。
+  const consentProvided = legalConsent !== undefined;
+  if (consentProvided) require('../legal/legal.service').requireConsent(legalConsent);
   if (typeof phone !== 'string' || typeof password !== 'string' || !phone || !password) throw badRequest('请填写手机号和密码');
   // 图形验证码：开关开启时强制校验，且必须先于密码比对完成（不能等密码验证过了才发现验证码错，
   // 那样验证码就形同虚设，暴力破解者可以完全绕过它反复试密码）。
@@ -174,7 +179,7 @@ async function login({ phone, password, captchaId, captchaText, legalConsent }, 
     const current = db.prepare('SELECT password,banned FROM users WHERE id=?').get(user.id);
     if (!current || current.password !== user.password) throw badRequest('手机号或密码错误');
     if (current.banned) throw forbidden('账号已被封禁，请联系管理员');
-    require('../legal/legal.service').recordConsent(user.id);
+    if (consentProvided) require('../legal/legal.service').recordConsent(user.id);
     const jti = req ? upsertSession(user.id, req) : undefined;
     return { token: signToken(user, jti), user: serializeUser(user) };
   })();
