@@ -14,8 +14,8 @@
 | 桌面端（Windows/Mac/Linux） | `desktop-electron/package.json` | `version` | 8.1.32 |
 | Web 前端 | `web/package.json` | `version` | 8.1.19 |
 | 后端 | `backend-v2/package.json` | `version` | 8.0.1 |
-| Android | `android/app/build.gradle.kts` | `versionName` / `versionCode` | 8.1.27 / code 84 |
-| iOS | `ios/project.yml` | `MARKETING_VERSION` / `CURRENT_PROJECT_VERSION` | 8.1.26 / build 由 TestFlight 流水线按时间戳生成 |
+| Android | `android/app/build.gradle.kts` | `versionName` / `versionCode` | 8.1.28 / code 85 |
+| iOS | `ios/project.yml` | `MARKETING_VERSION` / `CURRENT_PROJECT_VERSION` | 8.1.27 / build 由 TestFlight 流水线按时间戳生成 |
 | 运行时发现配置（不在本仓库） | 生产机 `/var/www/touliao-runtime-config/{config.json,directory.json}` | `api` / 租户代码表 | 运维手工维护 |
 
 > 桌面端走 electron-updater：`latest.yml` 的 `version` **必须**等于
