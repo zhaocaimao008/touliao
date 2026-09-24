@@ -11,10 +11,18 @@ test.each(['privacy','terms'])('%s is publicly readable and versioned', async ki
   const r = await request(app).get(`/api/legal/${kind}`);
   expect(r.status).toBe(200); expect(r.body.version).toBe(version); expect(r.body.text.length).toBeGreaterThan(300);
 });
-test.each([undefined, { ...consent, accepted: false }, { ...consent, privacyVersion: 'old' }])('login rejects absent, false or stale consent', async legalConsent => {
+test.each([null, { ...consent, accepted: false }, { ...consent, accepted: 'true' }, { ...consent, privacyVersion: 'old' }])('login rejects explicit false, null or stale consent', async legalConsent => {
   const r = await request(app).post('/api/auth/login').send({ ...credentials, legalConsent });
   expect(r.status).toBe(400); expect(r.body.error_code).toBe('LEGAL_CONSENT_REQUIRED');
   expect(db.prepare('SELECT COUNT(*) n FROM auth_sessions WHERE user_id=?').get('f07-user').n).toBe(0);
+});
+test('legacy clients without a consent field can log in, but no consent is recorded', async () => {
+  // Windows 8.1.31 / 旧 iOS、Android 包的登录页没有勾选框，请求体里不带 legalConsent。
+  const before = db.prepare('SELECT COUNT(*) n FROM legal_consents WHERE user_id=?').get('f07-user').n;
+  const r = await request(app).post('/api/auth/login').send({ ...credentials });
+  expect(r.status).toBe(200); expect(r.body.token).toBeTruthy();
+  expect(db.prepare('SELECT COUNT(*) n FROM legal_consents WHERE user_id=?').get('f07-user').n).toBe(before);
+  db.prepare('DELETE FROM auth_sessions WHERE user_id=?').run('f07-user');
 });
 test('registration rejects before creating an account', async () => {
   const r = await request(app).post('/api/auth/register').send({ username: 'f07-new', phone: '13007000002', password: 'Testpass123', inviteCode: '123456' });
