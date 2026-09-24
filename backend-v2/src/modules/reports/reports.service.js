@@ -2,6 +2,7 @@
 const { randomUUID } = require('crypto');
 const { db } = require('../../db/connection');
 const { badRequest, notFound, forbidden, conflict } = require('../../utils/http');
+const { pagination } = require('../../utils/pagination');
 const statuses = ['pending','reviewing','resolved','dismissed'];
 function snapshotFor(userId, type, id) {
   if (type === 'support' && id === 'support') return '客服问题';
@@ -44,8 +45,7 @@ function create(userId, body={}) {
   })();
 }
 function list(userId, query={}, admin=false) {
-  const limit = Math.max(1,Math.min(parseInt(query.limit)||30,100));
-  const offset = Math.max(0,parseInt(query.offset)||0);
+  const { limit, offset } = pagination({ limit: query.limit === undefined ? 30 : query.limit, offset: query.offset }, 100);
   const where = []; const params = [];
   if (!admin) { where.push('reporter_id=?'); params.push(userId); }
   if (query.status) {
