@@ -80,7 +80,7 @@ final class GroupInfoViewModel: ObservableObject {
         Task {
             defer { uploadingAvatar = false }
             do {
-                let jpeg = UIImage(data: data)?.jpegData(compressionQuality: 0.85) ?? data
+                let jpeg = UploadImage.jpeg(from: data, quality: 0.85) ?? data
                 let url = try await repo.setAvatar(conversationId, data: jpeg, fileName: "group.jpg")
                 info?.avatar = url
             } catch { self.error = (error as? LocalizedError)?.errorDescription ?? "群头像上传失败" }

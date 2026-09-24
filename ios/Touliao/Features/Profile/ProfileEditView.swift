@@ -169,7 +169,7 @@ struct ProfileEditView: View {
         Task {
             defer { uploadingAvatar = false; photoItem = nil }
             guard let data = try? await item.loadTransferable(type: Data.self) else { return }
-            let jpeg = UIImage(data: data)?.jpegData(compressionQuality: 0.85) ?? data
+            let jpeg = UploadImage.jpeg(from: data, quality: 0.85) ?? data
             do {
                 let url = try await repo.uploadAvatar(data: jpeg, fileName: "avatar.jpg")
                 if let user = session.currentUser {
