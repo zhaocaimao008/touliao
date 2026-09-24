@@ -97,4 +97,9 @@ class Publication8131(Publication):
     previous_version = '8.1.30'
 
 
+class Publication8132(Publication):
+    version = '8.1.32'
+    previous_version = '8.1.31'
+
+
 if __name__ == '__main__': unittest.main()

@@ -202,7 +202,6 @@ export default function Login() {
 
         {/* 登录表单 */}
         <form className="auth-form" onSubmit={handleSubmit}>
-          <LegalConsent value={legalConsent} onChange={setLegalConsent} />
           <TouliaoField id="login-phone" data-testid="login-phone-input" label={t('auth.phone')}
             icon={<TouliaoIcon name="phoneNumber" className="auth-field-icon" size="sm" />}
             type="tel" inputMode="tel" autoComplete="username" placeholder={t('auth.phonePlaceholder')}
@@ -265,6 +264,7 @@ export default function Login() {
             <Link to="/forgot-password" className="auth-link" style={{ fontSize: 'var(--text-sm2)' }}>{t('auth.forgotPasswordLink')}</Link>
           </div>
 
+          <LegalConsent value={legalConsent} onChange={setLegalConsent} />
           <PrimaryButton type="submit" className="auth-submit" data-testid="login-submit-btn" loading={loading} disabled={!legalConsent?.accepted || !phone || !password || (captchaRequired && !captchaText)}>
             {t('auth.loginBtn')}
           </PrimaryButton>

@@ -2,7 +2,7 @@
 const fs = require('node:fs'), path = require('node:path'), crypto = require('node:crypto');
 const assert = require('node:assert/strict');
 const approval = process.argv[3] || '8127';
-assert.ok(['8127', '8129'].includes(approval), 'Exact user-approved release only');
+assert.ok(['8127', '8129', '8132'].includes(approval), 'Exact user-approved release only');
 const spec = require(`./windows-${approval}-publication.json`);
 const dir = path.resolve(process.argv[2]);
 for (const [name, expected] of Object.entries(spec.files)) {
