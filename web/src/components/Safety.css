@@ -5,3 +5,9 @@
 .safety-dialog textarea { display:block; width:100%; min-height:90px; margin:12px 0; }
 .safety-dialog article { border-top:1px solid #aaa; margin-top:12px; padding-top:12px; overflow-wrap:anywhere; }
 .safety-dialog button,.safety-links button { padding:8px; cursor:pointer; }
+/* 登录 / 注册：勾选框在前，两个协议链接紧随其后，同一行紧凑排列，位于提交按钮正上方。 */
+.auth-form .safety-links { padding: 0; margin: 4px 0 12px; gap: 2px 10px; font-size: 12px; line-height: 1.5; color: var(--text-secondary, #666); }
+.auth-form .safety-links label { order: -1; gap: 6px; cursor: pointer; }
+.auth-form .safety-links > button { padding: 0; border: 0; background: none; color: var(--color-primary, #6d5ae6); font-size: 12px; cursor: pointer; }
+.auth-form .safety-links > button:hover { text-decoration: underline; }
+.auth-form .safety-links [role="alert"] { flex-basis: 100%; color: var(--color-danger, #e5484d); }

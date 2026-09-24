@@ -32,7 +32,7 @@ def replace_copy(source, target, run_id):
 
 def validate_stage(stage):
     spec = json.loads((stage / 'spec.json').read_text())
-    require((spec['version'], spec['previousVersion']) in {('8.1.27', '8.1.26'), ('8.1.29', '8.1.27'), ('8.1.30', '8.1.29'), ('8.1.31', '8.1.30')},
+    require((spec['version'], spec['previousVersion']) in {('8.1.27', '8.1.26'), ('8.1.29', '8.1.27'), ('8.1.30', '8.1.29'), ('8.1.31', '8.1.30'), ('8.1.32', '8.1.31')},
             'Only the approved version pair is allowed')
     installer = f"touliao-{spec['version']}-setup.exe"
     names = {'latest.yml', 'latest.yml.sig', installer, installer + '.blockmap'}

@@ -100,7 +100,6 @@ export default function Register() {
         </div>
 
         <form className="auth-form" onSubmit={handleSubmit}>
-          <LegalConsent value={legalConsent} onChange={setLegalConsent} />
           {inviteRequired && (
             <div className="auth-note">
               {t('auth.inviteCodeHint')}
@@ -124,6 +123,7 @@ export default function Register() {
             </div>
           )}
 
+          <LegalConsent value={legalConsent} onChange={setLegalConsent} />
           <PrimaryButton type="submit" data-testid="register-submit-btn" className="auth-submit" loading={loading} disabled={!legalConsent?.accepted || !form.username || !form.phone || !form.password || (inviteRequired && !form.inviteCode)}>
             {t('auth.registerBtn')}
           </PrimaryButton>
