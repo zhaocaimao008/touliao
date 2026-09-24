@@ -70,5 +70,34 @@ class AndroidPublicationTests(unittest.TestCase):
         self.assertEqual(json.loads(self.current.read_text())['versionCode'], 83)
 
 
+class ReleaseNotes(unittest.TestCase):
+    def setUp(self):
+        import importlib.util as u
+        spec = u.spec_from_file_location('verifier', Path(__file__).with_name('verify-android-release.py'))
+        self.v = u.module_from_spec(spec); spec.loader.exec_module(self.v)
+        self.dir = tempfile.TemporaryDirectory(); self.addCleanup(self.dir.cleanup)
+        self.path = Path(self.dir.name) / 'notes.json'
+    def write(self, **data): self.path.write_text(json.dumps(data, ensure_ascii=False))
+    def test_accepts_current_version_notes(self):
+        self.write(versionName='8.1.27', notes='本版本改动')
+        self.assertEqual(self.v.release_notes(self.path, '8.1.27', '旧说明'), '本版本改动')
+    def test_rejects_stale_version(self):
+        self.write(versionName='8.1.26', notes='本版本改动')
+        with self.assertRaises(SystemExit): self.v.release_notes(self.path, '8.1.27', '旧说明')
+    def test_rejects_reused_previous_notes(self):
+        self.write(versionName='8.1.27', notes='旧说明 ')
+        with self.assertRaises(SystemExit): self.v.release_notes(self.path, '8.1.27', '旧说明')
+    def test_rejects_empty_or_overlong_notes(self):
+        for notes in ['', '   ', 'x' * 201, None]:
+            self.write(versionName='8.1.27', notes=notes)
+            with self.assertRaises(SystemExit): self.v.release_notes(self.path, '8.1.27', '旧说明')
+    def test_repository_notes_match_gradle_version(self):
+        import re
+        root = Path(__file__).resolve().parents[1]
+        gradle = (root / 'android/app/build.gradle.kts').read_text()
+        name = re.search(r'versionName\s*=\s*"([^"]+)"', gradle)[1]
+        self.assertEqual(json.loads((root / 'android/release-notes.json').read_text())['versionName'], name)
+
+
 if __name__ == '__main__':
     unittest.main()

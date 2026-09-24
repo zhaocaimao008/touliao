@@ -60,6 +60,18 @@ def inspect(apk):
     }
 
 
+def release_notes(path, version_name, previous_notes):
+    """每次发版必须提供本版本的更新说明（App 更新弹窗原样展示给用户），不得沿用上一版文案。"""
+    data = json.loads(Path(path).read_text())
+    require(data.get("versionName") == version_name,
+            f"android/release-notes.json 的 versionName 必须是 {version_name}，请为本次发版更新说明")
+    notes = data.get("notes")
+    require(isinstance(notes, str) and notes.strip(), "更新说明不能为空")
+    require(len(notes) <= 200, "更新说明不超过 200 字")
+    require(notes.strip() != (previous_notes or "").strip(), "更新说明与上一版相同，请写本版本的改动")
+    return notes.strip()
+
+
 def version(value):
     require(re.fullmatch(r"\d+\.\d+\.\d+", value), "Release version must be numeric x.y.z")
     return tuple(map(int, value.split(".")))
@@ -71,6 +83,7 @@ def main():
     p.add_argument("--baseline-apk", type=Path, required=True)
     p.add_argument("--baseline-manifest", type=Path, required=True)
     p.add_argument("--output", type=Path, required=True)
+    p.add_argument("--notes", type=Path, default=Path("android/release-notes.json"))
     args = p.parse_args()
     previous = json.loads(args.baseline_manifest.read_text())
     old = inspect(args.baseline_apk)
@@ -95,13 +108,14 @@ def main():
             require(marker not in dex, "Review-only classes or endpoints found in release APK")
         require(b"https://touliao.cc" in dex, "Production service default missing")
         require(not any(name.endswith("fixtures.json") for name in z.namelist()), "Test fixtures included in release APK")
+    notes = release_notes(args.notes, new["versionName"], previous.get("notes"))
     args.output.mkdir(parents=True, exist_ok=True)
     result = {"previous": old, "release": new, "signerMatches": True, "upgradeVersionIncreases": True,
               "releaseConfiguration": True, "productionEndpoint": "https://touliao.cc", "commit": os.environ.get("GITHUB_SHA", "")}
     (args.output / "verification.json").write_text(json.dumps(result, ensure_ascii=False, indent=2) + "\n")
     manifest = {"versionCode": new["versionCode"], "versionName": new["versionName"],
                 "url": f"https://touliao.cc/downloads/touliao-android-{new['versionName']}.apk",
-                "notes": "统一主题、字体、图标和聊天等原生界面，改善深浅模式、键盘与大字号布局。",
+                "notes": notes,
                 "sha256": new["sha256"]}
     (args.output / "new-version.json").write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + "\n")
     print(json.dumps(result, ensure_ascii=False, indent=2))
