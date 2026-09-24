@@ -1,0 +1,18 @@
+{
+  "version": "8.1.32",
+  "previousVersion": "8.1.31",
+  "buildRun": "35954672721",
+  "buildCommit": "70486d415797281b2bef6658d82efd7feda2d9bb",
+  "authorization": "User explicitly approved on 2026-09-24: 'Windows打新版 批准不签名发布'. Same no-Authenticode policy as 8.1.29-8.1.31 (repository has no WINDOWS_CERTIFICATE_BASE64). Exact artifact only; retain Ed25519 manifest signature, installer digest binding, pre-publication candidate upgrade from the real published 8.1.31, and rollback backup.",
+  "authenticode": false,
+  "candidateFeed": "https://touliao.cc/downloads/updates/candidates/8132-35954672721",
+  "previousInstallerSha256": "2f954f051f1bb077e25c7b9e57630542d22b8218d80610f50f0c440cf29b3bf7",
+  "previousManifestSha256": "6f699b7f0e31ad6ab413975107ef093ea9e2c3e4ddd507082852f3df5d37e947",
+  "previousSignatureSha256": "90dea33e2501267a4ff54d0e978593ea56760845c6dcfba9f4369efd31506f07",
+  "files": {
+    "latest.yml": "5f7a3459affe7b1b69922f25bf56967297ac56bdabccfda5c5c84170033e2305",
+    "latest.yml.sig": "6124a9a45f3f4d4faab4cf08822a50ace86a274689a3c1a762392dbb16311c01",
+    "touliao-8.1.32-setup.exe": "e36be9b2edfd0cb728617b26c95b62c0c4aec9c0a14e0c97ec15ea032a6bf7d6",
+    "touliao-8.1.32-setup.exe.blockmap": "2a728f4251b90d0676585d6b25830297715e5371b0b3b871cacb83cb6d8745fe"
+  }
+}
