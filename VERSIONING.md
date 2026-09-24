@@ -3,7 +3,7 @@
 > 目的：终结历史上「一个裸 `v*` tag 同时误触发桌面端 + 安卓 + iOS 发布」和
 > 「tag 数字与实际产物版本对不上」的混乱。本规范为唯一真相来源。
 >
-> 表格版本号最后校对：2026-09-15（校对方式：直接读各端 manifest，不抄旧文档）。
+> 表格版本号最后校对：2026-09-24（校对方式：直接读各端 manifest，不抄旧文档）。
 
 ## 1. 各端版本号 = 各自的 manifest（单一真相源 / SSOT）
 
@@ -11,11 +11,11 @@
 
 | 端 | 版本真相源文件 | 字段 | 当前版本 |
 |----|--------------|------|---------|
-| 桌面端（Windows/Mac/Linux） | `desktop-electron/package.json` | `version` | 8.1.26 |
+| 桌面端（Windows/Mac/Linux） | `desktop-electron/package.json` | `version` | 8.1.32 |
 | Web 前端 | `web/package.json` | `version` | 8.1.19 |
 | 后端 | `backend-v2/package.json` | `version` | 8.0.1 |
-| Android | `android/app/build.gradle.kts` | `versionName` / `versionCode` | 8.1.18 / code 80 |
-| iOS | `ios/project.yml` | `MARKETING_VERSION` / `CURRENT_PROJECT_VERSION` | 8.1.18 / build 37 |
+| Android | `android/app/build.gradle.kts` | `versionName` / `versionCode` | 8.1.27 / code 84 |
+| iOS | `ios/project.yml` | `MARKETING_VERSION` / `CURRENT_PROJECT_VERSION` | 8.1.26 / build 由 TestFlight 流水线按时间戳生成 |
 | 运行时发现配置（不在本仓库） | 生产机 `/var/www/touliao-runtime-config/{config.json,directory.json}` | `api` / 租户代码表 | 运维手工维护 |
 
 > 桌面端走 electron-updater：`latest.yml` 的 `version` **必须**等于
