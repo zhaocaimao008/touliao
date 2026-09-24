@@ -10,6 +10,14 @@ on:
         description: Publish verified installer to production
         type: boolean
         default: false
+      verify_8132_only:
+        description: 'Verify 8.1.32 through the installed published 8.1.31 updater (no build, no publication)'
+        type: boolean
+        default: false
+      upgrade_candidate:
+        description: 'With verify_8132_only: use the staged candidate feed from scripts/windows-8132-publication.json'
+        type: boolean
+        default: false
   push:
     tags:
       # 仅桌面端专属前缀触发；避免裸 v* 同时误触发 Android/iOS 发布（详见 VERSIONING.md）。
@@ -17,6 +25,7 @@ on:
 
 jobs:
   build:
+    if: ${{ !inputs.verify_8132_only }}
     runs-on: windows-latest
     timeout-minutes: 45
     steps:
@@ -255,3 +264,59 @@ jobs:
           fi
           echo "✅ 部署后验证全部通过：latest.yml / latest.yml.sig / 版本化安装包 / 直链安装包 均可正常访问"
           echo "✅ 已发布到 https://touliao.cc/downloads/touliao-windows-latest.exe"
+
+  # 8.1.32：用户 2026-09-24 明确批准不带 Authenticode 发布（与 8.1.29–8.1.31 相同，仓库未配置
+  # WINDOWS_CERTIFICATE_BASE64）。保留 Ed25519 清单签名、安装包摘要绑定与回滚备份。
+  # 先用候选源验证「线上真实 8.1.31 → 8.1.32」的原生自动升级，通过后再切换正式更新源。
+  verify-existing-8132:
+    if: github.event_name == 'workflow_dispatch' && inputs.verify_8132_only && !inputs.deploy
+    runs-on: windows-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install the actual published 8.1.31 client
+        shell: pwsh
+        run: |
+          $setup = Join-Path $env:RUNNER_TEMP 'old-8.1.31.exe'
+          Invoke-WebRequest https://touliao.cc/downloads/updates/touliao-8.1.31-setup.exe -OutFile $setup
+          if ((Get-FileHash $setup -Algorithm SHA256).Hash.ToLower() -ne '2f954f051f1bb077e25c7b9e57630542d22b8218d80610f50f0c440cf29b3bf7') { throw 'Historical installer changed' }
+          $directory = Join-Path $env:RUNNER_TEMP 'TouliaoLegacy'
+          $p = Start-Process $setup -ArgumentList @('/S', '/currentuser', "/D=$directory") -Wait -PassThru
+          if ($p.ExitCode -ne 0) { throw 'Historical installation failed' }
+          Get-Process touliao -ErrorAction SilentlyContinue | Stop-Process -Force
+          "LEGACY_EXE=$(Join-Path $directory 'touliao.exe')" >> $env:GITHUB_ENV
+          "PLAYWRIGHT_MODULE=$env:RUNNER_TEMP/legacy-driver/node_modules/playwright" >> $env:GITHUB_ENV
+          npm install --prefix "$env:RUNNER_TEMP/legacy-driver" --no-audit --no-fund playwright@1.60.0
+      - name: Select staged candidate feed before publication
+        if: inputs.upgrade_candidate
+        shell: pwsh
+        run: |
+          $spec = Get-Content scripts/windows-8132-publication.json -Raw | ConvertFrom-Json
+          $feed = $spec.candidateFeed
+          if (-not $feed.StartsWith('https://touliao.cc/downloads/updates/candidates/8132-')) { throw 'Unexpected candidate feed' }
+          $config = Join-Path (Split-Path $env:LEGACY_EXE) 'resources/app-update.yml'
+          $before = Get-Content $config -Raw
+          $after = $before.Replace('https://touliao.cc/downloads/updates', $feed)
+          if ($after -eq $before) { throw 'Historical feed not found' }
+          [IO.File]::WriteAllText($config, $after)
+          $storePath = Join-Path $env:APPDATA 'touliao-desktop/config.json'
+          New-Item -ItemType Directory -Path (Split-Path $storePath) -Force | Out-Null
+          $settings = if (Test-Path $storePath) { Get-Content $storePath -Raw | ConvertFrom-Json -AsHashtable } else { @{} }
+          $settings['updateFeed'] = $feed
+          [IO.File]::WriteAllText($storePath, ($settings | ConvertTo-Json -Depth 10))
+          "WINDOWS_CANDIDATE_FEED=$feed" >> $env:GITHUB_ENV
+      - name: Verify real 8.1.31 to 8.1.32 download and native upgrade
+        env:
+          WINDOWS_UPDATE_APPROVAL: '8132'
+        run: node scripts/legacy-update/windows-auto-upgrade.cjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: windows-8132-actual-auto-upgrade
+          path: windows-auto-evidence/
+          if-no-files-found: error
