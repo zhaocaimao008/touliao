@@ -9,9 +9,6 @@ import androidx.compose.material3.Badge
 import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.NavigationBar
-import androidx.compose.material3.NavigationBarItem
-import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -258,12 +255,10 @@ private fun MainFlow(features: Features, unreadTotal: Int = 0, appViewModel: App
         containerColor = MaterialTheme.colorScheme.background,
         bottomBar = {
             if (currentRoute in TAB_ROUTES) {
-                NavigationBar(
-                    containerColor = MaterialTheme.colorScheme.surface,
-                    contentColor = com.touliao.app.ui.theme.VxinBrand,
-                ) {
+                // v4：悬浮胶囊导航（Material 3 Expressive 风格）
+                com.touliao.app.ui.components.FloatingNavBar {
                     visibleTabs.forEach { tab ->
-                        NavigationBarItem(
+                        com.touliao.app.ui.components.FloatingNavItem(
                             modifier = Modifier.testTag("nav-tab-${tab.testKey}"),
                             selected = currentRoute == tab.route,
                             onClick = {
@@ -283,14 +278,7 @@ private fun MainFlow(features: Features, unreadTotal: Int = 0, appViewModel: App
                                     Icon(tab.icon, contentDescription = tab.label, modifier = Modifier.size(com.touliao.app.ui.IconSize.Md))
                                 }
                             },
-                            label = { Text(tab.label) },
-                            colors = NavigationBarItemDefaults.colors(
-                                selectedIconColor = com.touliao.app.ui.IconColor.Selected,
-                                selectedTextColor = com.touliao.app.ui.theme.VxinBrand,
-                                unselectedIconColor = com.touliao.app.ui.IconColor.Secondary,
-                                unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                                indicatorColor = com.touliao.app.ui.theme.VxinBrandMuted,
-                            ),
+                            label = tab.label,
                         )
                     }
                 }

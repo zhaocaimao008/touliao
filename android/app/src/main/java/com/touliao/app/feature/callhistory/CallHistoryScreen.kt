@@ -72,7 +72,7 @@ fun CallHistoryScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("通话记录") },
+                title = { Text("通话记录", style = androidx.compose.material3.MaterialTheme.typography.headlineMedium) },
                 navigationIcon = { IconButton(onClick = onBack) { Icon(com.touliao.app.ui.TouliaoIcons.Back, contentDescription = "返回") } },
             )
         },

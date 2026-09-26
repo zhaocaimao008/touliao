@@ -107,7 +107,7 @@ fun ConversationListScreen(
                     Column {
                         // 已连接时标题简洁显示「消息」；异常时才追加状态(对齐微信「收取中…」)
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text("消息", fontSize = com.touliao.app.ui.theme.VxinTextSize.xl)
+                            Text("消息", style = androidx.compose.material3.MaterialTheme.typography.headlineMedium)
                             if (socketStatus != SocketStatus.CONNECTED) {
                                 Spacer(Modifier.width(6.dp))
                                 if (socketStatus == SocketStatus.CONNECTING) {
