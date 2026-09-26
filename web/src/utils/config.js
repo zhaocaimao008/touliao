@@ -24,19 +24,28 @@
  */
 
 // 引导配置地址（按顺序尝试，任意一个成功即用）。互不依赖，单点故障不影响整体。
+//
+// 可移植性（换服务器直接部署）：同源 /config.json 永远排第一位。
+// 新服务器只需在网站根目录放一份自己的 config.json（里面写新服务器的 api/socket/cdn），
+// 前端无需重新编译，开箱即用。只有同源没有 config.json 时才回退到 touliao.cc。
 const CONFIG_URLS = [
-  'https://touliao.cc/config.json',                                          // 主：投聊独立配置（不依赖共享配置仓库）
-  'https://www.touliao.cc/config.json',                                      // 兜底：www 子域（同源站）
+  '/config.json',                                                        // 首选：同源（新服务器直接部署就靠它）
+  'https://touliao.cc/config.json',                                      // 主：投聊独立配置（不依赖共享配置仓库）
+  'https://www.touliao.cc/config.json',                                  // 兜底：www 子域（同源站）
 ];
 // 企业代码目录：与 config.json 并列的独立引导数据。config.json 回答"默认连谁"，
 // directory.json 回答"这个企业代码对应连谁"——多个客户各自独立服务器/独立数据库，
 // 共用同一份 App 时，靠这份表把一个短代码解析成客户自己的服务器地址。
 const DIRECTORY_URLS = [
+  '/directory.json',                                                     // 首选：同源
   'https://touliao.cc/directory.json',
   'https://www.touliao.cc/directory.json',
 ];
 const CACHE_KEY   = 'touliao_remote_config';
 const CACHE_TS    = 'touliao_remote_config_ts';
+// 远程配置缓存有效期：24 小时。超过后即使有缓存也先尝试重新拉取，
+// 避免远程长期不可达时客户端永远停留在旧配置。
+const CACHE_TTL_MS = 24 * 60 * 60 * 1000;
 
 // AbortSignal.timeout 在旧 WKWebView(旧版 iOS Capacitor)上可能缺失,直接用会抛 TypeError
 // 让所有引导地址「假失败」→ 无谓退化到缓存/兜底。用手写定时器兜底,保证超时控制普遍可用。
@@ -89,13 +98,20 @@ export function loadRemoteConfig() {
       } catch { /* 该地址不可达，尝试下一个 */ }
     }
 
-    // 2. 回退到缓存
+    // 2. 回退到缓存（带过期校验）
     try {
       const cached = localStorage.getItem(CACHE_KEY);
+      const tsRaw = localStorage.getItem(CACHE_TS);
+      const ts = tsRaw ? parseInt(tsRaw, 10) : 0;
+      const expired = !ts || (Date.now() - ts > CACHE_TTL_MS);
       if (cached) {
+        if (expired) {
+          // 缓存过期：仍可用作兜底，但打日志提醒，避免静默停留在旧配置
+          console.warn('[config] 缓存已过期（超过24h），使用旧配置兜底，请检查网络');
+        }
         _config = { ...DEFAULTS, ...JSON.parse(cached) };
         _loaded = true;
-        console.warn('[config] 使用缓存配置（远程不可达）');
+        if (!expired) console.warn('[config] 使用缓存配置（远程不可达）');
         return _config;
       }
     } catch { /* 缓存损坏 */ }
@@ -195,3 +211,15 @@ export function switchServer(newUrl) {
   } catch { return false; }
 }
 import { clientStorage as localStorage } from './clientStorage';
+import axios from 'axios';
+
+/**
+ * 把 API 路径解析为完整 URL（给绕过 axios 的 fetch / sendBeacon 用）。
+ * 直接读取 axios.defaults.baseURL，保证与业务请求走同一地址；
+ * baseURL 为空时返回相对路径（同源），与之前行为一致。
+ */
+export function apiUrl(path) {
+  const p = path.startsWith('/') ? path : `/${path}`;
+  const base = (axios.defaults.baseURL || '').replace(/\/$/, '');
+  return base + p;
+}

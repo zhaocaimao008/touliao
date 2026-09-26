@@ -133,6 +133,24 @@ rm -rf "${WEBROOT:?}/"*
 cp -r dist/* "$WEBROOT"/
 ok "前端已部署到 $WEBROOT"
 
+# ── [5b/8] 生成同源 config.json ─────────────────────────────────────
+# 前端启动时优先读取同源 /config.json（见 web/src/utils/config.js），
+# 新服务器必须自带一份指向自己的配置，否则会回退到 touliao.cc 的旧配置。
+step "5b/8 生成同源 config.json"
+if [[ -f "$WEBROOT/config.json" ]]; then
+  warn "已有 $WEBROOT/config.json，保留不覆盖（如需重置请删除后重跑）"
+else
+  cat > "$WEBROOT/config.json" <<JSON
+{
+  "api": "$APP_URL",
+  "socket": "$APP_URL",
+  "cdn": "$APP_URL",
+  "version": "2.0.1"
+}
+JSON
+  ok "已生成 $WEBROOT/config.json → $APP_URL"
+fi
+
 # ── [6/8] nginx ─────────────────────────────────────────────────────
 step "6/8 配置 nginx"
 command -v nginx >/dev/null || { warn "安装 nginx..."; apt_pkg nginx; }

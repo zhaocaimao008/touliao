@@ -1,5 +1,6 @@
 import TouliaoIcon from '../ui-kit/Icon';
 import React from 'react';
+import { apiUrl } from '../utils/config';
 import { getI18n } from '../contexts/I18nContext';
 
 /**
@@ -15,7 +16,7 @@ export default class PanelBoundary extends React.Component {
 
   componentDidCatch(e, info) {
     try {
-      fetch('/api/client-errors', {
+      fetch(apiUrl('/api/client-errors'), {
         method: 'POST', keepalive: true,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

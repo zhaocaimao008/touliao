@@ -89,11 +89,30 @@ if (import.meta.env.PROD && import.meta.env.VITE_SENTRY_DSN) {
   // 更宽松的超时（见 ChatWindow/Moments/GroupInfo/StickerPanel/Profile 里的 timeout 覆盖）。
   axios.defaults.timeout = 20000;
 
-  // Web 端 config 迟到时补设 baseURL（仅当首次未设置，避免覆盖手动切换）
+  // Web 端 config 迟到时处理：
+  // 之前是静默补设 baseURL，导致 800ms 超时前发出的请求走了同源、
+  // 之后的请求走了远程 api，前后不一致（混合后端 bug）。
+  // 修复：记录启动时用的地址；迟到配置的 api 如果不同，只重载一次页面
+  // （用 sessionStorage 防循环），保证整个会话地址一致。
+  // 同源 /config.json 优先后，标准部署下配置几乎总是及时到达，此分支极少触发。
   if (!isElectron && !isMobile && !manualUrl && !axios.defaults.baseURL) {
+    const bootApi = ''; // 启动时 baseURL 为空，即用了同源相对路径
     loadRemoteConfig().then(() => {
-      const late = getConfig()?.api;
-      if (late && !axios.defaults.baseURL) axios.defaults.baseURL = late;
+      const late = getConfig()?.api || '';
+      if (!late || late === bootApi) {
+        if (late) axios.defaults.baseURL = late;
+        return;
+      }
+      // 迟到配置指向了不同后端：重载一次，保证会话内地址一致
+      const reloaded = sessionStorage.getItem('touliao_cfg_reloaded');
+      if (!reloaded) {
+        try { sessionStorage.setItem('touliao_cfg_reloaded', '1'); } catch { /* ignore */ }
+        console.warn('[config] 迟到配置与启动地址不一致，重载以统一后端:', late);
+        location.reload();
+      } else {
+        // 已重载过仍不一致（极端情况）：接受新地址，不再循环
+        axios.defaults.baseURL = late;
+      }
     }).catch(() => {});
   }
 

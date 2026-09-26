@@ -1,5 +1,6 @@
 import TouliaoIcon from '../ui-kit/Icon';
 import React from 'react';
+import { apiUrl } from '../utils/config';
 import { redact } from '../utils/redactTelemetry';
 import { getI18n } from '../contexts/I18nContext';
 
@@ -42,7 +43,7 @@ export default class ErrorBoundary extends React.Component {
 
       // 3. 尽力上报后端（失败静默，不影响降级页）
       if (typeof fetch === 'function') {
-        fetch('/api/client-errors', {
+        fetch(apiUrl('/api/client-errors'), {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           credentials: 'include',

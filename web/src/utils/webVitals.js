@@ -2,6 +2,7 @@
  * Web Vitals 性能监控
  * 监控 LCP、FID、CLS、FCP、TTFB 等核心指标
  */
+import { apiUrl } from './config';
 
 let vitalsData = {
   lcp: null,
@@ -29,7 +30,7 @@ function reportVital(metric) {
       url: window.location.href,
       userAgent: navigator.userAgent,
     });
-    navigator.sendBeacon('/api/metrics/vitals', body);
+    navigator.sendBeacon(apiUrl('/api/metrics/vitals'), body);
   }
 }
 

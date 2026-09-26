@@ -1,5 +1,6 @@
 import TouliaoIcon from '../ui-kit/Icon';
 import React from 'react';
+import { apiUrl } from '../utils/config';
 import { getI18n } from '../contexts/I18nContext';
 
 /**
@@ -24,7 +25,7 @@ export default class ChatWindowBoundary extends React.Component {
     // [ChatWindowBoundary] 捕获异常 — suppressed (keep fetch report)
     // 静默上报，不影响降级 UI
     try {
-      fetch('/api/client-errors', {
+      fetch(apiUrl('/api/client-errors'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
