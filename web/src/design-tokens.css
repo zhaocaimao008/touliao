@@ -203,28 +203,31 @@
   --text-on-brand:    #FFFFFF;
 
   /* ── 字号系统（以 14px 为基准）── */
-  --text-2xs:  10px;   /* 角标、极小标注 */
-  --text-xs:   11px;   /* 时间戳、系统消息 */
-  --text-sm:   12px;   /* 标签、说明文字 */
-  --text-sm2:  13px;   /* 次要正文：资料项、描述、简介（高频） */
-  --text-base: 14px;   /* 正文、消息气泡（对齐微信 PC 端字号）*/
-  --text-md:   15px;   /* 名称、对话标题 */
-  --text-lg:   16px;   /* 页面标题 */
-  --text-xl:   18px;   /* 模态标题 */
-  --text-2xl:  20px;   /* 个人主页名字 */
-  --text-3xl:  24px;   /* 大标题 */
+  /* rem 单位：跟随 html 根字号（= 浏览器/系统字体大小设置），支持用户调大字体。
+     换算基数 16px（浏览器默认），如 --text-base: 14px → 0.875rem。
+     布局尺寸（触控目标、间距）保持 px，不随字号缩放。 */
+  --text-2xs:  0.625rem;   /* 角标、极小标注（10px） */
+  --text-xs:   0.6875rem;  /* 时间戳、系统消息（11px） */
+  --text-sm:   0.75rem;    /* 标签、说明文字（12px） */
+  --text-sm2:  0.8125rem;  /* 次要正文：资料项、描述、简介（高频，13px） */
+  --text-base: 0.875rem;   /* 正文、消息气泡（对齐微信 PC 端字号，14px）*/
+  --text-md:   0.9375rem;  /* 名称、对话标题（15px） */
+  --text-lg:   1rem;       /* 页面标题（16px） */
+  --text-xl:   1.125rem;   /* 模态标题（18px） */
+  --text-2xl:  1.25rem;    /* 个人主页名字（20px） */
+  --text-3xl:  1.5rem;     /* 大标题（24px） */
   /* ── 半像素微调档：贴合微信 PC 端精细排版，勿并入整数档 ── */
-  --text-tiny: 11.5px; /* 设备/群公告副信息 */
-  --text-note: 12.5px; /* 空态描述、消息元信息（= --font-preview）*/
-  --text-meta: 13.5px; /* 资料项数值、网络行、次级标题 */
-  --text-name: 14.5px; /* 名称/标签行（列表名、设备名、群成员名）*/
-  --text-h5:   17px;   /* 移动端标题栏/菜单箭头/模态关闭 */
+  --text-tiny: 0.71875rem; /* 设备/群公告副信息（11.5px） */
+  --text-note: 0.78125rem; /* 空态描述、消息元信息（= --font-preview，12.5px）*/
+  --text-meta: 0.84375rem; /* 资料项数值、网络行、次级标题（13.5px） */
+  --text-name: 0.90625rem; /* 名称/标签行（列表名、设备名、群成员名，14.5px）*/
+  --text-h5:   1.0625rem;  /* 移动端标题栏/菜单箭头/模态关闭（17px） */
   /* ── 展示字阶：跨端一致（对齐 Android VxinTextSize / iOS VxinFontSize 展示档）── */
   /* 用于品牌名、大数字、认证页标题等展示型文字，非通用正文字阶 */
-  --text-display-sm: 22px;   /* 通话对方名/资料大字（对齐原生 22）*/
-  --text-display:    26px;   /* 认证页标题（注册/忘记密码，对齐原生 26）*/
-  --text-display-lg: 30px;   /* 登录品牌名（对齐原生 30）*/
-  --text-display-xl: 40px;   /* 钱包余额大数字（对齐原生 40）*/
+  --text-display-sm: 1.375rem;   /* 通话对方名/资料大字（对齐原生 22）*/
+  --text-display:    1.625rem;   /* 认证页标题（注册/忘记密码，对齐原生 26）*/
+  --text-display-lg: 1.875rem;   /* 登录品牌名（对齐原生 30）*/
+  --text-display-xl: 2.5rem;     /* 钱包余额大数字（对齐原生 40）*/
 
   /* ── 字重 ── */
   --font-normal:   400;
@@ -511,10 +514,10 @@ body.dark-mode {
   /* Text */
   --text-title:       #E5E5EA;
   --text-primary:     #D0D3D8;
-  --text-secondary:   #B2B2BA;
-  --text-muted:       #A5A5B0;
+  --text-secondary:   #B2B2BA;   /* 深底对比度 8.07:1（bg-panel #1C1C1E），WCAG AA 通过 */
+  --text-muted:       #A5A5B0;   /* 深底对比度 6.97:1，WCAG AA 通过 */
   --text-danger:      #FF8787;
-  --text-disabled:    #48484A;
+  --text-disabled:    #85858C;   /* 深底对比度 4.64:1，WCAG AA 通过（原 #48484A 仅 1.86:1） */
   --text-link:        #A99CF0;   /* 暗色链接：浅薰衣草靛，与 AURORA 同色系(原 #3E8EFF 蓝已弃用) */
   --text-link-hover:  #C7BFF6;
 

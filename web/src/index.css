@@ -185,6 +185,9 @@ button[type="button"]:active {
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 /* 用 dvh 让布局随手机软键盘动态收缩，彻底解决输入框被键盘遮挡问题 */
 html, body, #root { height: 100%; height: 100dvh; }
+/* 根字号 100% = 浏览器默认（16px，可被用户在系统/浏览器设置中调整），
+   配合 design-tokens 的 rem 字号体系实现系统字体缩放跟随 */
+html { font-size: 100%; }
 body {
   font-family: var(--font);
   font-size: var(--text-base);
@@ -485,6 +488,30 @@ body.dark-mode * {
 .wc-chat-item.pinned:not(.active):hover { background: var(--bg-hover); }
 
 .wc-chat-item-avatar { position: relative; flex-shrink: 0; }
+
+/* ── 会话左滑快捷操作（移动端手势）── */
+.wc-chat-item {
+  transition: background var(--dur-fast), transform var(--dur-fast) ease, height var(--dur) var(--ease), padding var(--dur) var(--ease);
+}
+.wc-chat-item-swipe-actions {
+  position: absolute;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  display: flex;
+  z-index: 0;
+}
+.wc-swipe-btn {
+  width: 72px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  font-size: var(--text-sm);
+  font-weight: 500;
+}
+.wc-swipe-pin { background: var(--color-primary); }
+.wc-swipe-delete { background: var(--color-danger); }
 .wc-chat-item-badge {
   position: absolute;
   top: -4px;
@@ -4627,6 +4654,13 @@ body.dark-mode .pf-hero { box-shadow: 0 10px 34px rgba(0,0,0,.5); }
   color: var(--text-secondary);
 }
 .wc-state-icon { font-size: 40px; line-height: var(--lh-none); opacity: .85; }
+/* 空态插画：线条风 SVG，跟随 tertiary 文字色，深浅色自适应 */
+.wc-state-illustration {
+  color: var(--text-tertiary);
+  opacity: .8;
+  margin-bottom: 4px;
+}
+.wc-state-illustration svg { display: block; }
 .wc-state-title { font-size: var(--text-md); color: var(--text-primary); font-weight: 500; }
 .wc-state-desc { font-size: var(--text-note); color: var(--text-muted); }
 .wc-state-action { margin-top: 8px; }

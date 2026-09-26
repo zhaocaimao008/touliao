@@ -298,7 +298,7 @@ export default function ContactList({ onStartChat, searchQuery = '', addFriendRe
                 </svg>} title={<>{t('contacts.noContacts')}</>} desc={<>{t('contacts.searchToAddFriend')}</>} />
             )}
             {searchQuery && filtered.length === 0 && (
-              <EmptyState className="cl-empty" icon={null} title={<>{t('contacts.notFoundTemplate').replace('{query}', searchQuery)}</>} />
+              <EmptyState className="cl-empty" illustration="search" title={<>{t('contacts.notFoundTemplate').replace('{query}', searchQuery)}</>} />
             )}
           </>
         )}
@@ -345,7 +345,7 @@ export default function ContactList({ onStartChat, searchQuery = '', addFriendRe
             {requestsSubTab === 'sent' && (
               <>
                 {sentRequests.length === 0 && (
-                  <EmptyState className="cl-empty" icon={null} title={<>{t('contacts.noSentRequests')}</>} />
+                  <EmptyState className="cl-empty" illustration="contacts" title={<>{t('contacts.noSentRequests')}</>} />
                 )}
                 {sentRequests.map(r => (
                   <div key={r.id} className="req-item">
@@ -372,7 +372,7 @@ export default function ContactList({ onStartChat, searchQuery = '', addFriendRe
           <>
             <SectionHeader title={t('contacts.aiAssistant')} onBack={() => setTab('contacts')} />
             {aiBots.length === 0 && (
-              <EmptyState className="cl-empty" icon={null} title={<>{t('contacts.noAiAssistants')}</>} />
+              <EmptyState className="cl-empty" illustration="chat" title={<>{t('contacts.noAiAssistants')}</>} />
             )}
             {aiBots.map(b => (
               <div key={b.id} className="wc-contact-item"
@@ -407,7 +407,7 @@ export default function ContactList({ onStartChat, searchQuery = '', addFriendRe
           <>
             <SectionHeader title={t('contacts.blacklist')} onBack={() => setTab('contacts')} />
             {blockedUsers.length === 0 && (
-              <EmptyState className="cl-empty" icon={null} title={<>{t('contacts.blacklistEmpty')}</>} />
+              <EmptyState className="cl-empty" illustration="contacts" title={<>{t('contacts.blacklistEmpty')}</>} />
             )}
             {blockedUsers.map(u => (
               <div key={u.id} className="req-item">
@@ -449,7 +449,7 @@ export default function ContactList({ onStartChat, searchQuery = '', addFriendRe
               </div>
             ))}
             {groups.length === 0 && (
-              <EmptyState className="cl-empty" icon={null} title={<>{t('contacts.noGroups')}</>} />
+              <EmptyState className="cl-empty" illustration="contacts" title={<>{t('contacts.noGroups')}</>} />
             )}
           </>
         )}
@@ -606,7 +606,7 @@ function LabelsTab({ labels, contacts, onBack, onUpdate }) {
               </div>
             );
           })}
-          {contacts.length === 0 && <EmptyState className="cl-empty" icon={null} title={<>{t('contacts.noContacts')}</>} />}
+          {contacts.length === 0 && <EmptyState className="cl-empty" illustration="contacts" title={<>{t('contacts.noContacts')}</>} />}
         </div>
       </>
     );
@@ -622,7 +622,7 @@ function LabelsTab({ labels, contacts, onBack, onUpdate }) {
         </button>
       </div>
       {labels.length === 0 && (
-        <EmptyState className="cl-empty" icon={null} title={<>{t('contacts.noLabels')}</>} desc={<>{t('contacts.noLabelsSub')}</>} />
+        <EmptyState className="cl-empty" illustration="contacts" title={<>{t('contacts.noLabels')}</>} desc={<>{t('contacts.noLabelsSub')}</>} />
       )}
       {labels.map(label => (
         <div key={label.id} className="wc-contact-item">

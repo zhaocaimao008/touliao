@@ -17,21 +17,22 @@ export const initialComposeState = {
   emojiTab: 'emoji',
   editingMsg: null,
   replyTo: null,
+  fromDraft: false, // 当前输入是否从草稿恢复（用于显示"草稿"提示）
 };
 
 export function composeReducer(state, action) {
   switch (action.type) {
     // 输入文本变化（onChange）
     case 'SET_INPUT':
-      return { ...state, input: action.value };
+      return { ...state, input: action.value, fromDraft: false };
 
     // 追加文本（emoji 选择器插入等），基于当前值
     case 'APPEND_INPUT':
-      return { ...state, input: state.input + action.text };
+      return { ...state, input: state.input + action.text, fromDraft: false };
 
     // @提及插入后替换为完整文本
     case 'REPLACE_INPUT':
-      return { ...state, input: action.value };
+      return { ...state, input: action.value, fromDraft: false };
 
     // 语音/文字输入模式切换
     case 'TOGGLE_VOICE':
@@ -73,13 +74,14 @@ export function composeReducer(state, action) {
 
     // 消息发送成功后：清空输入 + 清除回复（编辑态由 CANCEL_EDIT 单独处理）
     case 'SENT':
-      return { ...state, input: '', replyTo: null };
+      return { ...state, input: '', replyTo: null, fromDraft: false };
 
     // 切换会话：载入草稿 + 退出语音模式 + 清编辑/回复（全清，避免跨会话残留）
     case 'RESET':
       return {
         ...initialComposeState,
         input: action.draft || '',
+        fromDraft: !!action.draft,
       };
 
     default:

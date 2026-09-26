@@ -296,7 +296,7 @@ export default function GlobalSearch({ query, onSelectConv, onNetworkSearch }) {
 
       {/* 降级兜底：仅在有实际查询词时展示,避免清空输入时闪出「去网络搜索『』」空串 */}
       {empty && !actualSearching && !convError && !messageError && q && (
-        <EmptyState icon={null} title={t('gs.noLocalResultsPrefix')} action={
+        <EmptyState illustration="search" title={t('gs.noLocalResultsPrefix')} action={
           <TextButton className="gs-network-row" onClick={() => onNetworkSearch(query)}>
             <TouliaoIcon name="search" className="gs-network-icon" tone="selected" size="xs" />
             <span className="gs-highlight">「{query}」</span>

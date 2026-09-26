@@ -13,6 +13,8 @@ import { FixedSizeList } from 'react-window';
 import AutoSizer from 'react-virtualized-auto-sizer';
 import { archiveUnreadTotal, splitArchivedConversations } from '../utils/archiveConversations';
 import { isWindowsDesktop } from '../utils/desktopPlatform';
+import { useSwipe } from '../hooks/useSwipe';
+import { EmptyState } from './StateViews';
 import designTokens from '../ui-kit/tokens.json';
 
 const rowHeight = () => window.innerWidth < designTokens.layout.breakpoints.compactDesktopMin
@@ -25,16 +27,31 @@ const byPinnedThenTime = (a, b) =>
 // Stable module-level row component so react-window doesn't unmount on re-render
 const ConvRow = memo(function ConvRow({ index, style, data }) {
   const { t } = useI18n();
-  const { items, activeConvId, onSelectConv, onCtxMenu, previewMsg, user, drafts } = data;
+  const { items, activeConvId, onSelectConv, onCtxMenu, previewMsg, user, drafts, onPin, onDelete } = data;
   const conv = items[index];
   const count = conv._unread || 0;
   const draft = (drafts && drafts[conv.id]) || '';
+  // 左滑快捷操作（移动端）：置顶 / 删除
+  const { swipeOffset, swipeHandlers, resetSwipe, swipeEnabled } = useSwipe({ maxOffset: 144 });
+  const handleSwipePin = () => { resetSwipe(); onPin?.(conv, !conv.pinned); };
+  const handleSwipeDelete = () => { resetSwipe(); onDelete?.(conv); };
   return (
-    <div style={style}>
+    <div style={{ ...style, overflow: 'hidden', position: 'relative' }}>
+      {/* 左滑露出的快捷按钮 */}
+      {swipeEnabled && swipeOffset !== 0 && (
+        <div className="wc-chat-item-swipe-actions">
+          <button type="button" className="wc-swipe-btn wc-swipe-pin" onClick={handleSwipePin}>
+            {conv.pinned ? t('chatlist.unpinChat') : t('chatlist.pinChat')}
+          </button>
+          <button type="button" className="wc-swipe-btn wc-swipe-delete" onClick={handleSwipeDelete}>
+            {conv.type === 'group' ? t('chatlist.leaveGroup') : t('chatlist.deleteChat')}
+          </button>
+        </div>
+      )}
       <div
         data-testid={`conv-item-${conv.id}`}
         className={`wc-chat-item${conv.id === activeConvId ? ' active' : ''}${conv.pinned ? ' pinned' : ''}`}
-        onClick={() => onSelectConv(conv)}
+        onClick={() => { if (swipeOffset !== 0) { resetSwipe(); return; } onSelectConv(conv); }}
         onKeyDown={e => (e.key === 'Enter' || e.key === ' ') && (e.preventDefault(), onSelectConv(conv))}
         role="button"
         tabIndex={0}
@@ -47,7 +64,11 @@ const ConvRow = memo(function ConvRow({ index, style, data }) {
           const y = Math.min(e.clientY, window.innerHeight - MENU_H);
           onCtxMenu({ x: Math.max(8, x), y: Math.max(8, y), conv });
         }}
-        style={{ background: conv.pinned && conv.id !== activeConvId ? 'var(--bg-pinned)' : undefined }}
+        style={{
+          background: conv.pinned && conv.id !== activeConvId ? 'var(--bg-pinned)' : undefined,
+          ...(swipeOffset !== 0 ? { transform: `translateX(${swipeOffset}px)` } : {}),
+        }}
+        {...(swipeEnabled ? swipeHandlers : {})}
       >
         <div className="wc-chat-item-avatar">
           {conv.type === 'group'
@@ -318,14 +339,14 @@ export default function ChatList({ onSelectConv, activeConvId, unread = {}, sear
     return () => window.removeEventListener('touliao:remark-changed', handler);
   }, [fetchConvs]);
 
-  const pin = async (conv, pinned) => {
+  const pin = useCallback(async (conv, pinned) => {
     setCtxMenu(null);
     try {
       await axios.post(`/api/messages/conversation/${conv.id}/pin`, { pinned });
       setConversations(prev => prev.map(c => c.id === conv.id ? { ...c, pinned: pinned ? 1 : 0 } : c)
         .sort(byPinnedThenTime));
     } catch { showToast(t('common.actionFailed'), 'error'); }
-  };
+  }, [t]);
 
   const mute = async (conv, muted) => {
     setCtxMenu(null);
@@ -356,7 +377,7 @@ export default function ChatList({ onSelectConv, activeConvId, unread = {}, sear
     if (restored.size !== archived.length) showToast(t('chatlist.clearArchivePartial'), 'error');
   };
 
-  const deleteConv = async (conv) => {
+  const deleteConv = useCallback(async (conv) => {
     setCtxMenu(null);
     if (conv.type === 'group') {
       if (!(await showConfirm(t('chatlist.confirmLeaveGroupTemplate').replace('{name}', conv.name)))) return;
@@ -365,7 +386,7 @@ export default function ChatList({ onSelectConv, activeConvId, unread = {}, sear
       await axios.delete(`/api/messages/conversation/${conv.id}/messages`).catch(() => {});
     }
     setConversations(prev => prev.filter(c => c.id !== conv.id));
-  };
+  }, [t]);
 
   const toggleMarkUnread = async (conv) => {
     setCtxMenu(null);
@@ -405,7 +426,9 @@ export default function ChatList({ onSelectConv, activeConvId, unread = {}, sear
     previewMsg,
     user,
     drafts,
-  }), [filtered, activeConvId, handleSelectConv, user, drafts]);
+    onPin: pin,
+    onDelete: deleteConv,
+  }), [filtered, activeConvId, handleSelectConv, user, drafts, pin, deleteConv]);
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', background: 'var(--bg-panel)', '--tl-conversation-row-height': `${itemHeight}px`, '--windows-row-height': `${itemHeight}px` }}>
@@ -455,7 +478,11 @@ export default function ChatList({ onSelectConv, activeConvId, unread = {}, sear
         {!loaded && conversations.length === 0 ? (
           <ChatListSkeleton />
         ) : filtered.length === 0 ? (
-          <div role="status" style={{ textAlign: 'center', padding: '40px 0', color: 'var(--text-muted)', fontSize: 'var(--text-sm2)' }}>{showArchived ? t('chatlist.archiveEmpty') : t('chatlist.empty')}</div>
+          <EmptyState
+            illustration="chat"
+            title={showArchived ? t('chatlist.archiveEmpty') : t('chatlist.empty')}
+            desc={showArchived ? undefined : t('chatlist.emptyDesc')}
+          />
         ) : (
           <AutoSizer>
             {({ height, width }) => (

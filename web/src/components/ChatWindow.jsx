@@ -161,7 +161,7 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
   // reducers/composeReducer.js（已 vitest 穷举测试）。recording 由 MediaRecorder
   // 副作用驱动，仍用独立 useState。
   const [compose, dispatchCompose] = useReducer(composeReducer, initialComposeState);
-  const { input, mode: composerMode, editingMsg, replyTo } = compose;
+  const { input, mode: composerMode, editingMsg, replyTo, fromDraft } = compose;
   const voiceMode = composerMode === 'VOICE';
   const [typingName, setTypingName] = useState('');
   // A single presentation mode owns voice, keyboard and all attachment panels.
@@ -2393,6 +2393,7 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
         && cached.convType === conversation.type
         && cached.groupSettings === groupSettings
         && cached.myGroupRole === myGroupRole
+        && cached.myUsername === user.username
         && cached.members === members
         && cached.claiming === claiming
         && cached.pinnedMessages === pinnedMessages
@@ -2413,6 +2414,7 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
           convType: conversation.type,
           convId: conversation.id,
           userId: user.id,
+          myUsername: user.username,
           groupSettings,
           myGroupRole,
           members,
@@ -2429,7 +2431,7 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
     return items;
   }, [messages, multiSelect, selectedMsgs, highlightedMsgId, conversation.id,
       conversation.type, pinnedMessages, myGroupRole, members, groupSettings,
-      user.id, claiming, lastMineId]);
+      user.id, user.username, claiming, lastMineId]);
 
   // 当 pendingScrollId 所指消息随 messages 更新进入 flatItems 后，执行实际滚动
   useEffect(() => {
@@ -2467,6 +2469,8 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
   callbacksRef.current.setHighlightedMsgId = setHighlightedMsgId;
   callbacksRef.current.setShowUserProfile = setShowUserProfile;
   callbacksRef.current.openRedPacket = openRedPacket;
+  // 左滑快捷回复（移动端手势入口）
+  callbacksRef.current.setReply = (msg) => dispatchCompose({ type: 'SET_REPLY', msg });
   // 回应 emoji：统一入口（点击/键盘共用），带错误兜底 + 防连点。
   // 服务端返回后经 socket 'message_reaction' 广播回来更新 UI，此处仅发请求。
   callbacksRef.current.toggleReaction = (msgId, emoji) => {
@@ -2914,6 +2918,12 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
               </div>
             ) : (
               <div className="wc-input-box wc-input-box-relative">
+                {/* 草稿提示：从草稿恢复时右上角显示 */}
+                {fromDraft && !editingMsg && (
+                  <span className="wc-draft-badge" title={t('chat.draftRestored')}>
+                    {t('chat.draft')}
+                  </span>
+                )}
                 {atList && atCandidates.length > 0 && (
                   <div className="wc-at-list" role="listbox" aria-label={t('chat.mentionAriaLabel')}>
                     {atCandidates.map((m, i) => (

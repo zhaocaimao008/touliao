@@ -449,14 +449,87 @@
 .wc-input-box-relative {
   position: relative;
 }
+/* 草稿提示徽标（输入框右上角） */
+.wc-draft-badge {
+  position: absolute;
+  top: 6px;
+  right: 8px;
+  z-index: 1;
+  font-size: var(--text-2xs);
+  color: var(--color-primary);
+  background: var(--color-primary-muted);
+  border-radius: var(--radius-badge, 10px);
+  padding: 2px 8px;
+  pointer-events: none;
+}
 .wc-hidden-input {
   display: none;
+}
+
+/* ── 左滑快捷回复（移动端手势）── */
+.wc-msg-row {
+  position: relative;
+  transition: transform var(--dur-fast, .15s) ease;
+}
+.wc-msg-swipe-reply {
+  position: absolute;
+  right: -72px;
+  top: 0;
+  bottom: 0;
+  width: 72px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  background: var(--color-primary);
+  color: var(--text-on-brand, #fff);
+  font-size: var(--text-xs);
+  border-radius: 0 var(--radius-bubble, 8px) var(--radius-bubble, 8px) 0;
 }
 
 /* ── 消息气泡：已编辑标记 ── */
 .wc-msg-edited {
   font-size: var(--text-2xs);
   margin-left: 5px;
+}
+
+/* ── @提及高亮 ── */
+.wc-msg-mention {
+  color: var(--color-primary);
+  font-weight: 500;
+}
+.wc-msg-mention-me {
+  color: var(--color-primary);
+  font-weight: 700;
+  background: var(--color-primary-muted);
+  border-radius: var(--radius-xs, 4px);
+  padding: 0 2px;
+}
+/* 被@的消息气泡：品牌色描边提醒 */
+.wc-msg-bubble.mentioned {
+  box-shadow: 0 0 0 1.5px var(--color-primary);
+}
+
+/* ── 长消息折叠：max-height 过渡动画 ── */
+.wc-msg-collapsible-body {
+  display: block;
+  overflow: hidden;
+  max-height: 10.5em; /* 约 7 行（1.5 行高），超长时折叠 */
+  transition: max-height var(--dur-normal, .3s) ease;
+}
+.wc-msg-collapsible-body.expanded {
+  max-height: 200em; /* 足够容纳超长文本 */
+}
+.wc-msg-collapse-btn {
+  color: var(--text-link);
+  font-size: var(--text-sm);
+  padding: 2px 0;
+  margin-top: 2px;
+}
+.wc-msg-collapse-btn:hover {
+  color: var(--text-link-hover);
+  text-decoration: underline;
 }
 
 /* 消息文本内的可点击链接：下划线 + 继承色，破坏气泡对比度最小 */

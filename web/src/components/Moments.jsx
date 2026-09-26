@@ -14,6 +14,7 @@ import { getThumbUrl, mediaUrl, useMediaCredentials } from '../utils/url';
 import { linkify } from '../utils/linkify';
 import { useI18n } from '../contexts/I18nContext';
 import { validateMomentVideo } from '../utils/momentMedia';
+import { EmptyState } from './StateViews';
 
 function ago(sec) {
   // 钳到 0：时钟偏差/服务器时间超前时避免出现「-3分钟前」
@@ -900,7 +901,7 @@ export default function Moments() {
             {t('moments.loadFailed')}，<button className="wc-moment-expand-btn" onClick={() => load()}>{t('moments.clickRetry')}</button>
           </div>
         ) : list.length === 0 ? (
-          <div role="status" className="wc-moment-state moments-state-pad60">{t('moments.emptyFeed')}</div>
+          <EmptyState illustration="moments" title={t('moments.emptyFeed')} desc={t('moments.emptyFeedDesc')} />
         ) : (
           list.map(m => (
             <MomentCard key={m.id} m={m} meId={meId}

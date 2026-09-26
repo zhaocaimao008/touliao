@@ -9,8 +9,9 @@ import { showToast } from '../utils/toast';
 import { humanFileSize } from '../utils/fileSize';
 import { getAspect, rememberAspect } from '../utils/imgDimCache';
 import ImgOptimized from './ImgOptimized';
-import { linkify } from '../utils/linkify';
+import { renderRichText, mentionsUser } from '../utils/richText';
 import { useI18n } from '../contexts/I18nContext';
+import { useSwipe } from '../hooks/useSwipe';
 import MergedMessageCard from './MergedMessageCard';
 
 // Time divider rendered as a list item
@@ -22,14 +23,53 @@ export const TimeDivider = memo(function TimeDivider({ time }) {
   );
 });
 
+// 长文本折叠：超过阈值（300 字符）默认折叠，max-height 过渡动画展开/收起
+const COLLAPSE_THRESHOLD = 300;
+const CollapsibleText = memo(function CollapsibleText({ content, renderContent }) {
+  const { t } = useI18n();
+  const [expanded, setExpanded] = React.useState(false);
+  const text = String(content ?? '');
+  const collapsible = text.length > COLLAPSE_THRESHOLD;
+  if (!collapsible) return <>{renderContent(text)}</>;
+  return (
+    <span className="wc-msg-collapsible">
+      <span
+        className={`wc-msg-collapsible-body${expanded ? ' expanded' : ''}`}
+        aria-expanded={expanded}
+      >
+        {renderContent(text)}
+      </span>
+      <button
+        type="button"
+        className="wc-msg-collapse-btn"
+        onClick={e => { e.stopPropagation(); setExpanded(v => !v); }}
+        aria-expanded={expanded}
+      >
+        {expanded ? t('messageItem.collapse') : t('messageItem.expand')}
+      </button>
+    </span>
+  );
+});
+
 const MessageItem = memo(function MessageItem({ item, cbRef, measure }) {
   useMediaCredentials();
   const { t } = useI18n();
   const { msg, isMine, isLastMine, isSelected, isHighlighted, multiSelect,
-    convType, userId, groupSettings, myGroupRole, members,
+    convType, userId, myUsername, groupSettings, myGroupRole, members,
     consecutive } = item;
 
   const cbs = cbRef.current;
+
+  // 左滑快捷回复（移动端）：仅普通消息可用，多选/系统消息禁用
+  const canSwipeReply = !multiSelect && !msg.deleted;
+  const { swipeOffset, swipeHandlers, resetSwipe, swipeEnabled } = useSwipe({
+    maxOffset: 72,
+    onSwipeLeft: () => { /* 吸附展开，按钮点击时真正触发回复 */ },
+  });
+  const handleSwipeReply = () => {
+    resetSwipe();
+    cbs.setReply?.(msg);
+  };
 
   // 拍一拍：居中系统提示「你 拍了拍 X」/「X 拍了拍 你」/「X 拍了拍 Y」
   if (msg.type === 'nudge') {
@@ -77,6 +117,8 @@ const MessageItem = memo(function MessageItem({ item, cbRef, measure }) {
 
   const showRead      = isMine && msg._read      && convType === 'private';
   const showDelivered = isMine && msg._delivered && convType === 'private' && !msg._read;
+  // 被@提醒：消息 @ 了自己时气泡加高亮边框（socket 通知已存在，此处补视觉样式）
+  const isMentioned = !isMine && msg.type === 'text' && mentionsUser(msg.content, myUsername);
   // 定时消息标记：由后端调度器发出的消息带 is_scheduled=1
   const isScheduled   = !!msg.is_scheduled;
 
@@ -113,13 +155,30 @@ const MessageItem = memo(function MessageItem({ item, cbRef, measure }) {
       id={`msg-${msg.id}`}
       data-msg-id={msg.id}
       className={`wc-msg-row${isMine ? ' mine' : ''}${consecutive ? ' consecutive' : ''}${multiSelect ? ' multiselect-row' : ''}${isHighlighted ? ' wc-msg-hl' : ''}`}
-      onClick={multiSelect ? () => cbs.toggleMsgSelect(msg.id) : undefined}
+      onClick={multiSelect ? () => cbs.toggleMsgSelect(msg.id) : (swipeOffset !== 0 ? resetSwipe : undefined)}
       onKeyDown={multiSelect ? e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); cbs.toggleMsgSelect(msg.id); } } : undefined}
       role={multiSelect ? 'checkbox' : undefined}
       aria-checked={multiSelect ? isSelected : undefined}
       tabIndex={multiSelect ? 0 : undefined}
-      style={multiSelect ? { cursor: 'pointer' } : {}}
+      {...(canSwipeReply && swipeEnabled ? swipeHandlers : {})}
+      style={{
+        ...(multiSelect ? { cursor: 'pointer' } : {}),
+        ...(swipeOffset !== 0 ? { transform: `translateX(${swipeOffset}px)` } : {}),
+      }}
     >
+      {/* 左滑快捷回复按钮（移动端） */}
+      {canSwipeReply && swipeEnabled && swipeOffset !== 0 && (
+        <button
+          type="button"
+          className="wc-msg-swipe-reply"
+          onClick={handleSwipeReply}
+          aria-label={t('chat.reply')}
+          style={{ width: 72 }}
+        >
+          <TouliaoIcon name="reply" size="sm" />
+          <span>{t('chat.reply')}</span>
+        </button>
+      )}
       {multiSelect && (
         <div style={{ display: 'flex', alignItems: 'center', marginRight: 8, flexShrink: 0, alignSelf: 'center' }}>
           <div style={{ width: 20, height: 20, borderRadius: 'var(--radius-full)', border: `2px solid ${isSelected ? 'var(--green)' : 'var(--border-default)'}`, background: isSelected ? 'var(--green)' : 'var(--text-inverse)', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'background var(--dur-fast), border-color var(--dur-fast)' }}>
@@ -187,7 +246,7 @@ const MessageItem = memo(function MessageItem({ item, cbRef, measure }) {
           )}
           <div
             data-testid={`msg-bubble-${msg.id}`}
-            className={`wc-msg-bubble ${isMine ? 'mine' : 'other'}`}
+            className={`wc-msg-bubble ${isMine ? 'mine' : 'other'}${isMentioned ? ' mentioned' : ''}`}
             title={msg.created_at ? formatFull(msg.created_at * 1000) : undefined}
             onContextMenu={e => cbs.handleContextMenu(e, msg)}
           >
@@ -224,7 +283,10 @@ const MessageItem = memo(function MessageItem({ item, cbRef, measure }) {
             )}
             {msg.type === 'text' && (
               <span>
-                {linkify(msg.content)}
+                <CollapsibleText
+                  content={msg.content}
+                  renderContent={txt => renderRichText(txt, { myUsername })}
+                />
                 {msg.edited ? <span className="wc-msg-edited" data-testid="msg-edited-flag" style={{ color: isMine ? 'rgba(0,0,0,.35)' : 'var(--text-tertiary)' }}>{t('messageItem.edited')}</span> : null}
               </span>
             )}
