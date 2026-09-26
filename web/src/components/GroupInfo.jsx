@@ -1,4 +1,3 @@
-import ReportButton from './ReportDialog';
 import TouliaoField from '../ui-kit/Field';
 import { PrimaryButton, SecondaryButton, DangerButton } from '../ui-kit/Button';
 import TouliaoSwitch from '../ui-kit/Switch';
@@ -482,7 +481,6 @@ export default function GroupInfo({ conversation, currentUserId, onClose, onLeav
       </div>
 
       <div className="gi-body">
-        <ReportButton targetType="group" targetId={conversation.id} label="举报群" />
 
         {/* 群名称 + 头像 */}
         <div className="gi-avinfo">

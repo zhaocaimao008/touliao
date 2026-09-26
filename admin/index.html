@@ -117,7 +117,6 @@
       <button class="tab" data-tab="messages" role="tab" aria-selected="false" aria-controls="tab-messages">消息监控</button>
       <button class="tab" data-tab="metrics" role="tab" aria-selected="false" aria-controls="tab-metrics">实时监控</button>
       <button class="tab" data-tab="groups" role="tab" aria-selected="false" aria-controls="tab-groups">群组管理</button>
-      <button class="tab" data-tab="reports" role="tab" aria-selected="false" aria-controls="tab-reports">举报</button>
       <button class="tab" data-tab="security" role="tab" aria-selected="false" aria-controls="tab-security">安全</button>
       <button class="tab" data-tab="settings" role="tab" aria-selected="false" aria-controls="tab-settings">设置</button>
     </div>
@@ -152,29 +151,6 @@
       <div class="bar"><input class="search" id="gq" aria-label="搜索群组（群名 / 群号）" placeholder="搜索 群名 / 群号" /><span class="muted" id="gcount" role="status" aria-live="polite"></span></div>
       <table class="tbl"><caption class="sr-only">群组列表</caption><thead><tr><th scope="col">群名</th><th scope="col">群号</th><th scope="col">群主</th><th scope="col">成员</th><th scope="col">消息</th><th scope="col">创建</th><th scope="col">操作</th></tr></thead><tbody id="gbody"></tbody></table>
       <div class="page" id="gpage"></div>
-    </div>
-
-    <!-- 举报 -->
-    <div id="tab-reports" class="hidden" role="tabpanel" aria-label="举报">
-      <h3>用户 / 消息 / 群举报与客服</h3>
-      <p>先受理并调查，再使用用户、消息或群管理页执行必要处理，最后记录对用户可见的处理说明。不要仅以“已处理”代替实际调查。</p>
-      <select id="safety-status" aria-label="工单状态"><option value="pending">待受理</option><option value="reviewing">处理中</option><option value="resolved">已处理</option><option value="dismissed">已驳回</option></select>
-      <button id="safety-refresh" class="mini">刷新工单</button>
-      <div id="safety-count" role="status"></div>
-      <table class="tbl"><thead><tr><th>编号 / 目标</th><th>理由</th><th>状态</th><th>操作</th></tr></thead><tbody id="safety-body"></tbody></table>
-      <div id="safety-page" class="page"></div>
-      <div id="safety-detail" class="panel" hidden></div>
-      <h3>朋友圈举报</h3>
-      <div class="bar">
-        <select class="search" id="rstatus" aria-label="按处理状态筛选举报" style="max-width:160px">
-          <option value="pending">待处理</option>
-          <option value="dismissed">已忽略</option>
-          <option value="reviewed">已处理</option>
-        </select>
-        <span class="muted" id="rcount" role="status" aria-live="polite"></span>
-      </div>
-      <table class="tbl"><caption class="sr-only">举报列表</caption><thead><tr><th scope="col">动态内容</th><th scope="col">作者</th><th scope="col">举报人</th><th scope="col">理由</th><th scope="col">举报数</th><th scope="col">时间</th><th scope="col">操作</th></tr></thead><tbody id="rbody"></tbody></table>
-      <div class="page" id="rpage"></div>
     </div>
 
     <!-- 安全 -->
@@ -359,12 +335,11 @@ function clearMsgFilter(){mState.period='';mState.offset=0;updateMsgChip();loadM
 // ── tabs ──
 function switchTab(name){
   document.querySelectorAll('.tab').forEach(x=>{const sel=x.dataset.tab===name;x.classList.toggle('on',sel);x.setAttribute('aria-selected',sel?'true':'false');});
-  ['users','messages','metrics','groups','reports','security','settings'].forEach(n=>$('tab-'+n).classList.toggle('hidden',n!==name));
+  ['users','messages','metrics','groups','security','settings'].forEach(n=>$('tab-'+n).classList.toggle('hidden',n!==name));
   if(name==='users')loadUsers();
   if(name==='messages')loadMessages();
   if(name==='metrics')startMetrics();else stopMetrics();
   if(name==='groups')loadGroups();
-  if(name==='reports')loadReports();
   if(name==='security'){loadSecurity();loadAdmins();}
   if(name==='settings'){loadInvite();loadFeatures();loadBlacklist();loadTopInviters();}
 }
@@ -498,71 +473,6 @@ async function toggleMute(groupId,nextMuted){try{await api(`/groups/${groupId}/m
 async function kickMember(groupId,userId){if(!confirm('移除该成员？'))return;try{await api(`/groups/${groupId}/members/${userId}`,{method:'DELETE'});toast('已移除');viewGroup(groupId);loadGroups();}catch(e){toast(e.message,1);}}
 async function dismiss(id,name){if(!confirm(`⚠ 解散群「${name}」？\n将移除所有成员并删除该群，不可恢复！`))return;try{await api('/groups/'+id,{method:'DELETE'});toast('已解散');loadGroups();loadStats();}catch(e){toast(e.message,1);}}
 
-// ── 举报 ──
-const rState={status:'pending',offset:0,limit:30};
-$('rstatus')&&($('rstatus').onchange=e=>{rState.status=e.target.value;rState.offset=0;loadReports();});
-async function loadReports(){
-  loadSafetyReports();
-  try{
-    const r=await api(`/reports?status=${rState.status}&limit=${rState.limit}&offset=${rState.offset}`);
-    $('rcount').textContent=`共 ${r.total} 条`;
-    $('rbody').innerHTML=r.reports.map(x=>{
-      const imgs=(x.momentImages&&x.momentImages.length)?`<span class="muted">[图${x.momentImages.length}]</span> `:'';
-      const body=x.momentContent?esc(x.momentContent.slice(0,40)):((x.momentImages&&x.momentImages.length)?'':'<span class="muted">(动态已删)</span>');
-      const acts=x.status==='pending'
-        ?`<div class="acts"><button class="mini" data-action="dismiss-report" data-id="${esc(x.id)}">忽略</button><button class="mini danger" data-action="delete-report" data-id="${esc(x.id)}">删动态</button></div>`
-        :`<span class="muted">${x.status==='dismissed'?'已忽略':'已处理'}</span>`;
-      return `<tr><td>${imgs}${body}</td><td>${esc(x.authorName||'-')}</td><td>${esc(x.reporterName||'-')}</td><td>${esc(x.reason||'-')}</td><td>${x.reportCount}</td><td class="muted">${fmtDate(x.created_at)}</td><td>${acts}</td></tr>`;
-    }).join('')||`<tr><td colspan="7" class="muted" style="text-align:center;padding:30px">无举报</td></tr>`;
-    $('rbody').querySelectorAll('[data-action="dismiss-report"]').forEach(b=>b.addEventListener('click',()=>dismissReport(b.dataset.id)));
-    $('rbody').querySelectorAll('[data-action="delete-report"]').forEach(b=>b.addEventListener('click',()=>delReported(b.dataset.id)));
-    renderPage('rpage',rState,r.total,loadReports);
-  }catch(e){toast(e.message,1);}
-}
-async function dismissReport(id){try{await api(`/reports/${id}/resolve`,{method:'POST',body:{action:'dismissed'}});toast('已忽略');loadReports();}catch(e){toast(e.message,1);}}
-async function delReported(id){if(!confirm('⚠ 删除这条被举报的动态？\n将连同其评论/点赞一并删除，不可恢复！'))return;try{await api(`/reports/${id}/resolve`,{method:'POST',body:{action:'delete'}});toast('动态已删除');loadReports();}catch(e){toast(e.message,1);}}
-
-
-const safetyState={offset:0,limit:30};
-$('safety-status').onchange=()=>{safetyState.offset=0;loadSafetyReports();};
-$('safety-refresh').onclick=()=>loadSafetyReports();
-async function loadSafetyReports(){
-  try {
-    const r=await api(`/safety-reports?status=${encodeURIComponent($('safety-status').value)}&limit=${safetyState.limit}&offset=${safetyState.offset}`);
-    $('safety-count').textContent=`共 ${r.total} 条`;
-    $('safety-body').innerHTML=r.items.map(x=>`<tr><td>${esc(x.id)}<br>${esc(x.target_type)} / ${esc(x.target_id)}</td><td>${esc(x.reason)}</td><td>${esc(x.status)}</td><td><button class="mini" data-ticket="${esc(x.id)}">查看 / 处理</button></td></tr>`).join('');
-    $('safety-body').querySelectorAll('[data-ticket]').forEach(b=>b.onclick=()=>openSafetyReport(b.dataset.ticket));
-    renderPage('safety-page',safetyState,r.total,loadSafetyReports);
-  } catch(e) { toast(e.message,1); }
-}
-async function openSafetyReport(id){
-  try {
-    const r=await api(`/safety-reports/${encodeURIComponent(id)}`);
-    const box=$('safety-detail');box.hidden=false;
-    box.innerHTML=`<h4>工单 ${esc(r.id)}</h4><p>举报人：${esc(r.reporter_id)}；目标：${esc(r.target_type)} / ${esc(r.target_id)}</p><pre style="white-space:pre-wrap">${esc(r.snapshot)}</pre><p>${esc(r.reason)}</p><ol>${r.events.map(e=>`<li>${esc(e.status)} · ${esc(e.actor)} · ${esc(e.note)}</li>`).join('')}</ol>`;
-    if(['pending','reviewing'].includes(r.status)){
-      const select=document.createElement('select');select.setAttribute('aria-label','处理状态');
-      const options=r.status==='pending'?[['reviewing','受理'],['dismissed','驳回']]:[['resolved','完成处理'],['dismissed','驳回']];
-      options.forEach(([v,t])=>{const o=document.createElement('option');o.value=v;o.textContent=t;select.append(o);});
-      const note=document.createElement('textarea');note.maxLength=1000;note.placeholder='必填：调查及实际处理结果（用户可见）';note.setAttribute('aria-label','处理说明');
-      const save=document.createElement('button');save.textContent='保存处理记录';save.className='mini';
-      save.onclick=async()=>{if(!note.value.trim())return toast('请填写处理说明',1);save.disabled=true;try{await api(`/safety-reports/${encodeURIComponent(id)}/resolve`,{method:'POST',body:{status:select.value,note:note.value}});await openSafetyReport(id);await loadSafetyReports();}catch(e){toast(e.message,1);save.disabled=false;}};
-      box.append(select,note,save);
-      const actions={user:['封禁用户',`/users/${encodeURIComponent(r.target_id)}/ban`,'POST',{}],message:['撤回消息',`/messages/${encodeURIComponent(r.target_id)}`,'DELETE',{}],group:['全群禁言',`/groups/${encodeURIComponent(r.target_id)}/mute`,'PUT',{mute_all:true}]};
-      if(r.status==='reviewing' && actions[r.target_type]) {
-        const [label,url,method,body]=actions[r.target_type];
-        const enforce=document.createElement('button');enforce.className='mini danger';enforce.textContent=label;
-        enforce.onclick=async()=>{
-          if(!confirm(`${label}：${r.target_id}？请先核实举报证据。`))return;
-          enforce.disabled=true;
-          try { await api(url,{method,body});note.value=`已核实并执行：${label}。`;toast('操作已执行，请补充处理说明并保存工单状态'); }
-          catch(e){toast(e.message,1);enforce.disabled=false;}
-        };
-        box.append(enforce);
-      }
-    }
-  } catch(e){toast(e.message,1);}
-}
 
 // ── 安全 ──
 async function loadSecurity(){

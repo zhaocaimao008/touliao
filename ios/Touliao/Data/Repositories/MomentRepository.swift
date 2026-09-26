@@ -76,10 +76,6 @@ final class MomentRepository {
         let _: EmptyResponse = try await api.send("api/moments/\(id)", method: "DELETE")
     }
 
-    func report(_ id: String) async throws {
-        let _: EmptyResponse = try await api.send("api/moments/\(id)/report", method: "POST")
-    }
-
     func deleteComment(_ commentId: String) async throws {
         let _: EmptyResponse = try await api.send("api/moments/comments/\(commentId)", method: "DELETE")
     }

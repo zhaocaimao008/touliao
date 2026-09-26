@@ -319,22 +319,6 @@ exports.setFeatures = asyncHandler(async (req, res) => {
 
 exports.topInviters = asyncHandler(async (req, res) => res.json(svc.topInviters(req.query)));
 
-exports.listReports   = asyncHandler(async (req, res) => res.json(svc.listReports(req.query)));
-exports.resolveReport = asyncHandler(async (req, res) => {
-  const result = svc.resolveReport(req.params.id, req.body?.action);
-  logAuditEvent({
-    adminId: req.admin.username,
-    adminUsername: req.admin.username,
-    action: `REPORT_${(req.body?.action || 'resolve').toUpperCase()}`,
-    resourceType: 'report',
-    resourceId: req.params.id,
-    ip: req.ip,
-    userAgent: req.headers['user-agent'],
-    riskLevel: req.body?.action === 'delete' ? 'high' : 'medium',
-  });
-  res.json(result);
-});
-
 // ── 管理员账号管理（仅 superadmin）──────────────────────────────
 // role 缺省(旧 token，本次上线前签发、尚未过期)按 superadmin 对待——迁移前系统只有
 // 一个全权限账号，不应该因为这次改动让当前已登录的管理员突然失去权限。

@@ -29,7 +29,7 @@ function ago(sec) {
 const CONTENT_LIMIT = 120;
 
 /* 单条动态（memo：仅当本卡片数据 m 变化时才重渲染，点赞/评论不再重刷整个 feed）*/
-export const MomentCard = memo(function MomentCard({ m, meId, onLike, onComment, onDelete, onDeleteComment, onLoadComments, onReport, onEdit }) {
+export const MomentCard = memo(function MomentCard({ m, meId, onLike, onComment, onDelete, onDeleteComment, onLoadComments, onEdit }) {
   useMediaCredentials();
   const { t } = useI18n();
   const [commenting, setCommenting] = useState(false);
@@ -79,9 +79,7 @@ export const MomentCard = memo(function MomentCard({ m, meId, onLike, onComment,
               <button className="wc-moment-delete" onClick={() => onEdit(m)}>{t('chat.edit')}</button>
               <button className="wc-moment-delete" onClick={() => onDelete(m)}>{t('chat.delete')}</button>
             </span>
-          ) : (
-            <button className="wc-moment-delete" onClick={() => onReport(m)}>{t('moments.report')}</button>
-          )}
+          ) : null}
         </div>
         {m.content && (() => {
           const needsTruncate = m.content.length > CONTENT_LIMIT;
@@ -623,15 +621,6 @@ export default function Moments() {
     catch (e) { showToast(e.response?.data?.error || t('moments.deleteFailed'), 'error'); }
   }, [t]);
 
-  const onReport = useCallback(async (m) => {
-    if (!(await showConfirm(t('moments.confirmReport')))) return;
-    try {
-      await axios.post(`/api/moments/${m.id}/report`, {});
-      showToast(t('moments.reportThanks'), 'success');
-    } catch (e) {
-      showToast(e.response?.status === 409 ? t('moments.alreadyReported') : (e.response?.data?.error || t('moments.reportFailed')), e.response?.status === 409 ? 'info' : 'error');
-    }
-  }, [t]);
 
   const onEdit = useCallback((m) => {
     setEditing(m);
@@ -906,7 +895,7 @@ export default function Moments() {
           list.map(m => (
             <MomentCard key={m.id} m={m} meId={meId}
               onLike={onLike} onComment={onComment} onDelete={onDelete} onDeleteComment={onDeleteComment}
-              onLoadComments={onLoadComments} onReport={onReport} onEdit={onEdit} />
+              onLoadComments={onLoadComments} onEdit={onEdit} />
           ))
         )}
         {!loading && list.length > 0 && (hasMore || loadError) && (

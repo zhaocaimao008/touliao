@@ -440,31 +440,6 @@ router.put('/features', adminAuth, c.setFeatures);
 // ── 邀请裂变排行榜（谁拉新最多）──────────────────────────────────
 router.get('/top-inviters', adminAuth, c.topInviters);
 
-// ── 朋友圈举报队列（MO6）──────────────────────────────────────────
-// User/message/group reports and support tickets share the existing admin boundary.
-const safetyReports = require('../reports/reports.service');
-const safetyHandler = require('../../utils/http').asyncHandler;
-router.get('/safety-reports', adminAuth, safetyHandler(async (req,res) => res.json(safetyReports.list(null,req.query,true))));
-router.get('/safety-reports/:id', adminAuth, safetyHandler(async (req,res) => res.json(safetyReports.detail(null,req.params.id,true))));
-router.post('/safety-reports/:id/resolve', adminAuth, (req,res,next) => {
-  // This route authenticates by admin cookie even if an unrelated Bearer header
-  // is present. Bind CSRF to that signed admin session, including cookie-less CSRF.
-  if (process.env.DISABLE_CSRF !== '1' && (!req.csrfToken || req.headers['x-csrf-token'] !== req.csrfToken)) {
-    return res.status(403).json({error:'CSRF token 无效或缺失'});
-  }
-  next();
-}, safetyHandler(async (req,res) => {
-  const result = safetyReports.resolve(req.params.id,req.body,req.admin.username);
-  require('../../utils/auditLogger').logAuditEvent({
-    adminId:req.admin.adminId, adminUsername:req.admin.username,
-    action:'resolve_safety_report', resourceType:'safety_report', resourceId:req.params.id,
-    details:{status:result.status}, ip:req.ip, userAgent:req.get('user-agent'),
-  });
-  res.json(result);
-}));
-router.get ('/reports',             adminAuth, c.listReports);
-router.post('/reports/:id/resolve', adminAuth, c.resolveReport);
-
 // ── 管理员账号管理（2026-09-02，仅 superadmin，见 controller 里的角色门控）─
 router.get   ('/admins',     adminAuth, c.listAdmins);
 router.post  ('/admins',     adminAuth, c.createAdmin);

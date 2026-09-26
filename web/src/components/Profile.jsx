@@ -1,5 +1,3 @@
-import LegalConsent from './LegalConsent';
-import ReportButton from './ReportDialog';
 import { DangerButton, PrimaryButton, SecondaryButton } from '../ui-kit/Button';
 import TouliaoField from '../ui-kit/Field';
 import { TextButton } from '../ui-kit/Button';
@@ -1423,8 +1421,6 @@ export default function Profile({ isMobile = false }) {
 
   return (
     <PageBg>
-      <LegalConsent />
-      <ReportButton label="举报与客服 / 我的工单" />
       {/* ── 个人信息头部 ── */}
       <div className="wc-me-header">
         <button className="wc-me-profile-btn" onClick={() => setSubPage('profile-detail')}>
