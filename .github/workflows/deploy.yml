@@ -255,6 +255,11 @@ jobs:
             git -C "$REPO_ROOT" stash push -u -m "auto-deploy-protect-$(date -u +%Y%m%dT%H%M%SZ)"
             echo "已 stash，部署完成后请手动 git stash list / git stash show -p 检查是否需要合并回来"
           fi
+          # 2026-09-26 修复：.git/index 可能被之前某个以 nobody 身份运行的进程创建，
+          # 属主变成 nobody:65534 且权限 600，导致 ubuntu 用户的 git 操作报 Permission denied
+          #（2026-09-26 的部署就是因此失败）。删掉坏索引，git 下次操作时会自动重建；
+          # 删除只需要 .git 目录的写权限（目录属主是 ubuntu），不需要文件本身的权限。
+          rm -f "$REPO_ROOT/.git/index" 2>/dev/null || true
           # 用带 token 的 URL 显式 fetch（token 不落盘到 remote 配置）
           git -C "$REPO_ROOT" fetch "$AUTH_URL" "$DEPLOY_COMMIT"
           git -C "$REPO_ROOT" reset --hard FETCH_HEAD
