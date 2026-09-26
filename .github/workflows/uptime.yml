@@ -1,0 +1,74 @@
+name: Production Uptime Check
+# 从 GitHub 外部定时探测线上服务（服务器整机宕机时本机定时器报不出来）。
+# 失败即 run 失败 → GitHub 按账号的 Actions 通知设置发邮件；
+# 若配置了 TELEGRAM_BOT_TOKEN / TELEGRAM_CHAT_ID 两个 secret，同时发 Telegram。
+# 每项检查失败后间隔 20 秒重试，连续 3 次失败才算故障，避免网络抖动误报。
+# 注意：GitHub 定时任务可能延迟数分钟，不是秒级监控。
+on:
+  schedule:
+    - cron: '*/10 * * * *'
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: uptime
+  cancel-in-progress: false
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    env:
+      BASE: https://touliao.cc
+    steps:
+      - name: Probe production
+        id: probe
+        run: |
+          set -u
+          failures=()
+          retry() {
+            local name="$1"; shift
+            for attempt in 1 2 3; do
+              if "$@"; then echo "✅ $name"; return 0; fi
+              [ "$attempt" -lt 3 ] && sleep 20
+            done
+            echo "❌ $name"; failures+=("$name")
+          }
+          health() { curl -fsS --max-time 10 "$BASE/health" | jq -e '.ok == true and .db == "ok"' >/dev/null; }
+          home() { curl -fsS --max-time 10 "$BASE/" | grep -q 'id="root"'; }
+          api() { [ "$(curl -sS --max-time 10 -o /dev/null -w '%{http_code}' "$BASE/api/legal/terms")" = 200 ]; }
+          websocket() {
+            [ "$(curl -sS --http1.1 --max-time 5 -o /dev/null -w '%{http_code}' \
+              -H 'Connection: Upgrade' -H 'Upgrade: websocket' -H 'Sec-WebSocket-Version: 13' \
+              -H 'Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==' \
+              "$BASE/socket.io/?EIO=4&transport=websocket" 2>/dev/null)" = 101 ]  # 升级后连接保持，curl 超时退出属正常
+          }
+          update_feed() { curl -fsS --max-time 10 "$BASE/downloads/updates/latest.yml" | grep -q '^version:'; }
+          tls() {
+            echo | openssl s_client -servername touliao.cc -connect touliao.cc:443 2>/dev/null \
+              | openssl x509 -noout -checkend $((14 * 86400)) >/dev/null
+          }
+          retry "健康检查 /health（服务与数据库）" health
+          retry "网页首页" home
+          retry "API 经 nginx 反代" api
+          retry "实时消息 WebSocket 握手" websocket
+          retry "Windows 更新清单" update_feed
+          retry "TLS 证书剩余 >14 天" tls
+          if [ "${#failures[@]}" -gt 0 ]; then
+            printf '%s\n' "${failures[@]}" > "$RUNNER_TEMP/failures.txt"
+            exit 1
+          fi
+      - name: Telegram alert
+        if: failure()
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          if [ -z "$TELEGRAM_BOT_TOKEN" ] || [ -z "$TELEGRAM_CHAT_ID" ]; then
+            echo "未配置 Telegram，仅依赖 GitHub 失败通知"; exit 0
+          fi
+          text="🚨 投聊线上异常
+          $(cat "$RUNNER_TEMP/failures.txt" 2>/dev/null || echo '探测任务本身失败')
+          $RUN_URL"
+          curl -fsS --max-time 10 "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
+            --data-urlencode "chat_id=${TELEGRAM_CHAT_ID}" --data-urlencode "text=${text}" >/dev/null
