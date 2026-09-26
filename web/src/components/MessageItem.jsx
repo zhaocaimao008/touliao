@@ -64,6 +64,7 @@ const MessageItem = memo(function MessageItem({ item, cbRef, measure }) {
   const canSwipeReply = !multiSelect && !msg.deleted;
   const { swipeOffset, swipeHandlers, resetSwipe, swipeEnabled } = useSwipe({
     maxOffset: 72,
+    allowRight: false, // 只有左滑回复；右滑没有对应操作，不跟手
     onSwipeLeft: () => { /* 吸附展开，按钮点击时真正触发回复 */ },
   });
   const handleSwipeReply = () => {

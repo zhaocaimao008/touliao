@@ -73,6 +73,23 @@ function checkDedup(userId, clientMsgId, conversationId) {
   `).get(userId, clientMsgId, conversationId);
 }
 
+// 已落库消息 → 回执载荷（去重命中时原样回给客户端，客户端按 client_msg_id 替换乐观消息）
+function dedupPayload(existing) {
+  return {
+    id: existing.id, conversation_id: existing.conversation_id,
+    sender_id: existing.sender_id, type: existing.type,
+    content: existing.content, file_url: existing.file_url || '',
+    reply_to_id: existing.reply_to_id || null,
+    deleted: existing.deleted, edited: existing.edited,
+    created_at: existing.created_at,
+    senderName: existing.senderName || '',
+    senderAvatar: existing.senderAvatar || '',
+    client_msg_id: existing.client_msg_id || null,
+    server_sequence: existing.server_sequence || 0,
+    reactions: [], replyTo: null,
+  };
+}
+
 module.exports = function registerMessageHandler(io, socket) {
   const userId = socket.user.id;
 
@@ -117,20 +134,7 @@ module.exports = function registerMessageHandler(io, socket) {
       const existing = checkDedup(userId, clientMsgId, conversationId);
       if (existing) {
         // 已处理过：直接返回已存在的消息，不重复写入
-        const msg = {
-          id: existing.id, conversation_id: existing.conversation_id,
-          sender_id: existing.sender_id, type: existing.type,
-          content: existing.content, file_url: existing.file_url || '',
-          reply_to_id: existing.reply_to_id || null,
-          deleted: existing.deleted, edited: existing.edited,
-          created_at: existing.created_at,
-          senderName: existing.senderName || '',
-          senderAvatar: existing.senderAvatar || '',
-          client_msg_id: existing.client_msg_id || null,
-          server_sequence: existing.server_sequence || 0,
-          reactions: [], replyTo: null,
-        };
-        ack?.({ success: true, message: msg });
+        ack?.({ success: true, message: dedupPayload(existing) });
         return;
       }
     }
@@ -221,6 +225,13 @@ module.exports = function registerMessageHandler(io, socket) {
       }
     });
     } catch (err) {
+      // 弱网重发的两次请求可能同时通过上方去重检查，后写入的一方撞 (sender_id, client_msg_id)
+      // 唯一约束。消息其实已由先到的请求落库，回成功并带回已存消息，而不是让客户端显示
+      // 「发送失败」诱导用户手动重发。
+      if (data?.clientMsgId && /UNIQUE constraint failed: messages\.sender_id, messages\.client_msg_id/.test(err?.message || '')) {
+        const existing = checkDedup(userId, data.clientMsgId, data.conversationId);
+        if (existing) { ack?.({ success: true, message: dedupPayload(existing) }); return; }
+      }
       ack?.({ success: false, error: '服务器内部错误，请重试' });
     }
   });

@@ -66,3 +66,11 @@ test.each(['post', 'patch', 'delete'])('Cookie writes using %s also require proo
   const res = await request(app)[method]('/api/moments').set('Cookie', authCookie()).send({ content: 'blocked' });
   expect(res.status).toBe(403); expect(res.body.error).toMatch(/CSRF/);
 });
+// 2026-09-26：iOS URLSession 自动回传登录 Cookie，同时带同一个 Bearer，从不发 X-CSRF-Token。
+test('native client sending the same token as Cookie and Bearer passes without double-submit', async () => {
+  const res = await write().set('Cookie', authCookie()).set('Authorization', `Bearer ${account.token}`);
+  expect(res.status).toBe(200);
+});
+test('same-token exemption does not extend to a Bearer that merely prefixes the Cookie token', async () => {
+  expect((await write().set('Cookie', authCookie()).set('Authorization', `Bearer ${account.token}x`)).status).toBe(403);
+});

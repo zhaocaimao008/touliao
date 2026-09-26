@@ -9,7 +9,7 @@ import { useRef, useState, useCallback } from 'react';
  * - 返回 { swipeOffset, swipeHandlers, resetSwipe }：
  *   swipeOffset 为当前横向偏移（px，左滑为负），swipeHandlers 绑定到目标元素
  */
-export function useSwipe({ threshold = 30, maxOffset = 160, onSwipeLeft, onSwipeRight } = {}) {
+export function useSwipe({ threshold = 30, maxOffset = 160, onSwipeLeft, onSwipeRight, allowRight = true } = {}) {
   const [swipeOffset, setSwipeOffset] = useState(0);
   const startRef = useRef(null);
   const trackingRef = useRef(false);
@@ -21,6 +21,7 @@ export function useSwipe({ threshold = 30, maxOffset = 160, onSwipeLeft, onSwipe
     if (rafRef.current) cancelAnimationFrame(rafRef.current);
     rafRef.current = null;
     setSwipeOffset(0);
+    pendingOffsetRef.current = 0;
     trackingRef.current = false;
     startRef.current = null;
   }, []);
@@ -29,6 +30,9 @@ export function useSwipe({ threshold = 30, maxOffset = 160, onSwipeLeft, onSwipe
     if (!enabled) return;
     const t = e.touches[0];
     startRef.current = { x: t.clientX, y: t.clientY };
+    // 每次按下从零计：否则上次滑开后的偏移会残留，轻点（无 touchmove）时
+    // touchend 读到旧值又把行弹开，点会话进不去聊天。
+    pendingOffsetRef.current = 0;
     trackingRef.current = true;
   }, [enabled]);
 
@@ -50,12 +54,12 @@ export function useSwipe({ threshold = 30, maxOffset = 160, onSwipeLeft, onSwipe
     }
     // 水平滑动：跟随手指（限制范围），阻止垂直滚动抢夺手势
     if (Math.abs(dx) > 10) {
-      pendingOffsetRef.current = Math.max(-maxOffset, Math.min(maxOffset, dx));
+      pendingOffsetRef.current = Math.max(-maxOffset, Math.min(allowRight ? maxOffset : 0, dx));
       if (rafRef.current == null) {
         rafRef.current = requestAnimationFrame(flushOffset);
       }
     }
-  }, [enabled, maxOffset, flushOffset]);
+  }, [enabled, maxOffset, allowRight, flushOffset]);
 
   const handleTouchEnd = useCallback(() => {
     if (!enabled || !trackingRef.current) return;

@@ -33,13 +33,21 @@ struct AnyEncodable: Encodable {
 }
 
 /// 统一网络层：URLSession + async/await + Bearer 注入 + 401 处理。
-/// 与 Android APIClient/AuthInterceptor 等价；不处理 CSRF（无 cookie，后端对 Bearer 放行）。
+/// 与 Android APIClient/AuthInterceptor 等价；不处理 CSRF（不带 cookie，后端对纯 Bearer 放行）。
 final class APIClient {
     static let shared = APIClient()
     private let session: URLSession
     private let credentials: KeychainStore
     private let baseURL: () -> String
+
+    /// 旧版本经 URLSession.shared 自动存下的登录 Cookie：进程内首次创建 APIClient 时清掉一次，
+    /// 避免它们继续被远程配置等 URLSession.shared 请求或长连接握手带出去。
+    private static let purgeLegacyCookies: Void = {
+        HTTPCookieStorage.shared.removeCookies(since: .distantPast)
+    }()
+
     init(session: URLSession = .shared, credentials: KeychainStore = .shared, baseURL: @escaping () -> String = { ServerConfig.shared.baseURL }) {
+        _ = Self.purgeLegacyCookies
         self.session = session
         self.credentials = credentials
         self.baseURL = baseURL
@@ -214,6 +222,10 @@ final class APIClient {
         guard let url = URL(string: baseURL() + "/" + path) else { throw APIError.network }
         var request = URLRequest(url: url)
         request.httpMethod = method
+        // 鉴权只走 Bearer，不存也不发 Cookie。否则 URLSession 会自动保存登录响应的 Set-Cookie
+        // 并在之后每个请求回传；后端 Cookie 优先于 Bearer，于是写请求被要求 CSRF 双提交而 403
+        // （2026-09-24 起已读/推送注册/上传/登出全失败），切换账号后还会按旧账号 Cookie 认证。
+        request.httpShouldHandleCookies = false
         // 凭据只发往签发它的服务器：请求构造期间若已切换服务器，宁可不带 token（审计 F02）。
         if authorized, let token = credential.token, ServerConfig.origin(of: url.absoluteString) == credential.origin {
             request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")

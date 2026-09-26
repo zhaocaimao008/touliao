@@ -16,6 +16,7 @@ import { migrateStorage } from './utils/migrateStorage';
 import { initWebVitals } from './utils/webVitals';
 import { initImageOptimizer } from './utils/imageOptimizer';
 import { setupAxiosInterceptors } from './utils/axiosInterceptor';
+import { preloadSavedLocale } from './contexts/I18nContext';
 import { accountWindowId, initAccountWindow, isBearerClient, isIsolatedWindow } from './utils/clientStorage';
 
 // ── Sentry 错误监控（异步懒加载，不阻塞首屏）─────────────
@@ -148,6 +149,9 @@ if (import.meta.env.PROD && import.meta.env.VITE_SENTRY_DSN) {
     initImageOptimizer();
   }
 
-  // 6. 渲染 React
+  // 6. 预载上次选择的语言包（非简体时才有网络请求；失败回落简体，不阻塞启动）
+  await preloadSavedLocale();
+
+  // 7. 渲染 React
   ReactDOM.createRoot(document.getElementById('root')).render(<App />);
 })();
