@@ -58,8 +58,8 @@ function PageHeader({ title, onBack, right }) {
   );
 }
 
-function SLabel({ children }) {
-  return <div className="wc-slabel">{children}</div>;
+function SLabel({ children, serif = false }) {
+  return <div className={`wc-slabel${serif ? ' wc-slabel-serif' : ''}`}>{children}</div>;
 }
 
 
@@ -1364,19 +1364,19 @@ function DesktopSettings({ onBack }) {
   return (
     <PageBg>
       <PageHeader title={t('profile.desktopSettingsTitle')} onBack={onBack} />
-      <SLabel>{t('profile.desktopCloseBehavior')}</SLabel>
-      <div className="wc-notif-pad">
-        <Card>
-          <CRow label={t('profile.minimizeToTrayLabel')} desc={t('profile.minimizeToTrayDesc')}
+      {/* v3 极光设计：扁平细线分隔，不用卡片；section 标题衬线 */}
+      <div className="wc-desktop-settings">
+        <SLabel serif>{t('profile.desktopCloseBehavior')}</SLabel>
+        <div className="wc-setting-flat">
+          <CRow label={<>{t('profile.minimizeToTrayLabel')}<span className="wc-new-badge">NEW</span></>}
+            desc={t('profile.minimizeToTrayDesc')}
             right={<TouliaoSwitch value={minimizeToTray} onChange={toggleTray} />} />
-        </Card>
-      </div>
-      <SLabel>{t('profile.desktopTrayNotify')}</SLabel>
-      <div className="wc-notif-pad">
-        <Card>
+        </div>
+        <SLabel serif>{t('profile.desktopTrayNotify')}</SLabel>
+        <div className="wc-setting-flat">
           <CRow label={t('profile.trayFlashLabel')} desc={t('profile.trayFlashDesc')}
             right={<TouliaoSwitch value={trayFlash} onChange={toggleFlash} />} />
-        </Card>
+        </div>
       </div>
     </PageBg>
   );

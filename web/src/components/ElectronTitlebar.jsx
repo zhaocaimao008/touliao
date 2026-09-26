@@ -102,22 +102,20 @@ export default function ElectronTitlebar() {
         userSelect: 'none',
       }}
     >
-      {/* 应用图标 + 品牌色点缀：此前 paddingLeft:56 预留了图标位但未渲染，56px 空白死区 */}
+      {/* v3 极光设计：标题栏只保留一颗极光圆点品牌标识（克制），不再用 16px 图标方块 */}
       <span style={{
         display: 'flex', alignItems: 'center', gap: 8, paddingLeft: 12,
         WebkitAppRegion: 'drag',
       }}>
-        <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true">
-          <rect x="0" y="0" width="16" height="16" rx="4" fill={BRAND} />
-          <path d="M4.5 5.5h7v4h-4.2L5 11.8v-2.3H4.5a1 1 0 0 1-1-1v-2a1 1 0 0 1 1-1z"
-            fill="#fff" transform="translate(0.5,0.3) scale(0.94)" />
-        </svg>
+        <span aria-hidden="true" style={{
+          width: 8, height: 8, borderRadius: '50%', flexShrink: 0,
+          background: 'linear-gradient(135deg, #6D5AE6, #5EEAD4)',
+        }} />
         <span style={{
           fontSize: 'var(--text-sm)', letterSpacing: 0,
           color: 'var(--titlebar-title)',
         }}>
-          <span style={{ color: BRAND, fontWeight: 600 }}>{t('common.appName')}</span>
-          {' - 账号窗口 '}{window.__ELECTRON_CONFIG__?.profile || 1}
+          {t('common.appName')}
         </span>
       </span>
       <span style={{ flex: 1, WebkitAppRegion: 'drag' }} />

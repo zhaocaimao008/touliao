@@ -3693,14 +3693,15 @@ body.dark-mode .we-empty-svg { opacity: .25; }
 .wc-empty { display:flex; flex-direction:column; align-items:center; justify-content:center; height:100%; }
 
 /* ── 全局 Toast / Snackbar ── */
+/* v3 极光设计：深色 #171A26 墨底 + 极光青圆点（品牌时刻） */
 .wc-toast {
   position: fixed;
   bottom: 72px;
   left: 50%;
   transform: translateX(-50%);
-  background: rgba(0,0,0,.72);
-  color: var(--gray-0);
-  padding: 8px 20px;
+  background: #171A26;
+  color: #F7F8FC;
+  padding: 10px 20px 10px 16px;
   border-radius: var(--radius-2xl);
   font-size: var(--text-base);
   z-index: var(--z-toast);
@@ -3710,9 +3711,23 @@ body.dark-mode .we-empty-svg { opacity: .25; }
   overflow: hidden;
   text-overflow: ellipsis;
   animation: wcToastIn .18s ease;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  box-shadow: 0 4px 16px rgba(11, 14, 26, .25);
+}
+.wc-toast::before {
+  content: '';
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  background: linear-gradient(135deg, #6D5AE6, #5EEAD4);
 }
 .wc-toast.error   { background: rgba(250,81,81,.92); }
 .wc-toast.success { background: rgba(var(--green-rgb),.92); }
+.wc-toast.error::before,
+.wc-toast.success::before { display: none; }
 @keyframes wcToastIn {
   from { opacity: 0; transform: translateX(-50%) translateY(8px); }
   to   { opacity: 1; transform: translateX(-50%) translateY(0); }
@@ -3907,12 +3922,14 @@ body.dark-mode .we-empty-svg { opacity: .25; }
 .rpm-btn-send:disabled { background: var(--text-disabled); box-shadow: none; transform: none; cursor: not-allowed; }
 
 /* === ChatWindow component classes === */
+/* v3 极光：对方正在输入 — 三点用极光靛，带 subtle 微光 */
 .cw-typing { font-size: var(--text-sm); color: var(--text-tertiary); padding: 4px 0 2px; display: flex; align-items: center; gap: 3px; }
-.cw-typing span { width: 4px; height: 4px; border-radius: var(--radius-full); background: var(--text-tertiary); display: inline-block; animation: cwDotAnim 1.4s infinite ease-in-out both; }
-.cw-typing span:nth-child(1) { animation-delay: -0.32s; }
-.cw-typing span:nth-child(2) { animation-delay: -0.16s; }
-.cw-typing span:nth-child(3) { animation-delay: 0s; }
+.cw-typing span { width: 5px; height: 5px; border-radius: var(--radius-full); background: var(--aurora-indigo, #6D5AE6); display: inline-block; animation: cwDotAnim 1.4s infinite ease-in-out both, cwDotGlow 2.8s infinite ease-in-out; }
+.cw-typing span:nth-child(1) { animation-delay: -0.32s, 0s; }
+.cw-typing span:nth-child(2) { animation-delay: -0.16s, -0.9s; }
+.cw-typing span:nth-child(3) { animation-delay: 0s, -1.8s; }
 @keyframes cwDotAnim { 0%, 80%, 100% { transform: scale(0); } 40% { transform: scale(1); } }
+@keyframes cwDotGlow { 0%, 100% { box-shadow: 0 0 4px rgba(109, 90, 230, .3); } 50% { box-shadow: 0 0 10px rgba(109, 90, 230, .55); } }
 /* 滚动到底部按钮 */
 .cw-scroll-bottom {
   position: absolute;
@@ -4660,16 +4677,37 @@ body.dark-mode .pf-hero { box-shadow: 0 10px 34px rgba(0,0,0,.5); }
   color: var(--text-secondary);
 }
 .wc-state-icon { font-size: 40px; line-height: var(--lh-none); opacity: .85; }
-/* 空态插画：线条风 SVG，跟随 tertiary 文字色，深浅色自适应 */
+/* v3 极光：空态 hero — SVG 极光插画（品牌时刻），深浅色自适应 */
 .wc-state-illustration {
-  color: var(--text-tertiary);
-  opacity: .8;
-  margin-bottom: 4px;
+  margin-bottom: 8px;
+  /* 极淡极光洗色，只在插画周围 */
+  background: var(--aurora-hero-grad, radial-gradient(120% 90% at 50% 0%, rgba(109, 90, 230, .10) 0%, transparent 55%));
+  border-radius: 24px;
+  padding: 16px 24px;
 }
 .wc-state-illustration svg { display: block; }
-.wc-state-title { font-size: var(--text-md); color: var(--text-primary); font-weight: 500; }
-.wc-state-desc { font-size: var(--text-note); color: var(--text-muted); }
-.wc-state-action { margin-top: 8px; }
+/* v3 极光：空态标题用衬线展示字体 */
+.wc-state-title { font-size: var(--text-lg); color: var(--text-primary); font-weight: 600; }
+.wc-state--hero .wc-state-title {
+  font-family: var(--font-display, "Noto Serif SC", serif);
+  font-size: 1.375rem;
+  font-weight: 700;
+  letter-spacing: .02em;
+}
+.wc-state-desc { font-size: var(--text-note); color: var(--text-muted); max-width: 280px; }
+.wc-state-action { margin-top: 12px; }
+/* v3 极光：空态 CTA — 单个品牌按钮 */
+.wc-state-cta {
+  padding: 10px 28px;
+  border: none; border-radius: var(--radius-full);
+  background: linear-gradient(135deg, #6D5AE6 0%, #5A47D6 100%);
+  color: #fff; font-size: var(--text-sm2); font-weight: 500; cursor: pointer;
+  box-shadow: 0 2px 8px rgba(109, 90, 230, .28);
+  transition: box-shadow .15s ease, transform .15s ease;
+}
+.wc-state-cta:hover { box-shadow: 0 4px 14px rgba(109, 90, 230, .38); }
+.wc-state-cta:active { transform: scale(.98); }
+.wc-state-cta:focus-visible { outline: 2px solid var(--color-primary); outline-offset: 2px; }
 .wc-state-retry {
   margin-top: 8px; padding: 8px 20px;
   border: none; border-radius: var(--radius-full);

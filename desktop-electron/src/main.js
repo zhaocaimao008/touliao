@@ -465,9 +465,10 @@ function createWindow() {
       backgroundThrottling: false,
     },
     show: false,
-    // 启动底色跟随系统深浅主题（nativeTheme），避免浅色模式下闪一下深海军蓝。
+    // 启动底色跟随系统深浅主题（nativeTheme），避免浅色模式下闪一下深色。
     // 渲染层挂载后由 CSS 接管，此处只管"窗口出现前那一瞬"。
-    backgroundColor: nativeTheme.shouldUseDarkColors ? '#1A2033' : '#F0F2F5',
+    // v3 极光色板：渊空 #0B0E1A / 月白 #F7F8FC
+    backgroundColor: nativeTheme.shouldUseDarkColors ? '#0B0E1A' : '#F7F8FC',
   });
 
   mainWindow.loadFile(indexHtmlPath());

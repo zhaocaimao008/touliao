@@ -436,3 +436,48 @@ html.windows-desktop #touliao-titlebar button:focus-visible {
   outline: 2px solid var(--color-primary, #6D5AE6);
   outline-offset: -2px;
 }
+
+/* ── v3 极光设计：桌面端设置页扁平细线风格 ── */
+/* 容器：无卡片，设置项之间用 #E4E7F0 细线分隔 */
+html.windows-desktop .wc-setting-flat {
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+  overflow: visible;
+}
+html.windows-desktop .wc-setting-flat .wc-crow {
+  padding: 16px 2px;
+  border-bottom: 1px solid #E4E7F0;
+  background: transparent;
+}
+html.windows-desktop .wc-setting-flat .wc-crow:last-child {
+  border-bottom: none;
+}
+html.windows-desktop .wc-setting-flat .wc-crow-clickable:hover {
+  background: transparent;
+}
+/* section 标题：衬线体（v3 展示标题规范），去全大写 */
+html.windows-desktop .wc-desktop-settings .wc-slabel-serif {
+  font-family: var(--font-display);
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-primary);
+  text-transform: none;
+  letter-spacing: 0;
+  padding: 24px 2px 4px;
+}
+/* NEW 角标：品牌淡底 + 品牌字色，克制小尺寸 */
+html.windows-desktop .wc-new-badge {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 2px 6px;
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 1.4;
+  letter-spacing: .4px;
+  color: #6D5AE6;
+  background: #F1EFFD;
+  border-radius: 4px;
+  vertical-align: 1px;
+}
