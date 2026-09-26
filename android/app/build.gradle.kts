@@ -16,8 +16,8 @@ android {
         minSdk = 24
         targetSdk = 34
         testInstrumentationRunner = "com.touliao.app.review.ReviewRunner"
-        versionCode = 86
-        versionName = "8.1.29"
+        versionCode = 87
+        versionName = "8.1.30"
 
         // 默认服务器地址（运行时可在 App 内切换并持久化覆盖）
         buildConfigField("String", "DEFAULT_SERVER_URL", "\"https://touliao.cc\"")

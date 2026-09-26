@@ -185,6 +185,9 @@ button[type="button"]:active {
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 /* 用 dvh 让布局随手机软键盘动态收缩，彻底解决输入框被键盘遮挡问题 */
 html, body, #root { height: 100%; height: 100dvh; }
+/* 浏览器端 #main-content 没有 Electron 那样的内联高度；.wc-app 用 height:100%（ui-kit/chat.css）
+   时必须有确定高度的父级，否则按内容收缩，桌面布局只剩半屏。Electron 内联 100vh 优先。 */
+#main-content { height: 100%; }
 /* 根字号 100% = 浏览器默认（16px，可被用户在系统/浏览器设置中调整），
    配合 design-tokens 的 rem 字号体系实现系统字体缩放跟随 */
 html { font-size: 100%; }
@@ -512,12 +515,6 @@ body.dark-mode * {
 }
 .wc-swipe-pin { background: var(--color-primary); }
 .wc-swipe-delete { background: var(--color-danger); }
-/* 桌面端键盘聚焦时露出快捷按钮（hover 由 React 状态控制，触屏由滑动手势控制） */
-@media (hover: hover) and (pointer: fine) {
-  .wc-chat-item-wrapper:focus-within .wc-chat-item {
-    transform: translateX(-144px);
-  }
-}
 .wc-chat-item-badge {
   position: absolute;
   top: -4px;

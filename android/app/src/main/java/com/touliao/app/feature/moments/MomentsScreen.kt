@@ -4,12 +4,10 @@ import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
-import androidx.compose.foundation.gestures.detectTransformGestures
+import com.touliao.app.ui.components.pagerFriendlyZoom
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -248,15 +246,13 @@ private fun ImageGallery(images: List<String>, startIndex: Int, onDismiss: () ->
         val pagerState = rememberPagerState(initialPage = startIndex.coerceIn(0, (images.size - 1).coerceAtLeast(0)), pageCount = { images.size })
         Box(Modifier.fillMaxSize().background(Color.Black)) {
             HorizontalPager(state = pagerState, modifier = Modifier.fillMaxSize()) { page ->
-                var scale by remember { mutableStateOf(1f) }
                 Box(Modifier.fillMaxSize().clickable { onDismiss() }, contentAlignment = Alignment.Center) {
                     AsyncImage(
                         model = images[page],
                         contentDescription = "图片",
                         contentScale = ContentScale.Fit,
-                        modifier = Modifier.fillMaxSize()
-                            .graphicsLayer(scaleX = scale, scaleY = scale)
-                            .pointerInput(Unit) { detectTransformGestures { _, _, zoom, _ -> scale = (scale * zoom).coerceIn(1f, 4f) } },
+                        // 单指未放大时留给 Pager 翻页；双指缩放、放大后可拖动
+                        modifier = Modifier.fillMaxSize().pagerFriendlyZoom(),
                     )
                 }
             }

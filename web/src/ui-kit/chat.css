@@ -72,7 +72,7 @@ html.touliao-ui body .tl-send-hint { margin-right: auto; color: var(--tl-readabl
   html.touliao-ui body :is(.m-app, .m-page, .m-content) { background: var(--tl-surface); }
   html.touliao-ui body .m-topbar { min-height: 52px; background: var(--tl-surface); border-bottom: 0; padding-inline: 16px; }
   html.touliao-ui body .m-title { font-size: 22px; }
-  html.touliao-ui body .m-search { min-height: 40px; margin: 8px 16px 12px; border: 1px solid var(--tl-border-strong); border-radius: 12px; background: var(--tl-surface-secondary); }
+  html.touliao-ui body .m-search { min-height: 40px; margin: 8px 16px 12px; width: auto; max-width: calc(100% - 32px); border: 1px solid var(--tl-border-strong); border-radius: 12px; background: var(--tl-surface-secondary); }
   html.touliao-ui body .m-tabbar { background: var(--tl-surface); border-top: 1px solid var(--tl-border); }
   html.touliao-ui body .m-tab { color: var(--tl-readable-muted); }
   html.touliao-ui body .m-tab.active { color: var(--tl-primary); }
