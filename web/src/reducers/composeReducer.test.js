@@ -94,7 +94,7 @@ describe('composeReducer', () => {
     it('RESET：载入草稿 + 全清编辑/回复/语音', () => {
       const s = S({ input: 'old', mode: 'VOICE', editingMsg: { id: 1, content: 'c' }, replyTo: { id: 2 } });
       const n = composeReducer(s, { type: 'RESET', draft: '草稿' });
-      expect(n).toEqual({ input: '草稿', mode: 'TEXT', emojiTab: 'emoji', editingMsg: null, replyTo: null });
+      expect(n).toEqual({ input: '草稿', mode: 'TEXT', emojiTab: 'emoji', editingMsg: null, replyTo: null, fromDraft: true });
     });
     it('RESET 无草稿 → 输入为空', () => {
       const n = composeReducer(S({ input: 'old' }), { type: 'RESET' });
