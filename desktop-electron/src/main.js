@@ -853,9 +853,15 @@ function createTray() {
       click: () => {
         mainWindow?.show(); mainWindow?.focus();
         mainWindow?.webContents.send('update:checking');
-        autoUpdater.checkForUpdates().catch((e) => {
-          mainWindow?.webContents.send('update:error', `检查失败：${e.message}`);
-        });
+        const timeout = setTimeout(() => {
+          mainWindow?.webContents.send('update:error', '检查超时，请稍后重试');
+        }, 30000);
+        autoUpdater.checkForUpdates()
+          .then(() => clearTimeout(timeout))
+          .catch((e) => {
+            clearTimeout(timeout);
+            mainWindow?.webContents.send('update:error', `检查失败：${e.message}`);
+          });
       },
     },
     { type: 'separator' },
@@ -1276,9 +1282,16 @@ function setupIPC() {
       return;
     }
     mainWindow?.webContents.send('update:checking');
-    autoUpdater.checkForUpdates().catch((e) => {
-      mainWindow?.webContents.send('update:error', `检查失败：${e.message}`);
-    });
+    // 30秒超时：避免网络卡住时 UI 一直转圈没反应
+    const timeout = setTimeout(() => {
+      mainWindow?.webContents.send('update:error', '检查超时，请稍后重试');
+    }, 30000);
+    autoUpdater.checkForUpdates()
+      .then(() => clearTimeout(timeout))
+      .catch((e) => {
+        clearTimeout(timeout);
+        mainWindow?.webContents.send('update:error', `检查失败：${e.message}`);
+      });
   });
 
   // 更新公钥启动自检结果查询：供「关于/设置」页展示，让管理员能发现
