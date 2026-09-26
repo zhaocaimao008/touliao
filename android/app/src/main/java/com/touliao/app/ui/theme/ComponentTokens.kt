@@ -89,7 +89,7 @@ object TouliaoMedia {
     val accept = Color(0xFF18856B)
 }
 
-object TouliaoMotion {
+object TouliaoEasing {
     val standard = CubicBezierEasing(0.2f, 0f, 0f, 1f)
     val entrance = CubicBezierEasing(0f, 0f, 0.2f, 1f)
     val exit = CubicBezierEasing(0.4f, 0f, 1f, 1f)

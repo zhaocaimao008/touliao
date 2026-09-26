@@ -44,7 +44,7 @@ def outputs(root=ROOT):
             text+='}\n\nenum TouliaoMedia {\n'
             for name,value in c['media'].items():
                 if isinstance(value,str): text+=f'    static let {name} = Color(red: {int(value[1:3],16)} / 255.0, green: {int(value[3:5],16)} / 255.0, blue: {int(value[5:7],16)} / 255.0)\n'
-            text+='}\n\nenum TouliaoMotion {\n'
+            text+='}\n\nenum TouliaoEasing {\n'
             for name,value in t['motion']['easing'].items():
                 points=re.fullmatch(r'cubic-bezier\(([^)]+)\)', value).group(1)
                 text+=f'    static func {name}(_ duration: Double = TouliaoMetrics.durationNormal) -> Animation {{ .timingCurve({points}, duration: duration) }}\n'
@@ -58,7 +58,7 @@ def outputs(root=ROOT):
             text+='}\n\nobject TouliaoMedia {\n'
             for name,value in c['media'].items():
                 if isinstance(value,str):text+=f'    val {name} = Color(0xFF{value[1:].upper()})\n'
-            text+='}\n\nobject TouliaoMotion {\n'
+            text+='}\n\nobject TouliaoEasing {\n'
             for name,value in t['motion']['easing'].items():
                 points=re.fullmatch(r'cubic-bezier\(([^)]+)\)', value).group(1)
                 args=', '.join(x.strip()+'f' for x in points.split(','))

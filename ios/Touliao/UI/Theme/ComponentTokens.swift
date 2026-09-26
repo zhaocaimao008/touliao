@@ -128,7 +128,7 @@ enum TouliaoMedia {
     static let accept = Color(red: 24 / 255.0, green: 133 / 255.0, blue: 107 / 255.0)
 }
 
-enum TouliaoMotion {
+enum TouliaoEasing {
     static func standard(_ duration: Double = TouliaoMetrics.durationNormal) -> Animation { .timingCurve(0.2, 0, 0, 1, duration: duration) }
     static func entrance(_ duration: Double = TouliaoMetrics.durationNormal) -> Animation { .timingCurve(0, 0, 0.2, 1, duration: duration) }
     static func exit(_ duration: Double = TouliaoMetrics.durationNormal) -> Animation { .timingCurve(0.4, 0, 1, 1, duration: duration) }
