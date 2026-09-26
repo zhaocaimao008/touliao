@@ -55,7 +55,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.touliao.app.data.model.Contact
 import com.touliao.app.ui.components.InitialAvatar
 import androidx.compose.foundation.isSystemInDarkTheme
-import com.touliao.app.ui.theme.VxinGreen
+import com.touliao.app.ui.theme.VxinBrand
 import com.touliao.app.ui.theme.VxinSurfaceDark
 import com.touliao.app.ui.theme.VxinTextSecondary
 
@@ -329,7 +329,7 @@ private fun ContactsIndexedList(
                 letters.forEach { letter ->
                     Text(
                         letter.toString(),
-                        color = VxinGreen,
+                        color = VxinBrand,
                         style = MaterialTheme.typography.labelSmall,
                         modifier = Modifier
                             .padding(horizontal = 6.dp, vertical = 1.dp)
@@ -374,7 +374,7 @@ private fun ContactRow(
                     Modifier.align(Alignment.BottomEnd).size(12.dp)
                         // 描边圈随主题：浅色=白、深色=卡面色，深色下不再突兀
                         .clip(CircleShape).background(MaterialTheme.colorScheme.surface).padding(2.dp)
-                        .clip(CircleShape).background(VxinGreen),
+                        .clip(CircleShape).background(VxinBrand),
                 )
             }
         }

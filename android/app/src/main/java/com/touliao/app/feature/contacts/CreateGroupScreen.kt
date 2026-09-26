@@ -34,7 +34,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.touliao.app.data.model.Contact
 import com.touliao.app.ui.components.InitialAvatar
-import com.touliao.app.ui.theme.VxinGreen
+import com.touliao.app.ui.theme.VxinBrand
 import com.touliao.app.ui.theme.VxinTextSecondary
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -110,7 +110,7 @@ private fun SelectableContactRow(contact: Contact, avatarUrl: String? = null, ch
         verticalAlignment = Alignment.CenterVertically,
     ) {
         if (checked) {
-            Icon(com.touliao.app.ui.TouliaoIcons.Selected, contentDescription = "已选", tint = VxinGreen)
+            Icon(com.touliao.app.ui.TouliaoIcons.Selected, contentDescription = "已选", tint = VxinBrand)
         } else {
             RadioButton(selected = false, onClick = onToggle)
         }

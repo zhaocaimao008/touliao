@@ -24,7 +24,7 @@ private fun colors(p: TouliaoPalette, dark: Boolean) = if (dark) darkColorScheme
     background = p.background, onBackground = p.text,
     surface = p.surface, onSurface = p.text,
     surfaceVariant = p.surfaceSecondary, onSurfaceVariant = p.readableMuted,
-    surfaceTint = androidx.compose.ui.graphics.Color.Transparent,
+    surfaceTint = p.primary,
     error = p.readableDanger, onError = p.primaryForeground,
     errorContainer = p.dangerSoft, onErrorContainer = p.readableDanger,
     outline = p.borderStrong, outlineVariant = p.border,
@@ -36,7 +36,7 @@ private fun colors(p: TouliaoPalette, dark: Boolean) = if (dark) darkColorScheme
     background = p.background, onBackground = p.text,
     surface = p.surface, onSurface = p.text,
     surfaceVariant = p.surfaceSecondary, onSurfaceVariant = p.readableMuted,
-    surfaceTint = androidx.compose.ui.graphics.Color.Transparent,
+    surfaceTint = p.primary,
     error = p.readableDanger, onError = p.primaryForeground,
     errorContainer = p.dangerSoft, onErrorContainer = p.readableDanger,
     outline = p.borderStrong, outlineVariant = p.border,
@@ -62,9 +62,14 @@ private val TouliaoTypography = Typography(
 )
 
 @Composable
-fun VxinTheme(darkTheme: Boolean = isSystemInDarkTheme(), content: @Composable () -> Unit) {
+fun VxinTheme(
+    darkTheme: Boolean = isSystemInDarkTheme(),
+    dynamicColor: Boolean = false,
+    content: @Composable () -> Unit
+) {
     val palette = if (darkTheme) TouliaoDarkPalette else TouliaoLightPalette
     val view = androidx.compose.ui.platform.LocalView.current
+    val context = androidx.compose.ui.platform.LocalContext.current
     androidx.compose.runtime.SideEffect {
         val window = (view.context as? android.app.Activity)?.window
         if (window != null) {
@@ -74,9 +79,17 @@ fun VxinTheme(darkTheme: Boolean = isSystemInDarkTheme(), content: @Composable (
             }
         }
     }
+    // Material You 动态取色（Android 12+）：用系统壁纸色替换品牌色，palette 仍用于语义色
+    val colorScheme = when {
+        dynamicColor && android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S -> {
+            if (darkTheme) androidx.compose.material3.dynamicDarkColorScheme(context)
+            else androidx.compose.material3.dynamicLightColorScheme(context)
+        }
+        else -> colors(palette, darkTheme)
+    }
     androidx.compose.runtime.CompositionLocalProvider(LocalTouliaoPalette provides palette) {
         MaterialTheme(
-            colorScheme = colors(palette, darkTheme), typography = TouliaoTypography,
+            colorScheme = colorScheme, typography = TouliaoTypography,
             shapes = androidx.compose.material3.Shapes(
                 extraSmall = RoundedCornerShape(TouliaoMetrics.radiusSmall), small = RoundedCornerShape(TouliaoMetrics.radiusSmall),
                 medium = RoundedCornerShape(TouliaoMetrics.radiusControl), large = RoundedCornerShape(TouliaoMetrics.radiusDialog),
@@ -97,7 +110,8 @@ fun VxinTheme(
         com.touliao.app.core.storage.ThemeMode.LIGHT -> false
         com.touliao.app.core.storage.ThemeMode.DARK -> true
     }
-    VxinTheme(darkTheme = dark, content = content)
+    val dynamic by com.touliao.app.core.storage.ThemeStore.dynamicLive.collectAsState()
+    VxinTheme(darkTheme = dark, dynamicColor = dynamic, content = content)
 }
 
 /**

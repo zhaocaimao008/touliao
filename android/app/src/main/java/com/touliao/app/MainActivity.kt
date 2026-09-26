@@ -9,6 +9,7 @@ import android.view.WindowManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.Surface
 import androidx.compose.ui.ExperimentalComposeUiApi
@@ -33,6 +34,8 @@ class MainActivity : ComponentActivity() {
 
     @OptIn(ExperimentalComposeUiApi::class)
     override fun onCreate(savedInstanceState: Bundle?) {
+        // SplashScreen API：冷启动显示品牌启动屏，深浅两套窗口背景避免闪白/闪黑
+        installSplashScreen()
         // 开启 edge-to-edge：让系统把 IME / 状态栏 / 导航栏 insets 派发给 Compose，
         // 这样 Scaffold + Modifier.imePadding() 才能正确处理键盘弹出时的输入框位置。
         enableEdgeToEdge()

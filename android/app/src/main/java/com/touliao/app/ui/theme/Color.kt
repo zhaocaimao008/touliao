@@ -14,11 +14,11 @@ val VxinBrandDark: Color
 val VxinBrandMuted: Color
     @Composable @ReadOnlyComposable get() = LocalTouliaoPalette.current.primarySoft
 val VxinTeal: Color
-    @Composable @ReadOnlyComposable get() = LocalTouliaoPalette.current.primary
+    @Composable @ReadOnlyComposable get() = LocalTouliaoPalette.current.success
 val VxinGreen: Color
-    @Composable @ReadOnlyComposable get() = LocalTouliaoPalette.current.primary
+    @Composable @ReadOnlyComposable get() = LocalTouliaoPalette.current.success
 val VxinGreenDark: Color
-    @Composable @ReadOnlyComposable get() = LocalTouliaoPalette.current.primaryActive
+    @Composable @ReadOnlyComposable get() = LocalTouliaoPalette.current.success
 val VxinBg: Color
     @Composable @ReadOnlyComposable get() = LocalTouliaoPalette.current.background
 val VxinTextPrimary: Color

@@ -37,6 +37,7 @@ import com.touliao.app.core.update.UpdateChecker
 import com.touliao.app.feature.auth.ForgotPasswordScreen
 import com.touliao.app.feature.auth.LoginScreen
 import com.touliao.app.feature.auth.RegisterScreen
+import com.touliao.app.ui.theme.TouliaoMotion
 import com.touliao.app.feature.call.CallHost
 import com.touliao.app.feature.chat.ChatScreen
 import com.touliao.app.feature.chat.ConversationListScreen
@@ -187,7 +188,14 @@ fun AppNavigation(appViewModel: AppViewModel = hiltViewModel()) {
 @Composable
 private fun AuthFlow() {
     val navController = rememberNavController()
-    NavHost(navController = navController, startDestination = Routes.LOGIN) {
+    NavHost(
+        navController = navController,
+        startDestination = Routes.LOGIN,
+        enterTransition = { TouliaoMotion.enter },
+        exitTransition = { TouliaoMotion.exit },
+        popEnterTransition = { TouliaoMotion.popEnter },
+        popExitTransition = { TouliaoMotion.popExit },
+    ) {
         composable(Routes.LOGIN) {
             LoginScreen(
                 onNavigateRegister = { navController.navigate(Routes.REGISTER) },
@@ -293,6 +301,10 @@ private fun MainFlow(features: Features, unreadTotal: Int = 0, appViewModel: App
             navController = navController,
             startDestination = Routes.CONVERSATIONS,
             modifier = Modifier.padding(padding),
+            enterTransition = { TouliaoMotion.enter },
+            exitTransition = { TouliaoMotion.exit },
+            popEnterTransition = { TouliaoMotion.popEnter },
+            popExitTransition = { TouliaoMotion.popExit },
         ) {
             composable(Routes.CONVERSATIONS) {
                 ConversationListScreen(

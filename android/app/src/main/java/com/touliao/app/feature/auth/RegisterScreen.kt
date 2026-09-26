@@ -49,7 +49,7 @@ import com.touliao.app.ui.TouliaoIcons
 import com.touliao.app.ui.theme.VxinBrand
 import com.touliao.app.ui.theme.VxinBrandLight
 import com.touliao.app.ui.theme.VxinBrandDark
-import com.touliao.app.ui.theme.VxinGreen
+import com.touliao.app.ui.theme.VxinBrand
 import com.touliao.app.ui.theme.VxinTextSecondary
 
 @Composable

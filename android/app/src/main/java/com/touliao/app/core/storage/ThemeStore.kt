@@ -35,20 +35,31 @@ class ThemeStore @Inject constructor(
         live.value = mode
     }
 
+    /** Material You 动态取色开关（Android 12+ 生效） */
+    fun setDynamicColor(enabled: Boolean) {
+        prefs.edit().putBoolean(DYNAMIC_KEY, enabled).apply()
+        dynamicLive.value = enabled
+    }
+
     companion object {
         private const val KEY = "theme_mode"
+        private const val DYNAMIC_KEY = "dynamic_color"
         /**
          * 全局主题状态（进程级）。供根 Composable 无需 DI 直接订阅，切换即时生效；
          * 初值由 App 启动时从 prefs 同步一次（见 syncInitial）。
          */
         val live = MutableStateFlow(ThemeMode.SYSTEM)
 
+        /** 动态取色开关状态 */
+        val dynamicLive = MutableStateFlow(false)
+
         /** 启动时（Application.onCreate）同步一次持久化偏好，保证首帧就是用户选择的主题。 */
         fun syncInitial(context: Context) {
             runCatching {
-                val raw = context.getSharedPreferences("vxin_theme", Context.MODE_PRIVATE)
-                    .getString(KEY, ThemeMode.SYSTEM.name) ?: ThemeMode.SYSTEM.name
+                val p = context.getSharedPreferences("vxin_theme", Context.MODE_PRIVATE)
+                val raw = p.getString(KEY, ThemeMode.SYSTEM.name) ?: ThemeMode.SYSTEM.name
                 live.value = ThemeMode.valueOf(raw)
+                dynamicLive.value = p.getBoolean(DYNAMIC_KEY, false)
             }
         }
     }

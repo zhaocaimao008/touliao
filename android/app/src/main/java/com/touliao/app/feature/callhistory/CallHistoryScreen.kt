@@ -33,7 +33,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.touliao.app.core.util.formatChatTime
 import com.touliao.app.data.model.CallLog
 import com.touliao.app.ui.components.InitialAvatar
-import com.touliao.app.ui.theme.VxinGreen
+import com.touliao.app.ui.theme.VxinBrand
 import com.touliao.app.ui.theme.VxinTextSecondary
 
 private val ERR: androidx.compose.ui.graphics.Color

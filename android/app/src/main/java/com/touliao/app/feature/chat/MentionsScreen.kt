@@ -39,7 +39,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.touliao.app.data.model.MentionItem
 import com.touliao.app.ui.components.EmptyState
-import com.touliao.app.ui.theme.VxinGreen
+import com.touliao.app.ui.theme.VxinBrand
 import com.touliao.app.ui.theme.VxinTextSecondary
 import java.text.SimpleDateFormat
 import java.util.Date

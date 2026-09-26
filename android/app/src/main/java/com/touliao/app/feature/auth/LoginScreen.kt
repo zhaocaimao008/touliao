@@ -55,8 +55,7 @@ import com.touliao.app.ui.TouliaoIcons
 import com.touliao.app.ui.theme.VxinBrand
 import com.touliao.app.ui.theme.VxinBrandLight
 import com.touliao.app.ui.theme.VxinBrandDark
-import com.touliao.app.ui.theme.VxinTeal
-import com.touliao.app.ui.theme.VxinGreen
+import com.touliao.app.ui.theme.VxinBrand
 import com.touliao.app.ui.theme.VxinTextSecondary
 
 @Composable
@@ -214,7 +213,7 @@ fun LoginScreen(
         )
         Spacer(Modifier.height(12.dp))
         TextButton(onClick = onNavigateRegister) {
-            Text("注册账号", color = VxinGreen)
+            Text("注册账号", color = VxinBrand)
         }
         TextButton(onClick = onNavigateForgotPassword) {
             Text("忘记密码", color = VxinTextSecondary, fontSize = com.touliao.app.ui.theme.VxinTextSize.sm2)
@@ -239,7 +238,7 @@ fun LoginScreen(
                     onClick = { viewModel.resolveTenantCode(onResolved = { showServerConfig = false }) },
                     enabled = !state.resolvingTenantCode && state.tenantCode.isNotBlank(),
                 ) {
-                    Text(if (state.resolvingTenantCode) "查找中…" else "连接", color = VxinGreen)
+                    Text(if (state.resolvingTenantCode) "查找中…" else "连接", color = VxinBrand)
                 }
             }
             state.tenantCodeStatus?.let {
@@ -260,7 +259,7 @@ fun LoginScreen(
                 modifier = Modifier.fillMaxWidth(),
             )
             TextButton(onClick = { viewModel.saveServerUrl(); showServerConfig = false }) {
-                Text("保存", color = VxinGreen)
+                Text("保存", color = VxinBrand)
             }
         }
     }

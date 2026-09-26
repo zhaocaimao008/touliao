@@ -33,7 +33,7 @@ import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.touliao.app.ui.theme.VxinGreen
+import com.touliao.app.ui.theme.VxinBrand
 import com.touliao.app.ui.theme.VxinTextSecondary
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -77,7 +77,7 @@ fun GroupQrScreen(
                     Spacer(Modifier.size(8.dp))
                     Button(
                         onClick = { clipboard.setText(AnnotatedString(qr.url)) },
-                        colors = ButtonDefaults.buttonColors(containerColor = VxinGreen),
+                        colors = ButtonDefaults.buttonColors(containerColor = VxinBrand),
                         modifier = Modifier.fillMaxWidth(),
                     ) { Text("复制邀请链接") }
                     Text("链接 7 天内有效", color = VxinTextSecondary, style = MaterialTheme.typography.labelSmall, modifier = Modifier.padding(top = 8.dp))

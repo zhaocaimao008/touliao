@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- 深色模式启动屏：避免深色下冷启动闪白（与 TouliaoDarkPalette.background 一致） -->
+    <style name="Theme.Touliao.Splash" parent="Theme.SplashScreen">
+        <item name="windowSplashScreenBackground">#10151E</item>
+        <item name="windowSplashScreenAnimatedIcon">@mipmap/ic_launcher</item>
+        <item name="windowSplashScreenAnimationDuration">300</item>
+        <item name="postSplashScreenTheme">@style/Theme.Touliao</item>
+    </style>
+</resources>

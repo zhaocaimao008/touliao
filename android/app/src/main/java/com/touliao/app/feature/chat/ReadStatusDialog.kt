@@ -25,7 +25,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.touliao.app.ui.components.InitialAvatar
-import com.touliao.app.ui.theme.VxinGreen
+import com.touliao.app.ui.theme.VxinBrand
 import com.touliao.app.ui.theme.VxinTextSecondary
 
 /**
@@ -54,7 +54,7 @@ fun ReadStatusDialog(
                 !model.isGroup -> Row(verticalAlignment = Alignment.CenterVertically) {
                     com.touliao.app.ui.TouliaoGlyph(
                         if (model.peerRead) com.touliao.app.ui.TouliaoIcons.Read else com.touliao.app.ui.TouliaoIcons.Check,
-                        color = if (model.peerRead) VxinGreen else VxinTextSecondary,
+                        color = if (model.peerRead) VxinBrand else VxinTextSecondary,
                     )
                     Spacer(Modifier.width(10.dp))
                     Column {
@@ -76,11 +76,11 @@ fun ReadStatusDialog(
                         Text(
                             if (model.recipientCount > 0) "已读 ${model.readCount}/${model.recipientCount}"
                             else "已读 ${model.readCount}",
-                            color = if (model.readCount > 0) VxinGreen else VxinTextSecondary,
+                            color = if (model.readCount > 0) VxinBrand else VxinTextSecondary,
                             modifier = Modifier.weight(1f),
                         )
                         if (model.readCount > 0) {
-                            Text(if (expanded) "收起" else "展开", color = VxinGreen)
+                            Text(if (expanded) "收起" else "展开", color = VxinBrand)
                         }
                     }
                     if (model.readCount == 0) {

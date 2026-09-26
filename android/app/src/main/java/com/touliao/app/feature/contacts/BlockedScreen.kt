@@ -28,7 +28,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.touliao.app.ui.components.InitialAvatar
-import com.touliao.app.ui.theme.VxinGreen
+import com.touliao.app.ui.theme.VxinBrand
 import com.touliao.app.ui.theme.VxinTextSecondary
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -62,7 +62,7 @@ fun BlockedScreen(
                             InitialAvatar(name = user.username.ifBlank { "?" }, size = 44.dp, avatarUrl = viewModel.resolveUrl(user.avatar))
                             Spacer(Modifier.width(12.dp))
                             Text(user.username.ifBlank { "未命名" }, Modifier.weight(1f), style = MaterialTheme.typography.bodyLarge)
-                            TextButton(onClick = { viewModel.unblock(user) }) { Text("移出", color = VxinGreen) }
+                            TextButton(onClick = { viewModel.unblock(user) }) { Text("移出", color = VxinBrand) }
                         }
                         HorizontalDivider(Modifier.padding(start = 72.dp), thickness = 0.5.dp)
                     }

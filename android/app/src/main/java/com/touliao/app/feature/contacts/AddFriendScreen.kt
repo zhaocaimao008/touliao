@@ -50,7 +50,7 @@ import com.touliao.app.data.model.SearchUser
 import com.touliao.app.data.model.UserDetail
 import com.touliao.app.ui.components.InitialAvatar
 import com.touliao.app.ui.VxinGradientButton
-import com.touliao.app.ui.theme.VxinGreen
+import com.touliao.app.ui.theme.VxinBrand
 import com.touliao.app.ui.theme.VxinTextSecondary
 import kotlinx.coroutines.launch
 
@@ -134,7 +134,7 @@ fun AddFriendScreen(
                                 }
                         }
                     },
-                    colors = ButtonDefaults.buttonColors(containerColor = VxinGreen),
+                    colors = ButtonDefaults.buttonColors(containerColor = VxinBrand),
                     modifier = Modifier.weight(1f),
                 ) { Text("扫一扫") }
                 OutlinedButton(onClick = onOpenMyQr, modifier = Modifier.weight(1f)) { Text("我的二维码") }
@@ -159,7 +159,7 @@ fun AddFriendScreen(
 
             state.message?.let {
                 Spacer(Modifier.size(8.dp))
-                Text(it, color = VxinGreen, style = MaterialTheme.typography.bodySmall)
+                Text(it, color = VxinBrand, style = MaterialTheme.typography.bodySmall)
             }
 
             Spacer(Modifier.size(8.dp))
@@ -196,7 +196,7 @@ private fun SearchRow(user: SearchUser, sent: Boolean, onAdd: () -> Unit) {
         Button(
             onClick = onAdd,
             enabled = !sent,
-            colors = ButtonDefaults.buttonColors(containerColor = VxinGreen),
+            colors = ButtonDefaults.buttonColors(containerColor = VxinBrand),
         ) { Text(if (sent) "已发送" else "添加") }
     }
 }
@@ -222,7 +222,7 @@ private fun ScannedUserProfileSheet(
         when {
             loading -> {
                 Spacer(Modifier.height(48.dp))
-                CircularProgressIndicator(color = VxinGreen)
+                CircularProgressIndicator(color = VxinBrand)
                 Spacer(Modifier.height(48.dp))
             }
             detail == null -> {
@@ -268,7 +268,7 @@ private fun ScannedUserProfileSheet(
                         Button(
                             onClick = onAddFriend,
                             modifier = Modifier.fillMaxWidth(),
-                            colors = ButtonDefaults.buttonColors(containerColor = VxinGreen),
+                            colors = ButtonDefaults.buttonColors(containerColor = VxinBrand),
                         ) { Text("申请添加好友") }
                         Spacer(Modifier.height(8.dp))
                         OutlinedButton(onClick = onDismiss, modifier = Modifier.fillMaxWidth()) { Text("取消") }

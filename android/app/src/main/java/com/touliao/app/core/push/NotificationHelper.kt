@@ -161,7 +161,7 @@ class NotificationHelper @Inject constructor(
         val title = callerName.ifBlank { "来电" }
         val text = if (callType == "video") "邀请你视频通话" else "邀请你语音通话"
         val notification = NotificationCompat.Builder(context, CALL_CHANNEL_ID)
-            .setSmallIcon(android.R.drawable.ic_menu_call)
+            .setSmallIcon(R.drawable.ic_notification)
             .setContentTitle(title)
             .setContentText(text)
             .setCategory(NotificationCompat.CATEGORY_CALL)

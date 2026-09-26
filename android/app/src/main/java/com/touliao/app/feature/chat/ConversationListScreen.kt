@@ -58,7 +58,7 @@ import com.touliao.app.core.util.formatChatTime
 import com.touliao.app.data.model.Conversation
 import com.touliao.app.ui.TouliaoIcons
 import com.touliao.app.ui.components.InitialAvatar
-import com.touliao.app.ui.theme.VxinGreen
+import com.touliao.app.ui.theme.VxinBrand
 import com.touliao.app.ui.theme.VxinTextSecondary
 
 @OptIn(ExperimentalMaterial3Api::class, androidx.compose.material.ExperimentalMaterialApi::class)
@@ -132,7 +132,7 @@ fun ConversationListScreen(
                     }
                     // @我的消息聚合入口
                     IconButton(onClick = onOpenMentions) {
-                        Text("@", fontSize = com.touliao.app.ui.theme.VxinTextSize.xxl, color = VxinGreen)
+                        Text("@", fontSize = com.touliao.app.ui.theme.VxinTextSize.xxl, color = VxinBrand)
                     }
                     IconButton(onClick = onOpenSearch) {
                         Icon(TouliaoIcons.Search, contentDescription = "搜索")

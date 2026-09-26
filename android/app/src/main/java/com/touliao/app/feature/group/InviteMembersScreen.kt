@@ -30,7 +30,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.touliao.app.data.model.Contact
 import com.touliao.app.ui.components.InitialAvatar
-import com.touliao.app.ui.theme.VxinGreen
+import com.touliao.app.ui.theme.VxinBrand
 import com.touliao.app.ui.theme.VxinTextSecondary
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -84,7 +84,7 @@ private fun CandidateRow(contact: Contact, checked: Boolean, onToggle: () -> Uni
         modifier = Modifier.fillMaxWidth().clickable(onClick = onToggle).padding(horizontal = 16.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        if (checked) Icon(com.touliao.app.ui.TouliaoIcons.Selected, contentDescription = "已选", tint = VxinGreen)
+        if (checked) Icon(com.touliao.app.ui.TouliaoIcons.Selected, contentDescription = "已选", tint = VxinBrand)
         else RadioButton(selected = false, onClick = onToggle)
         Spacer(Modifier.width(8.dp))
         InitialAvatar(name = contact.displayName.ifBlank { "?" }, size = 40.dp)

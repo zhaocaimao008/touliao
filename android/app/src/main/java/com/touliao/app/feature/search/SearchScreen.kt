@@ -43,7 +43,7 @@ import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.text.style.TextOverflow
-import com.touliao.app.ui.theme.VxinGreen
+import com.touliao.app.ui.theme.VxinBrand
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -197,12 +197,12 @@ private fun TimeChip(label: String, selected: Boolean, onClick: () -> Unit) {
         Modifier
             .padding(end = 8.dp)
             .clip(shape)
-            .background(if (selected) VxinGreen.copy(alpha = 0.15f) else MaterialTheme.colorScheme.surfaceVariant)
-            .then(if (selected) Modifier.border(0.5.dp, VxinGreen.copy(alpha = 0.6f), shape) else Modifier)
+            .background(if (selected) VxinBrand.copy(alpha = 0.15f) else MaterialTheme.colorScheme.surfaceVariant)
+            .then(if (selected) Modifier.border(0.5.dp, VxinBrand.copy(alpha = 0.6f), shape) else Modifier)
             .clickable(onClick = onClick)
             .padding(horizontal = 12.dp, vertical = 5.dp),
     ) {
-        Text(label, fontSize = com.touliao.app.ui.theme.VxinTextSize.sm2, color = if (selected) VxinGreen else VxinTextSecondary)
+        Text(label, fontSize = com.touliao.app.ui.theme.VxinTextSize.sm2, color = if (selected) VxinBrand else VxinTextSecondary)
     }
 }
 
@@ -236,7 +236,7 @@ private fun ResultRow(r: SearchResult, avatarUrl: String? = null, query: String,
 /** 高亮文本中所有匹配 query 的片段（大小写不敏感）。prefixLen 之前的发送者名不参与高亮匹配。 */
 @Composable
 private fun highlightQuery(text: String, query: String, prefixLen: Int = 0): AnnotatedString {
-    val highlightColor = VxinGreen
+    val highlightColor = VxinBrand
     val q = query.trim()
     if (q.isEmpty()) return AnnotatedString(text)
     return buildAnnotatedString {

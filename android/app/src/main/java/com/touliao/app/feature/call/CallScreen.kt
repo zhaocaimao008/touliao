@@ -18,7 +18,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.systemBarsPadding
+import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -103,20 +103,38 @@ fun CallHost(
         } else base
     }
     val callScreenContext = androidx.compose.ui.platform.LocalContext.current
+    val activity = callScreenContext as? android.app.Activity
+    var showPermDeniedDialog by remember { mutableStateOf(false) }
     val permLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { res ->
         // 此前结果被完全忽略——被拒绝后通话界面照常呈现，用户只会看到"听不到对方声音/
         // 对方看不到自己"却毫无线索。这不拦断通话流程（对方可能仍在等接听），只提示原因。
         if (!res.values.all { it }) {
-            com.touliao.app.ui.components.TouliaoFeedback.show(callScreenContext, "缺少麦克风/摄像头权限，通话可能无法正常进行", com.touliao.app.ui.components.FeedbackKind.ERROR)
+            // 永久拒绝（不再询问）→ 弹框引导去设置；普通拒绝 → Toast 提示
+            val permanentlyDenied = activity?.let { act ->
+                res.filter { !it.value }.keys.any { perm ->
+                    !androidx.core.app.ActivityCompat.shouldShowRequestPermissionRationale(act, perm)
+                }
+            } ?: false
+            if (permanentlyDenied) {
+                showPermDeniedDialog = true
+            } else {
+                com.touliao.app.ui.components.TouliaoFeedback.show(callScreenContext, "缺少麦克风/摄像头权限，通话可能无法正常进行", com.touliao.app.ui.components.FeedbackKind.ERROR)
+            }
         }
     }
     LaunchedEffect(Unit) { permLauncher.launch(perms) }
+    if (showPermDeniedDialog) {
+        com.touliao.app.ui.components.PermissionDeniedDialog(
+            permissionName = "麦克风/摄像头",
+            onDismiss = { showPermDeniedDialog = false },
+        )
+    }
 
     Box(Modifier.fillMaxSize().background(TouliaoMedia.canvas)) {
         // 通话音量=0 提示:回铃音无声时用户会以为 App 坏了,主动引导调音量
         if (showVolumeHint) {
             Box(
-                Modifier.align(Alignment.TopCenter).systemBarsPadding().padding(top = 48.dp)
+                Modifier.align(Alignment.TopCenter).safeDrawingPadding().padding(top = 48.dp)
                     .clip(RoundedCornerShape(com.touliao.app.ui.theme.VxinRadius.tag))
                     .background(Color(0xFF8A6D00))
                     .padding(horizontal = 12.dp, vertical = 6.dp),
@@ -145,7 +163,7 @@ fun CallHost(
                     mirror = true,
                     modifier = Modifier
                         .align(Alignment.TopEnd)
-                        .systemBarsPadding()
+                        .safeDrawingPadding()
                         .padding(16.dp)
                         .size(110.dp, 160.dp)
                         .clip(RoundedCornerShape(com.touliao.app.ui.theme.VxinRadius.thumb)),
@@ -154,7 +172,7 @@ fun CallHost(
         } else {
             // 音频 / 未接通：头像 + 状态（systemBarsPadding 避免文字被状态栏遮挡）
             Column(
-                Modifier.fillMaxSize().systemBarsPadding().padding(top = 96.dp),
+                Modifier.fillMaxSize().safeDrawingPadding().padding(top = 96.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
                 InitialAvatar(name = state.peerName.ifBlank { "?" }, size = TouliaoMetrics.avatarCall)
@@ -185,7 +203,7 @@ fun CallHost(
         // 接听或拒绝，不给"划走忽略"的误解空间。
         if (state.stage == CallStage.OUTGOING || state.stage == CallStage.CONNECTING || state.stage == CallStage.CONNECTED) {
             Box(
-                Modifier.align(Alignment.TopStart).systemBarsPadding().padding(start = 16.dp, top = 8.dp)
+                Modifier.align(Alignment.TopStart).safeDrawingPadding().padding(start = 16.dp, top = 8.dp)
                     .size(com.touliao.app.ui.theme.TouliaoMetrics.touchTarget).clip(CircleShape).background(Color.White.copy(alpha = 0.15f))
                     .clickable { viewModel.setMinimized(true) },
                 contentAlignment = Alignment.Center,
@@ -194,7 +212,7 @@ fun CallHost(
 
         // 控制按钮（systemBarsPadding 避免按钮被底部手势条遮挡）
         Column(
-            Modifier.align(Alignment.BottomCenter).fillMaxWidth().systemBarsPadding().padding(bottom = 48.dp),
+            Modifier.align(Alignment.BottomCenter).fillMaxWidth().safeDrawingPadding().padding(bottom = 48.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             if (state.stage == CallStage.INCOMING) {

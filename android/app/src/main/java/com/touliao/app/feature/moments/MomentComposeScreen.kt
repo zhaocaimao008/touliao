@@ -46,7 +46,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
 import androidx.compose.ui.graphics.asImageBitmap
-import com.touliao.app.ui.theme.VxinGreen
+import com.touliao.app.ui.theme.VxinBrand
 import com.touliao.app.ui.theme.VxinTextSecondary
 
 @OptIn(ExperimentalMaterial3Api::class, androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
@@ -75,7 +75,7 @@ fun MomentComposeScreen(
                 actions = {
                     TextButton(onClick = viewModel::publish, enabled = !state.publishing) {
                         if (state.publishing) CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
-                        else Text("发表", color = VxinGreen)
+                        else Text("发表", color = VxinBrand)
                     }
                 },
             )
@@ -178,7 +178,7 @@ fun MomentComposeScreen(
                 TextButton(onClick = viewModel::openFriendPicker) {
                     Text(
                         if (state.visibility == "include") "选择可见好友 (${state.visibleTo.size})" else "选择不给谁看 (${state.visibleTo.size})",
-                        color = VxinGreen,
+                        color = VxinBrand,
                     )
                 }
             }
@@ -193,7 +193,7 @@ fun MomentComposeScreen(
     if (state.showFriendPicker) {
         androidx.compose.material3.AlertDialog(
             onDismissRequest = viewModel::dismissFriendPicker,
-            confirmButton = { TextButton(onClick = viewModel::dismissFriendPicker) { Text("确定 (${state.visibleTo.size})", color = VxinGreen) } },
+            confirmButton = { TextButton(onClick = viewModel::dismissFriendPicker) { Text("确定 (${state.visibleTo.size})", color = VxinBrand) } },
             title = { Text(if (state.visibility == "include") "选择可见好友" else "选择不给谁看") },
             text = {
                 if (state.friends.isEmpty()) {
@@ -207,7 +207,7 @@ fun MomentComposeScreen(
                                 verticalAlignment = Alignment.CenterVertically,
                             ) {
                                 Text(f.displayName.ifBlank { "用户" }, modifier = Modifier.weight(1f))
-                                if (checked) com.touliao.app.ui.TouliaoGlyph(com.touliao.app.ui.TouliaoIcons.Check, color = VxinGreen, size = com.touliao.app.ui.IconSize.Xs)
+                                if (checked) com.touliao.app.ui.TouliaoGlyph(com.touliao.app.ui.TouliaoIcons.Check, color = VxinBrand, size = com.touliao.app.ui.IconSize.Xs)
                             }
                         }
                     }

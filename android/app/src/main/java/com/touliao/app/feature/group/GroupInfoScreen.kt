@@ -55,8 +55,7 @@ import com.touliao.app.ui.TouliaoIcons
 import com.touliao.app.ui.components.InitialAvatar
 import com.touliao.app.ui.theme.VxinBrand
 import com.touliao.app.ui.theme.VxinBrandLight
-import com.touliao.app.ui.theme.VxinTeal
-import com.touliao.app.ui.theme.VxinGreen
+import com.touliao.app.ui.theme.VxinBrand
 import com.touliao.app.ui.theme.VxinTextSecondary
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -280,7 +279,7 @@ fun GroupInfoScreen(
                 Text(it, color = MaterialTheme.colorScheme.error, modifier = Modifier.align(Alignment.BottomCenter).padding(12.dp))
             }
             state.notice?.let {
-                Text(it, color = VxinGreen, modifier = Modifier.align(Alignment.BottomCenter).padding(12.dp))
+                Text(it, color = VxinBrand, modifier = Modifier.align(Alignment.BottomCenter).padding(12.dp))
             }
         }
     }
@@ -368,16 +367,16 @@ private fun MemberRow(
         Column(Modifier.weight(1f)) {
             Text(member.displayName.ifBlank { "未命名" }, style = MaterialTheme.typography.bodyLarge)
             if (member.role != "member") {
-                Text(if (member.role == "owner") "群主" else "管理员", color = VxinGreen, style = MaterialTheme.typography.bodySmall)
+                Text(if (member.role == "owner") "群主" else "管理员", color = VxinBrand, style = MaterialTheme.typography.bodySmall)
             }
         }
         if (canSetRole) {
             TextButton(onClick = onToggleRole) {
-                Text(if (member.role == "admin") "取消管理" else "设管理", color = VxinGreen)
+                Text(if (member.role == "admin") "取消管理" else "设管理", color = VxinBrand)
             }
         }
         if (canTransfer) {
-            TextButton(onClick = onTransfer) { Text("转让", color = VxinGreen) }
+            TextButton(onClick = onTransfer) { Text("转让", color = VxinBrand) }
         }
         if (canKick) {
             TextButton(onClick = onKick) { Text("移除", color = com.touliao.app.ui.theme.VxinError) }

@@ -38,7 +38,7 @@ import com.touliao.app.core.util.formatChatTime
 import com.touliao.app.data.model.FriendRequest
 import com.touliao.app.data.model.SentRequest
 import com.touliao.app.ui.components.InitialAvatar
-import com.touliao.app.ui.theme.VxinGreen
+import com.touliao.app.ui.theme.VxinBrand
 import com.touliao.app.ui.theme.VxinTextSecondary
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -124,7 +124,7 @@ private fun SentRow(req: SentRequest, avatarUrl: String? = null) {
         Spacer(Modifier.width(8.dp))
         Text(
             when (req.status) { "accepted" -> "已同意"; "rejected" -> "已拒绝"; else -> "等待验证" },
-            color = if (req.status == "accepted") VxinGreen else VxinTextSecondary,
+            color = if (req.status == "accepted") VxinBrand else VxinTextSecondary,
             style = MaterialTheme.typography.bodySmall,
         )
     }
@@ -157,7 +157,7 @@ private fun RequestRow(req: FriendRequest, avatarUrl: String? = null, busy: Bool
         } else {
             OutlinedButton(onClick = onReject) { Text("拒绝") }
             Spacer(Modifier.width(8.dp))
-            Button(onClick = onAccept, colors = ButtonDefaults.buttonColors(containerColor = VxinGreen)) { Text("接受") }
+            Button(onClick = onAccept, colors = ButtonDefaults.buttonColors(containerColor = VxinBrand)) { Text("接受") }
         }
     }
 }

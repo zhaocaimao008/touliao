@@ -23,7 +23,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
-import com.touliao.app.ui.theme.VxinGreen
+import com.touliao.app.ui.theme.VxinBrand
 
 /**
  * 更新流程弹窗。传入 UpdateViewModel 由外层 ProfileScreen 持有。
@@ -85,7 +85,7 @@ fun UpdateCheckDialog(
                 confirmButton = {
                     Button(
                         onClick = { viewModel.startDownload() },
-                        colors = ButtonDefaults.buttonColors(containerColor = VxinGreen),
+                        colors = ButtonDefaults.buttonColors(containerColor = VxinBrand),
                     ) { Text("更新") }
                 },
                 dismissButton = {
@@ -142,7 +142,7 @@ fun UpdateCheckDialog(
                 confirmButton = {
                     Button(
                         onClick = { viewModel.openInstallPermissionSettings() },
-                        colors = ButtonDefaults.buttonColors(containerColor = VxinGreen),
+                        colors = ButtonDefaults.buttonColors(containerColor = VxinBrand),
                     ) { Text("去授权") }
                 },
                 dismissButton = {

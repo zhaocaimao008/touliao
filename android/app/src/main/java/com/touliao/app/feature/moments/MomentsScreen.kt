@@ -69,7 +69,7 @@ import com.touliao.app.data.model.Moment
 import com.touliao.app.data.model.MomentComment
 import com.touliao.app.data.model.MomentNotification
 import com.touliao.app.ui.components.InitialAvatar
-import com.touliao.app.ui.theme.VxinGreen
+import com.touliao.app.ui.theme.VxinBrand
 import com.touliao.app.ui.theme.VxinTextSecondary
 
 @OptIn(ExperimentalMaterial3Api::class, androidx.compose.material.ExperimentalMaterialApi::class)
@@ -227,12 +227,12 @@ fun MomentsScreen(
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
                             Text(label, modifier = Modifier.weight(1f))
-                            if (state.visibleDays == d) com.touliao.app.ui.TouliaoGlyph(com.touliao.app.ui.TouliaoIcons.Check, color = VxinGreen, size = com.touliao.app.ui.IconSize.Xs)
+                            if (state.visibleDays == d) com.touliao.app.ui.TouliaoGlyph(com.touliao.app.ui.TouliaoIcons.Check, color = VxinBrand, size = com.touliao.app.ui.IconSize.Xs)
                         }
                     }
                 }
             },
-            confirmButton = { TextButton(onClick = { viewModel.dismissSettings() }) { Text("完成", color = VxinGreen) } },
+            confirmButton = { TextButton(onClick = { viewModel.dismissSettings() }) { Text("完成", color = VxinBrand) } },
         )
     }
 }
@@ -299,7 +299,7 @@ private fun MomentCard(
             InitialAvatar(name = moment.author.username.ifBlank { "?" }, size = 40.dp, avatarUrl = resolveUrl(moment.author.avatar))
             Spacer(Modifier.width(10.dp))
             Column {
-                Text(moment.author.username.ifBlank { "未命名" }, color = VxinGreen, style = MaterialTheme.typography.bodyMedium)
+                Text(moment.author.username.ifBlank { "未命名" }, color = VxinBrand, style = MaterialTheme.typography.bodyMedium)
             }
         }
         if (moment.content.isNotBlank()) {
@@ -340,18 +340,18 @@ private fun MomentCard(
             TextButton(onClick = onLike) {
                 Text(if (moment.liked) "❤️" else "🤍", fontSize = com.touliao.app.ui.theme.VxinTextSize.base)
                 Spacer(Modifier.size(4.dp))
-                Text(if (moment.liked) "已赞" else "赞", color = VxinGreen)
+                Text(if (moment.liked) "已赞" else "赞", color = VxinBrand)
             }
             TextButton(onClick = onComment) {
                 com.touliao.app.ui.TouliaoGlyph(com.touliao.app.ui.TouliaoIcons.Comment, size = com.touliao.app.ui.IconSize.Md)
                 Spacer(Modifier.size(4.dp))
-                Text("评论", color = VxinGreen)
+                Text("评论", color = VxinBrand)
             }
         }
         // 点赞名单
         if (moment.likes.isNotEmpty()) {
             Box(Modifier.fillMaxWidth().clip(RoundedCornerShape(com.touliao.app.ui.theme.VxinRadius.sm)).background(MaterialTheme.colorScheme.surfaceVariant).padding(8.dp)) {
-                Text("❤ " + moment.likes.joinToString("，") { it.username.ifBlank { "用户" } }, color = VxinGreen, fontSize = com.touliao.app.ui.theme.VxinTextSize.sm2)
+                Text("❤ " + moment.likes.joinToString("，") { it.username.ifBlank { "用户" } }, color = VxinBrand, fontSize = com.touliao.app.ui.theme.VxinTextSize.sm2)
             }
         }
         // 评论列表：点非自己的评论→回复该人；长按自己的评论→删除(对齐 web)
@@ -364,19 +364,19 @@ private fun MomentCard(
                         onLongClick = { if (mine) onLongPressComment(c) },
                     ),
             ) {
-                Text("${c.username.ifBlank { "用户" }}", color = VxinGreen, fontSize = com.touliao.app.ui.theme.VxinTextSize.sm2)
+                Text("${c.username.ifBlank { "用户" }}", color = VxinBrand, fontSize = com.touliao.app.ui.theme.VxinTextSize.sm2)
                 if (c.reply_to_username.isNotBlank()) {
                     Text(" 回复 ", fontSize = com.touliao.app.ui.theme.VxinTextSize.sm2, color = VxinTextSecondary)
-                    Text(c.reply_to_username, color = VxinGreen, fontSize = com.touliao.app.ui.theme.VxinTextSize.sm2)
+                    Text(c.reply_to_username, color = VxinBrand, fontSize = com.touliao.app.ui.theme.VxinTextSize.sm2)
                 }
-                Text("：", color = VxinGreen, fontSize = com.touliao.app.ui.theme.VxinTextSize.sm2)
+                Text("：", color = VxinBrand, fontSize = com.touliao.app.ui.theme.VxinTextSize.sm2)
                 Text(c.content, fontSize = com.touliao.app.ui.theme.VxinTextSize.sm2, maxLines = 4, overflow = TextOverflow.Ellipsis)
             }
         }
         // 热门动态：timeline 只返回前 N 条，按需加载全部
         if (moment.commentCount > moment.comments.size) {
             TextButton(onClick = onViewAllComments) {
-                Text("查看全部 ${moment.commentCount} 条评论", color = VxinGreen, fontSize = com.touliao.app.ui.theme.VxinTextSize.sm2)
+                Text("查看全部 ${moment.commentCount} 条评论", color = VxinBrand, fontSize = com.touliao.app.ui.theme.VxinTextSize.sm2)
             }
         }
         if (commenting) {
@@ -391,7 +391,7 @@ private fun MomentCard(
                     placeholder = { Text(if (replyTargetName.isNotBlank()) "回复 $replyTargetName…" else "评论…") },
                     singleLine = true,
                 )
-                TextButton(onClick = onSubmitComment, enabled = commentText.isNotBlank()) { Text("发送", color = VxinGreen) }
+                TextButton(onClick = onSubmitComment, enabled = commentText.isNotBlank()) { Text("发送", color = VxinBrand) }
             }
         }
     }
