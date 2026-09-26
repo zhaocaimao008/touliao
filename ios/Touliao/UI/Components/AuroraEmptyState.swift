@@ -25,7 +25,7 @@ struct AuroraEmptyHero: View {
                     if let subtitle {
                         Text(subtitle)
                             .font(.subheadline)
-                            .foregroundStyle(.vxinTextSecondary)
+                            .foregroundStyle(Color.vxinTextSecondary)
                             .multilineTextAlignment(.center)
                     }
                 }

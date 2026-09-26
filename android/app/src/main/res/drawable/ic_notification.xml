@@ -3,7 +3,7 @@
     android:height="24dp"
     android:viewportWidth="24"
     android:viewportHeight="24"
-    android:tint="?attr/colorControlNormal">
+    android:tint="?android:attr/textColorSecondary">
     <!-- 投聊品牌通知图标：聊天气泡，白色剪影适配通知栏 -->
     <path
         android:fillColor="#FFFFFF"
