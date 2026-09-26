@@ -31,21 +31,18 @@ const ConvRow = memo(function ConvRow({ index, style, data }) {
   const conv = items[index];
   const count = conv._unread || 0;
   const draft = (drafts && drafts[conv.id]) || '';
-  // 左滑快捷操作（移动端）：置顶 / 删除；桌面端 hover/focus 露出
+  // 左滑快捷操作（仅触屏）：置顶 / 删除。桌面端走右键菜单，不在 hover 时平移整行
+  // （平移会遮住名字/时间，还把「删除」按钮常驻暴露在鼠标下）。
   const { swipeOffset, swipeHandlers, resetSwipe, swipeEnabled } = useSwipe({ maxOffset: 144 });
-  const [hoverRevealed, setHoverRevealed] = useState(false);
-  const revealed = swipeOffset !== 0 || hoverRevealed;
-  const handleSwipePin = () => { resetSwipe(); setHoverRevealed(false); onPin?.(conv, !conv.pinned); };
-  const handleSwipeDelete = () => { resetSwipe(); setHoverRevealed(false); onDelete?.(conv); };
+  const revealed = swipeOffset !== 0;
+  const handleSwipePin = () => { resetSwipe(); onPin?.(conv, !conv.pinned); };
+  const handleSwipeDelete = () => { resetSwipe(); onDelete?.(conv); };
   return (
-    <div
-      className="wc-chat-item-wrapper"
-      style={{ ...style, overflow: 'hidden', position: 'relative' }}
-      onMouseEnter={() => setHoverRevealed(true)}
-      onMouseLeave={() => setHoverRevealed(false)}
-    >
-      {/* 左滑露出的快捷按钮（触屏滑动 / 桌面 hover/focus） */}
-      <div className="wc-chat-item-swipe-actions" aria-hidden={!revealed}>
+    // react-window 的 style 自带 position:absolute + top，不能覆盖成 relative，
+    // 否则每行既在文档流里占位又叠加 top 偏移，行距翻倍（2026-09-26 回归）。
+    <div className="wc-chat-item-wrapper" style={{ ...style, overflow: 'hidden' }}>
+      {/* 左滑露出的快捷按钮；未滑动时隐藏，避免透明行背景下透出 */}
+      <div className="wc-chat-item-swipe-actions" aria-hidden={!revealed} style={revealed ? undefined : { visibility: 'hidden' }}>
         <button type="button" className="wc-swipe-btn wc-swipe-pin" onClick={handleSwipePin} tabIndex={revealed ? 0 : -1}>
           {conv.pinned ? t('chatlist.unpinChat') : t('chatlist.pinChat')}
         </button>
@@ -71,7 +68,7 @@ const ConvRow = memo(function ConvRow({ index, style, data }) {
         }}
         style={{
           background: conv.pinned && conv.id !== activeConvId ? 'var(--bg-pinned)' : undefined,
-          ...(revealed ? { transform: `translateX(${swipeOffset !== 0 ? swipeOffset : -144}px)` } : {}),
+          ...(revealed ? { transform: `translateX(${swipeOffset}px)` } : {}),
         }}
         {...(swipeEnabled ? swipeHandlers : {})}
       >

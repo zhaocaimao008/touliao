@@ -8,5 +8,6 @@
   font-size: 13px;
   cursor: pointer;
 }
-.auth-window-button:focus-visible { outline: 2px solid var(--green, #07c160); outline-offset: 2px; }
-.auth-brand .auth-window-button { margin-top: 12px; color: #fff; border-color: rgba(255,255,255,.4); }
+.auth-window-button:focus-visible { outline: 2px solid var(--color-primary, #6D5AE6); outline-offset: 2px; }
+/* 登录页已是浅色底（v3），不能再用白字白边，否则几乎不可见 */
+.auth-brand .auth-window-button { margin-top: 12px; color: var(--text-secondary, #4b5563); border-color: var(--border-default, #d1d5db); }
