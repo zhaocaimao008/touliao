@@ -18,18 +18,18 @@ class AuthRepository @Inject constructor(
     private val tokenStore: TokenStore,
     private val accountStore: AccountStore,
 ) {
-    suspend fun login(phone: String, password: String, captchaId: String? = null, captchaText: String? = null, legalConsent: com.touliao.app.data.model.LegalConsentData? = null): User {
+    suspend fun login(phone: String, password: String, captchaId: String? = null, captchaText: String? = null): User {
         val credential = tokenStore.snapshot()
-        val res = api.login(LoginRequest(phone.trim(), password, captchaId, captchaText, legalConsent))
+        val res = api.login(LoginRequest(phone.trim(), password, captchaId, captchaText))
         if (!applyAuth(res.token, res.user, credential)) throw kotlinx.coroutines.CancellationException("Session changed")
         return res.user
     }
 
     suspend fun getCaptcha(): CaptchaResponse = api.getCaptcha()
 
-    suspend fun register(phone: String, password: String, username: String, inviteCode: String, legalConsent: com.touliao.app.data.model.LegalConsentData? = null): User {
+    suspend fun register(phone: String, password: String, username: String, inviteCode: String): User {
         val credential = tokenStore.snapshot()
-        val res = api.register(RegisterRequest(phone.trim(), password, username.trim(), inviteCode.trim(), legalConsent))
+        val res = api.register(RegisterRequest(phone.trim(), password, username.trim(), inviteCode.trim()))
         if (!applyAuth(res.token, res.user, credential)) throw kotlinx.coroutines.CancellationException("Session changed")
         return res.user
     }

@@ -110,8 +110,7 @@ function upsertSession(userId, req) {
  */
 const DUMMY_HASH = '$2a$12$ErA03kEvTKMib3uxqcUUnOn4m6heavegWxgv/JDf5qdu00uCRT9EO';
 
-async function register({ username, phone, password, inviteCode, legalConsent }, req) {
-  require('../legal/legal.service').requireConsent(legalConsent);
+async function register({ username, phone, password, inviteCode }, req) {
   if (!username || !phone || !password) throw badRequest('请填写所有字段');
   // 用户名 2-20 字符（与前端 Register 保持一致，后端为权威）
   if (typeof username !== 'string' || username.length < 2 || username.length > 20)
@@ -143,7 +142,6 @@ async function register({ username, phone, password, inviteCode, legalConsent },
     db.transaction(() => {
       db.prepare('INSERT INTO users (id,username,phone,password,wechat_id,invite_code,invited_by) VALUES (?,?,?,?,?,?,?)')
         .run(id, username, phone, hash, wechatId, myInviteCode, inviterId);
-      require('../legal/legal.service').recordConsent(id);
     })();
   } catch (e) {
     if (e.code === 'SQLITE_CONSTRAINT_UNIQUE') throw badRequest('用户名或手机号已存在');
@@ -155,13 +153,8 @@ async function register({ username, phone, password, inviteCode, legalConsent },
   const jti = req ? upsertSession(id, req) : undefined;
   return { token: signToken({ id, username }, jti), user };
 }
-async function login({ phone, password, captchaId, captchaText, legalConsent }, req) {
-  // 协议同意：注册时强制；登录时仅在客户端携带该字段时严格校验（未勾选 / null / 版本过期一律拒绝）。
-  // 已发布的 Windows 8.1.31、iOS/Android 旧包登录页没有勾选框、根本不发这个字段——2026-09-20 起
-  // 登录一律强制后，这些客户端的用户退出后就再也登不进来。缺字段视为旧客户端：允许登录，但不记录同意，
-  // 依赖已记录同意的能力（如钱包账号切换）仍然不可用。
-  const consentProvided = legalConsent !== undefined;
-  if (consentProvided) require('../legal/legal.service').requireConsent(legalConsent);
+// 2026-09-26 起不再要求/记录隐私政策与用户协议同意；旧客户端仍会携带 legalConsent 字段，忽略即可。
+async function login({ phone, password, captchaId, captchaText }, req) {
   if (typeof phone !== 'string' || typeof password !== 'string' || !phone || !password) throw badRequest('请填写手机号和密码');
   // 图形验证码：开关开启时强制校验，且必须先于密码比对完成（不能等密码验证过了才发现验证码错，
   // 那样验证码就形同虚设，暴力破解者可以完全绕过它反复试密码）。
@@ -179,7 +172,6 @@ async function login({ phone, password, captchaId, captchaText, legalConsent }, 
     const current = db.prepare('SELECT password,banned FROM users WHERE id=?').get(user.id);
     if (!current || current.password !== user.password) throw badRequest('手机号或密码错误');
     if (current.banned) throw forbidden('账号已被封禁，请联系管理员');
-    if (consentProvided) require('../legal/legal.service').recordConsent(user.id);
     const jti = req ? upsertSession(user.id, req) : undefined;
     return { token: signToken(user, jti), user: serializeUser(user) };
   })();
@@ -347,10 +339,6 @@ function switchAccount(walletId, userId, req) {
   const owned = db.prepare(`SELECT s.id FROM device_accounts d JOIN auth_sessions s
     ON s.id=d.session_id AND s.user_id=d.user_id WHERE d.wallet_id=? AND d.user_id=?`).get(walletId, userId);
   if (!owned) throw forbidden('该账号未在本设备登录过，请重新登录');
-  const legalVersion = require('../legal/documents').version;
-  if (!db.prepare('SELECT 1 FROM legal_consents WHERE user_id=? AND privacy_version=? AND terms_version=?').get(userId, legalVersion, legalVersion)) {
-    throw badRequest('请重新登录并同意当前隐私政策和用户协议', 'LEGAL_CONSENT_REQUIRED');
-  }
   const user = db.prepare('SELECT id,username,phone,avatar,bio,wechat_id,cover_photo,banned FROM users WHERE id=?').get(userId);
   if (!user) { removeDeviceAccount(walletId, userId); throw notFound('用户不存在'); }
   if (user.banned) { removeDeviceAccount(walletId, userId); throw forbidden('账号已被封禁'); }

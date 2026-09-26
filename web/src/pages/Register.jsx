@@ -1,4 +1,3 @@
-import LegalConsent from '../components/LegalConsent';
 import TouliaoField from '../ui-kit/Field';
 import { PrimaryButton } from '../ui-kit/Button';
 import TouliaoIcon from '../ui-kit/Icon';
@@ -22,7 +21,6 @@ export default function Register() {
     } catch { /* SSR/无 window 时忽略 */ }
     return { username: '', phone: '', password: '', inviteCode };
   });
-  const [legalConsent, setLegalConsent] = useState(null);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [errorField, setErrorField] = useState(null);
@@ -39,7 +37,6 @@ export default function Register() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!legalConsent?.accepted) { setError('请先阅读并同意隐私政策和用户协议'); return; }
     if (loading) return; // 防连点/回车重复提交（避免重复注册）
     setError(''); setErrorField(null); setLoading(true);
 
@@ -58,7 +55,7 @@ export default function Register() {
     }
 
     try {
-      const { data } = await axios.post('/api/auth/register', { ...form, legalConsent });
+      const { data } = await axios.post('/api/auth/register', form);
       login(data.user, data.token);
       navigate('/');
     } catch (err) {
@@ -123,8 +120,7 @@ export default function Register() {
             </div>
           )}
 
-          <LegalConsent value={legalConsent} onChange={setLegalConsent} />
-          <PrimaryButton type="submit" data-testid="register-submit-btn" className="auth-submit" loading={loading} disabled={!legalConsent?.accepted || !form.username || !form.phone || !form.password || (inviteRequired && !form.inviteCode)}>
+          <PrimaryButton type="submit" data-testid="register-submit-btn" className="auth-submit" loading={loading} disabled={!form.username || !form.phone || !form.password || (inviteRequired && !form.inviteCode)}>
             {t('auth.registerBtn')}
           </PrimaryButton>
         </form>

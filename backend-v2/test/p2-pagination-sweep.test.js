@@ -27,16 +27,13 @@ const userEndpoints = [
   ['mentions', () => '/api/messages/mentions/me'],
   ['collections', () => '/api/users/me/collections'],
   ['collection search', () => '/api/users/me/collections/search?q=x'],
-  ['my reports', () => '/api/reports'],
 ];
 const adminEndpoints = [
   // name, path, default page size
   ['admin users', '/api/admin/users', 30],
   ['admin messages', '/api/admin/messages', 30],
   ['admin groups', '/api/admin/groups', 30],
-  ['admin reports', '/api/admin/reports', 30],
   ['admin top inviters', '/api/admin/top-inviters', 20],
-  ['admin safety reports', '/api/admin/safety-reports', 30],
 ];
 
 describe.each(userEndpoints)('%s', (name, path) => {

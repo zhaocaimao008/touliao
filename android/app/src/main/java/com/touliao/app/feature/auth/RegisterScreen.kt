@@ -140,11 +140,6 @@ fun RegisterScreen(
 
         Spacer(Modifier.height(28.dp))
         // 注册按钮：极光靛渐变实心药丸（与登录页一致）
-        com.touliao.app.feature.safety.LegalLinks()
-        Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
-            androidx.compose.material3.Checkbox(checked = state.legalAccepted, onCheckedChange = viewModel::onLegalAccepted)
-            Text("我已阅读并同意隐私政策和用户协议")
-        }
         com.touliao.app.ui.VxinGradientButton(
             text = "注册并登录", onClick = viewModel::submit,
             enabled = state.canSubmit, loading = state.loading,

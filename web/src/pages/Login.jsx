@@ -1,4 +1,3 @@
-import LegalConsent from '../components/LegalConsent';
 import TouliaoField from '../ui-kit/Field';
 import { PrimaryButton } from '../ui-kit/Button';
 import TouliaoIcon from '../ui-kit/Icon';
@@ -26,7 +25,6 @@ export default function Login() {
   const [phone, setPhone] = useState(initialPhone);
   const [password, setPassword] = useState('');
   const [remember, setRemember] = useState(!!initialPhone);
-  const [legalConsent, setLegalConsent] = useState(null);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -123,12 +121,11 @@ export default function Login() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!legalConsent?.accepted) { setError('请先阅读并同意隐私政策和用户协议'); return; }
     if (loading) return; // 防连点/回车重复提交
     setError(''); setLoading(true);
     try {
       const { data } = await axios.post('/api/auth/login', {
-        phone, password, legalConsent,
+        phone, password,
         ...(captchaRequired ? { captchaId, captchaText } : {}),
       });
       // 登录成功后按勾选保存/清除用户名；密码绝不落盘。
@@ -264,8 +261,7 @@ export default function Login() {
             <Link to="/forgot-password" className="auth-link" style={{ fontSize: 'var(--text-sm2)' }}>{t('auth.forgotPasswordLink')}</Link>
           </div>
 
-          <LegalConsent value={legalConsent} onChange={setLegalConsent} />
-          <PrimaryButton type="submit" className="auth-submit" data-testid="login-submit-btn" loading={loading} disabled={!legalConsent?.accepted || !phone || !password || (captchaRequired && !captchaText)}>
+          <PrimaryButton type="submit" className="auth-submit" data-testid="login-submit-btn" loading={loading} disabled={!phone || !password || (captchaRequired && !captchaText)}>
             {t('auth.loginBtn')}
           </PrimaryButton>
         </form>

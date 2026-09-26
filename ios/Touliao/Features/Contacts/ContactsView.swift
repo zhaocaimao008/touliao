@@ -23,7 +23,6 @@ struct ContactsView: View {
     @State private var remarkText = ""
     @State private var deleteTarget: Contact?
     @State private var blockTarget: Contact?
-    @State private var reportTarget: SafetyTarget?
 
     var body: some View {
         List {
@@ -114,7 +113,6 @@ struct ContactsView: View {
                     }
                     .contextMenu {
                         Button("设置备注") { remarkText = contact.remark ?? ""; remarkTarget = contact }
-                        Button("举报用户") { reportTarget = SafetyTarget(type: "user", targetId: contact.id) }
                         Button("加入黑名单", role: .destructive) { blockTarget = contact }
                         Button("删除好友", role: .destructive) { deleteTarget = contact }
                     }
@@ -122,7 +120,6 @@ struct ContactsView: View {
             }
             }.listRowBackground(Color.vxinSurface).listRowSeparatorTint(Color.vxinBorder)
         }
-        .sheet(item: $reportTarget) { SafetyReportView(target: $0) }
         .listStyle(.plain)
             .scrollContentBackground(.hidden)
             .background(Color.vxinSurface)

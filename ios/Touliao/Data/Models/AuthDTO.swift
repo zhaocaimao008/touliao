@@ -1,16 +1,6 @@
 import Foundation
 
-struct LegalConsentData: Encodable {
-    let accepted: Bool
-    let privacyVersion: String
-    let termsVersion: String
-    static func current(accepted: Bool) -> LegalConsentData {
-        LegalConsentData(accepted: accepted, privacyVersion: LegalDocuments.version, termsVersion: LegalDocuments.version)
-    }
-}
-
 struct LoginBody: Encodable {
-    let legalConsent: LegalConsentData?
     let phone: String
     let password: String
     let captchaId: String?
@@ -20,8 +10,7 @@ struct LoginBody: Encodable {
     // 排除在自动合成的memberwise init参数列表之外（这正是CI报错"extra arguments at
     // positions #3, #4"的原因：合成的init只有phone/password两个参数，AuthRepository.swift
     // 调用时传了4个）。显式声明后调用方仍可省略captchaId/captchaText（未开验证码时的登录）。
-    init(phone: String, password: String, captchaId: String? = nil, captchaText: String? = nil, legalConsent: LegalConsentData? = nil) {
-        self.legalConsent = legalConsent
+    init(phone: String, password: String, captchaId: String? = nil, captchaText: String? = nil) {
         self.phone = phone
         self.password = password
         self.captchaId = captchaId
@@ -36,7 +25,6 @@ struct CaptchaResponse: Decodable {
 }
 
 struct RegisterBody: Encodable {
-    var legalConsent: LegalConsentData? = nil
     let phone: String
     let password: String
     let username: String

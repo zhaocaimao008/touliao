@@ -15,7 +15,6 @@ import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 data class RegisterUiState(
-    val legalAccepted: Boolean = false,
     val username: String = "",
     val phone: String = "",
     val password: String = "",
@@ -25,7 +24,7 @@ data class RegisterUiState(
     val error: String? = null,
 ) {
     val canSubmit: Boolean
-        get() = legalAccepted && username.isNotBlank() &&
+        get() = username.isNotBlank() &&
             phone.isNotBlank() &&
             (!inviteRequired || inviteCode.length == 6) &&
             password.length >= 8 &&
@@ -53,7 +52,6 @@ class RegisterViewModel @Inject constructor(
     }
 
     fun onUsernameChange(v: String) = _uiState.update { it.copy(username = v, error = null) }
-    fun onLegalAccepted(v: Boolean) = _uiState.update { it.copy(legalAccepted = v) }
 
     fun onPhoneChange(v: String) = _uiState.update { it.copy(phone = v, error = null) }
     fun onPasswordChange(v: String) = _uiState.update { it.copy(password = v, error = null) }
@@ -64,7 +62,7 @@ class RegisterViewModel @Inject constructor(
         if (!s.canSubmit) return
         _uiState.update { it.copy(loading = true, error = null) }
         viewModelScope.launch {
-            runCatching { authRepository.register(s.phone, s.password, s.username, s.inviteCode, com.touliao.app.data.model.LegalConsentData(s.legalAccepted)) }
+            runCatching { authRepository.register(s.phone, s.password, s.username, s.inviteCode) }
                 .onSuccess { user ->
                     _uiState.update { it.copy(loading = false) }
                     sessionManager.onAuthenticated(user)

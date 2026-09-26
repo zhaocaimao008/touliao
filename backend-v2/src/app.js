@@ -422,8 +422,9 @@ app.post('/api/metrics/vitals', express.text({ type: 'text/plain', limit: '10kb'
 app.get('/api/metrics/vitals/recent', adminAuth, (req, res) => res.json(vitalsBuffer.slice(-100)));
 
 // ── 路由 ────────────────────────────────────────────────────────
+// 隐私政策/用户协议已从各端移除（2026-09-26）。仅为尚未更新的旧客户端保留只读文档接口：
+// 旧版登录页须先取到文档版本才允许勾选并登录，删掉会把旧版用户锁在登录页外。旧版淘汰后删除。
 app.use('/api/legal', require('./modules/legal/legal.routes'));
-app.use('/api/reports', require('./modules/reports/reports.routes'));
 app.use('/api/auth',          require('./modules/auth/auth.routes'));
 app.use('/api/users',         require('./modules/users/users.routes'));
 // 后台登录备用路径（绕过 CF WAF /api/admin/* 限流），复用 admin.routes 的防护中间件

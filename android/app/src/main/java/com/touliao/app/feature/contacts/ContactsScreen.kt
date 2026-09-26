@@ -354,8 +354,6 @@ private fun ContactRow(
     onBlock: () -> Unit = {},
     onDelete: () -> Unit = {},
 ) {
-    var showReport by remember { mutableStateOf(false) }
-    if (showReport) com.touliao.app.feature.safety.SafetyReportDialog("user", contact.id, onClose = { showReport = false })
     var menuOpen by remember { mutableStateOf(false) }
     val haptic = androidx.compose.ui.platform.LocalHapticFeedback.current
     Box {
@@ -398,7 +396,6 @@ private fun ContactRow(
     }
         DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
             DropdownMenuItem(text = { Text("设置备注") }, onClick = { onRemark(); menuOpen = false })
-            DropdownMenuItem(text = { Text("举报用户") }, onClick = { showReport = true; menuOpen = false })
             DropdownMenuItem(text = { Text("加入黑名单") }, onClick = { onBlock(); menuOpen = false })
             DropdownMenuItem(text = { Text("删除好友", color = com.touliao.app.ui.theme.VxinError) }, onClick = { onDelete(); menuOpen = false })
         }

@@ -512,44 +512,7 @@ function topInviters({ limit = 20 } = {}) {
 }
 
 // ── 朋友圈举报队列（MO6 后台）──────────────────────────────────
-function listReports({ status = 'pending', limit = 30, offset = 0 } = {}) {
-  const { limit: lim, offset: off } = pagination({ limit, offset }, 100);
-  const st = ['pending', 'reviewed', 'dismissed'].includes(status) ? status : 'pending';
-  const total = db.prepare('SELECT COUNT(*) n FROM moment_reports WHERE status=?').get(st).n;
-  const rows = db.prepare(`
-    SELECT r.id, r.moment_id, r.reason, r.status, r.created_at,
-           ru.username AS reporterName,
-           m.content AS momentContent, m.images AS momentImages, m.user_id AS authorId,
-           au.username AS authorName,
-           (SELECT COUNT(*) FROM moment_reports x WHERE x.moment_id = r.moment_id) AS reportCount
-    FROM moment_reports r
-    LEFT JOIN users ru ON ru.id = r.reporter_id
-    LEFT JOIN moments m ON m.id = r.moment_id
-    LEFT JOIN users au ON au.id = m.user_id
-    WHERE r.status = ?
-    ORDER BY r.created_at DESC
-    LIMIT ? OFFSET ?
-  `).all(st, lim, off);
-  return {
-    total, limit: lim, offset: off,
-    reports: rows.map(r => ({ ...r, momentImages: JSON.parse(r.momentImages || '[]') })),
-  };
-}
-
 // 处理举报：delete=删被举报动态；reviewed=标记已看；dismissed=忽略
-function resolveReport(reportId, action) {
-  if (!['delete', 'reviewed', 'dismissed'].includes(action))
-    throw badRequest('action 必须为 delete / reviewed / dismissed');
-  const r = db.prepare('SELECT * FROM moment_reports WHERE id=?').get(reportId);
-  if (!r) throw notFound('举报不存在');
-  if (action === 'delete') {
-    moments.purgeMoment(r.moment_id);   // 复用 moments.service 的级联删除
-    return { success: true, action: 'deleted' };
-  }
-  db.prepare('UPDATE moment_reports SET status=? WHERE id=?').run(action, reportId);
-  return { success: true, action };
-}
-
 module.exports = {
   verifyCredentials, stats, listUsers, userDetail, setBanned, resetPassword,
   setPrivilege,
@@ -559,5 +522,4 @@ module.exports = {
   getInviteCode, setInviteCode, generateInviteCode,
   getFeatures, setFeatures,
   topInviters,
-  listReports, resolveReport,
 };

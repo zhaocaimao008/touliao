@@ -349,7 +349,6 @@ fun ChatScreen(
                     }
                 },
                 actions = {
-                    viewModel.peerUserId()?.let { peer -> com.touliao.app.feature.safety.SafetyReportButton("user", peer, "举报用户") }
                     if (!compactHeader) {
                     IconButton(onClick = { viewModel.openSearch() }, modifier = Modifier.testTag("chat-search-btn").semantics { contentDescription = "搜索" }) { com.touliao.app.ui.TouliaoGlyph(com.touliao.app.ui.TouliaoIcons.Search, size = com.touliao.app.ui.IconSize.Md) }
                     // 群聊：语音/视频按钮受后台开关控制（关闭即隐藏）；私聊不受影响
@@ -1218,8 +1217,6 @@ private fun MessageBubble(
     onOpenMerged: () -> Unit = {},     // F4a：merged 聊天记录卡片点击查看详情
     onReadStatus: () -> Unit = {},     // F4b：自己消息长按「已读状态」（入口可见性由 canViewReadStatus 决定）
 ) {
-    var reportType by remember { mutableStateOf<String?>(null) }
-    reportType?.let { kind -> com.touliao.app.feature.safety.SafetyReportDialog(kind, if (kind == "message") msg.id else msg.sender_id, onClose = { reportType = null }) }
     var menuOpen by remember { mutableStateOf(false) }
     var showRecallConfirm by remember { mutableStateOf(false) }
 
@@ -1359,8 +1356,6 @@ private fun MessageBubble(
                         DropdownMenuItem(leadingIcon = { Icon(com.touliao.app.ui.TouliaoIcons.Selected, contentDescription = null, modifier = Modifier.size(com.touliao.app.ui.IconSize.Sm), tint = com.touliao.app.ui.IconColor.Secondary) }, text = { Text("已读状态") }, onClick = { onReadStatus(); menuOpen = false })
                     }
                     HorizontalDivider(color = VxinHairline)
-                    DropdownMenuItem(text = { Text("举报消息") }, onClick = { reportType = "message"; menuOpen = false })
-                    DropdownMenuItem(text = { Text("举报用户") }, onClick = { reportType = "user"; menuOpen = false })
                     DropdownMenuItem(leadingIcon = { Icon(com.touliao.app.ui.TouliaoIcons.Multiselect, contentDescription = null, modifier = Modifier.size(com.touliao.app.ui.IconSize.Sm), tint = com.touliao.app.ui.IconColor.Secondary) }, text = { Text("多选") }, onClick = { onMultiSelect(); menuOpen = false })
                 }
             }

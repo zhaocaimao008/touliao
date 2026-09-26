@@ -518,25 +518,6 @@ function deleteComment(userId, commentId) {
 }
 
 // ── 举报动态（MO6）：落库供后台审核，不直接下架 ──────────────────
-function reportMoment(userId, momentId, { reason } = {}) {
-  const m = db.prepare('SELECT * FROM moments WHERE id=?').get(momentId);
-  if (!m) throw notFound('动态不存在');
-  if (m.user_id === userId) throw badRequest('不能举报自己的动态');
-  assertVisible(userId, m); // 看不到的动态不能举报
-  const text = (typeof reason === 'string' ? reason : '').trim().slice(0, 200);
-  try {
-    db.prepare('INSERT INTO moment_reports (id,moment_id,reporter_id,reason) VALUES (?,?,?,?)')
-      .run(uuidv4(), momentId, userId, text);
-  } catch (e) {
-    // UNIQUE(moment_id, reporter_id)：同一人重复举报同一条
-    if (e.code === 'SQLITE_CONSTRAINT_UNIQUE' || e.code === 'SQLITE_CONSTRAINT') {
-      throw conflict('已举报该动态', 'MOMENT_ALREADY_REPORTED');
-    }
-    throw e;
-  }
-  return { success: true };
-}
-
 // ── 互动通知 feed（MO2）──────────────────────────────────────────
 function listNotifications(userId, { limit = 20, offset = 0 } = {}) {
   const { limit: n, offset: off } = pagination({ limit, offset });
@@ -595,7 +576,6 @@ function markNotificationsRead(userId) {
 module.exports = {
   createMoment, timeline, userMoments, getMoment, deleteMoment, editMoment, purgeMoment,
   toggleLike, addComment, deleteComment, listLikes, listComments,
-  reportMoment,
   listNotifications, unreadNotificationCount, markNotificationsRead,
   // P1-02：/uploads 静态文件所有权校验复用同一套可见性门控
   assertVisible,

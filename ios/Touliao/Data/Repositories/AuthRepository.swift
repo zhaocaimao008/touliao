@@ -16,12 +16,12 @@ final class AuthRepository {
         let _: EmptyResponse? = try? await api.send("api/auth/sessions", method: "DELETE")
     }
 
-    func login(phone: String, password: String, captchaId: String? = nil, captchaText: String? = nil, legalConsent: LegalConsentData? = nil) async throws -> User {
+    func login(phone: String, password: String, captchaId: String? = nil, captchaText: String? = nil) async throws -> User {
         let credential = KeychainStore.shared.snapshot()
         let res: AuthResponse = try await api.send(
             "api/auth/login", method: "POST",
             body: LoginBody(phone: phone.trimmingCharacters(in: .whitespaces), password: password,
-                             captchaId: captchaId, captchaText: captchaText, legalConsent: legalConsent),
+                             captchaId: captchaId, captchaText: captchaText),
             authorized: false
         )
         guard applyAuth(res, expected: credential) else { throw CancellationError() }
@@ -41,12 +41,11 @@ final class AuthRepository {
         }
     }
 
-    func register(phone: String, password: String, username: String, inviteCode: String, legalConsent: LegalConsentData? = nil) async throws -> User {
+    func register(phone: String, password: String, username: String, inviteCode: String) async throws -> User {
         let credential = KeychainStore.shared.snapshot()
         let res: AuthResponse = try await api.send(
             "api/auth/register", method: "POST",
             body: RegisterBody(
-                legalConsent: legalConsent,
                 phone: phone.trimmingCharacters(in: .whitespaces),
                 password: password,
                 username: username.trimmingCharacters(in: .whitespaces),

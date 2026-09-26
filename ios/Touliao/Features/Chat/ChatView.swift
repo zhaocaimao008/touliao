@@ -45,12 +45,10 @@ struct ChatView: View {
     @State private var showMentionPicker = false
     @State private var atBottom = true          // 用户是否在底部附近(决定新消息是否自动滚底)
     @State private var newMsgCount = 0          // 看历史期间累计的新消息数(悬浮提示)
-    private let reportPeerId: String?
     private let isGroup: Bool
     private let onOpenGroupInfo: () -> Void
 
     init(conversation: Conversation, myId: String, onOpenGroupInfo: @escaping () -> Void = {}) {
-        self.reportPeerId = conversation.peerId
         self.isGroup = conversation.type == "group"
         self.onOpenGroupInfo = onOpenGroupInfo
         _vm = StateObject(wrappedValue: ChatViewModel(
@@ -86,9 +84,6 @@ struct ChatView: View {
         }
         .toast($vm.error)   // 发送/上传/收藏/转发等失败与"已收藏""已转发"等提示统一透出
         .toolbar {
-            ToolbarItem(placement: .navigationBarTrailing) {
-                if let peer = reportPeerId { SafetyReportButton(targetType: "user", targetId: peer, label: "举报用户") }
-            }
             if isGroup {
                 ToolbarItemGroup(placement: .navigationBarTrailing) {
                     // 群语音/群视频按钮受后台开关控制，关闭即隐藏
@@ -987,7 +982,6 @@ struct ChatView: View {
 
 // MARK: - 气泡
 private struct MessageBubble: View {
-    @State private var reportTarget: SafetyTarget?
     let msg: Message
     let isMine: Bool
     let vm: ChatViewModel
@@ -1022,8 +1016,6 @@ private struct MessageBubble: View {
                 }
                 content
                     .contextMenu {
-                        Button("举报消息") { reportTarget = SafetyTarget(type: "message", targetId: msg.id) }
-                        Button("举报用户") { reportTarget = SafetyTarget(type: "user", targetId: msg.senderId) }
                         // 快捷表情行已按用户要求移除(长按菜单不再弹表情包)
                         if msg.type == "text" {
                             Button { UIPasteboard.general.string = msg.content } label: { Label("复制", touliaoIcon: "copy") }
@@ -1124,7 +1116,6 @@ private struct MessageBubble: View {
             }
         }
         .padding(.vertical, 2)
-        .sheet(item: $reportTarget) { SafetyReportView(target: $0) }
         .background(vm.highlightedId == msg.id ? Color.vxinBrand.opacity(0.18) : Color.clear)
         .animation(.easeInOut, value: vm.highlightedId)
         // 右滑回复（对齐微信/Android）：水平右滑 >50pt 触发回复

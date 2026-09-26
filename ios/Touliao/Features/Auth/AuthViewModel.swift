@@ -3,7 +3,6 @@ import Foundation
 @MainActor
 final class AuthViewModel: ObservableObject {
     // 登录表单
-    @Published var legalAccepted = false
     @Published var phone = ""
     @Published var password = ""
     @Published var serverURL = ServerConfig.shared.baseURL
@@ -38,10 +37,10 @@ final class AuthViewModel: ObservableObject {
     }
 
     var canLogin: Bool {
-        legalAccepted && !phone.isEmpty && !password.isEmpty && !loading && (!captchaRequired || !captchaText.isEmpty)
+        !phone.isEmpty && !password.isEmpty && !loading && (!captchaRequired || !captchaText.isEmpty)
     }
     var canRegister: Bool {
-        legalAccepted && !username.isEmpty && !phone.isEmpty && isValidPassword(password)
+        !username.isEmpty && !phone.isEmpty && isValidPassword(password)
             && (!inviteRequired || inviteCode.count == 6) && !loading
     }
     var canReset: Bool {
@@ -100,8 +99,7 @@ final class AuthViewModel: ObservableObject {
                 authedUser = try await AuthRepository.shared.login(
                     phone: phone, password: password,
                     captchaId: captchaRequired ? captchaId : nil,
-                    captchaText: captchaRequired ? captchaText : nil,
-                    legalConsent: .current(accepted: legalAccepted)
+                    captchaText: captchaRequired ? captchaText : nil
                 )
             } catch let err {
                 let msg = (err as? LocalizedError)?.errorDescription ?? "登录失败"
@@ -119,7 +117,7 @@ final class AuthViewModel: ObservableObject {
         error = nil
         Task {
             do {
-                authedUser = try await AuthRepository.shared.register(phone: phone, password: password, username: username, inviteCode: inviteCode, legalConsent: .current(accepted: legalAccepted))
+                authedUser = try await AuthRepository.shared.register(phone: phone, password: password, username: username, inviteCode: inviteCode)
             } catch let err {
                 error = (err as? LocalizedError)?.errorDescription ?? "注册失败"
             }

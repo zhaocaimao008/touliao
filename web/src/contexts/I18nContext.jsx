@@ -956,7 +956,6 @@ const translations = {
     'groupInfo.inviteCountTemplate': '邀请 ({n})',
     // 朋友圈
     'moments.defaultUser': '用户',
-    'moments.report': '举报',
     'moments.collapse': '收起',
     'moments.viewFull': '查看全文',
     'moments.viewLargeImage': '查看大图',
@@ -979,10 +978,6 @@ const translations = {
     'moments.commentFailed': '评论失败',
     'moments.confirmDeleteMoment': '删除这条动态？',
     'moments.deleteFailed': '删除失败',
-    'moments.confirmReport': '举报这条动态？举报后将提交后台审核。',
-    'moments.reportThanks': '已举报，感谢反馈',
-    'moments.alreadyReported': '你已举报过该动态',
-    'moments.reportFailed': '举报失败',
     'moments.contentEmpty': '内容不能为空',
     'moments.saveFailed': '保存失败',
     'moments.readFailed': '标记已读失败，未读提醒已保留',

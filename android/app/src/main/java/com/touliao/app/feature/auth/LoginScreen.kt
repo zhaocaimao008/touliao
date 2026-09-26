@@ -201,11 +201,6 @@ fun LoginScreen(
 
         Spacer(Modifier.height(28.dp))
         // 登录按钮：极光靛渐变实心（对齐 Web 主按钮），禁用态降透明
-        com.touliao.app.feature.safety.LegalLinks()
-        Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
-            androidx.compose.material3.Checkbox(checked = state.legalAccepted, onCheckedChange = viewModel::onLegalAccepted)
-            Text("我已阅读并同意隐私政策和用户协议")
-        }
         com.touliao.app.ui.VxinGradientButton(
             text = "登录", onClick = viewModel::submit,
             enabled = state.canSubmit, loading = state.loading,
