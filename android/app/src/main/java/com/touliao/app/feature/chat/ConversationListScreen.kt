@@ -11,6 +11,7 @@ import androidx.compose.material.pullrefresh.PullRefreshIndicator
 import androidx.compose.material.pullrefresh.pullRefresh
 import androidx.compose.material.pullrefresh.rememberPullRefreshState
 import androidx.compose.ui.draw.clip
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -28,7 +29,6 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -208,7 +208,6 @@ fun ConversationListScreen(
                                     onMarkRead = { viewModel.markConversationRead(conv) },
                                     onMarkUnread = { viewModel.markConversationUnread(conv) },
                                 )
-                                HorizontalDivider(Modifier.padding(start = 76.dp), thickness = 0.5.dp)
                             }
                         }
                     }
@@ -249,7 +248,6 @@ fun ConversationListScreen(
                                     }
                                 }
                             }
-                            HorizontalDivider(Modifier.padding(start = 76.dp), thickness = 0.5.dp)
                         }
                     }
                     if (visible.isEmpty()) {
@@ -272,7 +270,6 @@ fun ConversationListScreen(
                             onMarkRead = { viewModel.markConversationRead(conv) },
                             onMarkUnread = { viewModel.markConversationUnread(conv) },
                         )
-                        HorizontalDivider(Modifier.padding(start = 76.dp), thickness = 0.5.dp)
                     }
                 }
             }
@@ -312,18 +309,21 @@ internal fun ConversationRow(
         modifier = Modifier
             .fillMaxWidth()
             .heightIn(min = 76.dp)
+            // v4：圆角内嵌行（去通栏分隔线），与 Web/iOS 一致
+            .padding(horizontal = 8.dp, vertical = 2.dp)
+            .clip(RoundedCornerShape(18.dp))
             .testTag("conv-item-${conv.id}")
             .combinedClickable(onClick = onClick, onLongClick = { haptic.performHapticFeedback(HapticFeedbackType.LongPress); menuOpen = true })
             .background(if (conv.pinned == 1) MaterialTheme.colorScheme.primaryContainer else Color.Transparent)
-            .padding(horizontal = 16.dp, vertical = 12.dp),
+            .padding(horizontal = 10.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        InitialAvatar(name = conv.name.ifBlank { "?" }, size = 44.dp, avatarUrl = avatarUrl)
+        InitialAvatar(name = conv.name.ifBlank { "?" }, size = 48.dp, avatarUrl = avatarUrl)
         Spacer(Modifier.width(12.dp))
         Column(Modifier.weight(1f)) {
             Text(
                 conv.name.ifBlank { "未命名会话" },
-                style = MaterialTheme.typography.bodyLarge,
+                style = MaterialTheme.typography.bodyLarge.copy(fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold),
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.testTag("conv-item-name"),
