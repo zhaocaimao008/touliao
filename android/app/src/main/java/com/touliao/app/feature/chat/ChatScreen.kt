@@ -17,11 +17,10 @@ import androidx.compose.foundation.basicMarquee
 import androidx.compose.foundation.border
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.foundation.gestures.detectTransformGestures
+import com.touliao.app.ui.components.pagerFriendlyZoom
 import kotlinx.coroutines.launch
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
@@ -1089,15 +1088,13 @@ private fun ChatImageGallery(images: List<String>, startIndex: Int, onDismiss: (
         )
         Box(Modifier.fillMaxSize().background(Color.Black)) {
             androidx.compose.foundation.pager.HorizontalPager(state = pagerState, modifier = Modifier.fillMaxSize()) { page ->
-                var scale by remember { mutableStateOf(1f) }
                 Box(Modifier.fillMaxSize().clickable { onDismiss() }, contentAlignment = Alignment.Center) {
                     AsyncImage(
                         model = images[page],
                         contentDescription = "图片",
                         contentScale = ContentScale.Fit,
-                        modifier = Modifier.fillMaxSize()
-                            .graphicsLayer(scaleX = scale, scaleY = scale)
-                            .pointerInput(Unit) { detectTransformGestures { _, _, zoom, _ -> scale = (scale * zoom).coerceIn(1f, 4f) } },
+                        // 单指未放大时留给 Pager 翻页；双指缩放、放大后可拖动
+                        modifier = Modifier.fillMaxSize().pagerFriendlyZoom(),
                     )
                 }
             }
