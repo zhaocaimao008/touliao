@@ -83,15 +83,17 @@ jobs:
           WIN_CSC_LINK: ${{ secrets.WINDOWS_CERTIFICATE_BASE64 }}
           WIN_CSC_KEY_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
           PUBLISH_RELEASE: ${{ startsWith(github.ref, 'refs/tags/desktop-v') || inputs.deploy == true }}
+          SKIP_CERT_CHECK: ${{ vars.SKIP_WINDOWS_CERT_CHECK }}
         run: |
-          if ($env:PUBLISH_RELEASE -eq 'true') {
-            npx electron-builder --win --x64 -c.forceCodeSigning=true
+          if ($env:PUBLISH_RELEASE -eq 'true' -and $env:SKIP_CERT_CHECK -ne 'true') {
+            npx electron-builder --win --x64 '-c.forceCodeSigning=true'
           } else {
+            # 无证书发布（已获用户批准）：不强制签名；单引号避免 PowerShell 拆散 -c.xxx 参数
             npx electron-builder --win --x64
           }
 
       - name: Verify trusted Windows publisher and timestamp
-        if: startsWith(github.ref, 'refs/tags/desktop-v') || inputs.deploy == true
+        if: (startsWith(github.ref, 'refs/tags/desktop-v') || inputs.deploy == true) && vars.SKIP_WINDOWS_CERT_CHECK != 'true'
         working-directory: desktop-electron
         shell: pwsh
         run: |
