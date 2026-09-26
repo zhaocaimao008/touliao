@@ -58,7 +58,12 @@ jobs:
         shell: pwsh
         env:
           WIN_CSC_LINK: ${{ secrets.WINDOWS_CERTIFICATE_BASE64 }}
+          SKIP_CERT_CHECK: ${{ vars.SKIP_WINDOWS_CERT_CHECK }}
         run: |
+          if ($env:SKIP_CERT_CHECK -eq 'true') {
+            Write-Host '::warning::跳过 Windows 发布者证书检查（已获用户批准无证书发布）'
+            exit 0
+          }
           if ([string]::IsNullOrWhiteSpace($env:WIN_CSC_LINK)) {
             throw 'Production publication requires WINDOWS_CERTIFICATE_BASE64. Ed25519 update signing is not Windows publisher signing.'
           }
