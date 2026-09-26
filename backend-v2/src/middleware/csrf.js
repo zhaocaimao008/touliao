@@ -3,6 +3,7 @@
  * CSRF 双提交 Cookie 校验（全域门控，注册在路由之前）。
  *   - 安全方法 GET/HEAD/OPTIONS 跳过
  *   - 仅靠 Bearer token 鉴权的请求（移动端/Electron）跳过
+ *   - Cookie 与 Bearer 为同一 token（原生客户端自动回传 Cookie）跳过
  *   - 对比 csrf_token Cookie 与 X-CSRF-Token header
  *   - Cookie 鉴权的写请求必须完成双提交，即使 CSRF Cookie 丢失
  */
@@ -21,7 +22,13 @@ module.exports = function csrfProtection(req, res, next) {
   // 与 auth 的 Cookie 优先级一致；添加 Bearer 不能绕过 Cookie 会话的检查。
   // isolatedSession 已在此之前移除隔离客户端的共享 Cookie。
   const authCookie = req.cookies?.[config.cookieName];
-  if (!authCookie && req.headers['authorization']?.startsWith('Bearer ')) return next();
+  const authHeader = req.headers['authorization'];
+  if (!authCookie && authHeader?.startsWith('Bearer ')) return next();
+  // 原生客户端（iOS URLSession.shared）会自动回传登录响应种下的 Cookie，同时带 Bearer，
+  // 但从不发 X-CSRF-Token —— 2026-09-24 起 iOS 已读/推送注册/上传/登出全部 403。
+  // Bearer 与 Cookie 是同一个 token 时不可能是跨站伪造（伪造方拿不到受害者 token），放行；
+  // 他人的或伪造的 Bearer 仍不能绕过 Cookie 会话的检查。
+  if (authCookie && authHeader === `Bearer ${authCookie}`) return next();
 
   const cookieToken = req.cookies?.[config.csrfCookie];
   const headerToken = req.headers['x-csrf-token'];

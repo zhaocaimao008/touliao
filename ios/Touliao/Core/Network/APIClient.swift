@@ -33,13 +33,28 @@ struct AnyEncodable: Encodable {
 }
 
 /// 统一网络层：URLSession + async/await + Bearer 注入 + 401 处理。
-/// 与 Android APIClient/AuthInterceptor 等价；不处理 CSRF（无 cookie，后端对 Bearer 放行）。
+/// 与 Android APIClient/AuthInterceptor 等价；不处理 CSRF（不带 cookie，后端对纯 Bearer 放行）。
 final class APIClient {
     static let shared = APIClient()
     private let session: URLSession
     private let credentials: KeychainStore
     private let baseURL: () -> String
-    init(session: URLSession = .shared, credentials: KeychainStore = .shared, baseURL: @escaping () -> String = { ServerConfig.shared.baseURL }) {
+
+    /// 鉴权只走 Bearer，不存也不发 Cookie。
+    /// URLSession.shared 会自动保存登录响应的 Set-Cookie 并在之后每个请求回传；后端 Cookie
+    /// 优先于 Bearer，于是写请求被要求 CSRF 双提交而 403（2026-09-24 起已读/推送注册/上传/登出
+    /// 全失败），切换账号后还会按旧账号的 Cookie 认证。首次创建时顺带清掉旧版本存下的 Cookie，
+    /// 避免它们继续被 URLSession.shared（远程配置等）或长连接握手带出去。
+    static let cookielessSession: URLSession = {
+        HTTPCookieStorage.shared.removeCookies(since: .distantPast)
+        let configuration = URLSessionConfiguration.default
+        configuration.httpCookieStorage = nil
+        configuration.httpShouldSetCookies = false
+        configuration.httpCookieAcceptPolicy = .never
+        return URLSession(configuration: configuration)
+    }()
+
+    init(session: URLSession = APIClient.cookielessSession, credentials: KeychainStore = .shared, baseURL: @escaping () -> String = { ServerConfig.shared.baseURL }) {
         self.session = session
         self.credentials = credentials
         self.baseURL = baseURL
