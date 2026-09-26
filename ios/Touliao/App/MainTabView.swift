@@ -32,8 +32,6 @@ struct MainTabView: View {
                 .tag(2)
         }
         .tint(.vxinBrand)
-        .toolbarBackground(.visible, for: .tabBar)
-        .toolbarBackground(Color.vxinSurface, for: .tabBar)
         // 点推送通知 → 切回消息页（会话打开由 ConversationListView 观察同一通知处理）
         .onReceive(NotificationCenter.default.publisher(for: .vxinOpenConversation)) { _ in
             selectedTab = 0

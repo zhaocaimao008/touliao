@@ -95,8 +95,8 @@ extension View {
             .touliaoText(.body)
             .foregroundColor(.vxinText)
             .tint(.vxinBrand)
-            .toolbarBackground(Color.vxinSurface, for: .navigationBar, .tabBar)
-            .toolbarBackground(.visible, for: .navigationBar, .tabBar)
+            // v4：不再强制不透明导航栏/标签栏——Xcode 26 编译后 iOS 26 自动呈现 Liquid Glass，
+            // 旧系统为系统半透明材质。
             .modifier(TouliaoPadConstraint())
     }
 }

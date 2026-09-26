@@ -141,7 +141,7 @@ struct ContactsView: View {
             Text("加入黑名单后，将阻止与「\(blockTarget?.displayName ?? "")」的私聊及好友申请，双方动态不可见；共同群聊和已有历史仍可能可见。")
         }
         .navigationTitle("通讯录")
-        .navigationBarTitleDisplayMode(.inline)
+        .navigationBarTitleDisplayMode(.large)
         .touliaoPage()
         .toolbar {
             ToolbarItem(placement: .navigationBarTrailing) {

@@ -19,6 +19,38 @@ on:
   workflow_dispatch:
 
 jobs:
+  # 与 TestFlight 发版同一编译器（Xcode 26 / iOS 26 SDK）的编译门禁：
+  # 只有这里才会编译 `#if compiler(>=6.2)` 保护的 iOS 26 API（如 Liquid Glass 的 glassEffect），
+  # 否则这类代码要到打 ios-v tag 发版时才第一次被编译。
+  build-xcode26:
+    runs-on: macos-26
+    timeout-minutes: 45
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Select Xcode 26
+        run: |
+          XC=$(ls -d /Applications/Xcode_26*.app 2>/dev/null | sort -V | tail -1)
+          if [ -z "$XC" ]; then echo "No Xcode 26 on runner"; ls /Applications | grep -i xcode; exit 1; fi
+          sudo xcode-select -s "$XC/Contents/Developer"
+          xcodebuild -version
+      - name: Install XcodeGen
+        run: brew install xcodegen
+      - name: Generate Xcode project
+        working-directory: ios
+        run: xcodegen generate
+      - name: Build (iOS Simulator, Xcode 26, no signing)
+        working-directory: ios
+        run: |
+          set -o pipefail
+          xcodebuild build \
+            -project Touliao.xcodeproj \
+            -scheme Touliao \
+            -destination 'generic/platform=iOS Simulator' \
+            -configuration Debug \
+            CODE_SIGNING_ALLOWED=NO \
+            | tee xcodebuild-26.log | tail -40
+
   build:
     # macos-15 自带 Xcode 16，可读取 XcodeGen 生成的新工程格式(objectVersion 77)
     runs-on: macos-15
