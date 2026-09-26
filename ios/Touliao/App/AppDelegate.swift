@@ -172,4 +172,6 @@ extension AppDelegate: UNUserNotificationCenterDelegate {
 
 extension Notification.Name {
     static let vxinOpenConversation = Notification.Name("vxin.openConversation")
+    /// v3 空状态 hero「发起聊天」→ 切到通讯录 Tab。
+    static let vxinOpenContactsTab = Notification.Name("vxin.openContactsTab")
 }

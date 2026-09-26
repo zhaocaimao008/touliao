@@ -33,6 +33,7 @@ struct ConversationListView: View {
                                 .touliaoText(.caption)
                                 .foregroundColor(vm.socketStatus == .connected ? .vxinGreen : .vxinTextSecondary)
                         }
+                        .foregroundColor(.vxinText)
                     }
                     // 朋友圈入口（方案A：不占底部导航，受后台 features.moments 开关实时控制）
                     if vm.momentsEnabled {
@@ -142,10 +143,14 @@ struct ConversationListView: View {
                 action: { Task { await vm.refresh() } }
             )
         } else if vm.conversations.isEmpty {
-            VxinEmptyState(
-                icon: "chat",
-                title: "暂无会话",
-                subtitle: "去「通讯录」找好友开始聊天吧"
+            // v3 品牌时刻：空会话用极光 hero（与 Web illustration="chat" 同构），CTA 跳通讯录发起聊天。
+            AuroraEmptyHero(
+                title: "静候第一声问候",
+                subtitle: "在投聊，一切从一句话开始",
+                actionTitle: "发起聊天",
+                action: {
+                    NotificationCenter.default.post(name: .vxinOpenContactsTab, object: nil)
+                }
             )
         } else {
             // F5 归档：主/归档列表按 archived 标记本地分流（数据源同一次 includeArchived=1 拉取）。
@@ -286,6 +291,11 @@ struct ConversationListView: View {
         case .connecting: return "连接中…"
         case .disconnected: return "未连接"
         }
+    }
+
+    /// v3：是否正在展示极光空状态 hero（与 Web EmptyState illustration="chat" 同构）。
+    private var isShowingAuroraHero: Bool {
+        !vm.loading && vm.error == nil && vm.conversations.isEmpty
     }
 }
 

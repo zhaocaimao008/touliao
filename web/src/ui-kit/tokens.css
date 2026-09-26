@@ -1,18 +1,18 @@
 /* Generated from ui-kit/tokens.json. Run node scripts/generate-ui-tokens.cjs. */
 html.touliao-ui body {
-  --tl-primary: #2864f0;
-  --tl-primary-hover: #1d52d5;
-  --tl-primary-active: #1745b4;
+  --tl-primary: #6D5AE6;
+  --tl-primary-hover: #5A47D6;
+  --tl-primary-active: #4938B8;
   --tl-primary-foreground: #ffffff;
-  --tl-primary-soft: #edf3ff;
-  --tl-background: #f4f6fa;
+  --tl-primary-soft: #F1EFFD;
+  --tl-background: #F7F8FC;
   --tl-surface: #ffffff;
   --tl-surface-secondary: #f8f9fc;
   --tl-surface-hover: #f0f3f8;
-  --tl-text: #17212e;
+  --tl-text: #171A26;
   --tl-text-muted: #687587;
   --tl-text-disabled: #9aa5b4;
-  --tl-border: #e7ebf2;
+  --tl-border: #E4E7F0;
   --tl-border-strong: #a9b5c6;
   --tl-danger: #dc4454;
   --tl-danger-soft: #fff0f2;
@@ -21,9 +21,10 @@ html.touliao-ui body {
   --tl-warning: #a7680c;
   --tl-warning-soft: #fff6e5;
   --tl-overlay: rgba(16, 21, 30, 0.42);
-  --tl-focus: #2864f0;
+  --tl-focus: #6D5AE6;
+  --tl-aurora-teal: #5EEAD4;
   --tl-message-incoming: #ffffff;
-  --tl-message-outgoing: #2864f0;
+  --tl-message-outgoing: #6D5AE6;
   --tl-message-outgoing-text: #ffffff;
   --tl-icon-on-dark: #ffffff;
   --tl-icon-on-light: #17212e;
@@ -33,15 +34,15 @@ html.touliao-ui body {
   color-scheme: light;
 }
 html.touliao-ui body.dark-mode {
-  --tl-primary: #7ca7ff;
-  --tl-primary-hover: #9abcff;
-  --tl-primary-active: #6595f5;
+  --tl-primary: #6D5AE6;
+  --tl-primary-hover: #5A47D6;
+  --tl-primary-active: #6D5AE6;
   --tl-primary-foreground: #10151e;
-  --tl-primary-soft: #223550;
-  --tl-background: #10151e;
-  --tl-surface: #18212d;
-  --tl-surface-secondary: #202b3a;
-  --tl-surface-hover: #273547;
+  --tl-primary-soft: #2B2653;
+  --tl-background: #0B0E1A;
+  --tl-surface: #171A26;
+  --tl-surface-secondary: #1F2438;
+  --tl-surface-hover: #283049;
   --tl-text: #eaf0f8;
   --tl-text-muted: #a7b4c6;
   --tl-text-disabled: #6c7b90;
@@ -54,9 +55,10 @@ html.touliao-ui body.dark-mode {
   --tl-warning: #f2bf66;
   --tl-warning-soft: #403624;
   --tl-overlay: rgba(0, 0, 0, 0.60);
-  --tl-focus: #9abcff;
-  --tl-message-incoming: #202b3a;
-  --tl-message-outgoing: #2e58a2;
+  --tl-focus: #6D5AE6;
+  --tl-aurora-teal: #5EEAD4;
+  --tl-message-incoming: #1F2438;
+  --tl-message-outgoing: #5A47D6;
   --tl-message-outgoing-text: #ffffff;
   --tl-icon-on-dark: #ffffff;
   --tl-icon-on-light: #17212e;

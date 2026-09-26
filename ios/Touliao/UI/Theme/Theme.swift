@@ -23,6 +23,9 @@ extension Color {
     static let vxinPrimarySoft = TouliaoDesign.primarySoft
     static let vxinOnPrimary = TouliaoDesign.primaryForeground
     static let vxinBorder = TouliaoDesign.border
+    // v3 极光色板：极光青只在品牌时刻（空状态 hero、光带）出现；渊空为品牌时刻固定深空底。
+    static let vxinAuroraTeal = TouliaoDesign.auroraTeal
+    static let auroraAbyss = Color(red: 0x0B / 255, green: 0x0E / 255, blue: 0x1A / 255)
     // Existing financial cards retain their semantic color and functionality.
     static let vxinCallAccept = TouliaoMedia.accept
     static let vxinCallDanger = TouliaoMedia.danger
@@ -31,7 +34,8 @@ extension Color {
     static let vxinPayGradEnd = vxinPay
 }
 extension LinearGradient {
-    static let vxinBubble = LinearGradient(colors: [.vxinBubbleMine, .vxinBrandDark],
+    // v3 四端统一：发送气泡 #6D5AE6 → #5A47D6 渐变。
+    static let vxinBubble = LinearGradient(colors: [.vxinBubbleMine, TouliaoDesign.primaryHover],
                                            startPoint: .top, endPoint: .bottom)
     static let vxinCallAccept = TouliaoMedia.accept
     static let vxinCallDanger = TouliaoMedia.danger
@@ -79,6 +83,10 @@ extension View {
                     design: Font.Design = .default) -> some View {
         modifier(TouliaoFontModifier(size: size, weight: weight, design: design))
     }
+    /// v3 展示标题：衬线（New York）+ Dynamic Type 缩放，只用于品牌时刻（空状态 hero 等）。
+    func auroraDisplay(size: CGFloat = 34, weight: Font.Weight = .bold) -> some View {
+        modifier(AuroraSerifModifier(size: size, weight: weight))
+    }
     func touliaoPage() -> some View {
         self.frame(maxWidth: .infinity, maxHeight: .infinity)
             .background(Color.vxinBackground)
@@ -98,6 +106,19 @@ private struct TouliaoPadConstraint: ViewModifier {
     @Environment(\.horizontalSizeClass) private var hSize
     func body(content: Content) -> some View {
         content.frame(maxWidth: hSize == .regular ? 720 : .infinity)
+    }
+}
+
+/// v3 品牌时刻展示字体：New York 衬线，随 Dynamic Type 缩放。
+private struct AuroraSerifModifier: ViewModifier {
+    @ScaledMetric(relativeTo: .largeTitle) private var size: CGFloat = 34
+    let weight: Font.Weight
+    init(size: CGFloat, weight: Font.Weight) {
+        _size = ScaledMetric(wrappedValue: size, relativeTo: .largeTitle)
+        self.weight = weight
+    }
+    func body(content: Content) -> some View {
+        content.font(.system(size: size, weight: weight, design: .serif))
     }
 }
 

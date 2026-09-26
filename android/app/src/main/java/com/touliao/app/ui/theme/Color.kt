@@ -37,6 +37,15 @@ val VxinBubbleMineText: Color
     @Composable @ReadOnlyComposable get() = LocalTouliaoPalette.current.messageOutgoingText
 val VxinBubbleText: Color
     @Composable @ReadOnlyComposable get() = LocalTouliaoPalette.current.text
+// v3 极光：极光青（品牌时刻点缀：输入微光、光带、空状态插画）
+val VxinAuroraTeal: Color
+    @Composable @ReadOnlyComposable get() = LocalTouliaoPalette.current.auroraTeal
+// v3 极光：统一细线分隔（浅色 #E4E7F0 / 深色深适配），列表分隔只用它，不许卡片式
+val VxinHairline: Color
+    @Composable @ReadOnlyComposable get() = LocalTouliaoPalette.current.border
+// 禁用态统一置灰
+val VxinTextDisabled: Color
+    @Composable @ReadOnlyComposable get() = LocalTouliaoPalette.current.textDisabled
 
 // Explicit dark aliases and financial card colors retain their semantic purpose.
 val VxinBubbleOtherDark = TouliaoDarkPalette.messageIncoming

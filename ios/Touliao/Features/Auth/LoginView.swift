@@ -86,7 +86,7 @@ struct LoginView: View {
             }
 
             LegalLinks()
-            Toggle("我已阅读并同意隐私政策和用户协议", isOn: $vm.legalAccepted).font(.footnote)
+            Toggle("我已阅读并同意隐私政策和用户协议", isOn: $vm.legalAccepted).font(.footnote).tint(.vxinBrand)
 
             VxinGradientButton(title: "登录", loading: vm.loading, enabled: vm.canLogin, action: vm.login)
             .padding(.top, 8)

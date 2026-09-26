@@ -19,7 +19,9 @@ html.touliao-ui body .wc-search input { font-size: 14px; }
 html.touliao-ui body .tl-conversation-filters { display: flex; gap: 4px; padding: 0 16px 12px; border-bottom: 1px solid var(--tl-border); }
 html.touliao-ui body .tl-conversation-filters button { padding: 6px 12px; min-height: 36px; border: 0; border-radius: 8px; background: transparent; color: var(--tl-readable-muted); font-size: 14px; }
 html.touliao-ui body .tl-conversation-filters button[aria-selected='true'] { background: var(--tl-primary-soft); color: var(--tl-primary); font-weight: 600; }
-html.touliao-ui body .wc-chat-item { width: calc(100% - 16px); margin-inline: 8px; border-radius: 12px; }
+/* v3 极光：会话列表用细线分隔，去卡片化 */
+html.touliao-ui body .wc-chat-item { width: 100%; margin-inline: 0; border-radius: 0; border-bottom: 1px solid var(--aurora-hairline, #E4E7F0); }
+html.touliao-ui body.dark-mode .wc-chat-item { border-bottom-color: rgba(255, 255, 255, .06); }
 html.touliao-ui body .wc-chat-item.active,
 html.touliao-ui body .wc-chat-item.active:hover { background: var(--tl-primary-soft) !important; box-shadow: none; }
 html.touliao-ui body .wc-chat-item.active::before { content: ''; position: absolute; left: -8px; top: 22px; bottom: 22px; width: 3px; background: var(--tl-primary); border-radius: 3px; }
@@ -36,9 +38,10 @@ html.touliao-ui body .wc-chat-header { min-height: 64px; height: 64px; padding: 
 html.touliao-ui body .wc-chat-header-name { font-size: 18px; font-weight: 600; }
 html.touliao-ui body .wc-chat-header-btn { width: 36px; height: 36px; min-width: 36px; color: var(--tl-readable-muted); border-radius: 8px; }
 html.touliao-ui body .wc-messages { padding: 20px 24px; }
-html.touliao-ui body .wc-msg-bubble { padding: 8px 12px; border-radius: 16px; font-size: var(--font-msg); line-height: 1.6; max-width: 560px; overflow-wrap: anywhere; box-shadow: none; }
-html.touliao-ui body .wc-msg-bubble.mine { background: var(--tl-message-outgoing) !important; color: var(--tl-message-outgoing-text) !important; border: 0; border-top-right-radius: 4px; box-shadow: none; }
-html.touliao-ui body .wc-msg-bubble.other { background: var(--tl-message-incoming); color: var(--tl-text); border: 1px solid var(--tl-border); border-top-left-radius: 4px; }
+html.touliao-ui body .wc-msg-bubble { padding: 8px 12px; border-radius: 18px; font-size: var(--font-msg); line-height: 1.6; max-width: 560px; overflow-wrap: anywhere; box-shadow: none; }
+/* v3 极光：我方气泡 speech-bubble 锚点角（右下 4px）+ 极光靛微渐变 + 柔光 */
+html.touliao-ui body .wc-msg-bubble.mine { background: linear-gradient(135deg, #6D5AE6 0%, #5A47D6 100%) !important; color: var(--tl-message-outgoing-text) !important; border: 0; border-radius: 18px 18px 4px 18px; box-shadow: 0 2px 8px rgba(109, 90, 230, .22), 0 1px 3px rgba(20, 24, 40, .08); }
+html.touliao-ui body .wc-msg-bubble.other { background: var(--tl-message-incoming); color: var(--tl-text); border: 1px solid var(--tl-border); border-radius: 18px 18px 18px 4px; }
 html.touliao-ui body .wc-msg-bubble::after { display: none; }
 html.touliao-ui body .wc-msg-bubble.mine a { color: var(--tl-message-outgoing-text) !important; text-decoration: underline; text-underline-offset: 3px; }
 html.touliao-ui body .wc-msg-bubble.mine :is(.wc-msg-file-name, .wc-msg-file-size, .wc-msg-edited, .wc-voice-duration) { color: var(--tl-message-outgoing-text) !important; }

@@ -1,21 +1,25 @@
 /* ================================================================
-   投聊 Design System — Global Design Tokens  v2.0
+   投聊 Design System — Global Design Tokens  v3.0 「极光」
    ================================================================
-   设计哲学
+   设计哲学（v3 极光）
    ──────────────────────────────────────────────────────────────
-   日常对话层（WeChat-like）
-     · 极简、克制、留白充足
-     · 大量白色 / 浅灰背景，让内容呼吸
-     · 动效快速、轻盈，不干扰注意力
+   One bold thing：极光只出现在 3 个品牌时刻 ——
+     1. 空状态 hero 插画
+     2. 对方正在输入时的气泡微光
+     3. 深色模式顶部光带
+   其余界面干净克制：细线分隔代替卡片，speech-bubble 锚点角，
+   展示标题用衬线，正文安静无衬线。
 
-   管理设置层（DingTalk-like）
-     · 结构化、严谨、信息密度适中
-     · 蓝色主调强化权威感
-     · 卡片分区清晰，标签文字对齐整齐
+   Anti-AI-slop：
+     · 禁止全屏紫渐变
+     · 禁止所有卡片同一圆角 + 同一阴影
+     · 禁止 "A · B · C" 中点元信息
+     · 按钮文字不加 "→"
 
-   双色系逻辑
-     · Brand Blue   #1677FF — UI 框架：按钮、链接、选中态
-     · Chat Green   #10A96B — 消息气泡：亲和、温暖、延续 IM 记忆
+   v3 色板（6 hex）：
+     #0B0E1A 渊空（深色底）  #171A26 墨（深色卡片）
+     #6D5AE6 极光靛（品牌）  #5EEAD4 极光青（点缀）
+     #F7F8FC 月白（浅色底）  #E4E7F0 细线（分隔线）
    ================================================================ */
 
 /* ================================================================
@@ -54,6 +58,53 @@
   /* 浅绿气泡内文字/链接（企业微信经典：深色正文 + 微信蓝链接），收敛原散落裸写值 */
   --bubble-mine-text: #1F2329;
   --bubble-mine-link: var(--color-primary);   /* 白字紫底气泡内链接 */
+
+  /* ── v3 极光：我方气泡 speech-bubble 锚点角 + 微渐变 + 柔光 ── */
+  /* 发送方右下角 4px 锚点（18px 18px 4px 18px），接收方左下角锚点 */
+  --bubble-radius-mine:   18px 18px 4px 18px;
+  --bubble-radius-other:  18px 18px 18px 4px;
+  /* 我方气泡：极光靛 → 深靛微渐变（克制，非全屏渐变） */
+  --bubble-mine-grad:     linear-gradient(135deg, #6D5AE6 0%, #5A47D6 100%);
+  /* 我方气泡柔光阴影：品牌色光晕 */
+  --shadow-bubble-mine-glow:
+    0 2px 8px rgba(109, 90, 230, .22),
+    0 1px 3px rgba(20, 24, 40, .08);
+
+/* ================================================================
+   § 1b  AURORA — 极光品牌时刻（v3 新增）
+   仅用于 3 个品牌时刻：空状态 hero、输入中微光、深色顶部光带。
+   日常 UI 禁止使用。
+   ================================================================ */
+  /* 极光色板 */
+  --aurora-indigo:      #6D5AE6;   /* 极光靛（= brand-500） */
+  --aurora-teal:        #5EEAD4;   /* 极光青（点缀） */
+  --aurora-indigo-rgb:  109, 90, 230;
+  --aurora-teal-rgb:    94, 234, 212;
+  --aurora-deep:        #0B0E1A;   /* 渊空（深色底） */
+  --aurora-ink:         #171A26;   /* 墨（深色卡片） */
+  --aurora-moon:        #F7F8FC;   /* 月白（浅色底） */
+  --aurora-hairline:    #E4E7F0;   /* 细线（分隔线） */
+
+  /* 深色模式顶部极光光带：subtle，低透明，底部渐隐 */
+  --aurora-band:
+    linear-gradient(180deg,
+      rgba(109, 90, 230, .14) 0%,
+      rgba(94, 234, 212, .06) 45%,
+      transparent 100%);
+
+  /* 对方正在输入：气泡边缘极光微光 */
+  --aurora-typing-glow:
+    0 0 0 1px rgba(109, 90, 230, .35),
+    0 0 16px rgba(109, 90, 230, .25),
+    0 2px 8px rgba(20, 24, 40, .08);
+
+  /* 空状态 hero 插画渐变 */
+  --aurora-hero-grad:
+    radial-gradient(120% 90% at 50% 0%, rgba(109, 90, 230, .22) 0%, transparent 55%),
+    radial-gradient(80% 60% at 80% 100%, rgba(94, 234, 212, .12) 0%, transparent 50%);
+
+  /* 展示标题衬线字体 */
+  --font-display: "Noto Serif SC", "Songti SC", "SimSun", serif;
 
   /* 品牌渐变（AURORA 靛→青碧）：我方气泡、侧栏头像、确认按钮等使用。
      原定义在 index.css :root，随单一真相源合并迁移至此。*/
@@ -137,13 +188,13 @@
    § 4  BACKGROUND SYSTEM — 背景色体系
    分层：app 壳 → 导航 → 面板 → 聊天区 → 内容卡
    ================================================================ */
-  /* 整体壳层 */
-  --bg-app:               #E7E4F0;   /* 面板缝隙：带紫调的浅雾（AURORA）*/
+  /* 整体壳层 — v3 极光：月白底 */
+  --bg-app:               #F7F8FC;   /* 月白 */
   --bg-shell:             #241F38;   /* 应用外壳：深靛夜幕（非纯黑，更有质感）。原在 index.css :root，合并迁移至此 */
 
   /* 会话面板 */
-  --bg-panel:             #FBFAFE;   /* 会话列表：近白暖纸（AURORA）*/
-  --bg-panel-header:      #FBFAFE;
+  --bg-panel:             #FFFFFF;
+  --bg-panel-header:      #FFFFFF;
   --bg-panel-item-hover:  rgba(0, 0, 0, .04);
   --bg-panel-item-active: #E6E6E6;       /* 微信淡灰选中(对照官方截图) */
   --bg-panel-item-active-hover: #DDDDDD;
@@ -151,12 +202,10 @@
   /* 聊天区域 */
   --bg-chat:              #FFFFFF;
   --bg-chat-header:       #FFFFFF;
-  --bg-messages:          #F3F1FA;   /* 聊天区：极浅薰衣草灰（AURORA）*/
-  /* 消息画布：极淡的斜向渐变，避免大面积死板纯色 */
+  --bg-messages:          #F7F8FC;   /* 聊天区：月白 */
+  /* 消息画布：干净月白，极淡极光洗色（克制） */
   --bg-messages-canvas:
-    radial-gradient(900px 600px at 88% -8%, rgba(var(--color-primary-rgb), .045) 0%, transparent 60%),
-    radial-gradient(700px 520px at 6% 108%, rgba(23,184,166,.04) 0%, transparent 60%),
-    linear-gradient(180deg, #EEF1F6 0%, #EAECF2 100%);
+    linear-gradient(180deg, #F7F8FC 0%, #F7F8FC 100%);
 
   /* 输入区 */
   --bg-input:             rgba(251,250,254,.92);   /* AURORA 半透暖白 */
@@ -181,11 +230,11 @@
    § 5  BORDER — 边框体系
    ================================================================ */
   --border-subtle:  rgba(0, 0, 0, .04);  /* 内容区极轻分隔 */
-  --border-default: #E3E7EE;             /* 标准边框 */
+  --border-default: #E4E7F0;             /* 标准边框：极光细线 */
   --border-medium:  #C9CDD6;             /* 中等强度 */
   --border-strong:  rgba(36,31,56,.08);  /* 分区强调（AURORA 紫调轻边）*/
   --border-focus:   var(--brand-500);    /* 输入框聚焦 */
-  --divider:        #ECEEF3;             /* 区块分隔线 */
+  --divider:        #E4E7F0;             /* 区块分隔线：极光细线 */
 
 /* ================================================================
    § 6  TYPOGRAPHY — 文字层级与颜色
@@ -469,22 +518,24 @@ body.dark-mode {
   --color-warning:       #FF9A3C;
   --color-warning-light: rgba(255, 154, 60, .12);
 
-  /* Backgrounds */
-  --bg-app:               #0A0D11;
+  /* Backgrounds — v3 极光：渊空底 + 顶部光带 */
+  --bg-app:               #0B0E1A;   /* 渊空 */
   --bg-shell:             #17132A;   /* 暗色外壳更深的靛夜幕（原 index.css dark，合并迁移至此）*/
-  --bg-panel:             #1C1C1E;
-  --bg-panel-header:      #1C1C1E;
+  --bg-panel:             #171A26;   /* 墨 */
+  --bg-panel-header:      #171A26;
   --bg-panel-item-hover:  rgba(255, 255, 255, .06);
   --bg-panel-item-active: rgba(255,255,255,.06);
   --bg-panel-item-active-hover: rgba(255,255,255,.10);
-  --bg-chat:              #111111;
-  --bg-chat-header:       #1C1C1E;
-  --bg-messages:          #0E0E10;
-  /* 暗色画布：极淡靛紫辉光，替代死黑，气泡浮起 */
+  --bg-chat:              #0B0E1A;
+  --bg-chat-header:       #171A26;
+  --bg-messages:          #0B0E1A;
+  /* 暗色画布：顶部一道 subtle 极光光带（低透明，底部渐隐），替代死黑 */
   --bg-messages-canvas:
-    radial-gradient(900px 600px at 88% -8%, rgba(var(--color-primary-rgb), .10) 0%, transparent 60%),
-    radial-gradient(700px 520px at 6% 108%, rgba(23,184,166,.06) 0%, transparent 60%),
-    linear-gradient(180deg, #101014 0%, #0C0C0F 100%);
+    linear-gradient(180deg,
+      rgba(109, 90, 230, .10) 0%,
+      rgba(94, 234, 212, .04) 120px,
+      transparent 280px),
+    linear-gradient(180deg, #0B0E1A 0%, #0B0E1A 100%);
   /* 暗色下他人气泡：深灰卡片色，而非纯白 */
   --bubble-other:         #26262A;
   --shadow-bubble-other-soft: 0 1px 3px rgba(0,0,0,.35), 0 1px 10px rgba(0,0,0,.28);

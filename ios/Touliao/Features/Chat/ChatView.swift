@@ -1381,7 +1381,25 @@ private struct MessageBubble: View {
                     TouliaoDesign.messageIncoming
                 }
             }
-            .clipShape(RoundedRectangle(cornerRadius: VxinRadius.bubble))
+            // v3 speech-bubble 锚点角：发送方右下、接收方左下收 2pt，其余 18pt
+            .clipShape(bubbleShape)
+    }
+
+    /// v3 气泡形状：锚点角 4pt（iOS 16+ UnevenRoundedRectangle），四端统一。
+    private var bubbleShape: UnevenRoundedRectangle {
+        let r: CGFloat = 18
+        let anchor: CGFloat = 4
+        if isMine {
+            return UnevenRoundedRectangle(
+                cornerRadii: .init(topLeading: r, bottomLeading: r,
+                                   bottomTrailing: anchor, topTrailing: r),
+                style: .continuous)
+        } else {
+            return UnevenRoundedRectangle(
+                cornerRadii: .init(topLeading: r, bottomLeading: anchor,
+                                   bottomTrailing: r, topTrailing: r),
+                style: .continuous)
+        }
     }
 
 }

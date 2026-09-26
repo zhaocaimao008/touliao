@@ -6,7 +6,7 @@ const S = (over = {}) => ({ ...initialComposeState, ...over });
 describe('composeReducer', () => {
   it('初始状态：空输入、非语音、无编辑/回复', () => {
     expect(initialComposeState).toEqual({
-      input: '', mode: 'TEXT', emojiTab: 'emoji', editingMsg: null, replyTo: null,
+      input: '', mode: 'TEXT', emojiTab: 'emoji', editingMsg: null, replyTo: null, fromDraft: false,
     });
   });
 

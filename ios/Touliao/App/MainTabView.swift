@@ -38,6 +38,10 @@ struct MainTabView: View {
         .onReceive(NotificationCenter.default.publisher(for: .vxinOpenConversation)) { _ in
             selectedTab = 0
         }
+        // v3 空状态 hero「发起聊天」→ 切到通讯录 Tab
+        .onReceive(NotificationCenter.default.publisher(for: .vxinOpenContactsTab)) { _ in
+            selectedTab = 1
+        }
         // App 每次进入前台时刷新 FCM token 注册，确保服务端 token 有效。
         // 修复「我发好友无通知」：好友 token 被服务端因 FCM 失效删除后，
         // 只要下次打开 App 就会重新注册，不再依赖 onToken 被动触发。

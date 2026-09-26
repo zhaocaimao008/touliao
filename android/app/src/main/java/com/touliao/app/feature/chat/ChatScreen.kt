@@ -4,7 +4,13 @@ import android.Manifest
 import android.content.pm.PackageManager
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.basicMarquee
 import androidx.compose.foundation.border
@@ -33,6 +39,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.imePadding
@@ -71,7 +78,10 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
@@ -104,6 +114,8 @@ import com.touliao.app.ui.theme.VxinBubbleTextDark
 import com.touliao.app.ui.theme.VxinBrand
 import com.touliao.app.ui.theme.VxinBrandLight
 import com.touliao.app.ui.theme.VxinBrandDark
+import com.touliao.app.ui.theme.VxinHairline
+import com.touliao.app.ui.theme.VxinTextDisabled
 import com.touliao.app.ui.theme.VxinTextSize
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.SolidColor
@@ -111,6 +123,8 @@ import com.touliao.app.ui.theme.VxinSurfaceDark
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import kotlin.math.PI
+import kotlin.math.sin
 
 @OptIn(ExperimentalMaterial3Api::class, androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 @Composable
@@ -133,6 +147,8 @@ fun ChatScreen(
     var forwardTarget by remember { mutableStateOf<Message?>(null) }
     var showMergedForward by remember { mutableStateOf(false) }   // F4a 多选→合并转发目标选择
     var mergedDetail by remember { mutableStateOf<Message?>(null) }   // F4a merged 气泡点开详情
+    // v3 极光：空状态 CTA「打个招呼」聚焦输入框
+    val inputFocusRequester = remember { androidx.compose.ui.focus.FocusRequester() }
     var galleryImages by remember { mutableStateOf<List<String>?>(null) }
     var galleryStart by remember { mutableStateOf(0) }
     // 2026-08-29 统一附件系统：视频/PDF/其他文件 App 内预览态（三者互斥，同时只开一个）
@@ -318,7 +334,12 @@ fun ChatScreen(
                     Column {
                         Text(if (compactHeader && state.peerTyping) "输入中 · ${state.title.ifBlank { "聊天" }}" else state.title.ifBlank { "聊天" }, modifier = Modifier.testTag("chat-title"), maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
                         if (state.peerTyping && !compactHeader) {
-                            Text("对方正在输入…", fontSize = com.touliao.app.ui.theme.VxinTextSize.xs, color = VxinBrand)
+                            // v3 极光：对方正在输入 —— 三点动画 + 极光微光（品牌时刻）
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text("对方正在输入", fontSize = com.touliao.app.ui.theme.VxinTextSize.xs, color = VxinBrand)
+                                Spacer(Modifier.width(4.dp))
+                                TypingDots()
+                            }
                         }
                     }
                 },
@@ -466,6 +487,7 @@ fun ChatScreen(
                     emojiPanelOpen = showEmojiPanel,
                     showMention = viewModel.isGroup,
                     onMention = { showMentionPicker = true },
+                    inputFocusRequester = inputFocusRequester,
                     onMicClick = {
                         if (state.recording) {
                             viewModel.stopRecordingAndSend()
@@ -523,14 +545,14 @@ fun ChatScreen(
                 PinnedBanner(state.pinnedMessages) { showPinnedList = true }
             }
           Box(Modifier.weight(1f).fillMaxWidth()) {
+            // v3 极光：聊天顶部 subtle 光带（品牌时刻），低透明、底部渐隐
+            AuroraRibbon(Modifier.align(Alignment.TopCenter))
             if (state.loading && state.messages.isEmpty()) {
                 CircularProgressIndicator(Modifier.align(Alignment.Center))
             } else if (!state.loading && state.messages.isEmpty() && state.pending.isEmpty()) {
-                // 空会话友好提示(对齐微信「打个招呼吧」)
-                com.touliao.app.ui.components.EmptyState(
-                    icon = com.touliao.app.ui.TouliaoIcons.AddFriend,
-                    title = "还没有消息",
-                    subtitle = "发条消息，打个招呼吧",
+                // v3 极光空状态：深空极光插画 + 衬线标题 + 单个品牌 CTA（四端统一）
+                com.touliao.app.ui.components.AuroraChatEmptyState(
+                    onAction = { inputFocusRequester.requestFocus() },
                     modifier = Modifier.align(Alignment.Center),
                 )
             } else {
@@ -851,7 +873,7 @@ fun ChatScreen(
                             }
                             TextButton(onClick = { viewModel.unpinMessage(p.msgId) }) { Text("取消", color = com.touliao.app.ui.theme.VxinError) }
                         }
-                        HorizontalDivider(thickness = 0.5.dp)
+                        HorizontalDivider(thickness = 0.5.dp, color = VxinHairline)
                     }
                 }
             },
@@ -958,7 +980,7 @@ fun ChatScreen(
                                     maxLines = 2, overflow = TextOverflow.Ellipsis,
                                 )
                             }
-                            HorizontalDivider(thickness = 0.5.dp)
+                            HorizontalDivider(thickness = 0.5.dp, color = VxinHairline)
                         }
                     }
                 }
@@ -1002,7 +1024,7 @@ fun ChatScreen(
                                 Spacer(Modifier.size(8.dp))
                                 Text("所有人", fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold)
                             }
-                            HorizontalDivider()
+                            HorizontalDivider(color = VxinHairline)
                         }
                     }
                     items(state.groupMembers, key = { it.id }) { m ->
@@ -1338,7 +1360,7 @@ private fun MessageBubble(
                     if (canViewReadStatus(msg, myId)) {
                         DropdownMenuItem(leadingIcon = { Icon(com.touliao.app.ui.TouliaoIcons.Selected, contentDescription = null, modifier = Modifier.size(com.touliao.app.ui.IconSize.Sm), tint = com.touliao.app.ui.IconColor.Secondary) }, text = { Text("已读状态") }, onClick = { onReadStatus(); menuOpen = false })
                     }
-                    HorizontalDivider()
+                    HorizontalDivider(color = VxinHairline)
                     DropdownMenuItem(text = { Text("举报消息") }, onClick = { reportType = "message"; menuOpen = false })
                     DropdownMenuItem(text = { Text("举报用户") }, onClick = { reportType = "user"; menuOpen = false })
                     DropdownMenuItem(leadingIcon = { Icon(com.touliao.app.ui.TouliaoIcons.Multiselect, contentDescription = null, modifier = Modifier.size(com.touliao.app.ui.IconSize.Sm), tint = com.touliao.app.ui.IconColor.Secondary) }, text = { Text("多选") }, onClick = { onMultiSelect(); menuOpen = false })
@@ -1588,13 +1610,29 @@ internal fun TextBubble(content: String, isMine: Boolean) {
     Box(
         modifier = Modifier
             .widthIn(max = 280.dp)
-            .clip(RoundedCornerShape(com.touliao.app.ui.theme.VxinRadius.bubble))
+            .shadow(
+                elevation = if (isMine) 5.dp else 0.dp,
+                shape = bubbleShape(isMine),
+                spotColor = Color(0xFF6D5AE6).copy(alpha = 0.30f),
+            )
+            .clip(bubbleShape(isMine))
             .background(bubbleBrush(isMine))
+            // 接收方：细线边框（对齐 Web .other）；发送方无边框
+            .then(if (!isMine) Modifier.border(0.5.dp, VxinHairline, bubbleShape(isMine)) else Modifier)
             .padding(horizontal = 12.dp, vertical = 8.dp),
     ) {
         Text(highlightMentions(content, isMine), color = bubbleTextColor(isMine))
     }
 }
+
+/**
+ * v3 气泡解剖：speech-bubble 锚点角 —— 发送方右下、接收方左下收成小圆角，
+ * 其余三角 18dp，形成视觉上的「小尾巴」锚点（对齐 Web/iOS）。
+ */
+@Composable
+private fun bubbleShape(isMine: Boolean): RoundedCornerShape =
+    if (isMine) RoundedCornerShape(topStart = 18.dp, topEnd = 18.dp, bottomEnd = 4.dp, bottomStart = 18.dp)
+    else RoundedCornerShape(topStart = 18.dp, topEnd = 18.dp, bottomEnd = 18.dp, bottomStart = 4.dp)
 
 private val MENTION_RE = Regex("@[^\\s@]+")
 
@@ -1622,8 +1660,15 @@ private fun MediaCard(isMine: Boolean, onClick: () -> Unit, content: @Composable
     Box(
         modifier = Modifier
             .widthIn(max = 240.dp)
-            .clip(RoundedCornerShape(com.touliao.app.ui.theme.VxinRadius.bubble))
+            .shadow(
+                elevation = if (isMine) 5.dp else 0.dp,
+                shape = bubbleShape(isMine),
+                spotColor = Color(0xFF6D5AE6).copy(alpha = 0.30f),
+            )
+            .clip(bubbleShape(isMine))
             .background(bubbleBrush(isMine))
+            // 接收方：细线边框（对齐 Web .other）；发送方无边框
+            .then(if (!isMine) Modifier.border(0.5.dp, VxinHairline, bubbleShape(isMine)) else Modifier)
             .clickable(onClick = onClick)
             .padding(horizontal = 14.dp, vertical = 12.dp),
     ) { content() }
@@ -1635,16 +1680,86 @@ private fun bubbleBg(isMine: Boolean): Color =
     if (isMine) VxinBubbleMine
     else com.touliao.app.ui.theme.LocalTouliaoPalette.current.messageIncoming
 
-// 我方气泡渐变笔刷：极光靛 → 青碧（对齐 web --grad-brand），对方气泡回退纯色
+// v3 极光：我方气泡 speech-bubble 锚点角 + 极光靛微渐变（#6D5AE6→#5A47D6，对齐 Web）；
+// 对方气泡保持语义底色。四端统一。
 @Composable
 private fun bubbleBrush(isMine: Boolean): Brush =
-    SolidColor(bubbleBg(isMine))
+    if (isMine) Brush.linearGradient(listOf(Color(0xFF6D5AE6), Color(0xFF5A47D6)))
+    else SolidColor(bubbleBg(isMine))
 
 // 气泡文字：我方靛底=白字；对方白/深灰底=深/浅字
 @Composable
 private fun bubbleTextColor(isMine: Boolean): Color =
     if (isMine) VxinBubbleMineText
     else com.touliao.app.ui.theme.LocalTouliaoPalette.current.text
+
+/**
+ * v3 极光：聊天顶部 subtle 光带（品牌时刻）。
+ * 深空底上是靛/青两团柔光，月白底上是极淡洗色；底部渐隐到背景色。
+ * 只做氛围，不干扰消息阅读。
+ */
+@Composable
+private fun AuroraRibbon(modifier: Modifier = Modifier) {
+    val bg = com.touliao.app.ui.theme.LocalTouliaoPalette.current.background
+    val dark = bg.luminance() < 0.25f
+    val indigo = Color(0xFF6D5AE6)
+    val teal = Color(0xFF5EEAD4)
+    val glow = if (dark) 0.14f else 0.06f
+    Canvas(modifier = modifier.fillMaxWidth().height(170.dp)) {
+        val w = size.width
+        val h = size.height
+        drawCircle(
+            brush = Brush.radialGradient(0f to indigo.copy(alpha = glow), 1f to Color.Transparent),
+            radius = w * 0.42f,
+            center = Offset(w * 0.16f, -h * 0.15f),
+        )
+        drawCircle(
+            brush = Brush.radialGradient(0f to teal.copy(alpha = glow * 0.8f), 1f to Color.Transparent),
+            radius = w * 0.38f,
+            center = Offset(w * 0.80f, -h * 0.05f),
+        )
+        drawCircle(
+            brush = Brush.radialGradient(0f to indigo.copy(alpha = glow * 0.6f), 1f to Color.Transparent),
+            radius = w * 0.30f,
+            center = Offset(w * 0.52f, -h * 0.25f),
+        )
+        // 底部渐隐到背景色
+        drawRect(Brush.verticalGradient(0.30f to Color.Transparent, 1f to bg))
+    }
+}
+
+/**
+ * v3 极光：对方正在输入 —— 三点交错起伏动画，点色为极光靛→青渐变微光。
+ */
+@Composable
+private fun TypingDots() {
+    val transition = rememberInfiniteTransition(label = "typingDots")
+    val phases = List(3) { i ->
+        transition.animateFloat(
+            initialValue = 0f,
+            targetValue = 1f,
+            animationSpec = infiniteRepeatable(
+                animation = tween(durationMillis = 900, delayMillis = i * 160, easing = FastOutSlowInEasing),
+                repeatMode = RepeatMode.Restart,
+            ),
+            label = "typingDot$i",
+        )
+    }
+    Canvas(Modifier.size(36.dp, 14.dp)) {
+        val brush = Brush.linearGradient(listOf(Color(0xFF6D5AE6), Color(0xFF5EEAD4)))
+        val r = 3.2.dp.toPx()
+        phases.forEachIndexed { i, anim ->
+            val p = anim.value
+            val lift = sin(p * PI).toFloat()
+            drawCircle(
+                brush = brush,
+                radius = r * (0.85f + 0.3f * lift),
+                center = Offset(size.width * (0.20f + 0.30f * i), size.height / 2f - lift * 3.5.dp.toPx()),
+                alpha = 0.45f + 0.55f * lift,
+            )
+        }
+    }
+}
 
 /** 语音气泡宽度：随时长在 72dp(≤1s/未知)~168dp(≥30s)间线性增长，对齐成熟IM"越长气泡越宽"的直觉。 */
 private fun voiceBubbleWidth(durationSeconds: Int): androidx.compose.ui.unit.Dp {
@@ -1680,12 +1795,13 @@ private fun MessageInputBar(
     onMicClick: () -> Unit,
     showMention: Boolean = false,
     onMention: () -> Unit = {},
+    inputFocusRequester: androidx.compose.ui.focus.FocusRequester? = null,
 ) {
     val hasText = value.isNotBlank()
     // 注意：imePadding / navigationBarsPadding 已在 ChatScreen 的 bottomBar 顶层统一处理，此处不再重复。
     Column(Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surface)) {
         // 输入区顶部细分隔线：视觉上区分对话区与输入区（对齐微信）
-        HorizontalDivider(thickness = 0.5.dp, color = VxinTextSecondary.copy(alpha = 0.2f))
+        HorizontalDivider(thickness = 0.5.dp, color = VxinHairline)
         if (recording) {
             Text(
                 "● 录音中…点击麦克风停止并发送",
@@ -1707,7 +1823,7 @@ private fun MessageInputBar(
             OutlinedTextField(
                 value = value,
                 onValueChange = onValueChange,
-                modifier = Modifier.weight(1f).testTag("chat-msg-input"),
+                modifier = Modifier.weight(1f).then(if (inputFocusRequester != null) Modifier.focusRequester(inputFocusRequester) else Modifier).testTag("chat-msg-input"),
                 placeholder = { Text("输入消息…") },
                 maxLines = 4,
             )
@@ -1725,7 +1841,8 @@ private fun MessageInputBar(
                         Icon(
                             com.touliao.app.ui.TouliaoIcons.Send,
                             contentDescription = "发送",
-                            tint = VxinBrand,
+                            // v3：品牌色 #6D5AE6，禁用态统一置灰
+                            tint = if (hasText && !sending) VxinBrand else VxinTextDisabled,
                         )
                     }
                 }
@@ -1921,7 +2038,7 @@ private fun ScheduledMessagesDialog(
                                 Text("取消", color = com.touliao.app.ui.theme.VxinError, fontSize = com.touliao.app.ui.theme.VxinTextSize.sm)
                             }
                         }
-                        HorizontalDivider(thickness = 0.5.dp)
+                        HorizontalDivider(thickness = 0.5.dp, color = VxinHairline)
                     }
                 }
             }
@@ -2231,7 +2348,7 @@ private fun MessageSearchOverlay(
                         singleLine = true,
                     )
                 }
-                HorizontalDivider(thickness = 0.5.dp)
+                HorizontalDivider(thickness = 0.5.dp, color = VxinHairline)
                 when {
                     searching -> Box(Modifier.fillMaxSize(), Alignment.Center) { CircularProgressIndicator(Modifier.size(28.dp)) }
                     query.isBlank() -> Box(Modifier.fillMaxSize(), Alignment.Center) { Text("输入关键词搜索本会话消息", color = VxinTextSecondary) }
@@ -2249,7 +2366,7 @@ private fun MessageSearchOverlay(
                                 Spacer(Modifier.size(3.dp))
                                 Text(searchPreview(msg), fontSize = com.touliao.app.ui.theme.VxinTextSize.base, maxLines = 2, overflow = TextOverflow.Ellipsis)
                             }
-                            HorizontalDivider(Modifier.padding(start = 16.dp), thickness = 0.5.dp)
+                            HorizontalDivider(Modifier.padding(start = 16.dp), thickness = 0.5.dp, color = VxinHairline)
                         }
                     }
                 }
