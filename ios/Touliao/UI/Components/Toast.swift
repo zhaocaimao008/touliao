@@ -41,7 +41,7 @@ private struct ToastModifier: ViewModifier {
                     }
             }
         }
-        .animation(reduceMotion ? nil : TouliaoMotion.standard(), value: message)
+        .animation(reduceMotion ? nil : TouliaoEasing.standard(), value: message)
     }
 }
 

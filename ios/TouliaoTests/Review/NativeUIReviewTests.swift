@@ -154,7 +154,7 @@ final class NativeUIReviewTests: XCTestCase {
                 TouliaoButton(title: "禁用", enabled: false, action: {})
                 TouliaoButton(title: "加载中", loading: true, action: {})
             }.padding(TouliaoMetrics.space4)
-        }.modifier(TouliaoMotionPolicy()))
+        }.modifier(TouliaoEasingPolicy()))
         let failure = AnyView(VxinEmptyState(icon: "warning", title: "文件加载失败",
             subtitle: "中文长文件名与未知格式文件，网络恢复后可以重试", isError: true,
             actionTitle: "重试", action: {}))

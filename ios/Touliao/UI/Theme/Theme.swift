@@ -123,7 +123,7 @@ private struct AuroraSerifModifier: ViewModifier {
 }
 
 /// Applies only to UI transactions, never timers, media or transport state.
-struct TouliaoMotionPolicy: ViewModifier {
+struct TouliaoEasingPolicy: ViewModifier {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     func body(content: Content) -> some View {
         content.transaction { transaction in

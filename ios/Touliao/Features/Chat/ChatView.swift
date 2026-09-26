@@ -1150,7 +1150,7 @@ private struct MessageBubble: View {
                     if swipeOffset > 50 {
                         vm.startReply(msg)
                     }
-                    withAnimation(TouliaoMotion.standard(0.2)) { swipeOffset = 0 }
+                    withAnimation(TouliaoEasing.standard(0.2)) { swipeOffset = 0 }
                 }
         )
     }
