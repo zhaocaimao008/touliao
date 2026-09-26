@@ -627,16 +627,18 @@ struct ChatView: View {
                     }
                 }
             }
-            .padding(.horizontal, 12).padding(.vertical, 8)
+            .padding(6)
+            // v4：悬浮玻璃胶囊（iOS 26 为系统 Liquid Glass），离开边缘悬浮在消息之上
+            .touliaoGlass(cornerRadius: 26)
+            .padding(.horizontal, 8).padding(.top, 4).padding(.bottom, 6)
 
             if showStickerPanel {
-                stickerEmojiPanel
+                stickerEmojiPanel.background(Color.vxinSurface)
             }
             if showFuncPanel {
-                functionPanel
+                functionPanel.background(Color.vxinSurface)
             }
         }
-        .background(Color.vxinSurface)
     }
 
     private var composerField: some View {
@@ -646,9 +648,9 @@ struct ChatView: View {
                     .focused($messageFocused)
                     .padding(.horizontal, 12)
                     .padding(.vertical, 8)
-                    .frame(minHeight: 44)
-                    .background(Color.vxinSurfaceSecondary)
-                    .clipShape(RoundedRectangle(cornerRadius: VxinRadius.md, style: .continuous))
+                    .frame(minHeight: 40)
+                    .background(Color.vxinSurfaceSecondary.opacity(0.9))
+                    .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
                     .accessibilityIdentifier("chat-msg-input")
 
     }
@@ -1372,24 +1374,17 @@ private struct MessageBubble: View {
 
     private func card<V: View>(@ViewBuilder _ inner: () -> V) -> some View {
         inner()
-            // 对齐 web AURORA：我的=极光靛渐变+白字；对方=系统浅底(暗色自适应)+主色字
+            // v4：双方均为 token 纯色（我方 messageOutgoing + 白字；对方 messageIncoming），四端统一
             .foregroundColor(isMine ? Color.vxinBubbleText : .vxinText)
-            .padding(.horizontal, 12).padding(.vertical, 8)
-            .background {
-                if isMine {
-                    LinearGradient.vxinBubble
-                } else {
-                    TouliaoDesign.messageIncoming
-                }
-            }
-            // v3 speech-bubble 锚点角：发送方右下、接收方左下收 2pt，其余 18pt
+            .padding(.horizontal, 14).padding(.vertical, 9)
+            .background(isMine ? Color.vxinBubbleMine : TouliaoDesign.messageIncoming)
             .clipShape(bubbleShape)
     }
 
-    /// v3 气泡形状：锚点角 4pt（iOS 16+ UnevenRoundedRectangle），四端统一。
+    /// v4 气泡形状：20pt 圆角 + 6pt 锚点角（发送方右下、接收方左下），四端统一。
     private var bubbleShape: UnevenRoundedRectangle {
-        let r: CGFloat = 18
-        let anchor: CGFloat = 4
+        let r: CGFloat = 20
+        let anchor: CGFloat = 6
         if isMine {
             return UnevenRoundedRectangle(
                 cornerRadii: .init(topLeading: r, bottomLeading: r,

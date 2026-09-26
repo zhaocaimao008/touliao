@@ -1,7 +1,7 @@
 import TouliaoIcon from '../ui-kit/Icon';
 import { clientStorage as localStorage } from '../utils/clientStorage';
 
-import React, { useState, useEffect, useRef, useCallback, useMemo, useReducer, lazy, Suspense } from 'react';
+import React, { useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo, useReducer, lazy, Suspense } from 'react';
 import { createPortal } from 'react-dom';
 import { composeReducer, initialComposeState } from '../reducers/composeReducer';
 import { showToast, showConfirm } from '../utils/toast';
@@ -265,6 +265,13 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
   const lastTouchRef = useRef(0);         // 最近触摸时间：据此让鼠标事件忽略触摸设备补发的合成鼠标事件
   const streamRef = useRef(null);
   const textareaRef = useRef(null);
+  // 输入框单行起步、随内容增高（上限与 CSS max-height 一致）。支持 CSS field-sizing 的浏览器由样式处理。
+  useLayoutEffect(() => {
+    const el = textareaRef.current;
+    if (!el || (typeof CSS !== 'undefined' && CSS.supports?.('field-sizing', 'content'))) return;
+    el.style.height = 'auto';
+    el.style.height = `${Math.min(el.scrollHeight, 180)}px`;
+  }, [input]);
   const inputAreaRef = useRef(null);
   const { socket, reconnectCount, registerDelivered } = useSocket();
   const { user, outboxScope } = useAuth();
@@ -2790,31 +2797,31 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
       <div className="wc-input-area" ref={inputAreaRef} data-composer-mode={composerMode}>
         {/* Toolbar */}
         <div className="wc-input-toolbar">
-          <button
+          <button data-tool="emoji"
             className={`wc-tool-btn${showEmoji ? ' active' : ''}`}
             data-testid="chat-emoji-panel-btn" title={t('chat.emoji')} aria-label={t('chat.emoji')} aria-expanded={showEmoji}
             onClick={() => togglePanel('emoji')}
           ><TouliaoIcon name={showEmoji ? "keyboard" : "emoji"} /></button>
 
-          <button
+          <button data-tool="stickers"
             className={`wc-tool-btn${showStickers ? ' active' : ''}`}
             title={t('chat.stickers')} aria-label={t('chat.stickers')} aria-expanded={showStickers}
             onClick={() => togglePanel('stickers')}
           ><TouliaoIcon name="stickers"  /></button>
 
-          <button
+          <button data-tool="voice"
             className={`wc-tool-btn${voiceMode ? ' active' : ''}`}
             title={voiceMode ? t('chat.switchToText') : t('chat.voiceInput')}
             aria-label={voiceMode ? t('chat.switchToTextInput') : t('chat.voiceInput')}
             onClick={() => { textareaRef.current?.blur(); dispatchCompose({ type: 'TOGGLE_VOICE' }); if (voiceMode) requestAnimationFrame(() => textareaRef.current?.focus()); }}
           ><TouliaoIcon name={voiceMode ? "keyboard" : "microphone"} /></button>
 
-          <label className="wc-tool-btn wc-tool-label" title={t('chat.image')} aria-label={t('chat.sendImage')}>
+          <label data-tool="image" className="wc-tool-btn wc-tool-label" title={t('chat.image')} aria-label={t('chat.sendImage')}>
             <IcoImage />
             <input type="file" data-testid="chat-attach-image" accept="image/jpeg,image/png,image/gif,image/webp" className="wc-hidden-input" onChange={handleFileUpload} />
           </label>
 
-          <label className="wc-tool-btn wc-tool-label" title={t('chat.file')} aria-label={t('chat.sendFile')}>
+          <label data-tool="file" className="wc-tool-btn wc-tool-label" title={t('chat.file')} aria-label={t('chat.sendFile')}>
             <IcoFile />
             <input
               type="file"
@@ -2828,7 +2835,7 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
 
           {/* 截图按钮（Electron 桌面端） */}
           {window.__ELECTRON_CONFIG__ && (
-            <button
+            <button data-tool="screenshot"
               className="wc-tool-btn"
               title={t('chat.screenshotHint')}
               aria-label={t('chat.screenshot')}
@@ -2836,14 +2843,14 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
             ><TouliaoIcon name="screenshot" size="md" /></button>
           )}
 
-          <button
+          <button data-tool="redpacket"
             className="wc-tool-btn"
             title={t('chat.sendRedPacket')}
             aria-label={t('chat.sendRedPacket')}
             onClick={() => { setShowRedPacket(true); closePanels(); }}
           ><TouliaoIcon name="redPacket" size="md" /></button>
 
-          <button
+          <button data-tool="more"
             className={`wc-tool-btn${showMore ? ' active' : ''}`}
             data-testid="chat-more-panel-btn" title={t('chat.more')} aria-label={t('chat.more')} aria-expanded={showMore}
             onClick={() => togglePanel('more')}
@@ -2968,7 +2975,7 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
                   onKeyDown={handleKeyDown}
                   onPaste={handlePaste}
                   placeholder={t('chat.placeholder')}
-                  rows={3}
+                  rows={1}
                 />
               </div>
             )}

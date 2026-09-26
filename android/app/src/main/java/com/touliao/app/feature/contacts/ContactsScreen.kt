@@ -85,7 +85,7 @@ fun ContactsScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("通讯录") },
+                title = { Text("通讯录", style = androidx.compose.material3.MaterialTheme.typography.headlineMedium) },
                 actions = {
                     TextButton(onClick = onCreateGroup) { Text("群聊") }
                     IconButton(onClick = onAddFriend) {

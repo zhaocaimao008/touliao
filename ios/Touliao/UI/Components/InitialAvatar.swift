@@ -12,7 +12,8 @@ struct InitialAvatar: View {
     }
 
     var body: some View {
-        RoundedRectangle(cornerRadius: TouliaoMetrics.radiusControl)
+        // v4：个人头像统一圆形（四端一致）
+        Circle()
             .fill(Color.vxinPrimarySoft)
             .frame(width: size, height: size)
             .overlay(

@@ -12,11 +12,11 @@ enum TouliaoMetrics {
     static let space8: CGFloat = 32
     static let space10: CGFloat = 40
     static let space12: CGFloat = 48
-    static let radiusSmall: CGFloat = 8
-    static let radiusControl: CGFloat = 12
-    static let radiusCard: CGFloat = 12
-    static let radiusBubble: CGFloat = 16
-    static let radiusDialog: CGFloat = 20
+    static let radiusSmall: CGFloat = 10
+    static let radiusControl: CGFloat = 14
+    static let radiusCard: CGFloat = 20
+    static let radiusBubble: CGFloat = 20
+    static let radiusDialog: CGFloat = 28
     static let radiusPill: CGFloat = 999
     static let fontDisplay: CGFloat = 28
     static let leadingDisplay: CGFloat = 1.3
@@ -129,7 +129,7 @@ enum TouliaoMedia {
 }
 
 enum TouliaoEasing {
-    static func standard(_ duration: Double = TouliaoMetrics.durationNormal) -> Animation { .timingCurve(0.2, 0, 0, 1, duration: duration) }
-    static func entrance(_ duration: Double = TouliaoMetrics.durationNormal) -> Animation { .timingCurve(0, 0, 0.2, 1, duration: duration) }
+    static func standard(_ duration: Double = TouliaoMetrics.durationNormal) -> Animation { .timingCurve(0.2, 0.8, 0.2, 1, duration: duration) }
+    static func entrance(_ duration: Double = TouliaoMetrics.durationNormal) -> Animation { .timingCurve(0.16, 1, 0.3, 1, duration: duration) }
     static func exit(_ duration: Double = TouliaoMetrics.durationNormal) -> Animation { .timingCurve(0.4, 0, 1, 1, duration: duration) }
 }

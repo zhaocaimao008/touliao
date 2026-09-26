@@ -19,22 +19,14 @@ struct ConversationListView: View {
     var body: some View {
         NavigationStack(path: $path) {
             content
-                .navigationTitle("消息")
-                .navigationBarTitleDisplayMode(.inline)
+                // v4：iOS 大标题（滚动后收起到液态玻璃导航栏）；仅在未连接时带出状态
+                .navigationTitle(vm.socketStatus == .connected ? "消息" : "消息（\(statusLabel)）")
+                .navigationBarTitleDisplayMode(.large)
         .touliaoPage()
                 // 冷启动点击推送通知兜底：App 启动时 SessionStore 异步恢复、本视图未挂载，
                 // 广播可能丢失；挂载/重新出现时检查 PendingConversation 缓存并消费。
                 .onAppear { consumePendingConversation() }
                 .toolbar {
-                    ToolbarItem(placement: .principal) {
-                        VStack(spacing: 2) {
-                            Text("消息").touliaoText(.headline, weight: .semibold)
-                            Text(statusLabel)
-                                .touliaoText(.caption)
-                                .foregroundColor(vm.socketStatus == .connected ? .vxinGreen : .vxinTextSecondary)
-                        }
-                        .foregroundColor(.vxinText)
-                    }
                     // 朋友圈入口（方案A：不占底部导航，受后台 features.moments 开关实时控制）
                     if vm.momentsEnabled {
                         ToolbarItem(placement: .navigationBarTrailing) {

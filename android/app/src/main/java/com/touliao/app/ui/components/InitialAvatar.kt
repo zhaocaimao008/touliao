@@ -26,7 +26,8 @@ import com.touliao.app.ui.theme.TouliaoMetrics
  */
 @Composable
 fun InitialAvatar(name: String, size: Dp = TouliaoMetrics.avatarList, avatarUrl: String? = null) {
-    val shape = RoundedCornerShape(TouliaoMetrics.radiusControl)
+    // v4：个人头像统一圆形（四端一致）
+    val shape = androidx.compose.foundation.shape.CircleShape
     if (!avatarUrl.isNullOrBlank()) {
         SubcomposeAsyncImage(
             model = avatarUrl,

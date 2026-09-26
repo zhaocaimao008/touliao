@@ -17,11 +17,11 @@ object TouliaoMetrics {
     val space8 = 32.dp
     val space10 = 40.dp
     val space12 = 48.dp
-    val radiusSmall = 8.dp
-    val radiusControl = 12.dp
-    val radiusCard = 12.dp
-    val radiusBubble = 16.dp
-    val radiusDialog = 20.dp
+    val radiusSmall = 10.dp
+    val radiusControl = 14.dp
+    val radiusCard = 20.dp
+    val radiusBubble = 20.dp
+    val radiusDialog = 28.dp
     val radiusPill = 999.dp
     val fontDisplay = 28.sp
     val leadingDisplay = 1.3f
@@ -90,7 +90,7 @@ object TouliaoMedia {
 }
 
 object TouliaoEasing {
-    val standard = CubicBezierEasing(0.2f, 0f, 0f, 1f)
-    val entrance = CubicBezierEasing(0f, 0f, 0.2f, 1f)
+    val standard = CubicBezierEasing(0.2f, 0.8f, 0.2f, 1f)
+    val entrance = CubicBezierEasing(0.16f, 1f, 0.3f, 1f)
     val exit = CubicBezierEasing(0.4f, 0f, 1f, 1f)
 }
