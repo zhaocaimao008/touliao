@@ -1,6 +1,7 @@
 package com.touliao.app.navigation
 
 import android.net.Uri
+import com.touliao.app.ui.components.FloatingNavItem
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.fillMaxSize
@@ -258,7 +259,7 @@ private fun MainFlow(features: Features, unreadTotal: Int = 0, appViewModel: App
                 // v4：悬浮胶囊导航（Material 3 Expressive 风格）
                 com.touliao.app.ui.components.FloatingNavBar {
                     visibleTabs.forEach { tab ->
-                        com.touliao.app.ui.components.FloatingNavItem(
+                        FloatingNavItem(
                             modifier = Modifier.testTag("nav-tab-${tab.testKey}"),
                             selected = currentRoute == tab.route,
                             onClick = {
