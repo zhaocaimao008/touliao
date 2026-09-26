@@ -15,7 +15,7 @@ enum TouliaoDesign {
     static let primary = adaptive(0xFF6D5AE6, 0xFF6D5AE6)
     static let primaryHover = adaptive(0xFF5A47D6, 0xFF5A47D6)
     static let primaryActive = adaptive(0xFF4938B8, 0xFF6D5AE6)
-    static let primaryForeground = adaptive(0xFFFFFFFF, 0xFF10151E)
+    static let primaryForeground = adaptive(0xFFFFFFFF, 0xFFFFFFFF)
     static let primarySoft = adaptive(0xFFF1EFFD, 0xFF2B2653)
     static let background = adaptive(0xFFF7F8FC, 0xFF0B0E1A)
     static let surface = adaptive(0xFFFFFFFF, 0xFF171A26)
