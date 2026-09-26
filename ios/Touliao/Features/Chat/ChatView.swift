@@ -998,6 +998,7 @@ private struct MessageBubble: View {
     @State private var preparingShare = false
     @State private var showRecallConfirm = false
     @State private var swipeOffset: CGFloat = 0  // 右滑回复手势偏移
+    @State private var swipeAxisIsHorizontal: Bool? = nil  // 本次拖动的方向锁：nil 未判定 / true 水平 / false 垂直
 
 
     var body: some View {
@@ -1136,20 +1137,29 @@ private struct MessageBubble: View {
                     .padding(.leading, 8)
             }
         }
-        .gesture(
-            DragGesture()
+        // 用 simultaneousGesture：普通 .gesture(DragGesture()) 挂在 ScrollView 的行上会抢走
+        // 纵向滚动（手指落在气泡上时列表滑不动，iOS 18 上尤其明显），也会和长按菜单抢手势。
+        // minimumDistance 20 让轻点/长按不进入拖动；首次移动锁定方向，纵向拖动整段都不再响应。
+        .simultaneousGesture(
+            DragGesture(minimumDistance: 20, coordinateSpace: .local)
                 .onChanged { value in
                     let dx = value.translation.width
                     let dy = value.translation.height
-                    // 仅水平右滑且主导时响应，不干扰垂直滚动
-                    if dx > 0 && dx > abs(dy) * 1.5 {
-                        swipeOffset = min(dx, 80)
+                    if swipeAxisIsHorizontal == nil {
+                        swipeAxisIsHorizontal = dx > 0 && dx > abs(dy) * 1.5
                     }
+                    guard swipeAxisIsHorizontal == true else { return }
+                    let next = min(max(dx, 0), 80)
+                    if swipeOffset < 50 && next >= 50 {
+                        UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                    }
+                    swipeOffset = next
                 }
                 .onEnded { _ in
-                    if swipeOffset > 50 {
+                    if swipeAxisIsHorizontal == true && swipeOffset >= 50 {
                         vm.startReply(msg)
                     }
+                    swipeAxisIsHorizontal = nil
                     withAnimation(TouliaoEasing.standard(0.2)) { swipeOffset = 0 }
                 }
         )
