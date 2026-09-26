@@ -57,15 +57,11 @@ struct MentionsView: View {
                         TouliaoIcon("warning", size: .xl).foregroundColor(.vxinTextSecondary)
                         Text(err).foregroundColor(.vxinError)
                         Button("重试") { Task { await vm.loadFirst() } }
-                            .foregroundColor(.vxinGreen)
+                            .foregroundColor(.vxinBrand)
                     }
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                 } else if vm.items.isEmpty {
-                    VStack(spacing: 12) {
-                        TouliaoIcon("mention", size: .xl).foregroundColor(.vxinTextSecondary)
-                        Text("暂无 @ 我的消息").foregroundColor(.vxinTextSecondary)
-                    }
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    VxinEmptyState(icon: "mention", title: "暂无 @ 我的消息", subtitle: "被 @ 时会在这里提醒你")
                 } else {
                     List {
                         Group {
@@ -135,7 +131,7 @@ private struct MentionRow: View {
                 HStack(spacing: 4) {
                     // 发送者名（谁 @了我）
                     Text(item.senderName.isEmpty ? "某人" : item.senderName)
-                        .touliaoText(.secondary).foregroundColor(.vxinGreen).lineLimit(1)
+                        .touliaoText(.secondary).foregroundColor(.vxinBrand).lineLimit(1)
                     Text(": \(item.content)")
                         .touliaoText(.secondary).foregroundColor(.vxinTextSecondary).lineLimit(1)
                 }

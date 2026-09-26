@@ -1,7 +1,7 @@
 'use strict';
 
 const { app, BrowserWindow, Tray, Menu, nativeImage, ipcMain, dialog,
-        globalShortcut, screen, Notification, shell, session, clipboard, powerMonitor } = require('electron');
+        globalShortcut, screen, Notification, shell, session, clipboard, powerMonitor, nativeTheme } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const { spawn } = require('child_process');
@@ -77,6 +77,8 @@ const store = new Store({
     autoLaunch: false,
     windowBounds: { width: 1200, height: 800 },
     minimizeToTray: true,
+    trayHintShown: false,      // 首次关到托盘是否已弹过气泡说明
+    trayFlashEnabled: true,    // 托盘图标闪烁（未读提醒）；关则只用红点 overlay
     notifications: true,
     shortcuts: {
       screenshot: 'CommandOrControl+Alt+A',
@@ -140,6 +142,7 @@ let mainWindow = null;
 let tray = null;
 let _trayBaseIcon = null;    // 托盘正常态图标缓存（闪烁时还原用）
 let _trayFlashTimer = null;  // 托盘闪烁定时器句柄
+let _rebuildTrayMenu = null; // 托盘菜单重建函数（语言切换时调用）
 let isQuitting = false;
 let updateReady = false;
 let updateInstallRequested = false;
@@ -395,15 +398,29 @@ function setupSecurity() {
 
 // 校验/收敛持久化的窗口尺寸：防止磁盘配置被改成非法值（NaN/负数/过大）导致
 // BrowserWindow 构造异常或创建不可见窗口。宽高钳制到合理区间，缺省回退默认。
+// x/y 也恢复（多显示器用户重启不回主屏），并校验落在某个显示器工作区内，
+// 否则回退为默认（Electron 传非法 x/y 会创建屏幕外不可见窗口）。
 function sanitizeBounds(raw) {
   const def = { width: 1200, height: 800 };
   const b = (raw && typeof raw === 'object') ? raw : def;
   const clamp = (v, min, max, fallback) =>
     (Number.isFinite(v) && v >= min ? Math.min(v, max) : fallback);
-  return {
+  const out = {
     width:  clamp(b.width, 900, 10000, def.width),
     height: clamp(b.height, 600, 10000, def.height),
   };
+  if (Number.isFinite(b.x) && Number.isFinite(b.y)) {
+    try {
+      const pt = { x: Math.round(b.x), y: Math.round(b.y) };
+      const onScreen = screen.getAllDisplays().some((d) => {
+        const w = d.workArea;
+        return pt.x >= w.x && pt.x < w.x + w.width && pt.y >= w.y && pt.y < w.y + w.height;
+      });
+      if (onScreen) { out.x = pt.x; out.y = pt.y; }
+      else log.warn('[Window] 保存的位置不在任何显示器内，已忽略:', pt);
+    } catch { /* screen 未就绪时跳过位置恢复 */ }
+  }
+  return out;
 }
 
 // ── 主窗口 ─────────────────────────────────────────────────
@@ -411,6 +428,7 @@ function createWindow() {
   const bounds = sanitizeBounds(store.get('windowBounds'));
 
   mainWindow = new BrowserWindow({
+    ...(Number.isFinite(bounds.x) ? { x: bounds.x, y: bounds.y } : {}),
     width: bounds.width,
     height: bounds.height,
     minWidth: 900,
@@ -447,7 +465,9 @@ function createWindow() {
       backgroundThrottling: false,
     },
     show: false,
-    backgroundColor: '#1A2033',
+    // 启动底色跟随系统深浅主题（nativeTheme），避免浅色模式下闪一下深海军蓝。
+    // 渲染层挂载后由 CSS 接管，此处只管"窗口出现前那一瞬"。
+    backgroundColor: nativeTheme.shouldUseDarkColors ? '#1A2033' : '#F0F2F5',
   });
 
   mainWindow.loadFile(indexHtmlPath());
@@ -470,6 +490,10 @@ function createWindow() {
   mainWindow.webContents.on('render-process-gone', (_e, details) => {
     log.error('渲染进程退出:', details?.reason);
     if (details?.reason === 'clean-exit' || !mainWindow) return;
+    // 崩溃恢复前用原生通知提示：此前是静默重载，用户正在输入的草稿丢了都不知道为什么。
+    try {
+      new Notification({ title: '投聊', body: '界面遇到问题正在恢复，未发送的内容可能丢失' }).show();
+    } catch { /* noop */ }
     mainWindow.loadFile(indexHtmlPath());
   });
 
@@ -508,6 +532,16 @@ function createWindow() {
     if (!isQuitting && store.get('minimizeToTray') && tray) {
       e.preventDefault();
       mainWindow.hide();
+      // 首次关到托盘：弹气泡说明，避免用户以为已退出（可在设置中更改）。
+      if (!store.get('trayHintShown')) {
+        store.set('trayHintShown', true);
+        try {
+          tray.displayBalloon({
+            title: '投聊',
+            content: '已最小化到托盘，可在「设置 → 桌面端」中更改关闭行为',
+          });
+        } catch (err) { log.warn('托盘气泡显示失败:', err.message); }
+      }
     }
   });
 
@@ -667,6 +701,17 @@ async function verifyUpdateSignature(info) {
   }
 }
 
+// ── 系统主题跟随（Windows 深色/浅色模式）──────────────────────
+// 标题栏是自定义渲染（frame:false），Electron 不会自动跟随系统主题。
+// 监听 nativeTheme 变化，通知渲染层切换标题栏深浅配色。
+function setupNativeTheme() {
+  const notify = () => {
+    const isDark = nativeTheme.shouldUseDarkColors;
+    log.info('[Theme] 系统主题变化，深色模式:', isDark);
+    mainWindow?.webContents.send('native-theme:changed', isDark);
+  };
+  nativeTheme.on('updated', notify);
+}
 // ── 自动更新（验签 → 下载 → 用户确认后安装，不强制重启）──────────
 function setupAutoUpdater() {
   autoUpdater.on('update-available', async (info) => {
@@ -703,6 +748,8 @@ function setupAutoUpdater() {
 
   autoUpdater.on('download-progress', (progress) => {
     mainWindow?.webContents.send('update:progress', Math.round(progress.percent));
+    // 任务栏进度条：即使用户切走也能看到下载进度
+    try { mainWindow?.setProgressBar(Math.max(0, Math.min(1, progress.percent / 100))); } catch { /* noop */ }
   });
 
   autoUpdater.on('update-downloaded', async (info) => {
@@ -719,6 +766,8 @@ function setupAutoUpdater() {
     }
     updateReady = true;
     log.info('更新已下载:', info.version);
+    // 下载完成：清除任务栏进度条
+    try { mainWindow?.setProgressBar(-1); } catch { /* noop */ }
     // 渲染层 UpdateBanner 已有「立即重启安装」按钮，由它统一接管确认逻辑；
     // 主进程不再弹原生 dialog，避免两套 UI 同时出现打架、且 dialog 阻塞事件循环。
     mainWindow?.webContents.send('update:downloaded', info);
@@ -736,6 +785,18 @@ function setupAutoUpdater() {
 }
 
 // ── 系统托盘 ───────────────────────────────────────────────
+// 托盘菜单多语言：主进程无法直接读渲染层 i18n，渲染层在启动/切换语言时经
+// tray:setLocale 下发当前语言，主进程据此渲染菜单文案。
+const TRAY_I18N = {
+  'zh-CN': { open: '打开 投聊', newWindow: '新开账号窗口', checkUpdate: '检查更新', autoLaunch: '开机启动', quit: '退出', unread: '投聊 · 有新消息', normal: '投聊' },
+  'zh-TW': { open: '開啟 投聊', newWindow: '新開帳號視窗', checkUpdate: '檢查更新', autoLaunch: '開機啟動', quit: '結束', unread: '投聊 · 有新訊息', normal: '投聊' },
+  'en':    { open: 'Open Touliao', newWindow: 'New account window', checkUpdate: 'Check for updates', autoLaunch: 'Launch at login', quit: 'Quit', unread: 'Touliao · New messages', normal: 'Touliao' },
+};
+function trayText(key) {
+  const locale = store.get('locale') || 'zh-CN';
+  const dict = TRAY_I18N[locale] || TRAY_I18N['zh-CN'];
+  return dict[key] || TRAY_I18N['zh-CN'][key] || key;
+}
 function openAccountWindow(profile) {
   if (profile !== undefined) profilePath(PROFILE_ROOT, profile);
   const args = [
@@ -758,7 +819,10 @@ function createTray() {
     log.warn('托盘图标缺失或无法读取:', iconPath);
     trayIcon = nativeImage.createEmpty();
   } else {
-    trayIcon = trayIcon.resize({ width: 16, height: 16 });
+    // 高 DPI：保留 64x64 交系统缩放，强制 16x16 在 150%+ 缩放下发虚。
+    // Windows 托盘会自动缩放到合适尺寸，大图源更清晰。
+    const size = trayIcon.getSize();
+    if (size.width > 64) trayIcon = trayIcon.resize({ width: 64, height: 64 });
   }
   _trayBaseIcon = trayIcon;   // 缓存正常态图标，供闪烁时还原
   try {
@@ -767,19 +831,23 @@ function createTray() {
     log.error('创建系统托盘失败，跳过托盘（应用仍可用）:', e.message);
     return;
   }
-  tray.setToolTip(`投聊 - 账号窗口 ${PROFILE}`);
+  // tooltip 不再暴露"账号窗口 N"内部概念；多开时才标注
+  tray.setToolTip(PROFILE > 1 ? `投聊 (${PROFILE})` : trayText('normal'));
 
-  const contextMenu = Menu.buildFromTemplate([
+  // 托盘菜单模板抽成函数：menu-will-show 时重建，使「开机启动」勾选态实时刷新
+  // （此前只在创建时读一次，外部改了注册表/其它窗口改了设置会显示过期状态）。
+  // 文案走 trayText() 多语言（渲染层经 tray:setLocale 下发当前语言）。
+  const buildTrayMenu = () => Menu.buildFromTemplate([
     {
-      label: '打开 投聊',
+      label: trayText('open'),
       click: () => { mainWindow?.show(); mainWindow?.focus(); },
     },
     {
-      label: '新开账号窗口',
+      label: trayText('newWindow'),
       click: () => openAccountWindow(),
     },
     {
-      label: '检查更新',
+      label: trayText('checkUpdate'),
       enabled: PROFILE === 1,
       click: () => {
         mainWindow?.show(); mainWindow?.focus();
@@ -791,7 +859,7 @@ function createTray() {
     },
     { type: 'separator' },
     {
-      label: '开机启动',
+      label: trayText('autoLaunch'),
       enabled: PROFILE === 1,
       type: 'checkbox',
       checked: store.get('autoLaunch'),
@@ -802,26 +870,33 @@ function createTray() {
     },
     { type: 'separator' },
     {
-      label: '退出',
+      label: trayText('quit'),
       click: () => { isQuitting = true; app.quit(); },
     },
   ]);
 
-  tray.setContextMenu(contextMenu);
+  tray.setContextMenu(buildTrayMenu());
+  _rebuildTrayMenu = buildTrayMenu;   // 供 tray:setLocale 语言切换时重建
+  // 右键菜单弹出前重建：勾选态与磁盘/系统实时同步
+  tray.on('menu-will-show', () => {
+    try { tray.setContextMenu(buildTrayMenu()); } catch (e) { log.warn('托盘菜单重建失败:', e.message); }
+  });
   tray.on('double-click', () => { mainWindow?.show(); mainWindow?.focus(); });
   tray.on('click', () => { mainWindow?.show(); mainWindow?.focus(); });  // 单击也打开（Windows 习惯）
 }
 
 // ── 托盘图标闪烁（关到托盘时提示未读，不弹窗口，符合微信/QQ 习惯）──────
 // 在「正常图标」与「空图标」间切换，形成闪烁；用户打开窗口后停止并还原。
+// 若用户关闭闪烁（设置/减少动态偏好），仅保留任务栏红点 overlay，不闪图标。
 function startTrayFlash() {
   if (!tray || _trayFlashTimer) return;
+  if (!store.get('trayFlashEnabled')) return;   // 用户关了闪烁：只靠红点提示
   let on = true;
   _trayFlashTimer = setInterval(() => {
     if (!tray || tray.isDestroyed?.()) { stopTrayFlash(); return; }
     try {
       tray.setImage(on ? nativeImage.createEmpty() : (_trayBaseIcon || nativeImage.createEmpty()));
-      tray.setToolTip(on ? '投聊 · 有新消息' : '投聊');
+      tray.setToolTip(on ? trayText('unread') : trayText('normal'));
     } catch { /* noop */ }
     on = !on;
   }, 600);
@@ -830,7 +905,7 @@ function startTrayFlash() {
 function stopTrayFlash() {
   if (_trayFlashTimer) { clearInterval(_trayFlashTimer); _trayFlashTimer = null; }
   if (tray && _trayBaseIcon) {
-    try { tray.setImage(_trayBaseIcon); tray.setToolTip('投聊'); } catch { /* noop */ }
+    try { tray.setImage(_trayBaseIcon); tray.setToolTip(trayText('normal')); } catch { /* noop */ }
   }
 }
 
@@ -850,6 +925,59 @@ function setupIPC() {
   });
   ipcMain.handle('window:close',       () => mainWindow?.close());
   ipcMain.handle('window:isMaximized', () => mainWindow?.isMaximized() ?? false);
+
+  // Alt+Space 系统菜单：frame:false 时系统菜单失效，渲染层捕获 Alt+Space 后调此 IPC，
+  // 主进程弹一个近似的窗口操作菜单（还原/移动/大小/最小化/最大化/关闭）。
+  ipcMain.handle('window:showSystemMenu', (_e) => {
+    if (!isTrustedSender(_e)) return;
+    if (!mainWindow || mainWindow.isDestroyed()) return;
+    const isMax = mainWindow.isMaximized();
+    const sysMenu = Menu.buildFromTemplate([
+      { label: '还原', enabled: isMax, click: () => mainWindow?.unmaximize() },
+      { label: '最小化', click: () => mainWindow?.minimize() },
+      { label: '最大化', enabled: !isMax, click: () => mainWindow?.maximize() },
+      { type: 'separator' },
+      { label: '关闭', click: () => mainWindow?.close() },
+    ]);
+    // 弹在左上角（系统菜单传统位置）
+    const [wx, wy] = mainWindow.getPosition();
+    sysMenu.popup({ window: mainWindow, x: wx + 8, y: wy + 30 });
+  });
+
+  // 托盘行为设置：供 Web 设置页「关闭时最小化到托盘」开关读写
+  ipcMain.handle('tray:getMinimizeToTray', (_e) => {
+    if (!isTrustedSender(_e)) return true;
+    return !!store.get('minimizeToTray');
+  });
+  ipcMain.handle('tray:setMinimizeToTray', (_e, enabled) => {
+    if (!isTrustedSender(_e)) return false;
+    store.set('minimizeToTray', !!enabled);
+    return true;
+  });
+  // 托盘闪烁开关：渲染层据 prefers-reduced-motion 或用户设置调用
+  ipcMain.handle('tray:getFlashEnabled', (_e) => {
+    if (!isTrustedSender(_e)) return true;
+    return !!store.get('trayFlashEnabled');
+  });
+  ipcMain.handle('tray:setFlashEnabled', (_e, enabled) => {
+    if (!isTrustedSender(_e)) return false;
+    store.set('trayFlashEnabled', !!enabled);
+    if (!enabled) stopTrayFlash();
+    return true;
+  });
+  // 系统主题查询：渲染层初始化标题栏配色用
+  ipcMain.handle('theme:isDark', () => nativeTheme.shouldUseDarkColors);
+  // 托盘菜单语言：渲染层在启动/切换语言时下发，存 store 供主进程菜单文案使用
+  ipcMain.handle('tray:setLocale', (_e, locale) => {
+    if (!isTrustedSender(_e)) return false;
+    if (typeof locale === 'string' && TRAY_I18N[locale]) {
+      store.set('locale', locale);
+      // 语言切换后立即重建托盘菜单
+      try { if (tray && _rebuildTrayMenu) tray.setContextMenu(_rebuildTrayMenu()); } catch { /* noop */ }
+      return true;
+    }
+    return false;
+  });
 
   require('./lib/downloads').registerDownloadIPC({
     ipcMain, isTrustedSender, shell, noAutoOpenExts: NO_AUTO_OPEN_EXTS,
@@ -1252,6 +1380,7 @@ app.whenReady().then(async () => {
     if (PROFILE === 1) setupAutoUpdater();
     setupShortcuts();
     setupPowerMonitor();
+    setupNativeTheme();
 
     app.on('activate', () => {
       if (mainWindow === null) createWindow();

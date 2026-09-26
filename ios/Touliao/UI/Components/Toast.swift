@@ -24,13 +24,15 @@ private struct ToastModifier: ViewModifier {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     func body(content: Content) -> some View {
-        content.overlay(alignment: .bottom) {
+        content.safeAreaInset(edge: .bottom) {
             if let message, !message.isEmpty {
                 TouliaoToast(message: message, kind: kind)
-                    .padding(.bottom, 40)
+                    .padding(.bottom, 12)
                     .padding(.horizontal, 24)
                     .transition(reduceMotion ? .identity : .move(edge: .bottom).combined(with: .opacity))
                     .task(id: message) {
+                        // VoiceOver 朗读 toast 内容
+                        UIAccessibility.post(notification: .announcement, argument: message)
                         // 展示后自动清空；被新消息覆盖时 task 会随 id 变化重启
                         do { try await Task.sleep(nanoseconds: UInt64(touliaoFeedbackDuration(message, kind: kind) * 1_000_000_000)) }
                         catch { return }

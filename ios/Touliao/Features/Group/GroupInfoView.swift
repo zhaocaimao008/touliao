@@ -142,8 +142,8 @@ struct GroupInfoView: View {
                     Section("群成员 (\(info.members.count))") {
                         Button(action: onInvite) {
                             HStack {
-                                TouliaoIcon("add").foregroundColor(.vxinGreen)
-                                Text("邀请成员").foregroundColor(.vxinGreen)
+                                TouliaoIcon("add").foregroundColor(.vxinBrand)
+                                Text("邀请成员").foregroundColor(.vxinBrand)
                             }
                         }
                         ForEach(info.members) { member in
@@ -153,7 +153,7 @@ struct GroupInfoView: View {
                                     Text(member.displayName.isEmpty ? "未命名" : member.displayName)
                                     if member.role != "member" {
                                         Text(member.role == "owner" ? "群主" : "管理员")
-                                            .touliaoText(.caption).foregroundColor(.vxinGreen)
+                                            .touliaoText(.caption).foregroundColor(.vxinBrand)
                                     }
                                 }
                                 Spacer()

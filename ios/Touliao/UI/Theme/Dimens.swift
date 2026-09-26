@@ -11,6 +11,6 @@ enum VxinRadius {
     static let card: CGFloat = TouliaoMetrics.radiusCard
     static let lg: CGFloat = TouliaoMetrics.radiusDialog
     static let xl: CGFloat = TouliaoMetrics.radiusDialog
-    static let pill: CGFloat = TouliaoMetrics.radiusSmall
+    static let pill: CGFloat = TouliaoMetrics.radiusPill
     static let bubble: CGFloat = TouliaoMetrics.radiusBubble
 }

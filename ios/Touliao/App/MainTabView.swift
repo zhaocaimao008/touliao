@@ -12,14 +12,6 @@ struct MainTabView: View {
 
     init(myId: String) {
         self.myId = myId
-        let appearance = UITabBarAppearance()
-        appearance.configureWithDefaultBackground()
-        for layout in [appearance.stackedLayoutAppearance, appearance.inlineLayoutAppearance, appearance.compactInlineLayoutAppearance] {
-            layout.normal.iconColor = UIColor(IconColor.secondary)
-            layout.selected.iconColor = UIColor(IconColor.selected)
-        }
-        UITabBar.appearance().standardAppearance = appearance
-        UITabBar.appearance().scrollEdgeAppearance = appearance
     }
 
     var body: some View {
@@ -40,6 +32,8 @@ struct MainTabView: View {
                 .tag(2)
         }
         .tint(.vxinBrand)
+        .toolbarBackground(.visible, for: .tabBar)
+        .toolbarBackground(Color.vxinSurface, for: .tabBar)
         // 点推送通知 → 切回消息页（会话打开由 ConversationListView 观察同一通知处理）
         .onReceive(NotificationCenter.default.publisher(for: .vxinOpenConversation)) { _ in
             selectedTab = 0

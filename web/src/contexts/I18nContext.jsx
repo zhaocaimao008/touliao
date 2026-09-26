@@ -417,6 +417,15 @@ const translations = {
     'profile.resetDefault': '恢复默认',
     'profile.resetShort': '重置',
     'profile.shortcutGlobalHint': '快捷键在全局生效（即使 投聊 窗口不在前台）。若保存后提示「被占用」，请先在系统或其它应用中解除该组合键的绑定后重试。',
+    'profile.desktopSettingsLabel': '桌面端',
+    'profile.desktopSettingsTitle': '桌面端设置',
+    'profile.desktopSettingsDesc': '关闭行为、托盘提醒',
+    'profile.desktopCloseBehavior': '关闭行为',
+    'profile.minimizeToTrayLabel': '关闭时最小化到托盘',
+    'profile.minimizeToTrayDesc': '关闭窗口时隐藏到系统托盘而不是退出，仍可接收消息',
+    'profile.desktopTrayNotify': '托盘提醒',
+    'profile.trayFlashLabel': '托盘图标闪烁',
+    'profile.trayFlashDesc': '有未读消息时托盘图标闪烁；关闭后仅显示红点',
     'profile.walletMenuLabel': '钱包',
     'profile.walletMenuDesc': '金币余额与交易记录',
     'profile.inviteMenuLabel': '邀请好友',
@@ -1653,6 +1662,15 @@ const translations = {
     'profile.resetDefault': 'Reset to default',
     'profile.resetShort': 'Reset',
     'profile.shortcutGlobalHint': 'Shortcuts work globally (even when Touliao is not in the foreground). If saving says "in use", release that key combo in the system or another app first, then try again.',
+    'profile.desktopSettingsLabel': 'Desktop',
+    'profile.desktopSettingsTitle': 'Desktop Settings',
+    'profile.desktopSettingsDesc': 'Close behavior, tray notifications',
+    'profile.desktopCloseBehavior': 'Close behavior',
+    'profile.minimizeToTrayLabel': 'Minimize to tray on close',
+    'profile.minimizeToTrayDesc': 'Hide to system tray instead of quitting; you still receive messages',
+    'profile.desktopTrayNotify': 'Tray notifications',
+    'profile.trayFlashLabel': 'Flash tray icon',
+    'profile.trayFlashDesc': 'Flash the tray icon on unread messages; red dot only when off',
     'profile.walletMenuLabel': 'Wallet',
     'profile.walletMenuDesc': 'Coin balance and transaction history',
     'profile.inviteMenuLabel': 'Invite Friends',
@@ -2874,6 +2892,15 @@ const translations = {
     'profile.resetDefault': '恢復預設',
     'profile.resetShort': '重設',
     'profile.shortcutGlobalHint': '快捷鍵在全域生效（即使 投聊 視窗不在前景）。若儲存後提示「已被佔用」，請先在系統或其他應用程式中解除該組合鍵的綁定後重試。',
+    'profile.desktopSettingsLabel': '桌面端',
+    'profile.desktopSettingsTitle': '桌面端設定',
+    'profile.desktopSettingsDesc': '關閉行為、托盤提醒',
+    'profile.desktopCloseBehavior': '關閉行為',
+    'profile.minimizeToTrayLabel': '關閉時最小化到托盤',
+    'profile.minimizeToTrayDesc': '關閉視窗時隱藏到系統托盤而非結束，仍可接收訊息',
+    'profile.desktopTrayNotify': '托盤提醒',
+    'profile.trayFlashLabel': '托盤圖示閃爍',
+    'profile.trayFlashDesc': '有未讀訊息時托盤圖示閃爍；關閉後僅顯示紅點',
     'profile.walletMenuLabel': '錢包',
     'profile.walletMenuDesc': '金幣餘額與交易記錄',
     'profile.inviteMenuLabel': '邀請好友',
@@ -3696,6 +3723,10 @@ export function I18nProvider({ children }) {
     if (!translations[l]) return;   // 只接受受支持的语言,避免切到空词典
     setLangState(l);
     localStorage.setItem('wc_lang', l);
+    // Electron：同步语言到主进程，托盘菜单文案跟随切换
+    if (window.__ELECTRON_CONFIG__) {
+      window.electronAPI?.setTrayLocale?.(l).catch(() => {});
+    }
   };
 
   const t = (key, fallback) => {
@@ -3705,6 +3736,10 @@ export function I18nProvider({ children }) {
 
   useEffect(() => {
     document.documentElement.setAttribute('lang', lang);
+    // Electron：启动时同步一次语言到主进程（托盘菜单初始文案）
+    if (window.__ELECTRON_CONFIG__) {
+      window.electronAPI?.setTrayLocale?.(lang).catch(() => {});
+    }
   }, [lang]);
 
   return (

@@ -522,10 +522,21 @@
   max-height: 200em; /* 足够容纳超长文本 */
 }
 .wc-msg-collapse-btn {
+  position: relative;
   color: var(--text-link);
   font-size: var(--text-sm);
   padding: 2px 0;
   margin-top: 2px;
+}
+/* 伪元素扩展点击热区到 44px 高 */
+.wc-msg-collapse-btn::after {
+  content: '';
+  position: absolute;
+  left: -8px;
+  right: -8px;
+  top: 50%;
+  transform: translateY(-50%);
+  height: 44px;
 }
 .wc-msg-collapse-btn:hover {
   color: var(--text-link-hover);

@@ -12,7 +12,7 @@ struct AddFriendView: View {
                     Label("扫一扫", touliaoIcon: "scan")
                         .frame(maxWidth: .infinity)
                 }
-                .buttonStyle(.borderedProminent).foregroundColor(.vxinOnPrimary).tint(.vxinGreen)
+                .buttonStyle(.borderedProminent).foregroundColor(.vxinOnPrimary).tint(.vxinBrand)
 
                 NavigationLink {
                     MyQRCodeView()
@@ -32,12 +32,12 @@ struct AddFriendView: View {
                     .onSubmit { vm.search() }
                 Button("搜索") { vm.search() }
                     .disabled(vm.query.isEmpty || vm.searching)
-                    .foregroundColor(.vxinGreen)
+                    .foregroundColor(.vxinBrand)
             }
             .padding(.horizontal)
 
             if let message = vm.message {
-                Text(message).touliaoText(.secondary).foregroundColor(.vxinGreen)
+                Text(message).touliaoText(.secondary).foregroundColor(.vxinBrand)
             }
 
             if vm.searching {
@@ -60,7 +60,7 @@ struct AddFriendView: View {
                     let sent = vm.sentIds.contains(user.id)
                     Button(sent ? "已发送" : "添加") { vm.sendRequest(user) }
                         .buttonStyle(.borderedProminent).foregroundColor(.vxinOnPrimary)
-                        .tint(.vxinGreen)
+                        .tint(.vxinBrand)
                         .disabled(sent)
                 }
                 }.listRowBackground(Color.vxinSurface).listRowSeparatorTint(Color.vxinBorder)
@@ -85,7 +85,7 @@ struct AddFriendView: View {
                 .presentationDragIndicator(.visible)
         }
         .fullScreenCover(isPresented: $showScanner) {
-            QRScannerView(
+            QRScannerGate(
                 onResult: { value in
                     showScanner = false
                     vm.addByQrPayload(value, myId: session.currentUser?.id)
@@ -106,7 +106,7 @@ private struct ScannedUserProfileSheet: View {
         VStack(spacing: 0) {
             if vm.scannedUserLoading {
                 Spacer()
-                ProgressView().tint(.vxinGreen)
+                ProgressView().tint(.vxinBrand)
                 Spacer()
             } else if let detail = vm.scannedUserDetail {
                 profileContent(detail)
@@ -162,7 +162,7 @@ private struct ScannedUserProfileSheet: View {
             } else {
                 Button("申请添加好友") { vm.sendRequestFromScanned() }
                     .buttonStyle(.borderedProminent).foregroundColor(.vxinOnPrimary)
-                    .tint(.vxinGreen)
+                    .tint(.vxinBrand)
                     .frame(maxWidth: .infinity)
                 Button("取消") { vm.dismissScannedUser() }
                     .buttonStyle(.bordered)

@@ -13,9 +13,13 @@ export function useSwipe({ threshold = 30, maxOffset = 160, onSwipeLeft, onSwipe
   const [swipeOffset, setSwipeOffset] = useState(0);
   const startRef = useRef(null);
   const trackingRef = useRef(false);
+  const rafRef = useRef(null);
+  const pendingOffsetRef = useRef(0);
   const enabled = typeof window !== 'undefined' && 'ontouchstart' in window;
 
   const resetSwipe = useCallback(() => {
+    if (rafRef.current) cancelAnimationFrame(rafRef.current);
+    rafRef.current = null;
     setSwipeOffset(0);
     trackingRef.current = false;
     startRef.current = null;
@@ -27,6 +31,12 @@ export function useSwipe({ threshold = 30, maxOffset = 160, onSwipeLeft, onSwipe
     startRef.current = { x: t.clientX, y: t.clientY };
     trackingRef.current = true;
   }, [enabled]);
+
+  // rAF 节流：touchmove 高频触发，只在下一帧提交一次 setState
+  const flushOffset = useCallback(() => {
+    rafRef.current = null;
+    setSwipeOffset(pendingOffsetRef.current);
+  }, []);
 
   const handleTouchMove = useCallback(e => {
     if (!enabled || !trackingRef.current || !startRef.current) return;
@@ -40,26 +50,31 @@ export function useSwipe({ threshold = 30, maxOffset = 160, onSwipeLeft, onSwipe
     }
     // 水平滑动：跟随手指（限制范围），阻止垂直滚动抢夺手势
     if (Math.abs(dx) > 10) {
-      const clamped = Math.max(-maxOffset, Math.min(maxOffset, dx));
-      setSwipeOffset(clamped);
+      pendingOffsetRef.current = Math.max(-maxOffset, Math.min(maxOffset, dx));
+      if (rafRef.current == null) {
+        rafRef.current = requestAnimationFrame(flushOffset);
+      }
     }
-  }, [enabled, maxOffset]);
+  }, [enabled, maxOffset, flushOffset]);
 
   const handleTouchEnd = useCallback(() => {
     if (!enabled || !trackingRef.current) return;
     trackingRef.current = false;
-    if (swipeOffset <= -threshold) {
+    if (rafRef.current) cancelAnimationFrame(rafRef.current);
+    rafRef.current = null;
+    const finalOffset = pendingOffsetRef.current;
+    if (finalOffset <= -threshold) {
       // 左滑达阈值：吸附到最大偏移，显示快捷按钮
       setSwipeOffset(-maxOffset);
       onSwipeLeft?.();
-    } else if (swipeOffset >= threshold) {
+    } else if (finalOffset >= threshold) {
       setSwipeOffset(maxOffset);
       onSwipeRight?.();
     } else {
       setSwipeOffset(0);
     }
     startRef.current = null;
-  }, [enabled, swipeOffset, threshold, maxOffset, onSwipeLeft, onSwipeRight]);
+  }, [enabled, threshold, maxOffset, onSwipeLeft, onSwipeRight]);
 
   const swipeHandlers = enabled
     ? {

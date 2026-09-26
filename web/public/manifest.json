@@ -10,7 +10,7 @@
   "theme_color": "#6D5AE6",
   "lang": "zh-CN",
   "dir": "ltr",
-  "orientation": "portrait-primary",
+  "orientation": "any",
   "icons": [
     {
       "src": "/icons/icon-192.png",

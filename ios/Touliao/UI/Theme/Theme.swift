@@ -4,10 +4,10 @@ import UIKit
 // Compatibility names retain all existing call sites and business behavior.
 extension Color {
     static let vxinBrand = TouliaoDesign.primary
-    static let vxinBrandLight = TouliaoDesign.primary
+    static let vxinBrandLight = TouliaoDesign.primarySoft
     static let vxinBrandDark = TouliaoDesign.primaryActive
-    static let vxinTeal = TouliaoDesign.primary
-    static let vxinGreen = TouliaoDesign.primary
+    static let vxinTeal = TouliaoDesign.success
+    static let vxinGreen = TouliaoDesign.success
     static let vxinBubbleMine = TouliaoDesign.messageOutgoing
     static let vxinBubbleText = TouliaoDesign.messageOutgoingText
     static let vxinTextSecondary = TouliaoDesign.readableMuted
@@ -31,7 +31,7 @@ extension Color {
     static let vxinPayGradEnd = vxinPay
 }
 extension LinearGradient {
-    static let vxinBubble = LinearGradient(colors: [.vxinBubbleMine, .vxinBubbleMine],
+    static let vxinBubble = LinearGradient(colors: [.vxinBubbleMine, .vxinBrandDark],
                                            startPoint: .top, endPoint: .bottom)
     static let vxinCallAccept = TouliaoMedia.accept
     static let vxinCallDanger = TouliaoMedia.danger
@@ -89,6 +89,15 @@ extension View {
             .tint(.vxinBrand)
             .toolbarBackground(Color.vxinSurface, for: .navigationBar, .tabBar)
             .toolbarBackground(.visible, for: .navigationBar, .tabBar)
+            .modifier(TouliaoPadConstraint())
+    }
+}
+
+/// iPad/大屏止血：regular 横向尺寸时内容居中限宽，避免单列被拉伸。
+private struct TouliaoPadConstraint: ViewModifier {
+    @Environment(\.horizontalSizeClass) private var hSize
+    func body(content: Content) -> some View {
+        content.frame(maxWidth: hSize == .regular ? 720 : .infinity)
     }
 }
 

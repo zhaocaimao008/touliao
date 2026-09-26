@@ -31,23 +31,28 @@ const ConvRow = memo(function ConvRow({ index, style, data }) {
   const conv = items[index];
   const count = conv._unread || 0;
   const draft = (drafts && drafts[conv.id]) || '';
-  // 左滑快捷操作（移动端）：置顶 / 删除
+  // 左滑快捷操作（移动端）：置顶 / 删除；桌面端 hover/focus 露出
   const { swipeOffset, swipeHandlers, resetSwipe, swipeEnabled } = useSwipe({ maxOffset: 144 });
-  const handleSwipePin = () => { resetSwipe(); onPin?.(conv, !conv.pinned); };
-  const handleSwipeDelete = () => { resetSwipe(); onDelete?.(conv); };
+  const [hoverRevealed, setHoverRevealed] = useState(false);
+  const revealed = swipeOffset !== 0 || hoverRevealed;
+  const handleSwipePin = () => { resetSwipe(); setHoverRevealed(false); onPin?.(conv, !conv.pinned); };
+  const handleSwipeDelete = () => { resetSwipe(); setHoverRevealed(false); onDelete?.(conv); };
   return (
-    <div style={{ ...style, overflow: 'hidden', position: 'relative' }}>
-      {/* 左滑露出的快捷按钮 */}
-      {swipeEnabled && swipeOffset !== 0 && (
-        <div className="wc-chat-item-swipe-actions">
-          <button type="button" className="wc-swipe-btn wc-swipe-pin" onClick={handleSwipePin}>
-            {conv.pinned ? t('chatlist.unpinChat') : t('chatlist.pinChat')}
-          </button>
-          <button type="button" className="wc-swipe-btn wc-swipe-delete" onClick={handleSwipeDelete}>
-            {conv.type === 'group' ? t('chatlist.leaveGroup') : t('chatlist.deleteChat')}
-          </button>
-        </div>
-      )}
+    <div
+      className="wc-chat-item-wrapper"
+      style={{ ...style, overflow: 'hidden', position: 'relative' }}
+      onMouseEnter={() => setHoverRevealed(true)}
+      onMouseLeave={() => setHoverRevealed(false)}
+    >
+      {/* 左滑露出的快捷按钮（触屏滑动 / 桌面 hover/focus） */}
+      <div className="wc-chat-item-swipe-actions" aria-hidden={!revealed}>
+        <button type="button" className="wc-swipe-btn wc-swipe-pin" onClick={handleSwipePin} tabIndex={revealed ? 0 : -1}>
+          {conv.pinned ? t('chatlist.unpinChat') : t('chatlist.pinChat')}
+        </button>
+        <button type="button" className="wc-swipe-btn wc-swipe-delete" onClick={handleSwipeDelete} tabIndex={revealed ? 0 : -1}>
+          {conv.type === 'group' ? t('chatlist.leaveGroup') : t('chatlist.deleteChat')}
+        </button>
+      </div>
       <div
         data-testid={`conv-item-${conv.id}`}
         className={`wc-chat-item${conv.id === activeConvId ? ' active' : ''}${conv.pinned ? ' pinned' : ''}`}
@@ -66,7 +71,7 @@ const ConvRow = memo(function ConvRow({ index, style, data }) {
         }}
         style={{
           background: conv.pinned && conv.id !== activeConvId ? 'var(--bg-pinned)' : undefined,
-          ...(swipeOffset !== 0 ? { transform: `translateX(${swipeOffset}px)` } : {}),
+          ...(revealed ? { transform: `translateX(${swipeOffset !== 0 ? swipeOffset : -144}px)` } : {}),
         }}
         {...(swipeEnabled ? swipeHandlers : {})}
       >

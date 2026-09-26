@@ -361,7 +361,7 @@ body.dark-mode * {
   background: var(--color-badge);
   color: var(--gray-0);
   border-radius: var(--radius-md);
-  font-size: 8px;
+  font-size: var(--text-2xs);
   font-weight: var(--font-semibold);
   min-width: 12px;
   height: 12px;
@@ -512,6 +512,12 @@ body.dark-mode * {
 }
 .wc-swipe-pin { background: var(--color-primary); }
 .wc-swipe-delete { background: var(--color-danger); }
+/* 桌面端键盘聚焦时露出快捷按钮（hover 由 React 状态控制，触屏由滑动手势控制） */
+@media (hover: hover) and (pointer: fine) {
+  .wc-chat-item-wrapper:focus-within .wc-chat-item {
+    transform: translateX(-144px);
+  }
+}
 .wc-chat-item-badge {
   position: absolute;
   top: -4px;
@@ -2283,7 +2289,7 @@ body {
   border-radius: var(--radius-md);
   background: var(--color-badge);
   color: var(--gray-0);
-  font-size: 9px; font-weight: var(--font-bold);
+  font-size: var(--text-2xs); font-weight: var(--font-bold);
   display: flex; align-items: center; justify-content: center;
   padding: 0 3px;
   pointer-events: none;
@@ -3357,9 +3363,9 @@ body.dark-mode .wc-msg-time span { background: rgba(255,255,255,.08); }
 .gi-av-wrap { position:relative; flex-shrink:0; width:50px; height:50px; }
 .gi-av-img { width:50px; height:50px; object-fit:cover; display:block; }
 .gi-av-overlay { position:absolute; inset:0; background:var(--scrim); display:flex; flex-direction:column; align-items:center; justify-content:center; gap:1px; }
-.gi-av-uploading { color: var(--gray-0); font-size:9px; line-height: var(--lh-none); }
+.gi-av-uploading { color: var(--gray-0); font-size: var(--text-2xs); line-height: var(--lh-none); }
 .gi-av-icon svg { width:16px; height:16px; fill: var(--gray-0); }
-.gi-av-hint { color: var(--gray-0); font-size:8px; line-height: var(--lh-none); }
+.gi-av-hint { color: var(--gray-0); font-size: var(--text-2xs); line-height: var(--lh-none); }
 .gi-av-input { display:none; }
 
 /* ── Toggle ── */
@@ -4378,7 +4384,7 @@ select:focus-visible {
 /* ── 应用外壳：极淡的紫雾渐变底，让面板"浮"起来 ── */
 .wc-app {
   background:
-    radial-gradient(1200px 600px at 12% -8%, rgba(109,90,230,.10), transparent 60%),
+    radial-gradient(1200px 600px at 12% -8%, rgba(var(--color-primary-rgb), .10), transparent 60%),
     radial-gradient(1000px 620px at 110% 115%, rgba(23,184,166,.10), transparent 60%),
     var(--bg-app);
   padding: 10px;
@@ -4497,15 +4503,15 @@ select:focus-visible {
    ══════════════════════════════════════════════════════════════════ */
 body.dark-mode .wc-app {
   background:
-    radial-gradient(1200px 600px at 12% -8%, rgba(109,90,230,.16), transparent 60%),
+    radial-gradient(1200px 600px at 12% -8%, rgba(var(--color-primary-rgb), .16), transparent 60%),
     radial-gradient(1000px 620px at 110% 115%, rgba(23,184,166,.14), transparent 60%),
     var(--bg-app);
 }
 body.dark-mode .wc-sidebar,
 body.dark-mode .wc-panel,
 body.dark-mode .home-chat-area { box-shadow: 0 8px 30px rgba(0,0,0,.45); }
-body.dark-mode .wc-chat-item:hover { background: rgba(109,90,230,.16); }
-body.dark-mode .wc-sidebar-btn:hover { background: rgba(109,90,230,.16); }
+body.dark-mode .wc-chat-item:hover { background: rgba(var(--color-primary-rgb), .16); }
+body.dark-mode .wc-sidebar-btn:hover { background: rgba(var(--color-primary-rgb), .16); }
 /* AURORA 结构级重设计 ▲ END */
 
 /* ══════════════════════════════════════════════════════════════════
@@ -4770,7 +4776,7 @@ body.dark-mode .skeleton-box {
 .moments-hidden-input { display: none; }
 
 /* ── ChatFiles.jsx（聊天文件抽屉）静态样式：P2 UI 体检内联样式迁移 ── */
-.chatfiles-tab-icon { width: 28px; height: 28px; fill: rgba(109,90,230,.50); }
+.chatfiles-tab-icon { width: 28px; height: 28px; fill: rgba(var(--color-primary-rgb), .50); }
 .chatfiles-overlay-root { position: fixed; inset: 0; z-index: 400; display: flex; align-items: flex-start; justify-content: flex-end; }
 .chatfiles-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,.28); }
 .chatfiles-panel { position: relative; z-index: 1; height: 100vh; background: var(--bg-panel); display: flex; flex-direction: column; box-shadow: var(--shadow-lg); }
@@ -4786,7 +4792,7 @@ body.dark-mode .skeleton-box {
 .chatfiles-empty { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 60%; color: var(--text-secondary); font-size: var(--text-sm2); gap: 10px; }
 .chatfiles-empty-icon { width: 44px; height: 44px; fill: currentColor; opacity: .22; }
 .chatfiles-item { display: flex; align-items: center; gap: 12px; padding: 10px 16px; margin: 0 8px 4px; border-radius: var(--radius-md); cursor: pointer; background: var(--bg-card); box-shadow: 0 1px 3px rgba(36,31,56,.06); transition: background .1s, box-shadow .1s; }
-.chatfiles-thumb { flex-shrink: 0; width: 46px; height: 46px; border-radius: var(--radius-sm); overflow: hidden; background: rgba(109,90,230,.08); display: flex; align-items: center; justify-content: center; }
+.chatfiles-thumb { flex-shrink: 0; width: 46px; height: 46px; border-radius: var(--radius-sm); overflow: hidden; background: rgba(var(--color-primary-rgb), .08); display: flex; align-items: center; justify-content: center; }
 .chatfiles-thumb-img { width: 100%; height: 100%; object-fit: cover; }
 .chatfiles-info { flex: 1; min-width: 0; }
 .chatfiles-info-name { font-size: var(--text-sm2); font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--text-primary); }

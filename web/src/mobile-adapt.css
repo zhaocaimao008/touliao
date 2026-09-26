@@ -88,6 +88,23 @@ html.capacitor-app {
       padding-right: var(--safe-area-right);
     }
   }
+
+  /* ui-kit 把按钮压到 36px，移动端恢复 44px 触控目标（更高特异性覆盖） */
+  html.touliao-ui body :is(
+    .tl-conversation-filters button,
+    .wc-send-btn,
+    .wc-moment-img-btn,
+    .wc-moment-editor-cancel,
+    .wc-moment-media-modes button,
+    .wc-moment-editor-publish,
+    .wc-moment-comment-submit,
+    .tl-collection-filters button[aria-pressed],
+    .wc-retry-btn,
+    .wc-cancel-upload-btn
+  ) {
+    min-height: 44px;
+    min-width: 44px;
+  }
 }
 
 /* ── 小屏设备 (<=375px, iPhone SE / 小屏 Android) ──────────── */
@@ -222,7 +239,7 @@ html.capacitor-app {
    平板横屏时面板与聊天区并排显示，无需底部导航 ──────────── */
 @media (orientation: landscape) and (min-width: 768px) and (max-width: 1024px) {
   .m-tabbar { height: 48px; }
-  .m-tab-label { font-size: 9px; }
+  .m-tab-label { font-size: var(--text-2xs); }
   .m-tab-ico svg { width: 22px; height: 22px; }
 }
 

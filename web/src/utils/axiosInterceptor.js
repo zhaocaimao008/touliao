@@ -10,6 +10,24 @@ import { isBearerClient, isIsolatedWindow } from './clientStorage';
 let csrfToken = null;
 let csrfRevision = null;
 let tokenRefreshPromise = null;
+// API 健康追踪：连续失败达阈值时通知全局 banner
+let apiFailCount = 0;
+let apiDegraded = false;
+const API_FAIL_THRESHOLD = 3;
+function trackApiSuccess() {
+  apiFailCount = 0;
+  if (apiDegraded) {
+    apiDegraded = false;
+    window.dispatchEvent(new Event('touliao:api-recovered'));
+  }
+}
+function trackApiFailure() {
+  apiFailCount += 1;
+  if (!apiDegraded && apiFailCount >= API_FAIL_THRESHOLD) {
+    apiDegraded = true;
+    window.dispatchEvent(new Event('touliao:api-degraded'));
+  }
+}
 const revision = () => localStorage.getItem('touliao_session_revision');
 const currentRequest = config => !config || isOperationCurrent(config._sessionContext);
 function staleRequest(config) {
@@ -148,6 +166,7 @@ export function setupAxiosInterceptors(axios) {
       if (!currentRequest(response.config)) return Promise.reject(staleRequest(response.config));
       // 提取 CSRF token
       extractCsrfToken(response);
+      trackApiSuccess();
       
       // 性能监控
       if (response.config.metadata) {
@@ -222,6 +241,10 @@ export function setupAxiosInterceptors(axios) {
         const duration = Date.now() - originalRequest.metadata.startTime;
         console.error(`[axios] 请求失败: ${originalRequest.method?.toUpperCase()} ${originalRequest.url} ${duration}ms`, 
                       error.response?.status, error.message);
+      }
+      // 网络错误或 5xx 计入 API 健康统计（401/403 等业务拒绝不计）
+      if (!error.response || (error.response.status >= 500 && error.response.status < 600)) {
+        trackApiFailure();
       }
       
       return Promise.reject(error);

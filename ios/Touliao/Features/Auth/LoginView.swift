@@ -95,14 +95,14 @@ struct LoginView: View {
             ViewThatFits(in: .horizontal) {
             HStack {
                 NavigationLink("注册账号") { RegisterView() }
-                    .foregroundColor(.vxinGreen).fixedSize(horizontal: true, vertical: false)
+                    .foregroundColor(.vxinBrand).fixedSize(horizontal: true, vertical: false)
                 Spacer()
                 NavigationLink("忘记密码") { ForgotPasswordView() }
                     .foregroundColor(.vxinTextSecondary).fixedSize(horizontal: true, vertical: false)
             }
 
                 VStack(spacing: 12) {
-                    NavigationLink("注册账号") { RegisterView() }.foregroundColor(.vxinGreen)
+                    NavigationLink("注册账号") { RegisterView() }.foregroundColor(.vxinBrand)
                     NavigationLink("忘记密码") { ForgotPasswordView() }.foregroundColor(.vxinTextSecondary)
                 }
             }
@@ -123,7 +123,7 @@ struct LoginView: View {
                         }
                     }
                     .disabled(vm.resolvingTenantCode || vm.tenantCode.trimmingCharacters(in: .whitespaces).isEmpty)
-                    .foregroundColor(.vxinGreen)
+                    .foregroundColor(.vxinBrand)
                 }
                 if let status = vm.tenantCodeStatus {
                     Text(status)
@@ -140,7 +140,7 @@ struct LoginView: View {
                     .autocorrectionDisabled(true)
                     .textFieldStyle(TouliaoTextFieldStyle())
                 Button("保存") { vm.saveServerURL(); showServerConfig = false }
-                    .foregroundColor(.vxinGreen)
+                    .foregroundColor(.vxinBrand)
             }
 
             Spacer()

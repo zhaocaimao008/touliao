@@ -107,7 +107,7 @@ struct SearchView: View {
                             .touliaoText(.caption)
                             .padding(.horizontal, 12).frame(minHeight: 44)
                             .background(vm.timeRange == option.value ? Color.vxinPrimarySoft : Color.vxinSurfaceSecondary)
-                            .foregroundColor(vm.timeRange == option.value ? .vxinGreen : .vxinTextSecondary)
+                            .foregroundColor(vm.timeRange == option.value ? .vxinBrand : .vxinTextSecondary)
                             .clipShape(Capsule())
                     }
                 }
@@ -128,7 +128,7 @@ struct SearchView: View {
         if !q.isEmpty {
             var search = body.startIndex
             while let range = body[search...].range(of: q, options: .caseInsensitive) {
-                body[range].foregroundColor = .vxinGreen
+                body[range].foregroundColor = .vxinBrand
                 body[range].font = .subheadline.bold()
                 search = range.upperBound
             }

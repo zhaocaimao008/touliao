@@ -64,7 +64,7 @@ private struct TransactionRow: View {
             Spacer()
             VStack(alignment: .trailing, spacing: 2) {
                 Text((tx.amount >= 0 ? "+" : "") + "\(tx.amount)")
-                    .foregroundColor(tx.amount >= 0 ? .vxinGreen : Color(red: 0.98, green: 0.32, blue: 0.32))
+                    .foregroundColor(tx.amount >= 0 ? .vxinGreen : TouliaoDesign.danger)
                     .fontWeight(.semibold)
                 Text("余额 \(tx.balanceAfter)").touliaoText(.caption).foregroundColor(.vxinTextSecondary)
             }

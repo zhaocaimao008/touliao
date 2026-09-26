@@ -243,7 +243,7 @@ private struct FileRow: View {
 
     var body: some View {
         HStack(spacing: 12) {
-            TouliaoIcon("fileContent", size: .lg).foregroundColor(.vxinGreen)
+            TouliaoIcon("fileContent", size: .lg).foregroundColor(.vxinBrand)
             VStack(alignment: .leading, spacing: 3) {
                 Text(file.displayName)
                     .touliaoText(.body).lineLimit(1)
@@ -271,7 +271,7 @@ private struct MediaGridCell: View {
             Color.vxinSurfaceSecondary
             if file.type == "file" {
                 VStack(spacing: 8) {
-                    TouliaoIcon("fileContent", size: .lg).foregroundColor(.vxinGreen)
+                    TouliaoIcon("fileContent", size: .lg).foregroundColor(.vxinBrand)
                     Text(file.displayName).touliaoText(.caption).foregroundColor(.vxinText)
                         .lineLimit(2).multilineTextAlignment(.center)
                 }.padding(8)

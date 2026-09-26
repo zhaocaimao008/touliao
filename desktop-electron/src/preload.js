@@ -31,6 +31,23 @@ const electronAPI = {
   close:            () => ipcRenderer.invoke('window:close'),
   isMaximized:      () => ipcRenderer.invoke('window:isMaximized'),
   newAccountWindow: () => ipcRenderer.invoke('window:newAccount'),
+  showSystemMenu:   () => ipcRenderer.invoke('window:showSystemMenu'),
+
+  // 托盘行为：关闭时最小化到托盘 / 托盘闪烁开关（供设置页）
+  getMinimizeToTray: () => ipcRenderer.invoke('tray:getMinimizeToTray'),
+  setMinimizeToTray: (v) => ipcRenderer.invoke('tray:setMinimizeToTray', !!v),
+  getTrayFlashEnabled: () => ipcRenderer.invoke('tray:getFlashEnabled'),
+  setTrayFlashEnabled: (v) => ipcRenderer.invoke('tray:setFlashEnabled', !!v),
+  // 托盘菜单语言：渲染层启动/切换语言时下发
+  setTrayLocale: (locale) => ipcRenderer.invoke('tray:setLocale', locale),
+
+  // 系统主题：初始化查询 + 变化监听（标题栏跟随 Windows 深浅模式）
+  isDarkTheme:      () => ipcRenderer.invoke('theme:isDark'),
+  onNativeThemeChanged: (callback) => {
+    const listener = (_event, isDark) => callback(isDark);
+    ipcRenderer.on('native-theme:changed', listener);
+    return () => ipcRenderer.removeListener('native-theme:changed', listener);
+  },
 
   // 后台提醒：任务栏闪烁 / 未读角标 / 来电时窗口置顶
   flashFrame:       (on)    => ipcRenderer.invoke('window:flashFrame', !!on),
@@ -105,6 +122,11 @@ ipcRenderer.on('update:downloaded', (_, info) => {
 });
 ipcRenderer.on('update:error', (_, err) => {
   window.dispatchEvent(new CustomEvent('electron:update-error', { detail: err }));
+});
+
+// 系统主题变化（主进程 nativeTheme 'updated'）→ 渲染层切换标题栏配色
+ipcRenderer.on('native-theme:changed', (_, isDark) => {
+  window.dispatchEvent(new CustomEvent('electron:native-theme-changed', { detail: isDark }));
 });
 
 // 窗口最大化状态

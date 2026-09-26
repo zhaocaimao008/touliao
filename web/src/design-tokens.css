@@ -57,8 +57,8 @@
 
   /* 品牌渐变（AURORA 靛→青碧）：我方气泡、侧栏头像、确认按钮等使用。
      原定义在 index.css :root，随单一真相源合并迁移至此。*/
-  --grad-brand:       linear-gradient(135deg, #5A47D6 0%, #435CBD 55%, #087F74 130%);
-  --grad-brand-soft:  linear-gradient(135deg, rgba(109,90,230,.14), rgba(23,184,166,.12));
+  --grad-brand:       linear-gradient(135deg, color-mix(in srgb, var(--color-primary), black 12%) 0%, var(--color-primary) 55%, color-mix(in srgb, var(--color-primary) 55%, #087F74) 130%);
+  --grad-brand-soft:  linear-gradient(135deg, rgba(var(--color-primary-rgb), .14), rgba(23,184,166,.12));
   --grad-call-voice:  linear-gradient(160deg, #2A2440 0%, #17132A 100%);  /* 语音通话默认底，明暗一致 */
 
 /* ================================================================
@@ -154,7 +154,7 @@
   --bg-messages:          #F3F1FA;   /* 聊天区：极浅薰衣草灰（AURORA）*/
   /* 消息画布：极淡的斜向渐变，避免大面积死板纯色 */
   --bg-messages-canvas:
-    radial-gradient(900px 600px at 88% -8%, rgba(109,90,230,.045) 0%, transparent 60%),
+    radial-gradient(900px 600px at 88% -8%, rgba(var(--color-primary-rgb), .045) 0%, transparent 60%),
     radial-gradient(700px 520px at 6% 108%, rgba(23,184,166,.04) 0%, transparent 60%),
     linear-gradient(180deg, #EEF1F6 0%, #EAECF2 100%);
 
@@ -460,7 +460,10 @@ body.dark-mode {
 
   /* Semantic */
   --color-danger:        #FF6B6B;
+  --color-danger-hover:  #FF8585;
   --color-danger-light:  rgba(255, 107, 107, .12);
+  --color-info:          var(--color-primary);
+  --color-info-light:    rgba(138, 120, 235, .12);
   --color-success:       #44D67A;
   --color-success-light: rgba(68, 214, 122, .12);
   --color-warning:       #FF9A3C;
@@ -479,7 +482,7 @@ body.dark-mode {
   --bg-messages:          #0E0E10;
   /* 暗色画布：极淡靛紫辉光，替代死黑，气泡浮起 */
   --bg-messages-canvas:
-    radial-gradient(900px 600px at 88% -8%, rgba(109,90,230,.10) 0%, transparent 60%),
+    radial-gradient(900px 600px at 88% -8%, rgba(var(--color-primary-rgb), .10) 0%, transparent 60%),
     radial-gradient(700px 520px at 6% 108%, rgba(23,184,166,.06) 0%, transparent 60%),
     linear-gradient(180deg, #101014 0%, #0C0C0F 100%);
   /* 暗色下他人气泡：深灰卡片色，而非纯白 */

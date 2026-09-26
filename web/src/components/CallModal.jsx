@@ -831,7 +831,7 @@ export default function CallModal({ socket, call, onClose, onReplyMessage }) {
             style={{
               position: 'absolute', top: -24, left: '50%', transform: 'translateX(-50%)',
               padding: '3px 8px', borderRadius: 999, background: 'rgba(0,0,0,.72)',
-              color: '#fff', fontSize: 11, whiteSpace: 'nowrap', cursor: 'pointer',
+              color: '#fff', fontSize: 'var(--text-xs)', whiteSpace: 'nowrap', cursor: 'pointer',
             }}
           >
             <TouliaoIcon name="speakerOff" size="xs" tone="onDark" /> {t('call.tapToRestoreAudio')}<TouliaoIcon name="close" size="sm" /></div>

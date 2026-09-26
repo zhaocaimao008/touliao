@@ -40,7 +40,7 @@ struct BlockedView: View {
                         Text(user.username.isEmpty ? "未命名" : user.username)
                         Spacer()
                         Button("移出") { vm.unblock(user) }
-                            .buttonStyle(.borderless).foregroundColor(.vxinGreen)
+                            .buttonStyle(.borderless).foregroundColor(.vxinBrand)
                     }
                     }.listRowBackground(Color.vxinSurface).listRowSeparatorTint(Color.vxinBorder)
                 }

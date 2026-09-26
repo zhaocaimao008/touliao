@@ -1327,6 +1327,61 @@ function ShortcutSettings({ onBack }) {
   );
 }
 
+/* ── 桌面端设置（仅 Electron）：关闭行为、托盘提醒 ── */
+function DesktopSettings({ onBack }) {
+  const { t } = useI18n();
+  const [minimizeToTray, setMinimizeToTray] = useState(true);
+  const [trayFlash, setTrayFlash] = useState(true);
+  const [loaded, setLoaded] = useState(false);
+
+  useEffect(() => {
+    Promise.all([
+      window.electronAPI?.getMinimizeToTray?.(),
+      window.electronAPI?.getTrayFlashEnabled?.(),
+    ]).then(([mtt, flash]) => {
+      if (mtt !== undefined) setMinimizeToTray(!!mtt);
+      if (flash !== undefined) setTrayFlash(!!flash);
+      // 减少动态偏好：首次进入时若系统偏好减少动态，默认关闭托盘闪烁
+      if (flash === undefined && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) {
+        setTrayFlash(false);
+        window.electronAPI?.setTrayFlashEnabled?.(false);
+      }
+      setLoaded(true);
+    }).catch(() => setLoaded(true));
+  }, []);
+
+  const toggleTray = async (v) => {
+    setMinimizeToTray(v);
+    await window.electronAPI?.setMinimizeToTray?.(v).catch(() => setMinimizeToTray(!v));
+  };
+  const toggleFlash = async (v) => {
+    setTrayFlash(v);
+    await window.electronAPI?.setTrayFlashEnabled?.(v).catch(() => setTrayFlash(!v));
+  };
+
+  if (!loaded) return <PageBg><PageHeader title={t('profile.desktopSettingsTitle')} onBack={onBack} /></PageBg>;
+
+  return (
+    <PageBg>
+      <PageHeader title={t('profile.desktopSettingsTitle')} onBack={onBack} />
+      <SLabel>{t('profile.desktopCloseBehavior')}</SLabel>
+      <div className="wc-notif-pad">
+        <Card>
+          <CRow label={t('profile.minimizeToTrayLabel')} desc={t('profile.minimizeToTrayDesc')}
+            right={<TouliaoSwitch value={minimizeToTray} onChange={toggleTray} />} />
+        </Card>
+      </div>
+      <SLabel>{t('profile.desktopTrayNotify')}</SLabel>
+      <div className="wc-notif-pad">
+        <Card>
+          <CRow label={t('profile.trayFlashLabel')} desc={t('profile.trayFlashDesc')}
+            right={<TouliaoSwitch value={trayFlash} onChange={toggleFlash} />} />
+        </Card>
+      </div>
+    </PageBg>
+  );
+}
+
 /* ── 主页面 ── */
 export default function Profile({ isMobile = false }) {
   const { t } = useI18n();
@@ -1364,6 +1419,7 @@ export default function Profile({ isMobile = false }) {
   if (subPage === 'privacy')       return <PrivacySettings user={user} onBack={() => setSubPage(null)} />;
   if (subPage === 'server')        return <ServerSettings onBack={() => setSubPage(null)} />;
   if (subPage === 'shortcuts')     return <ShortcutSettings onBack={() => setSubPage(null)} />;
+  if (subPage === 'desktop')       return <DesktopSettings onBack={() => setSubPage(null)} />;
 
   return (
     <PageBg>
@@ -1457,6 +1513,20 @@ export default function Profile({ isMobile = false }) {
               <CRow icon={<IcoKeyboard />} bg="var(--icon-bg-neutral)" label={t('profile.shortcutSettingsTitle')}
                 desc={t('profile.shortcutsMenuDesc')}
                 onClick={() => setSubPage('shortcuts')} />
+            </Card>
+          </div>
+        </>
+      )}
+
+      {/* ── 桌面端（仅 Electron）：关闭行为、托盘提醒 ── */}
+      {window.__ELECTRON_CONFIG__ && (
+        <>
+          <SLabel>{t('profile.desktopSettingsLabel')}</SLabel>
+          <div className="wc-section-pad">
+            <Card>
+              <CRow icon={<IcoMoon />} bg="var(--icon-bg-neutral)" label={t('profile.desktopSettingsTitle')}
+                desc={t('profile.desktopSettingsDesc')}
+                onClick={() => setSubPage('desktop')} />
             </Card>
           </div>
         </>

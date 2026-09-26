@@ -36,7 +36,8 @@ private struct CallMinimizedBubble: View {
         GeometryReader { geo in
             let margin: CGFloat = bubbleSize / 2 + 8
             let defaultX = geo.size.width - margin
-            let defaultY: CGFloat = 130
+            // 默认 Y 考虑顶部安全区（刘海/灵动岛），避免小窗被遮挡
+            let defaultY: CGFloat = geo.safeAreaInsets.top + 80
             let x = clamp(defaultX + dragAccumulated.width + dragActive.width, geo.size.width, margin)
             let y = clamp(defaultY + dragAccumulated.height + dragActive.height, geo.size.height, margin)
 
@@ -179,8 +180,8 @@ private struct CallView: View {
         // 通话质量指示：getStats 2s 采样（RTT<200ms/丢包<2% 优; <500ms/<8% 中; 否则差）
         if state.stage == .connected && !state.callQuality.isEmpty {
             let (qColor, qText): (Color, String) = switch state.callQuality {
-            case "poor": (Color(red: 0.98, green: 0.32, blue: 0.32), "网络较差")
-            case "medium": (Color(red: 0.96, green: 0.65, blue: 0.14), "网络一般")
+            case "poor": (TouliaoDesign.danger, "网络较差")
+            case "medium": (TouliaoDesign.warning, "网络一般")
             default: (.vxinSuccess, "网络良好")
             }
             Text(qText)

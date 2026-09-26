@@ -260,7 +260,7 @@ struct MomentsView: View {
                                 HStack {
                                     Text(label).foregroundColor(.vxinText)
                                     Spacer()
-                                    if vm.visibleDays == day { TouliaoIcon("check").foregroundColor(.vxinGreen) }
+                                    if vm.visibleDays == day { TouliaoIcon("check").foregroundColor(.vxinBrand) }
                                 }
                             }
                         }
@@ -328,7 +328,7 @@ private struct MomentCard: View {
             HStack {
                 InitialAvatar(name: moment.author.username.isEmpty ? "?" : moment.author.username, size: 40)
                 Text(moment.author.username.isEmpty ? "未命名" : moment.author.username)
-                    .foregroundColor(.vxinGreen).touliaoText(.secondary)
+                    .foregroundColor(.vxinBrand).touliaoText(.secondary)
                 Spacer()
             }
             if !moment.content.isEmpty { Text(moment.content) }
@@ -341,17 +341,17 @@ private struct MomentCard: View {
                 Button { onLike() } label: {
                     // 心形图标 + 文案(对齐微信/安卓 ❤️/🤍)
                     Label(moment.liked ? "已赞" : "赞", touliaoIcon: moment.liked ? "like" : "like")
-                        .foregroundColor(moment.liked ? .vxinError : .vxinGreen)
+                        .foregroundColor(moment.liked ? .vxinError : .vxinBrand)
                 }.buttonStyle(.borderless)
                 Button { onComment() } label: {
                     Label("评论", touliaoIcon: "comment")
-                }.buttonStyle(.borderless).foregroundColor(.vxinGreen)
+                }.buttonStyle(.borderless).foregroundColor(.vxinBrand)
                 if isMine { Button("删除", role: .destructive) { onDelete() }.buttonStyle(.borderless) }
                 else { Button("举报") { onReport() }.buttonStyle(.borderless).foregroundColor(.vxinTextSecondary) }
             }
             if !moment.likes.isEmpty {
                 Text("❤ " + moment.likes.map { $0.username.isEmpty ? "用户" : $0.username }.joined(separator: "，"))
-                    .touliaoText(.secondary).foregroundColor(.vxinGreen)
+                    .touliaoText(.secondary).foregroundColor(.vxinBrand)
                     .padding(8).frame(maxWidth: .infinity, alignment: .leading)
                     .background(Color.vxinPrimarySoft).clipShape(RoundedRectangle(cornerRadius: VxinRadius.sm))
             }
@@ -372,7 +372,7 @@ private struct MomentCard: View {
             // 热门动态：timeline 只返回前 N 条，按需加载全部
             if moment.commentCount > moment.comments.count {
                 Button("查看全部 \(moment.commentCount) 条评论") { onViewAllComments() }
-                    .touliaoText(.secondary).foregroundColor(.vxinGreen)
+                    .touliaoText(.secondary).foregroundColor(.vxinBrand)
             }
             if commenting {
                 HStack {
@@ -381,7 +381,7 @@ private struct MomentCard: View {
                         .focused($commentFocused)
                         .submitLabel(.send)
                         .onSubmit { if !commentText.isEmpty { onSubmitComment() } }
-                    Button("发送") { onSubmitComment() }.disabled(commentText.isEmpty).foregroundColor(.vxinGreen)
+                    Button("发送") { onSubmitComment() }.disabled(commentText.isEmpty).foregroundColor(.vxinBrand)
                 }
                 // 展开评论框时自动聚焦并弹出键盘(对齐微信/安卓)
                 .onAppear { commentFocused = true }
@@ -392,11 +392,11 @@ private struct MomentCard: View {
 
     /// 一条评论文本：「昵称 回复 X：内容」，回复段仅在有被回复人时出现
     private func commentText(_ c: MomentComment) -> Text {
-        let name = Text("\(c.username.isEmpty ? "用户" : c.username)").foregroundColor(.vxinGreen)
+        let name = Text("\(c.username.isEmpty ? "用户" : c.username)").foregroundColor(.vxinBrand)
         if !c.replyToUsername.isEmpty {
             return name
                 + Text(" 回复 ").foregroundColor(.vxinTextSecondary)
-                + Text(c.replyToUsername).foregroundColor(.vxinGreen)
+                + Text(c.replyToUsername).foregroundColor(.vxinBrand)
                 + Text("：\(c.content)")
         }
         return name + Text("：\(c.content)")

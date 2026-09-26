@@ -13,9 +13,9 @@ html.windows-desktop body {
   --color-primary-hover: #4934B0;
   --color-danger: #B82F49;
   --color-badge: #BD3048;
-  --windows-action-bg: #5A47D6;
+  --windows-action-bg: var(--color-primary);
   --windows-action-hover: #4936BC;
-  --windows-bubble-bg: #5A47D6;
+  --windows-bubble-bg: var(--color-primary);
   --windows-bubble-fg: #FFFFFF;
   --windows-bubble-secondary: #F0EDFF;
   --bg-app: #F5F6F8;
@@ -403,4 +403,36 @@ html.windows-desktop body .auth-window-button { background: transparent; border-
 @media (max-width: 1100px) {
   html.windows-desktop body { --panel-w: 276px; }
   html.windows-desktop body .wc-msg-body { max-width: 76%; }
+}
+
+/* ── Electron 标题栏：高对比度模式（forced-colors）兜底 ──
+   Windows 高对比度主题会覆盖 CSS 变量色，按钮可能不可见。
+   forced-colors 下用系统色，保证按钮始终可见可操作。 */
+@media (forced-colors: active) {
+  html.windows-desktop #touliao-titlebar {
+    background: Canvas;
+    border-bottom: 1px solid ButtonBorder;
+    forced-color-adjust: none;
+  }
+  html.windows-desktop #touliao-titlebar button {
+    color: ButtonText;
+    background: transparent;
+    forced-color-adjust: auto;
+  }
+  html.windows-desktop #touliao-titlebar button:hover {
+    background: Highlight;
+    color: HighlightText;
+  }
+  html.windows-desktop #touliao-titlebar button:focus-visible {
+    outline: 2px solid Highlight;
+    outline-offset: -2px;
+  }
+}
+
+/* ── Electron 标题栏：键盘焦点可见性 ──
+   WinBtn 组件内联处理了 focus 状态，此处再加 :focus-visible 兜底，
+   覆盖未来新增的标题栏按钮。 */
+html.windows-desktop #touliao-titlebar button:focus-visible {
+  outline: 2px solid var(--color-primary, #6D5AE6);
+  outline-offset: -2px;
 }

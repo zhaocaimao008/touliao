@@ -10,7 +10,19 @@ import { useSocketStatus } from '../contexts/SocketContext'; // 只订阅 connec
 export default function ReconnectingBanner() {
   const { connected } = useSocketStatus();
   const [state, setState] = useState('hidden');   // hidden | reconnecting | restored
+  const [apiDegraded, setApiDegraded] = useState(false);
   const wasShownRef = useRef(false);              // 是否真实展示过「断开」提示
+
+  useEffect(() => {
+    const onDegraded = () => setApiDegraded(true);
+    const onRecovered = () => setApiDegraded(false);
+    window.addEventListener('touliao:api-degraded', onDegraded);
+    window.addEventListener('touliao:api-recovered', onRecovered);
+    return () => {
+      window.removeEventListener('touliao:api-degraded', onDegraded);
+      window.removeEventListener('touliao:api-recovered', onRecovered);
+    };
+  }, []);
 
   useEffect(() => {
     if (!connected) {
@@ -28,8 +40,10 @@ export default function ReconnectingBanner() {
     setState('hidden');
   }, [connected]);
 
-  if (state === 'hidden') return null;
-  const restored = state === 'restored';
+  // socket 正常但 API 持续失败 → 同样显示全局提示
+  const showState = state !== 'hidden' ? state : (apiDegraded ? 'reconnecting' : 'hidden');
+  if (showState === 'hidden') return null;
+  const restored = showState === 'restored';
   // Electron 自定义标题栏固定在 top:0 高 30px，提示条需下移避免被遮住
   const isElectron = !!window.__ELECTRON_CONFIG__;
   return (
@@ -38,7 +52,7 @@ export default function ReconnectingBanner() {
       role="status"
       aria-live="polite"
       data-testid="net-banner"
-      data-state={state}
+      data-state={showState}
     >
       <span className="wc-net-banner-dot" />
       {restored ? '网络已恢复' : '网络连接已断开，正在重连…'}

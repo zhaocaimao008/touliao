@@ -234,7 +234,7 @@ struct ChangePhoneView: View {
                         DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) { dismiss() }
                     }
                 } label: {
-                    if vm.changing { ProgressView() } else { Text("提交").foregroundColor(.vxinGreen) }
+                    if vm.changing { ProgressView() } else { Text("提交").foregroundColor(.vxinBrand) }
                 }
                 .disabled(!vm.valid || vm.changing)
                 .accessibilityIdentifier("change-phone-submit")
@@ -356,7 +356,7 @@ struct QuietSettingsView: View {
                     if vm.saving {
                         ProgressView()
                     } else {
-                        Text("保存").foregroundColor(.vxinGreen)
+                        Text("保存").foregroundColor(.vxinBrand)
                     }
                 }
                 .disabled(vm.saving)
@@ -520,7 +520,7 @@ struct ChangePasswordView: View {
                         DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) { dismiss() }
                     }
                 } label: {
-                    if vm.changing { ProgressView() } else { Text("提交").foregroundColor(.vxinGreen) }
+                    if vm.changing { ProgressView() } else { Text("提交").foregroundColor(.vxinBrand) }
                 }
                 .disabled(!vm.valid || vm.changing)
                 .accessibilityIdentifier("change-password-submit")

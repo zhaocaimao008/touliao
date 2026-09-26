@@ -63,7 +63,7 @@ struct ContactsView: View {
                 }
                 if vm.showAiBots {
                     if vm.aiBots.isEmpty {
-                        Text("暂无 AI 助手").touliaoText(.secondary).foregroundColor(.vxinTextSecondary)
+                        VxinEmptyState(icon: "sparkles", title: "暂无 AI 助手")
                     } else {
                         ForEach(vm.aiBots) { bot in
                             Button { Task { if let conv = await vm.startAiChat(bot) { onStartChat(conv) } } } label: {
@@ -86,7 +86,7 @@ struct ContactsView: View {
 
             Section("联系人") {
                 if vm.contacts.isEmpty && !vm.loading {
-                    Text("还没有联系人").foregroundColor(.vxinTextSecondary)
+                    VxinEmptyState(icon: "contacts", title: "还没有联系人", subtitle: "点击右上角 + 添加好友")
                 }
                 ForEach(vm.contacts) { contact in
                     Button { Task { if let conv = await vm.startPrivateChat(contact) { onStartChat(conv) } } } label: {

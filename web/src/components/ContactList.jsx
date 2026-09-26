@@ -488,11 +488,16 @@ export default function ContactList({ onStartChat, searchQuery = '', addFriendRe
 }
 
 /* ── 好友标签 Tab ── */
+const getBrandHex = () => {
+  try {
+    return getComputedStyle(document.documentElement).getPropertyValue('--color-primary').trim() || '#6D5AE6';
+  } catch { return '#6D5AE6'; }
+};
 function LabelsTab({ labels, contacts, onBack, onUpdate }) {
   const { t } = useI18n();
   const [editLabel, setEditLabel] = useState(null); // null | 'new' | labelObject
   const [nameInput, setNameInput] = useState('');
-  const [colorInput, setColorInput] = useState('#6D5AE6');
+  const [colorInput, setColorInput] = useState(getBrandHex);
   const [showMembers, setShowMembers] = useState(null); // labelId
   const [saving, setSaving] = useState(false);
 
@@ -501,13 +506,13 @@ function LabelsTab({ labels, contacts, onBack, onUpdate }) {
   const startCreate = () => {
     setEditLabel('new');
     setNameInput('');
-    setColorInput('#6D5AE6');
+    setColorInput(getBrandHex());
   };
 
   const startEdit = (label) => {
     setEditLabel(label);
     setNameInput(label.name);
-    setColorInput(label.color || '#6D5AE6');
+    setColorInput(label.color || getBrandHex());
   };
 
   const saveLabel = async () => {
@@ -626,7 +631,7 @@ function LabelsTab({ labels, contacts, onBack, onUpdate }) {
       )}
       {labels.map(label => (
         <div key={label.id} className="wc-contact-item">
-          <div className="lt-label-icon-box" style={{ background: label.color || '#6D5AE6' }}>
+          <div className="lt-label-icon-box" style={{ background: label.color || 'var(--color-primary)' }}>
             <TouliaoIcon name="tag" size="sm" />
           </div>
           <div className="cl-contact-info">

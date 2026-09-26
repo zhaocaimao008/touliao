@@ -58,7 +58,7 @@ struct FriendLabelsView: View {
             if vm.loading {
                 HStack { Spacer(); ProgressView(); Spacer() }
             } else if vm.labels.isEmpty {
-                Text("还没有标签，点右上 + 新建").foregroundColor(.vxinTextSecondary)
+                VxinEmptyState(icon: "tag", title: "还没有标签", subtitle: "点右上 + 新建标签")
             } else {
                 ForEach(vm.labels) { label in
                     Button { editLabel = label } label: {
@@ -124,7 +124,7 @@ private struct LabelMembersSheet: View {
                     HStack {
                         Text(c.displayName.isEmpty ? "未命名" : c.displayName).foregroundColor(.vxinText)
                         Spacer()
-                        if memberIds.contains(c.id) { TouliaoIcon("check").foregroundColor(.vxinGreen) }
+                        if memberIds.contains(c.id) { TouliaoIcon("check").foregroundColor(.vxinBrand) }
                     }
                 }
                 }.listRowBackground(Color.vxinSurface).listRowSeparatorTint(Color.vxinBorder)
@@ -142,6 +142,6 @@ private extension Color {
         let s = hex.trimmingCharacters(in: CharacterSet(charactersIn: "#"))
         if s.count == 6, let v = UInt64(s, radix: 16) {
             self = Color(red: Double((v >> 16) & 0xFF) / 255, green: Double((v >> 8) & 0xFF) / 255, blue: Double(v & 0xFF) / 255)
-        } else { self = .vxinGreen }
+        } else { self = .vxinBrand }
     }
 }

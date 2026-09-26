@@ -1,6 +1,56 @@
 import SwiftUI
 import AVFoundation
 
+/// 相机权限门控：未授权时显示空态说明 + 跳转设置，避免静默黑屏。
+/// 同时用 NavigationStack 包装扫描器，提供导航栏关闭按钮。
+struct QRScannerGate: View {
+    var onResult: (String) -> Void
+    var onCancel: () -> Void
+    @State private var status = AVCaptureDevice.authorizationStatus(for: .video)
+
+    var body: some View {
+        NavigationStack {
+            Group {
+                switch status {
+                case .authorized:
+                    QRScannerView(onResult: onResult, onCancel: onCancel)
+                        .ignoresSafeArea()
+                case .notDetermined:
+                    ProgressView().onAppear {
+                        AVCaptureDevice.requestAccess(for: .video) { granted in
+                            DispatchQueue.main.async {
+                                status = granted ? .authorized : .denied
+                            }
+                        }
+                    }
+                case .denied, .restricted:
+                    VxinEmptyState(
+                        icon: "camera",
+                        title: "无法使用相机",
+                        subtitle: "请在系统设置中允许投聊访问相机，才能扫描二维码",
+                        isError: true,
+                        actionTitle: "去设置",
+                        action: {
+                            if let url = URL(string: UIApplication.openSettingsURLString) {
+                                UIApplication.shared.open(url)
+                            }
+                        }
+                    )
+                @unknown default:
+                    VxinEmptyState(icon: "camera", title: "相机不可用", isError: true)
+                }
+            }
+            .navigationTitle("扫一扫")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("关闭") { onCancel() }
+                }
+            }
+        }
+    }
+}
+
 /// 基于 AVFoundation 的二维码扫描器。扫到结果回调一次后即停止。
 struct QRScannerView: UIViewControllerRepresentable {
     var onResult: (String) -> Void

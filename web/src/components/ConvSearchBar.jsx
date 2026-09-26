@@ -82,7 +82,7 @@ export default function ConvSearchBar({ convId, onJump, onClose }) {
     return (
       <>
         {text.slice(0, idx)}
-        <mark style={{ background: 'rgba(109,90,230,.2)', color: 'var(--green)', borderRadius: 'var(--radius-xs)', padding: '0 1px' }}>
+        <mark style={{ background: 'rgba(var(--color-primary-rgb), .2)', color: 'var(--green)', borderRadius: 'var(--radius-xs)', padding: '0 1px' }}>
           {text.slice(idx, idx + q.length)}
         </mark>
         {text.slice(idx + q.length)}

@@ -4,10 +4,10 @@ body.dark-mode .wc-me-qr-btn:hover { background: rgba(255,255,255,.08); }
    Auth Pages — 暗色现代设计
    ============================================================ */
 .auth-page {
-  min-height: 100vh; display: flex;
+  min-height: 100vh; min-height: 100dvh; display: flex;
   align-items: center; justify-content: center;
   background:
-    radial-gradient(1200px 800px at 78% -10%, rgba(109,90,230,.30) 0%, transparent 55%),
+    radial-gradient(1200px 800px at 78% -10%, rgba(var(--color-primary-rgb), .30) 0%, transparent 55%),
     radial-gradient(900px 700px at 10% 110%, rgba(23,184,166,.22) 0%, transparent 55%),
     linear-gradient(160deg, #17132A 0%, #1E1740 46%, #140F26 100%);
   position: relative; overflow-x: hidden; overflow-y: auto;

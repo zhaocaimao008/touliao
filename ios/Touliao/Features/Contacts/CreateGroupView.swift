@@ -14,14 +14,14 @@ struct CreateGroupView: View {
             if vm.loading {
                 Spacer(); ProgressView(); Spacer()
             } else if vm.contacts.isEmpty {
-                Spacer(); Text("还没有联系人").foregroundColor(.vxinTextSecondary); Spacer()
+                VxinEmptyState(icon: "contacts", title: "还没有联系人", subtitle: "先去添加好友吧")
             } else {
                 List(vm.contacts) { contact in
                     Group {
                     Button { vm.toggle(contact.id) } label: {
                         HStack(spacing: 12) {
                             TouliaoIcon(vm.selected.contains(contact.id) ? "selected" : "unselected")
-                                .foregroundColor(vm.selected.contains(contact.id) ? .vxinGreen : .vxinTextSecondary)
+                                .foregroundColor(vm.selected.contains(contact.id) ? .vxinBrand : .vxinTextSecondary)
                             InitialAvatar(name: contact.displayName.isEmpty ? "?" : contact.displayName, size: 40)
                             Text(contact.displayName.isEmpty ? "未命名" : contact.displayName).foregroundColor(.vxinText)
                             Spacer()

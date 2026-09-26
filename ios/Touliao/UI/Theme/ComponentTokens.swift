@@ -117,6 +117,8 @@ enum TouliaoTextRole {
     }
 }
 
+/// 通话 UI 专用调色板：有意为之的固定深色（通话界面始终深色画布，不跟随系统深浅模式）。
+/// 若未来需要浅色通话 UI，再收敛到 TouliaoDesign adaptive token。
 enum TouliaoMedia {
     static let canvas = Color(red: 16 / 255.0, green: 21 / 255.0, blue: 30 / 255.0)
     static let surface = Color(red: 24 / 255.0, green: 33 / 255.0, blue: 45 / 255.0)

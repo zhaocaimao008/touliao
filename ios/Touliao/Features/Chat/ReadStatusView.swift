@@ -126,12 +126,12 @@ struct ReadStatusDetailSheet: View {
                                     Spacer()
                                     if model.readCount > 0 {
                                         Text(expanded ? "收起" : "展开")
-                                            .touliaoText(.secondary).foregroundColor(.vxinGreen)
+                                            .touliaoText(.secondary).foregroundColor(.vxinBrand)
                                     }
                                 }
                             }
                             if model.readCount == 0 {
-                                Text("暂无成员已读").touliaoText(.secondary).foregroundColor(.vxinTextSecondary)
+                                VxinEmptyState(icon: "read", title: "暂无成员已读")
                             }
                         }
                         if expanded {

@@ -133,7 +133,14 @@ struct ConversationListView: View {
         if vm.loading && vm.conversations.isEmpty {
             ProgressView()
         } else if let error = vm.error, vm.conversations.isEmpty {
-            Text(error).foregroundColor(.vxinError)
+            VxinEmptyState(
+                icon: "error",
+                title: "加载失败",
+                subtitle: error,
+                isError: true,
+                actionTitle: "重试",
+                action: { Task { await vm.refresh() } }
+            )
         } else if vm.conversations.isEmpty {
             VxinEmptyState(
                 icon: "chat",
@@ -170,9 +177,10 @@ struct ConversationListView: View {
                     }
                 }
                 if visible.isEmpty {
-                    Text(showArchived ? "暂无归档会话" : (filter == .unread ? "没有未读消息" : filter == .groups ? "暂无群聊" : "暂无会话"))
-                        .touliaoText(.secondary).foregroundColor(.vxinTextSecondary)
-                        .frame(maxWidth: .infinity, alignment: .center)
+                    VxinEmptyState(
+                        icon: showArchived ? "archive" : "chat",
+                        title: showArchived ? "暂无归档会话" : (filter == .unread ? "没有未读消息" : filter == .groups ? "暂无群聊" : "暂无会话")
+                    )
                         .padding(.vertical, 32)
                         .listRowSeparator(.hidden)
                 }
@@ -212,7 +220,7 @@ struct ConversationListView: View {
                 RoundedRectangle(cornerRadius: VxinRadius.sm)
                     .fill(Color.vxinBrand.opacity(0.12))
                     .frame(width: 40, height: 40)
-                    .overlay(TouliaoIcon("archive").foregroundColor(.vxinGreen))
+                    .overlay(TouliaoIcon("archive").foregroundColor(.vxinBrand))
                 Text("归档").touliaoText(.body)
                 Spacer()
                 if vm.archiveUnreadTotal > 0 {
@@ -239,7 +247,7 @@ struct ConversationListView: View {
                     TouliaoIcon("back")
                     Text("返回")
                 }
-                .foregroundColor(.vxinGreen)
+                .foregroundColor(.vxinBrand)
             }
             .accessibilityLabel("返回消息列表")
             Spacer()
@@ -298,7 +306,7 @@ struct ConversationRow: View {
                         // 有未读@我：绿色小标，读后随刷新消失
                         Text("[@我]")
                             .touliaoText(.caption).bold()
-                            .foregroundColor(.vxinGreen)
+                            .foregroundColor(.vxinBrand)
                             .accessibilityIdentifier("conv-item-mention")
                     }
                     if !draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
