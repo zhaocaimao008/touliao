@@ -83,38 +83,16 @@ struct ContactsView: View {
                 }
             }
 
-            Section("联系人") {
-                if vm.contacts.isEmpty && !vm.loading {
+            if vm.contacts.isEmpty && !vm.loading {
+                Section("联系人") {
                     VxinEmptyState(icon: "contacts", title: "还没有联系人", subtitle: "点击右上角 + 添加好友")
                 }
-                ForEach(vm.contacts) { contact in
-                    Button { Task { if let conv = await vm.startPrivateChat(contact) { onStartChat(conv) } } } label: {
-                        HStack(spacing: 12) {
-                            InitialAvatar(name: contact.displayName.isEmpty ? "?" : contact.displayName, size: 44, avatarUrl: contact.avatar)
-                                .overlay(alignment: .bottomTrailing) {
-                                    if vm.onlineIds.contains(contact.id) {
-                                        Circle().fill(Color.vxinOnline).frame(width: 12, height: 12)
-                                            .overlay(Circle().stroke(.white, lineWidth: 2))
-                                    }
-                                }
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(contact.displayName.isEmpty ? "未命名" : contact.displayName).foregroundColor(.vxinText)
-                                if !contact.bio.isEmpty {
-                                    Text(contact.bio).touliaoText(.caption).foregroundColor(.vxinTextSecondary).lineLimit(1)
-                                }
-                                // 特权账户：离线时展示精确最后在线时间（后端仅对特权账户返回 lastOnlineAt）
-                                if !vm.onlineIds.contains(contact.id),
-                                   let ts = contact.lastOnlineAt, ts > 0 {
-                                    Text(formatLastOnline(ts)).touliaoText(.caption).foregroundColor(.vxinTextSecondary).lineLimit(1)
-                                }
-                            }
-                            Spacer()
-                        }
-                    }
-                    .contextMenu {
-                        Button("设置备注") { remarkText = contact.remark ?? ""; remarkTarget = contact }
-                        Button("加入黑名单", role: .destructive) { blockTarget = contact }
-                        Button("删除好友", role: .destructive) { deleteTarget = contact }
+            }
+            // 按拼音首字母分组、组内按拼音排序（对齐 Android / Web；原先所有人堆在一个「联系人」分组、未排序）
+            ForEach(contactSections, id: \.letter) { section in
+                Section(section.letter) {
+                    ForEach(section.items) { contact in
+                        contactRow(contact)
                     }
                 }
             }
@@ -159,6 +137,44 @@ struct ContactsView: View {
         .toast($vm.error)
         .task { await vm.refresh() }
     }
+
+    private var contactSections: [(letter: String, items: [Contact])] {
+        let groups = Dictionary(grouping: vm.contacts) { ContactPinyin.sectionLetter($0.displayName) }
+        return groups.keys
+            .sorted { a, b in a == "#" ? false : (b == "#" ? true : a < b) }
+            .map { key in (key, groups[key]!.sorted { ContactPinyin.sortKey($0.displayName) < ContactPinyin.sortKey($1.displayName) }) }
+    }
+
+    @ViewBuilder private func contactRow(_ contact: Contact) -> some View {
+        Button { Task { if let conv = await vm.startPrivateChat(contact) { onStartChat(conv) } } } label: {
+            HStack(spacing: 12) {
+                InitialAvatar(name: contact.displayName.isEmpty ? "?" : contact.displayName, size: 44, avatarUrl: contact.avatar)
+                    .overlay(alignment: .bottomTrailing) {
+                        if vm.onlineIds.contains(contact.id) {
+                            Circle().fill(Color.vxinOnline).frame(width: 12, height: 12)
+                                .overlay(Circle().stroke(.white, lineWidth: 2))
+                        }
+                    }
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(contact.displayName.isEmpty ? "未命名" : contact.displayName).foregroundColor(.vxinText)
+                    if !contact.bio.isEmpty {
+                        Text(contact.bio).touliaoText(.caption).foregroundColor(.vxinTextSecondary).lineLimit(1)
+                    }
+                    // 特权账户：离线时展示精确最后在线时间（后端仅对特权账户返回 lastOnlineAt）
+                    if !vm.onlineIds.contains(contact.id),
+                       let ts = contact.lastOnlineAt, ts > 0 {
+                        Text(formatLastOnline(ts)).touliaoText(.caption).foregroundColor(.vxinTextSecondary).lineLimit(1)
+                    }
+                }
+                Spacer()
+            }
+        }
+        .contextMenu {
+            Button("设置备注") { remarkText = contact.remark ?? ""; remarkTarget = contact }
+            Button("加入黑名单", role: .destructive) { blockTarget = contact }
+            Button("删除好友", role: .destructive) { deleteTarget = contact }
+        }
+    }
 }
 
 /// 特权账户：格式化好友最后在线时间（Unix 秒），精确到分钟。
@@ -178,4 +194,24 @@ func formatLastOnline(_ ts: Double) -> String {
     let df = DateFormatter()
     df.dateFormat = "M月d日 HH:mm"
     return df.string(from: date)
+}
+
+/// 联系人拼音分组：系统汉字转拉丁（多音字取常用读音），结果缓存避免每次刷新重复计算
+@MainActor
+enum ContactPinyin {
+    private static var cache: [String: String] = [:]
+
+    static func sortKey(_ name: String) -> String {
+        if let hit = cache[name] { return hit }
+        let latin = (name.applyingTransform(.mandarinToLatin, reverse: false) ?? name)
+            .applyingTransform(.stripDiacritics, reverse: false)?.uppercased() ?? name.uppercased()
+        cache[name] = latin
+        return latin
+    }
+
+    static func sectionLetter(_ name: String) -> String {
+        guard let first = sortKey(name.trimmingCharacters(in: .whitespaces)).first,
+              ("A"..."Z").contains(first) else { return "#" }
+        return String(first)
+    }
 }

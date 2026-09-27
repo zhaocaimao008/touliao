@@ -243,23 +243,43 @@ private fun sectionLetterOf(name: String): Char {
     }
 }
 
-/** 中文首字符 → 拼音首字母（基于 GB2312 区间近似，覆盖常用汉字） */
+/**
+ * 中文首字符 → 拼音首字母。
+ * 原实现按 Unicode 码点区间推算，但 Unicode 汉字按部首笔画排列、与拼音无关，
+ * 导致「产」「李」「陈」等被分进 Y/Z 组。现改为：
+ *  - Android 10+：系统 ICU 汉字转拉丁（覆盖生僻字、多音字取常用读音）
+ *  - 更低版本：GB2312 一级汉字（按拼音排序）编码区间表，覆盖 3755 个常用字
+ */
 private fun pinyinFirstLetter(c: Char): Char {
-    if (c.code < 0x4E00 || c.code > 0x9FFF) return '#'
-    // 各字母拼音区间的起始汉字（Unicode 码点，按拼音排序的边界）
-    val boundaries = listOf(
-        0x4E00 to 'A', 0x516B to 'B', 0x5693 to 'C', 0x5491 to 'D',
-        0x59B1 to 'E', 0x53D1 to 'F', 0x7324 to 'G', 0x54C8 to 'H',
-        0x51E0 to 'J', 0x5580 to 'K', 0x62C9 to 'L', 0x5988 to 'M',
-        0x5B01 to 'N', 0x54E6 to 'O', 0x5991 to 'P', 0x671F to 'Q',
-        0x7136 to 'R', 0x6492 to 'S', 0x584C to 'T', 0x7A75 to 'W',
-        0x5915 to 'X', 0x4E2B to 'Y', 0x5E00 to 'Z',
-    )
-    var result = '#'
-    for ((code, letter) in boundaries) {
-        if (c.code >= code) result = letter
+    if (c.code < 0x3400 || c.code > 0x9FFF) return '#'
+    if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
+        val latin = runCatching { hanToLatin.transliterate(c.toString()) }.getOrNull()
+        val first = latin?.firstOrNull { it.isLetter() }?.uppercaseChar()
+        if (first != null && first in 'A'..'Z') return first
     }
-    return result
+    return gb2312FirstLetter(c)
+}
+
+private val hanToLatin by lazy {
+    android.icu.text.Transliterator.getInstance("Han-Latin; Latin-ASCII")
+}
+
+// GB2312 一级汉字各拼音首字母的起始编码（I/U/V 无汉字）
+private val GB2312_BOUNDARIES = intArrayOf(
+    0xB0A1, 0xB0C5, 0xB2C1, 0xB4EE, 0xB6EA, 0xB7A2, 0xB8C1, 0xB9FE, 0xBBF7,
+    0xBFA6, 0xC0AC, 0xC2E8, 0xC4C3, 0xC5B6, 0xC5BE, 0xC6DA, 0xC8BB, 0xC8F6,
+    0xCBFA, 0xCDDA, 0xCEF4, 0xD1B9, 0xD4D1,
+)
+private const val GB2312_LETTERS = "ABCDEFGHJKLMNOPQRSTWXYZ"
+
+private fun gb2312FirstLetter(c: Char): Char {
+    val bytes = runCatching { c.toString().toByteArray(charset("GB2312")) }.getOrNull() ?: return '#'
+    if (bytes.size != 2) return '#'
+    val code = ((bytes[0].toInt() and 0xFF) shl 8) or (bytes[1].toInt() and 0xFF)
+    if (code < GB2312_BOUNDARIES[0] || code > 0xD7F9) return '#'   // 二级汉字按部首排列，无法推算
+    var letter = '#'
+    for (i in GB2312_BOUNDARIES.indices) if (code >= GB2312_BOUNDARIES[i]) letter = GB2312_LETTERS[i]
+    return letter
 }
 
 @OptIn(ExperimentalFoundationApi::class)
