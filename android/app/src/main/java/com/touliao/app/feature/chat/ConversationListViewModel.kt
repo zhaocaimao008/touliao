@@ -203,7 +203,8 @@ class ConversationListViewModel @Inject constructor(
                     if (idx < 0) return@update state   // 未在列表中（新会话）暂忽略，下次刷新可见
                     val old = list.removeAt(idx)
                     val updated = old.copy(
-                        lastMessage = msg.content,
+                        // 阅后即焚：预览不透出原文（与服务端列表/推送同口径）
+                        lastMessage = if (msg.burn_after > 0) "[阅后即焚消息]" else msg.content,
                         lastMessageType = msg.type,
                         lastTime = msg.created_at,
                         unreadCount = if (msg.sender_id != myId) old.unreadCount + 1 else old.unreadCount,

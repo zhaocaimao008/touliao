@@ -226,7 +226,8 @@ final class ConversationListViewModel: ObservableObject {
             return  // 新会话暂忽略，下次刷新/重连可见
         }
         var conv = conversations.remove(at: idx)
-        conv.lastMessage = msg.content
+        // 阅后即焚：预览不透出原文（与服务端列表/推送同口径）
+        conv.lastMessage = msg.burnAfter > 0 ? "[阅后即焚消息]" : msg.content
         conv.lastMessageType = msg.type
         conv.lastTime = msg.createdAt
         if msg.senderId != myId {

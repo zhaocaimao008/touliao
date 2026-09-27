@@ -1239,6 +1239,7 @@ function getMentions(userId, { offset = 0, limit = 20, before, beforeId }) {
     JOIN conversation_members cm
          ON cm.conversation_id = m.conversation_id AND cm.user_id = ?
     WHERE m.deleted = 0
+      AND m.burn_after = 0  -- 阅后即焚不进「@我」列表（列表会透出原文）
       AND m.sender_id != ?
       AND instr(m.content, ?) > 0
   `;

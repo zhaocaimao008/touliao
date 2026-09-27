@@ -55,4 +55,14 @@ describe('搜索排除阅后即焚与仅自己删除的消息', () => {
       expect(ids(res.body)).not.toContain(deletedForMeId);
     }
   });
+
+  test('会话列表预览不透出阅后即焚原文', async () => {
+    insertMsg(convId, a.userId, '最后一条焚毁丁', 30);
+    const res = await get(b, '/api/messages/conversations');
+    expect(res.status).toBe(200);
+    const list = Array.isArray(res.body) ? res.body : (res.body.items || res.body.conversations || []);
+    const conv = list.find(c => c.id === convId);
+    expect(conv.lastMessage).toBe('[阅后即焚消息]');
+    expect(JSON.stringify(res.body)).not.toContain('最后一条焚毁丁');
+  });
 });
