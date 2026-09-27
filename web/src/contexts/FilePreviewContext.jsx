@@ -1,7 +1,8 @@
-import React, { createContext, useCallback, useContext, useState, lazy, Suspense } from 'react';
+import React, { createContext, useCallback, useContext, useState, Suspense } from 'react';
 import { useAuth } from './AuthContext';
+import { lazyWithRetry } from '../utils/lazyWithRetry';
 
-const FilePreview = lazy(() => import('../components/FilePreview'));
+const FilePreview = lazyWithRetry(() => import('../components/FilePreview'));
 
 const FilePreviewContext = createContext(null);
 

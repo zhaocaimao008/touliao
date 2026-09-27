@@ -1,4 +1,4 @@
-import React, { Suspense, lazy } from 'react';
+import React, { Suspense } from 'react';
 import { BrowserRouter, HashRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { SettingsProvider } from './contexts/SettingsContext';
@@ -9,14 +9,15 @@ import ElectronTitlebar from './components/ElectronTitlebar';
 import UpdateBanner from './components/UpdateBanner';
 import ErrorBoundary from './components/ErrorBoundary';
 import { useDesktopForceUpdate, ForceUpdateScreen } from './components/ForceUpdateGate';
+import { lazyWithRetry } from './utils/lazyWithRetry';
 
 // 路由级代码分割：每个页面拆成独立 chunk，减小首屏 bundle。
 // Home 体量最大（聊天主页 + ChatWindow 等），懒加载收益最高。
-const Login          = lazy(() => import('./pages/Login'));
-const Register       = lazy(() => import('./pages/Register'));
-const ForgotPassword = lazy(() => import('./pages/ForgotPassword'));
-const Home           = lazy(() => import('./pages/Home'));
-const JoinGroup      = lazy(() => import('./pages/JoinGroup'));
+const Login          = lazyWithRetry(() => import('./pages/Login'));
+const Register       = lazyWithRetry(() => import('./pages/Register'));
+const ForgotPassword = lazyWithRetry(() => import('./pages/ForgotPassword'));
+const Home           = lazyWithRetry(() => import('./pages/Home'));
+const JoinGroup      = lazyWithRetry(() => import('./pages/JoinGroup'));
 
 // Electron 使用 HashRouter（file:// 不支持 pushState）；Web 用 BrowserRouter
 const Router = window.__ELECTRON_CONFIG__ ? HashRouter : BrowserRouter;
