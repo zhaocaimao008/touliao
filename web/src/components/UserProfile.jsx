@@ -117,7 +117,7 @@ export default function UserProfile({ userId, onClose, onStartChat, onFriendAdde
         await axios.delete(`/api/users/block/${userId}`);
         setBlocked(false);
       } else {
-        if (!(await showConfirm(t('up.confirmBlacklistTemplate').replace('{name}', user.remark || user.username)))) return;
+        if (!(await showConfirm(`${t('up.confirmBlacklistTemplate').replace('{name}', user.remark || user.username)}\n${t('up.blacklistEffectNote')}`))) return;
         await axios.post(`/api/users/block/${userId}`);
         setBlocked(true);
       }
@@ -166,7 +166,6 @@ export default function UserProfile({ userId, onClose, onStartChat, onFriendAdde
           </div>
         </div>
 
-        <p className="safety-links">黑名单阻止双方私聊和好友申请，并隐藏双方动态；共同群聊与已有历史仍可能可见。</p>
         {/* 名字 + ID */}
         <div className="up-identity">
           <div className="up-name">{displayName}</div>
@@ -292,6 +291,8 @@ export default function UserProfile({ userId, onClose, onStartChat, onFriendAdde
             </DangerButton>
           </div>
         )}
+        {/* 黑名单作用范围说明（合规披露，紧挨拉黑按钮）：原先夹在封面与名字之间，压在浮起的头像上 */}
+        {user.isFriend && <p className="up-safety-note">{t('up.blacklistEffectNote')}</p>}
       </div>
     </div>
   );

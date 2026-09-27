@@ -22,6 +22,7 @@ function ChatHeader({
   onStartGroupCall,
   onToggleGroupInfo,
   onToggleSearch,
+  typingName = '',
 }) {
   const { t } = useI18n();
   const isPrivate = conversation.type === 'private';
@@ -51,7 +52,12 @@ function ChatHeader({
             {memberCount ? <span className="wc-header-member-count">({memberCount})</span> : null}
           </div>
         )}
-        {isPrivate && conversation.otherUser?.status === 'online' && (
+        {/* 「正在输入」放在标题下（与微信一致），原先浮在消息区底部会盖住最后一条消息 */}
+        {typingName ? (
+          <div className="wc-chat-header-sub wc-chat-header-typing" aria-live="polite">
+            {isPrivate ? t('chat.peerTyping') : t('chat.typingTemplate').replace('{name}', typingName)}
+          </div>
+        ) : isPrivate && conversation.otherUser?.status === 'online' && (
           <div className="wc-chat-header-sub">{t('contacts.online')}</div>
         )}
       </div>

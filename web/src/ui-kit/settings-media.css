@@ -60,7 +60,7 @@ html.touliao-ui body .chatfiles-item { min-height: 76px; padding: 16px; gap: 12p
 html.touliao-ui body .chatfiles-thumb { color: var(--tl-primary); background: var(--tl-primary-soft); border-radius: 12px; }
 html.touliao-ui body .chatfiles-info-name { font-size: 14px; line-height: 1.6; }
 html.touliao-ui body .chatfiles-info-meta { font-size: 12px; color: var(--tl-readable-muted); }
-html.touliao-ui body .tl-call-history { max-width: 1000px; margin-inline: auto; }
+html.touliao-ui body .tl-call-history { width: 100%; max-width: 1000px; margin-inline: auto; } /* 父级是横向 flex：不给宽度会缩成内容宽（约 300px），状态文字被截断 */
 html.touliao-ui body .tl-call-log { background: var(--tl-surface); min-height: 76px; }
 html.touliao-ui body .tl-call-log:hover { background: var(--tl-surface-hover); }
 /* Calls intentionally keep a dark media canvas for readable controls over video. */
