@@ -7,6 +7,16 @@ const config = require('../../config');
 const { badRequest, forbidden, notFound } = require('../../utils/http');
 const { isMember, requireMember, memberRole, purgeConversation, invalidateConv } = require('../messages/shared');
 
+// 新成员入群：已读位置设到当前最后一条消息，入群前的历史不计入未读
+// （否则一进大群就是「99+」，与「刚加入」的直觉不符；历史记录仍可正常翻看）。
+// 须在写事务内调用，与 conversation_members 插入同一原子单元。
+const _markHistoryRead = db.prepare(`
+  INSERT INTO conversation_settings (user_id, conversation_id, last_read_at)
+  VALUES (?, ?, COALESCE((SELECT MAX(created_at) FROM messages WHERE conversation_id=?), 0))
+  ON CONFLICT(user_id, conversation_id) DO UPDATE SET last_read_at = excluded.last_read_at, manually_unread = 0
+`);
+function markHistoryRead(convId, userId) { _markHistoryRead.run(userId, convId, convId); }
+
 // ── 群昵称 ──────────────────────────────────────────────────────
 function setNickname(io, convId, userId, nickname) {
   if (nickname !== undefined && (typeof nickname !== 'string' || nickname.length > 30))
@@ -119,6 +129,7 @@ function joinByToken(io, userId, token) {
     if (userGroupCount >= 1000) throw badRequest('已达最大群数量上限 1000 个');
     db.prepare('INSERT OR IGNORE INTO conversation_members (conversation_id,user_id,role) VALUES (?,?,?)')
       .run(invite.conversation_id, userId, 'member');
+    markHistoryRead(invite.conversation_id, userId);
   }).immediate();
   invalidateConv(invite.conversation_id); // 入群后立即可见（isMember 5s 缓存失效）
   if (alreadyMember) {
@@ -201,7 +212,7 @@ function invite(io, convId, userId, userIds) {
     if (curCount + newCount > config.limits.maxGroupMembers) throw badRequest(`群成员将超过上限 ${config.limits.maxGroupMembers} 人`);
     userIds.forEach(uid => {
       if (!validSet.has(uid)) return;
-      if (add.run(convId, uid).changes > 0) added.push(uid);
+      if (add.run(convId, uid).changes > 0) { added.push(uid); markHistoryRead(convId, uid); }
     });
   })();
   if (io && added.length > 0) {

@@ -6,6 +6,9 @@ import { feedbackDuration } from '../ui-kit/feedbackPolicy';
 
 let _setToast = null;
 let _setConfirm = null;
+// ToastRoot 挂载前发出的提示先暂存（页面刚加载时组件的 effect 比 ToastRoot 先跑，
+// 如登录页的「请先登录」「登录已失效」），挂载后补显示，而不是静默丢弃
+let _pendingToast = null;
 
 function ToastRoot() {
   // ToastRoot 挂在独立的 ReactDOM root 上（在 I18nProvider 之外），拿不到 useI18n()。
@@ -26,6 +29,7 @@ function ToastRoot() {
       }
     };
     _setConfirm = setConfirm;
+    if (_pendingToast) { _setToast(_pendingToast); _pendingToast = null; }
     return () => { _setToast = null; _setConfirm = null; clearTimeout(timerRef.current); };
   }, []);
 
@@ -61,7 +65,8 @@ document.body.appendChild(container);
 ReactDOM.createRoot(container).render(<ToastRoot />);
 
 export function showToast(msg, type = 'info') {
-  _setToast?.({ msg, type });
+  if (_setToast) _setToast({ msg, type });
+  else _pendingToast = { msg, type };
 }
 
 export function showConfirm(msg, options = {}) {

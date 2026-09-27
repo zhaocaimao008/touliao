@@ -123,6 +123,10 @@ html.touliao-ui body:not([data-skin="wechat"]):not([data-skin="wecom"]) .wc-chat
 html.touliao-ui body:not([data-skin="wechat"]):not([data-skin="wecom"]) .wc-chat-item-name { font-size: 15px; font-weight: 600; letter-spacing: -0.01em; }
 html.touliao-ui body:not([data-skin="wechat"]):not([data-skin="wecom"]) .wc-chat-item-preview { font-size: 13px; }
 html.touliao-ui body:not([data-skin="wechat"]):not([data-skin="wecom"]) .wc-chat-item-badge { border-radius: 999px; background: var(--tl-primary); box-shadow: 0 0 0 2px var(--tl-surface); }
+/* 选中行：index.css 旧规则把角标字色设成主色（给深色选中行配白底角标用），这里底色也是主色 → 数字看不见 */
+html.touliao-ui body:not([data-skin="wechat"]):not([data-skin="wecom"]) .wc-chat-item.active .wc-chat-item-badge { color: var(--tl-primary-foreground); }
+/* 免打扰：灰色角标（上面的主色规则优先级更高，会把 index.css 的 .muted 灰色盖掉，免打扰与普通会话看起来一样） */
+html.touliao-ui body:not([data-skin="wechat"]):not([data-skin="wecom"]) .wc-chat-item-badge.muted { background: var(--tl-text-disabled); color: var(--tl-primary-foreground); }
 /* 左滑按钮与圆角行对齐 */
 html.touliao-ui body:not([data-skin="wechat"]):not([data-skin="wecom"]) .wc-chat-item-swipe-actions { right: 8px; border-radius: 14px; overflow: hidden; }
 

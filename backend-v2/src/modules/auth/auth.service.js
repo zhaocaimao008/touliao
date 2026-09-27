@@ -9,7 +9,7 @@ const { normalizePhone } = require('../../utils/phone');
 const { addToBlacklist } = require('../../utils/tokenBlacklist');
 const { invalidateUser } = require('../../utils/userStatusCache');
 const captcha = require('../../utils/captcha');
-const { hasActiveSession, passwordRevoked } = require('../../utils/sessionAuthorization');
+const { hasActiveSession, passwordRevoked, tokenRoom } = require('../../utils/sessionAuthorization');
 
 // 运行时邀请码：支持多个逗号分隔（后台可改）
 function currentInviteCode() {
@@ -300,7 +300,10 @@ async function changePassword(userId, { oldPassword, newPassword, currentToken }
   if (!await bcrypt.compare(oldPassword, user.password)) throw badRequest('当前密码错误');
   // 授权点已通过:立即断开该用户全部 socket,避免慢速 bcrypt.hash(rounds=12,数百毫秒)把断连推过调用方的 1s 预算。
   // 事务提交后 auth.controller 仍会再次 disconnectSockets(true) 作为最终保证(窗口内重连的 socket 也会被清掉)。
-  req?.app?.get?.('io')?.in(`user_${userId}`).disconnectSockets(true);
+  // 其他设备先收到原因再被断开，否则只看到「连接断开」，回到登录页也不知道为什么
+  const io = req?.app?.get?.('io');
+  if (io && currentToken) io.to(`user_${userId}`).except(tokenRoom(currentToken)).emit('session_expired', { reason: '密码已修改，请重新登录' });
+  io?.in(`user_${userId}`).disconnectSockets(true);
   const hash = await bcrypt.hash(newPassword, 12);
   const now = Math.floor(Date.now() / 1000);
   const jti = db.transaction(() => {

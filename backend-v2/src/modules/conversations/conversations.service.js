@@ -226,7 +226,14 @@ async function listConversations(uid, { includeArchived = false, offset = 0, lim
     SELECT
       c.id, c.type, c.name, c.avatar, c.group_number,
       -- 阅后即焚：列表预览不透出原文（与推送同口径），否则不点开就能在会话列表读到内容
-      CASE WHEN m.burn_after > 0 THEN '[阅后即焚消息]' ELSE m.content END AS lastMessage,
+      CASE WHEN m.burn_after > 0 THEN '[阅后即焚消息]'
+           -- 通话消息 content 存的是主叫文案；被叫看到的应是「已拒绝 / 未接来电」（与聊天内居中提示同口径）
+           WHEN m.type = 'call' AND m.sender_id != ? THEN
+             CASE m.content WHEN '对方已拒绝' THEN '已拒绝'
+                            WHEN '已取消'     THEN '未接来电'
+                            WHEN '对方无应答' THEN '未接来电'
+                            ELSE m.content END
+           ELSE m.content END AS lastMessage,
       m.type       AS lastMessageType,
       -- 无消息的会话（如刚加的好友）用会话创建时间，与下方 ORDER BY 同口径；否则客户端按 lastTime 重排后沉到列表底部
       COALESCE(m.created_at, c.created_at) AS lastTime,
@@ -295,7 +302,7 @@ async function listConversations(uid, { includeArchived = false, offset = 0, lim
     ${includeArchived ? '' : 'AND COALESCE(cs.archived, 0) = 0'}
     ORDER BY COALESCE(cs.pinned, 0) DESC, COALESCE(m.created_at, c.created_at) DESC, c.id DESC
     LIMIT ? OFFSET ?
-  `).all(uid, uid, uid, meUsername, meUsername, uid, uid, uid, uid, uid, uid, lim, off);
+  `).all(uid, uid, uid, uid, meUsername, meUsername, uid, uid, uid, uid, uid, uid, lim, off);
 
   const memberMap = new Map();
   if (rows.some(r => r.type === 'group')) {

@@ -150,6 +150,9 @@ const translations = {
     'chat.otherPartyDefault': '对方',
     'chat.callBusy': '对方正忙，请稍后再试',
     'chat.callFailedRetry': '呼叫失败，请重试',
+    'chat.callTooFrequent': '操作太频繁，请稍后再拨',
+    'chat.callUnavailable': "对方暂时无法接听",
+    'chat.callTypeDisabled': '该通话功能已被管理员关闭',
     'chat.groupDissolved': '群聊已解散',
     'chat.mentionNotifTemplate': '@{from} 在 {group} 中提到了你',
     'chat.networkRecoveredResendTemplate': '网络已恢复，正在重发 {count} 条消息',
@@ -1123,6 +1126,7 @@ const translations = {
     'lang.zh-TW': '繁體中文',
     // 登录/注册/找回密码
     'auth.slogan': '安全 · 私密 · 畅聊',
+    'auth.sessionExpiredNotice': '登录状态已失效，请重新登录',
     'auth.recentLogins': '最近登录',
     'auth.fillPhone': '填入手机号',
     'auth.removeRecord': '移除记录',

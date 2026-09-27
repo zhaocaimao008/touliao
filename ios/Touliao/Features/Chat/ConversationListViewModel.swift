@@ -222,14 +222,34 @@ final class ConversationListViewModel: ObservableObject {
         drafts = map
     }
 
+    /// 通话消息 content 是主叫文案；被叫的列表预览换成被叫视角（与服务端会话列表同口径）
+    static func calleeCallText(_ content: String) -> String {
+        switch content {
+        case "对方已拒绝": return "已拒绝"
+        case "已取消", "对方无应答": return "未接来电"
+        default: return content
+        }
+    }
+
     /// 新消息到达：就地更新对应会话的最后消息/时间/未读，并置顶
     private func apply(_ msg: Message) {
         guard let idx = conversations.firstIndex(where: { $0.id == msg.conversationId }) else {
-            return  // 新会话暂忽略，下次刷新/重连可见
+            // 未在列表中（删除过的会话来了新消息 / 被拉进新群后的首条消息）：整表刷新，
+            // 否则要等下次下拉/重连才出现（与 Web 找不到会话时 fetchConvs 同口径）
+            Task { await refresh() }
+            return
         }
         var conv = conversations.remove(at: idx)
         // 阅后即焚：预览不透出原文（与服务端列表/推送同口径）
-        conv.lastMessage = msg.burnAfter > 0 ? "[阅后即焚消息]" : msg.content
+        if msg.burnAfter > 0 {
+            conv.lastMessage = "[阅后即焚消息]"
+        } else if msg.type == "call" && msg.senderId != myId {
+            conv.lastMessage = Self.calleeCallText(msg.content)
+        } else {
+            conv.lastMessage = msg.content
+        }
+        // 群预览是「发送者: 内容」，不同步发送者会把新内容挂到上一条的发送者名下
+        if !msg.senderName.isEmpty { conv.lastSenderName = msg.senderName }
         conv.lastMessageType = msg.type
         conv.lastTime = msg.createdAt
         if msg.senderId != myId {

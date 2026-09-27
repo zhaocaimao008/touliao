@@ -148,6 +148,17 @@ async function uploadThumb(thumbUploadUrl, blob) {
   }
 }
 
+// 服务端拒绝发起通话的原因 → 提示文案（与安卓/iOS CallManager 同口径）
+function callStartErrorText(code, t) {
+  switch (code) {
+    case 'CALL_BUSY': return t('chat.callBusy');
+    case 'CALL_RATE_LIMIT': return t('chat.callTooFrequent');
+    case 'CALL_REJECTED': return t('chat.callUnavailable');
+    case 'VOICE_CALL_DISABLED': case 'VIDEO_CALL_DISABLED': return t('chat.callTypeDisabled');
+    default: return t('chat.callFailedRetry');
+  }
+}
+
 export default function ChatWindow({ conversation: initialConv, features = {}, onClose, onStartCall, onStartGroupCall, onStartChat }) {
   useMediaCredentials();
   const { t } = useI18n();
@@ -219,6 +230,14 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
   const [newMsgCount, setNewMsgCount] = useState(0); // 滚动上翻时到达的新消息数，显示在回到底部按钮上
   const [loadingMore, setLoadingMore] = useState(false);
   const [hasMore, setHasMore] = useState(true);
+  // 跳转到历史位置（搜索/引用/收藏）后，窗口之后还有更新的消息没加载：滚到底部继续向下翻页，
+  // 「回到底部」回到最新。ref 供 socket 回调同步读取。
+  const [hasNewer, setHasNewer] = useState(false);
+  const hasNewerRef = useRef(false);
+  const loadingNewerRef = useRef(false);
+  const markHasNewer = (v) => { hasNewerRef.current = v; setHasNewer(v); };
+  // 跳转定位完成前不触发向下翻页：窗口刚被替换时滚动位置会短暂落在底部，会一口气把后面的页全拉完、跳转失效
+  const newerBlockUntilRef = useRef(0);
   // 通话状态
   // 文件上传进度：null | { name, progress:0-100, status:'uploading'|'error', retryFn? }
   const [uploadState, setUploadState] = useState(null);
@@ -322,7 +341,13 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
           applyPage: async events => {
             // Drop persisted snapshots before advancing the durable cursor.
             if (events.some(e => ['conversation_cleared','message_vanished','message_deleted_for_me'].includes(e.event_type))) await saveCache(conversation.id, [], {strict:true});
-            if (isCurrent()) setMessages(previous => applySyncEvents(previous, events));
+            if (!isCurrent()) return;
+            if (hasNewerRef.current) {
+              // 停在跳转后的历史窗口：新消息不插进窗口（与窗口之间有断档；计数由 new_message 负责），
+              // 窗口内已有消息的编辑/撤回等照常生效。回到最新/向下翻页时从服务端重新拉取
+              events = events.filter(e => e.event_type !== 'message_created');
+            }
+            setMessages(previous => applySyncEvents(previous, events));
           },
         });
       } while (isCurrent() && flight.requested);
@@ -393,7 +418,12 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
     }, (ack) => {
       if (pendingCallRef.current !== 'pending') return; // 已经被 call:error 取消，忽略迟到的 ack
       pendingCallRef.current = null;
-      if (!ack?.callId) return; // 旧后端/异常：没有 callId 就不开呼叫界面，防止无 callId 的通话流程
+      if (!ack?.callId) {
+        // 没有 callId 就不开呼叫界面。服务端拒绝发起（限流/不可接听/通话类型被关闭）只回 ack.error、
+        // 不一定 emit call:error——不提示的话用户点了按钮毫无反应
+        if (ack?.error) showToast(callStartErrorText(ack.error, t), 'error');
+        return;
+      }
       onStartCall?.({ type, direction: 'outgoing', remoteUser, remoteId, callId: ack.callId, resumeToken: ack.resumeToken });
     });
   }, [socket, conversation, user, onStartCall, t]);
@@ -404,7 +434,7 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
     const onCallError = (err) => {
       if (pendingCallRef.current !== 'pending') return; // 跟当前这次发起无关，忽略
       pendingCallRef.current = null;
-      showToast(err?.code === 'CALL_BUSY' ? t('chat.callBusy') : t('chat.callFailedRetry'), 'error');
+      showToast(callStartErrorText(err?.code, t), 'error');
     };
     socket.on('call:error', onCallError);
     return () => socket.off('call:error', onCallError);
@@ -693,17 +723,17 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
         }).catch(() => {});
         scheduleBurn(data);
         setHasMore(data.length === 40);
+        markHasNewer(false);
         // 搜索结果跳转：如果有 scrollToId，则滚到该消息；否则滚到底部
         setTimeout(() => {
           const outer = listOuterRef.current;
           if (!outer) return;
           const scrollToId = conversation.scrollToId;
           if (scrollToId) {
-            const targetEl = document.getElementById(`msg-${scrollToId}`);
-            if (targetEl) {
-              targetEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
-              return;
-            }
+            // 走与「点引用跳转」同一入口：已加载的直接定位并高亮；不在最近一页里的（搜索/收藏跳到
+            // 很早的消息）按 /around 拉上下文再定位——原先只查 DOM，找不到就滚到底部，等于没跳
+            callbacksRef.current.scrollToMsg?.(scrollToId);
+            return;
           }
           outer.scrollTo({ top: outer.scrollHeight, behavior: 'auto' });
         }, 50);
@@ -877,6 +907,55 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
   // Load more on scroll to top — RAF 节流，避免高频 scroll 事件触发多次 setState
   const scrollRafRef = useRef(null);
   const handleScrollRef = useRef(null);
+  const loadNewer = useCallback(async () => {
+    if (loadingNewerRef.current || !hasNewerRef.current) return;
+    const last = [...messages].reverse().find(m => !m._tempId);
+    if (!last) return;
+    loadingNewerRef.current = true;
+    const snapConvId = convIdRef.current;
+    try {
+      const { data } = await axios.get(`/api/messages/${snapConvId}`, { params: { limit: 40, after: last.created_at, afterId: last.id } });
+      if (convIdRef.current !== snapConvId) return;
+      const list = Array.isArray(data) ? data : [];
+      setMessages(prev => {
+        const have = new Set(prev.map(m => m.id));
+        const add = list.filter(m => !have.has(m.id));
+        return add.length ? [...prev, ...add] : prev;
+      });
+      scheduleBurn(list);
+      markHasNewer(list.length === 40);
+    } catch {
+      // 下次滚到底部再试
+    } finally {
+      loadingNewerRef.current = false;
+    }
+  }, [messages, scheduleBurn]);
+
+  // 回到最新：丢弃跳转窗口，重新拉最近一页（保留尚未确认的发送中消息）
+  const jumpToLatest = useCallback(async () => {
+    const snapConvId = convIdRef.current;
+    try {
+      const data = await fetchMessages();
+      if (convIdRef.current !== snapConvId || !Array.isArray(data)) return;
+      markHasNewer(false);
+      setHasMore(data.length === 40);
+      setMessages(prev => {
+        const ids = new Set(data.map(m => m.id));
+        const cids = new Set(data.map(m => m.client_msg_id).filter(Boolean));
+        const inflight = prev.filter(m => m._tempId && !ids.has(m.id) && !cids.has(m._tempId));
+        return [...data, ...inflight];
+      });
+      scheduleBurn(data);
+      setNewMsgCount(0);
+      forceScrollRef.current = true;
+      setTimeout(() => virtListRef.current?.scrollToBottom('auto'), 50);
+    } catch {
+      // 保持当前窗口
+    }
+  }, [fetchMessages, scheduleBurn]);
+  const jumpToLatestRef = useRef(null);
+  jumpToLatestRef.current = jumpToLatest;
+
   const handleScroll = useCallback(() => {
     if (scrollRafRef.current) return;
     scrollRafRef.current = requestAnimationFrame(async () => {
@@ -893,7 +972,8 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
         // 用户手动上滑离底 → 结束贴底挂起,后续 onHeightSettle 不再把视口拽回底部
         if (distFromBottom > 300) stickPendingRef.current = false;
       }
-      if (distFromBottom <= 300) setNewMsgCount(c => (c ? 0 : c));
+      if (distFromBottom <= 300 && !hasNewerRef.current) setNewMsgCount(c => (c ? 0 : c));
+      if (hasNewerRef.current && distFromBottom < 80 && !autoScrollingRef.current && Date.now() > newerBlockUntilRef.current) loadNewer();
       if (loadingMore || !hasMore) return;
       if (container.scrollTop < 60 && messages.length > 0) {
         setLoadingMore(true);
@@ -921,7 +1001,7 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
         }
       }
     });
-  }, [loadingMore, hasMore, messages, fetchMessages]);
+  }, [loadingMore, hasMore, messages, fetchMessages, loadNewer]);
   handleScrollRef.current = handleScroll;
 
   // Attach scroll listener to react-window outer div.
@@ -964,6 +1044,7 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
     const onNotify = async ({ conversationId, ts }) => {
       if (!isSessionCurrent(eventScope)) return;
       if (conversationId !== convIdRef.current) return;
+      if (hasNewerRef.current) { setNewMsgCount(c => c + 1); return; } // 同 onMsg：跳转窗口里不接新消息
       try {
         // after-1: 覆盖同秒边界（与断线重连补拉逻辑一致），重复消息由 setMessages 内按 id 去重
         const { data } = await axios.get(`/api/messages/${conversationId}`, {
@@ -998,6 +1079,13 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
         return;
       }
       window.__touliaoPerf?.recv(msg, user.id, 'socket');
+      if (hasNewerRef.current) {
+        // 正停在跳转后的历史窗口：新消息不接在窗口末尾（与窗口之间有断档）。
+        // 自己发的（文件/图片等广播回来）直接回到最新；别人发的只累计到「新消息」按钮
+        if (msg.sender_id === user.id) jumpToLatestRef.current?.();
+        else setNewMsgCount(c => c + 1);
+        return;
+      }
       // 自己发的消息(如文件/图片经后端广播回来)：无条件贴底，与文本发送一致
       if (msg.sender_id === user.id) forceScrollRef.current = true;
       else {
@@ -1037,6 +1125,12 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
         incoming.push(msg);
       }
       if (!incoming.length) return;
+      if (hasNewerRef.current) { // 同 onMsg：跳转窗口里不接新消息，只计数
+        const others = incoming.filter(m => m.sender_id !== user.id).length;
+        if (others) setNewMsgCount(c => c + others);
+        if (others < incoming.length) jumpToLatestRef.current?.();
+        return;
+      }
       setMessages(prev => {
         const have = new Set(prev.map(m => m.id));
         let next = prev.slice();
@@ -1478,6 +1572,8 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
       return;
     }
 
+    // 停在跳转后的历史窗口里发消息：先回到最新，发出的消息才会接在最新消息后面
+    if (hasNewerRef.current) jumpToLatestRef.current?.();
     const content   = text;
     const tempId    = `tmp_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
     const replySnap = replyTo ? { ...replyTo } : null;
@@ -2510,6 +2606,9 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
       outer.scrollTo({ top: outer.scrollHeight, behavior: 'smooth' });
   };
   callbacksRef.current.scrollToMsg = async (msgId) => {
+    // 跳转是明确的「离开底部」：结束贴底跟随，否则内容高度稳定后贴底循环会把视图拽回底部
+    stickBottomRef.current = false;
+    stickPendingRef.current = false;
     const idx = flatItems.findIndex(it => it.type === 'message' && it.msg?.id === msgId);
     if (idx >= 0) {
       virtListRef.current?.scrollToItem(idx, 'center');
@@ -2527,6 +2626,10 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
       if (!data?.messages?.length) { showToast(t('chat.cannotLocateMessage'), 'info'); return; }
       setMessages(data.messages);
       setHasMore(data.hasMore);
+      newerBlockUntilRef.current = Date.now() + 1500;
+      // 保护期内已经滑到底部的话，之后在底部继续滚不会再有 scroll 事件：到期主动复查一次
+      setTimeout(() => handleScrollRef.current?.(), 1600);
+      markHasNewer(!!data.hasNewer);
       setPendingScrollId(msgId);
     } catch {
       showToast(t('chat.cannotLocateMessage'), 'info');
@@ -2672,11 +2775,11 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
               <span></span><span></span><span></span> {t('chat.typingTemplate').replace('{name}', typingName)}
             </div>
           )}
-          {showScrollBtn && (
+          {(showScrollBtn || hasNewer) && (
             <button
               data-testid="chat-scroll-bottom"
               className={`cw-scroll-bottom${newMsgCount > 0 ? ' has-new' : ''}`}
-              onClick={() => { virtListRef.current?.scrollToBottom('smooth'); setNewMsgCount(0); }}
+              onClick={() => { if (hasNewerRef.current) { jumpToLatest(); return; } virtListRef.current?.scrollToBottom('smooth'); setNewMsgCount(0); }}
               aria-label={newMsgCount > 0 ? t('chat.newMessagesBackToBottomTemplate').replace('{count}', newMsgCount) : t('chat.scrollToBottom')}
             >
               {newMsgCount > 0 && (
