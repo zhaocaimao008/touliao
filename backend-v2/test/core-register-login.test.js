@@ -4,6 +4,7 @@
  * 正常路径 + 至少两个异常路径（覆盖 CTO 要求的最小矩阵）。
  */
 const { request, app, INVITE_CODE } = require('./helpers');
+const { normalizePhone } = require('../src/utils/phone');
 
 describe('注册', () => {
   test('正常路径：手机号+密码+邀请码注册成功，返回 token 与 user', async () => {
@@ -13,7 +14,7 @@ describe('注册', () => {
     }), legalConsent: require('./legal-consent.cjs') });
     expect(res.status).toBe(200);
     expect(res.body.token).toBeTruthy();
-    expect(res.body.user.phone).toBe(phone);
+    expect(res.body.user.phone).toBe(normalizePhone(phone));
     // 密码不应该在响应体里原样或哈希形式出现
     expect(JSON.stringify(res.body)).not.toMatch(/passw0rd123456/);
   });
@@ -24,6 +25,16 @@ describe('注册', () => {
     const first = await request(app).post('/api/auth/register').send({ ...(payload), legalConsent: require('./legal-consent.cjs') });
     expect(first.status).toBe(200);
     const second = await request(app).post('/api/auth/register').send({ ...({ ...payload, username: `dup2_${Date.now()}` }), legalConsent: require('./legal-consent.cjs') });
+    expect(second.status).toBe(400);
+  });
+
+  test('异常路径：同一号码换个格式（+86 空格分组）再注册 → 400，不能注册出第二个账号', async () => {
+    const plain = `13${Date.now().toString().slice(-9)}`;
+    const body = { password: 'passw0rd123456', inviteCode: INVITE_CODE, legalConsent: require('./legal-consent.cjs') };
+    const first = await request(app).post('/api/auth/register').send({ ...body, phone: plain, username: `dup_a_${Date.now()}` });
+    expect(first.status).toBe(200);
+    const formatted = `+86 ${plain.slice(0, 3)} ${plain.slice(3, 7)} ${plain.slice(7)}`;
+    const second = await request(app).post('/api/auth/register').send({ ...body, phone: formatted, username: `dup_b_${Date.now()}` });
     expect(second.status).toBe(400);
   });
 
@@ -88,6 +99,6 @@ describe('登录', () => {
     const login = await request(app).post('/api/auth/login').send({ ...({ phone: seededPhone, password: seededPassword }), legalConsent: require('./legal-consent.cjs') });
     const me = await request(app).get('/api/auth/me').set('Authorization', `Bearer ${login.body.token}`);
     expect(me.status).toBe(200);
-    expect(me.body.phone).toBe(seededPhone);
+    expect(me.body.phone).toBe(normalizePhone(seededPhone));
   });
 });

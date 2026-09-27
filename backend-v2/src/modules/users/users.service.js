@@ -2,6 +2,7 @@
 const { pagination } = require('../../utils/pagination');
 const { db } = require('../../db/connection');
 const { notFound, badRequest, conflict, paginated } = require('../../utils/http');
+const { normalizePhone } = require('../../utils/phone');
 const cache = require('../../utils/cache');
 const { v4: uuidv4 } = require('uuid');
 const { collectionDedupKey } = require('../../utils/collections');
@@ -179,10 +180,10 @@ function search(userId, q) {
       AND (
         u.username LIKE ? ESCAPE '\\'
         OR (u.wechat_id = ? AND COALESCE(s.add_by_vxin_id, 1) = 1)
-        OR (u.phone = ? AND COALESCE(s.add_by_phone, 1) = 1)
+        OR (u.phone IN (?, ?) AND COALESCE(s.add_by_phone, 1) = 1)
       )
     LIMIT 20
-  `).all(userId, like, q, q);
+  `).all(userId, like, q, q, normalizePhone(q));
 }
 
 // ── 资料 ────────────────────────────────────────────────────────
@@ -397,11 +398,15 @@ async function changePhone(userId, { new_phone, password }) {
   if (!user) throw notFound('用户不存在');
   if (!await bcrypt.compare(password, user.password)) throw badRequest('密码错误');
 
+  // 按规范化号码存储与判重（与注册一致）
+  const rawPhone = new_phone;
+  new_phone = normalizePhone(new_phone);
+
   // 新手机号不能与旧号相同
-  if (user.phone === new_phone) throw badRequest('新手机号与当前手机号相同');
+  if (user.phone === new_phone || user.phone === rawPhone) throw badRequest('新手机号与当前手机号相同');
 
   // 新手机号是否已被占用
-  const existing = db.prepare('SELECT id FROM users WHERE phone=? AND id!=?').get(new_phone, userId);
+  const existing = db.prepare('SELECT id FROM users WHERE phone IN (?, ?) AND id!=?').get(new_phone, rawPhone, userId);
   if (existing) throw badRequest('该手机号已被其他账号使用');
 
   try {

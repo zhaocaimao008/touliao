@@ -5,6 +5,7 @@ const { v4: uuidv4 } = require('uuid');
 const config = require('../../config');
 const { db, generateVxinId, generateUserInviteCode } = require('../../db/connection');
 const { badRequest, notFound, forbidden, unauthorized } = require('../../utils/http');
+const { normalizePhone } = require('../../utils/phone');
 const { addToBlacklist } = require('../../utils/tokenBlacklist');
 const { invalidateUser } = require('../../utils/userStatusCache');
 const captcha = require('../../utils/captcha');
@@ -117,6 +118,9 @@ async function register({ username, phone, password, inviteCode }, req) {
     throw badRequest('用户名长度为 2-20 字符');
   if (typeof phone !== 'string' || phone.length < 5 || phone.length > 20 || !/^\+?[\d\s\-]{5,20}$/.test(phone))
     throw badRequest('手机号格式不正确');
+  // 按规范化号码存储与判重：否则 "13812345678" 与 "+86 138 1234 5678" 会注册成两个账号
+  const rawPhone = phone;
+  phone = normalizePhone(phone);
   // 邀请码校验受后台总开关控制：关闭时任何人都可注册（但仍解析可选邀请码以记录邀请关系）；开启时强制校验。
   // resolveInvite 同时兼容「管理员全局码」和「其他用户的专属邀请码」，后者会记录邀请人（裂变）。
   let inviterId = null;
@@ -131,7 +135,7 @@ async function register({ username, phone, password, inviteCode }, req) {
   if (typeof password !== 'string' || !/^(?=.*[a-zA-Z])(?=.*\d).{8,}$/.test(password))
     throw badRequest('密码必须至少8位，且至少包含1个字母和1个数字');
 
-  if (db.prepare('SELECT id FROM users WHERE phone=? OR username=?').get(phone, username))
+  if (db.prepare('SELECT id FROM users WHERE phone IN (?, ?) OR username=?').get(phone, rawPhone, username))
     throw badRequest('用户名或手机号已存在');
 
   const hash = await bcrypt.hash(password, 12);
@@ -154,12 +158,6 @@ async function register({ username, phone, password, inviteCode }, req) {
   return { token: signToken({ id, username }, jti), user };
 }
 // 2026-09-26 起不再要求/记录隐私政策与用户协议同意；旧客户端仍会携带 legalConsent 字段，忽略即可。
-// 去掉空格/横线/括号，+86 或 86 开头的 13 位号码折算为 11 位大陆号码。
-function normalizePhone(phone) {
-  const digits = String(phone).replace(/[\s\-()]/g, '').replace(/^\+/, '');
-  return /^86\d{11}$/.test(digits) ? digits.slice(2) : digits;
-}
-
 async function login({ phone, password, captchaId, captchaText }, req) {
   if (typeof phone !== 'string' || typeof password !== 'string' || !phone || !password) throw badRequest('请填写手机号和密码');
   // 图形验证码：开关开启时强制校验，且必须先于密码比对完成（不能等密码验证过了才发现验证码错，
