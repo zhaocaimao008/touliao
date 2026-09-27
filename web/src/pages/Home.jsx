@@ -75,6 +75,25 @@ const HIDDEN_TABS = new Set();
 const visibleTabs = (features) =>
   TABS.filter(t => !HIDDEN_TABS.has(t.key) && (!t.feature || features[t.feature] !== false));
 
+// 手机底部固定 4 项（对齐微信）：消息 / 通讯录 / 发现 / 我；朋友圈、收藏、通话记录收进「发现」
+const DISCOVER_KEYS = ['moments', 'favorites', 'calls'];
+
+function DiscoverList({ items, momentUnread, onOpen }) {
+  const { t } = useI18n();
+  return (
+    <div className="m-discover">
+      {items.map(({ key, Icon, labelKey }) => (
+        <button key={key} type="button" className="m-discover-row" data-testid={`discover-${key}`} onClick={() => onOpen(key)}>
+          <span className="m-discover-ico"><Icon /></span>
+          <span className="m-discover-label">{t(labelKey)}</span>
+          {key === 'moments' && momentUnread > 0 && <span className="m-discover-badge">{momentUnread > 99 ? '99+' : momentUnread}</span>}
+          <span className="m-discover-chevron" aria-hidden="true"><IcoBack /></span>
+        </button>
+      ))}
+    </div>
+  );
+}
+
 
 /* ── 左上角头像 — 点击展开账号切换/添加下拉面板 ── */
 function AccountSwitcher() {
@@ -505,6 +524,16 @@ export default function Home() {
   const [showScan, setShowScan] = useState(false);          // 扫一扫入群
   const [activeConv, setActiveConv] = useState(null);
   const [unread, setUnread] = useState({});
+  // 朋友圈互动未读（手机「发现」标签红点）：进出页面与收到互动事件时刷新；朋友圈关闭时接口 403，按 0 处理
+  const [momentUnread, setMomentUnread] = useState(0);
+  useEffect(() => {
+    if (features.moments === false) return undefined; // 关闭时使用处已按 0 处理
+    const load = () => axios.get('/api/moments/notifications/unread-count')
+      .then(({ data }) => setMomentUnread(Number(data?.count) || 0)).catch(() => setMomentUnread(0));
+    load();
+    window.addEventListener('touliao:moment', load);
+    return () => window.removeEventListener('touliao:moment', load);
+  }, [features.moments, tab]);
   const [friendReqCount, setFriendReqCount] = useState(0);
   const [search, setSearch] = useState('');
   const [showQR, setShowQR] = useState(false);
@@ -1205,10 +1234,14 @@ export default function Home() {
 
   // ── 移动端布局（宽度 < 768 或原生 App）：底部 TabBar + 全屏页 + 全屏聊天 ──
   if (isMobile) {
-    // 底部栏与桌面侧边栏同源（visibleTabs）：tab 集合与文案保持一致，
-    // 含「收藏」，moments 统一显示「朋友圈」（不再用 M_LABEL 覆盖成「发现」）。
-    const mobileTabs = visibleTabs(features);
-    const mLabel = (k) => { const found = TABS.find(tb => tb.key === k); return found ? t(found.labelKey) : ''; };
+    // 底部固定 4 项：6 个标签在手机上过挤、文字过小。朋友圈/收藏受后台开关控制，关闭时从「发现」里隐藏。
+    const discoverItems = visibleTabs(features).filter(tb => DISCOVER_KEYS.includes(tb.key));
+    const byKey = k => TABS.find(tb => tb.key === k);
+    const mobileTabs = [byKey('chats'), byKey('contacts'), { key: 'discover', Icon: IcoMoments, labelKey: 'home.tab.discover' }, byKey('me')];
+    const navKey = DISCOVER_KEYS.includes(tab) ? 'discover' : tab;
+    const inDiscoverChild = DISCOVER_KEYS.includes(tab);
+    const mobileBadges = { ...badges, discover: features.moments !== false ? momentUnread : 0 };
+    const mLabel = (k) => { if (k === 'discover') return t('home.tab.discover'); const found = byKey(k); return found ? t(found.labelKey) : ''; };
 
     return (
       <div className="m-shell">
@@ -1240,6 +1273,11 @@ export default function Home() {
                 </>
               ) : (
                 <div className="m-topbar">
+                  {inDiscoverChild && (
+                    <button type="button" className="m-topbar-back" onClick={() => handleTabChange('discover')} aria-label={t('common.back')}>
+                      <IcoBack className="ico-md" />
+                    </button>
+                  )}
                   <span className="m-title">{mLabel(tab)}</span>
                 </div>
               )}
@@ -1254,17 +1292,19 @@ export default function Home() {
                   <ChatList onSelectConv={handleMobileSelectConv} activeConvId={activeConv?.id}
                     unread={unread} searchQuery={search}
                     convRefreshKey={convRefreshKey} onOpenMentions={() => setShowMentions(true)} />
+                ) : tab === 'discover' ? (
+                  <DiscoverList items={discoverItems} momentUnread={features.moments !== false ? momentUnread : 0} onOpen={handleTabChange} />
                 ) : renderMain()}
               </div>
             </div>
 
             <nav className="m-tabbar" aria-label={t('home.mainNav')}>
               {mobileTabs.map(({ key, Icon, labelKey }) => {
-                const count = badges[key] || 0;
+                const count = mobileBadges[key] || 0;
                 const label = t(labelKey);
                 return (
-                  <button key={key} data-testid={`nav-tab-${key}`} className={`m-tab${tab === key ? ' active' : ''}`}
-                    role="tab" aria-selected={tab === key} aria-label={label}
+                  <button key={key} data-testid={`nav-tab-${key}`} className={`m-tab${navKey === key ? ' active' : ''}`}
+                    role="tab" aria-selected={navKey === key} aria-label={label}
                     onClick={() => handleTabChange(key)}>
                     <span className="m-tab-ico"><Icon /></span>
                     <span className="m-tab-label">{label}</span>
