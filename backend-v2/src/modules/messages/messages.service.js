@@ -703,6 +703,7 @@ async function collect(userId, msgId) {
 // type/from/to/senderId 均可选、向后兼容：不传时行为与原实现完全一致（含缓存）。
 // 传入任一过滤参数则走统一 LIKE + 条件拼接路径（原因同 searchInConversation 顶部注释：
 // messages_fts 只索引文本消息，按类型过滤媒体消息必须绕开 FTS 直查 messages 表）。
+// 阅后即焚消息一律不进搜索：否则不点开消息、直接搜关键词就能读到内容且不触发销毁倒计时
 async function searchGlobal(userId, { q, limit = 20, offset = 0, type, from, to, senderId }) {
   const hasFilters = !!(type || from || to || senderId);
   if ((!q || !q.trim()) && !hasFilters) return { results: [], total: 0 };
@@ -734,7 +735,7 @@ async function searchGlobal(userId, { q, limit = 20, offset = 0, type, from, to,
     const joinParams = [userId, userId];
 
     const conds = [
-      'm.deleted = 0',
+      'm.deleted = 0', 'm.burn_after = 0',
       'NOT EXISTS (SELECT 1 FROM user_message_deletions d WHERE d.message_id=m.id AND d.user_id=?)',
       'm.rowid > COALESCE((SELECT cleared_rowid FROM conversation_clears WHERE user_id=? AND conversation_id=m.conversation_id), 0)',
     ];
@@ -790,7 +791,7 @@ async function searchGlobal(userId, { q, limit = 20, offset = 0, type, from, to,
       SELECT COUNT(*) AS cnt
       FROM messages m
       JOIN conversation_members cm ON cm.conversation_id = m.conversation_id AND cm.user_id = ?
-      WHERE m.type = 'text' AND m.deleted = 0 AND m.content LIKE ? ESCAPE '\\'
+      WHERE m.type = 'text' AND m.deleted = 0 AND m.burn_after = 0 AND m.content LIKE ? ESCAPE '\\'
         AND NOT EXISTS (SELECT 1 FROM user_message_deletions d WHERE d.message_id=m.id AND d.user_id=?)
         AND m.rowid > COALESCE((SELECT cleared_rowid FROM conversation_clears
                                      WHERE user_id=? AND conversation_id=m.conversation_id), 0)
@@ -813,7 +814,7 @@ async function searchGlobal(userId, { q, limit = 20, offset = 0, type, from, to,
                   ORDER BY user_id LIMIT 1
                 )
       LEFT JOIN users ou ON ou.id = cm_o.user_id
-      WHERE m.type = 'text' AND m.deleted = 0 AND m.content LIKE ? ESCAPE '\\'
+      WHERE m.type = 'text' AND m.deleted = 0 AND m.burn_after = 0 AND m.content LIKE ? ESCAPE '\\'
         AND NOT EXISTS (SELECT 1 FROM user_message_deletions d WHERE d.message_id=m.id AND d.user_id=?)
         AND m.rowid > COALESCE((SELECT cleared_rowid FROM conversation_clears
                                      WHERE user_id=? AND conversation_id=m.conversation_id), 0)
@@ -826,7 +827,7 @@ async function searchGlobal(userId, { q, limit = 20, offset = 0, type, from, to,
     total = db.prepare(`
       SELECT COUNT(*) AS cnt
       FROM messages_fts
-      JOIN messages m ON m.id = messages_fts.message_id AND m.deleted = 0
+      JOIN messages m ON m.id = messages_fts.message_id AND m.deleted = 0 AND m.burn_after = 0
       JOIN conversation_members cm ON cm.conversation_id = messages_fts.conversation_id AND cm.user_id = ?
       WHERE messages_fts MATCH ?
         AND NOT EXISTS (SELECT 1 FROM user_message_deletions d WHERE d.message_id=m.id AND d.user_id=?)
@@ -840,7 +841,7 @@ async function searchGlobal(userId, { q, limit = 20, offset = 0, type, from, to,
              c.name AS convName, c.type AS convType,
              ou.id AS ou_id, ou.username AS ou_username, ou.avatar AS ou_avatar, ou.status AS ou_status
       FROM messages_fts
-      JOIN messages m ON m.id = messages_fts.message_id AND m.deleted = 0
+      JOIN messages m ON m.id = messages_fts.message_id AND m.deleted = 0 AND m.burn_after = 0
       JOIN conversation_members cm ON cm.conversation_id = messages_fts.conversation_id AND cm.user_id = ?
       LEFT JOIN users u ON u.id = m.sender_id
       JOIN conversations c ON c.id = m.conversation_id
@@ -893,7 +894,7 @@ async function searchInConversation(convId, userId, q, filters = {}) {
     const toTs   = to   != null && to   !== '' ? parseInt(to, 10)   : null;
 
     const conds = [
-      'm.conversation_id = ?', 'm.deleted = 0',
+      'm.conversation_id = ?', 'm.deleted = 0', 'm.burn_after = 0',
       'NOT EXISTS (SELECT 1 FROM user_message_deletions d WHERE d.message_id=m.id AND d.user_id=?)',
       'm.rowid > COALESCE((SELECT cleared_rowid FROM conversation_clears WHERE user_id=? AND conversation_id=m.conversation_id), 0)',
     ];
@@ -939,7 +940,7 @@ async function searchInConversation(convId, userId, q, filters = {}) {
       SELECT m.*, COALESCE(u.username, '') AS senderName, COALESCE(u.avatar, '') AS senderAvatar
       FROM messages m
       LEFT JOIN users u ON u.id = m.sender_id
-      WHERE m.conversation_id = ? AND m.deleted = 0
+      WHERE m.conversation_id = ? AND m.deleted = 0 AND m.burn_after = 0
         AND m.content LIKE ? ESCAPE '\\'
         AND NOT EXISTS (SELECT 1 FROM user_message_deletions d WHERE d.message_id=m.id AND d.user_id=?)
         AND m.rowid > COALESCE((SELECT cleared_rowid FROM conversation_clears WHERE user_id=? AND conversation_id=m.conversation_id), 0)
@@ -950,7 +951,7 @@ async function searchInConversation(convId, userId, q, filters = {}) {
     result = db.prepare(`
       SELECT m.*, COALESCE(u.username, '') AS senderName, COALESCE(u.avatar, '') AS senderAvatar
       FROM messages_fts
-      JOIN messages m ON m.id = messages_fts.message_id AND m.deleted = 0
+      JOIN messages m ON m.id = messages_fts.message_id AND m.deleted = 0 AND m.burn_after = 0
       LEFT JOIN users u ON u.id = m.sender_id
       WHERE messages_fts MATCH ? AND messages_fts.conversation_id = ?
         AND NOT EXISTS (SELECT 1 FROM user_message_deletions d WHERE d.message_id=m.id AND d.user_id=?)

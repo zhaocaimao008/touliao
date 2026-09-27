@@ -112,7 +112,7 @@ function searchMessages(query, conversationId, userId, options = {}) {
       u.avatar as senderAvatar,
       rank
     FROM messages_fts fts
-    JOIN messages m ON m.id = fts.message_id
+    JOIN messages m ON m.id = fts.message_id AND m.deleted = 0 AND m.burn_after = 0
     JOIN users u ON u.id = m.sender_id
     WHERE fts.content MATCH ?
   `;
@@ -127,7 +127,8 @@ function searchMessages(query, conversationId, userId, options = {}) {
   if (userId) {
     // P1-06 统一水位线：清空后会话内搜索不得返回已隐藏消息
     sql += ' AND m.rowid > COALESCE((SELECT cleared_rowid FROM conversation_clears WHERE user_id=? AND conversation_id=m.conversation_id), 0)';
-    params.push(userId);
+    sql += ' AND NOT EXISTS (SELECT 1 FROM user_message_deletions d WHERE d.message_id=m.id AND d.user_id=?)';
+    params.push(userId, userId);
   }
 
   if (senderOnly) {
@@ -202,7 +203,7 @@ function getSearchStats(conversationId) {
         COUNT(DISTINCT m.type) as types,
         MAX(m.created_at) as latestTime
       FROM messages_fts fts
-      JOIN messages m ON m.id = fts.message_id
+      JOIN messages m ON m.id = fts.message_id AND m.deleted = 0 AND m.burn_after = 0
       WHERE fts.conversation_id = ?
     `).get(conversationId);
 
@@ -229,7 +230,7 @@ function countMessages(query, conversationId, senderOnly = null, userId = null) 
   let sql = `
     SELECT COUNT(*) AS n
     FROM messages_fts fts
-    JOIN messages m ON m.id = fts.message_id
+    JOIN messages m ON m.id = fts.message_id AND m.deleted = 0 AND m.burn_after = 0
     WHERE fts.content MATCH ?
     AND m.conversation_id = ?
   `;
@@ -237,7 +238,8 @@ function countMessages(query, conversationId, senderOnly = null, userId = null) 
   if (userId) {
     // P1-06 统一水位线：total 与 rows 保持一致
     sql += ' AND m.rowid > COALESCE((SELECT cleared_rowid FROM conversation_clears WHERE user_id=? AND conversation_id=m.conversation_id), 0)';
-    params.push(userId);
+    sql += ' AND NOT EXISTS (SELECT 1 FROM user_message_deletions d WHERE d.message_id=m.id AND d.user_id=?)';
+    params.push(userId, userId);
   }
   if (senderOnly) {
     sql += ' AND m.sender_id = ?';
@@ -273,16 +275,17 @@ function searchMessagesInConversations(query, conversationIds, userId = null, { 
 
   const baseWhere = `
     FROM messages_fts fts
-    JOIN messages m ON m.id = fts.message_id
+    JOIN messages m ON m.id = fts.message_id AND m.deleted = 0 AND m.burn_after = 0
     JOIN users u ON u.id = m.sender_id
     WHERE fts.content MATCH ?
     AND m.conversation_id IN (${ph})
   `;
   // P1-06 统一水位线：全局搜索也按 per-user cleared_rowid 过滤（参数在 IN 之前）
   const watermarkClause = userId
-    ? `\n    AND m.rowid > COALESCE((SELECT cleared_rowid FROM conversation_clears WHERE user_id=? AND conversation_id=m.conversation_id), 0)`
+    ? `\n    AND m.rowid > COALESCE((SELECT cleared_rowid FROM conversation_clears WHERE user_id=? AND conversation_id=m.conversation_id), 0)
+    AND NOT EXISTS (SELECT 1 FROM user_message_deletions d WHERE d.message_id=m.id AND d.user_id=?)`
     : '';
-  const baseParams = userId ? [ftsPhrase, ...conversationIds, userId] : [ftsPhrase, ...conversationIds];
+  const baseParams = userId ? [ftsPhrase, ...conversationIds, userId, userId] : [ftsPhrase, ...conversationIds];
   const baseWhereFull = `${baseWhere}${watermarkClause}`;
 
   try {
