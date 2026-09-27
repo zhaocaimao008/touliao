@@ -26,6 +26,7 @@
     {"source": "/home/ubuntu/touliao-private-backups/.github/workflows/backup.yml", "destination": "ops/private-backups/.github/workflows/backup.yml"},
     {"source": "/home/ubuntu/touliao-private-backups/ssh_known_hosts", "destination": "ops/private-backups/ssh_known_hosts"},
     {"source": "/home/ubuntu/touliao-private-backups/README.md", "destination": "ops/private-backups/README.md"},
+    {"source": "/home/ubuntu/.ssh/authorized_keys", "destination": "config/ssh/authorized_keys"},
     {"source": "/home/ubuntu/.touliao-backup-admin/ssh_key", "destination": "credentials/backup-ssh-key"},
     {"source": "/home/ubuntu/.touliao-backup-admin/ssh_key.pub", "destination": "credentials/backup-ssh-key.pub"},
     {"source": "/home/ubuntu/asc-work/AuthKey_U9F23QPW5Y.p8", "destination": "credentials/asc/AuthKey_U9F23QPW5Y.p8"},

@@ -1,4 +1,12 @@
 #!/usr/bin/env bash
+# ⚠️ 已废弃（2026-09-27）：本脚本装出的目录布局与线上不一致（网页目录、下载站、运行时配置、
+#    TURN、备份任务均未覆盖），不能用于换服务器。换服务器请用 deploy/migrate-to-new-server.sh
+#    （从加密备份一键恢复，见 deploy/README.md）。确需在空白机器上跑旧流程：TOULIAO_LEGACY_SETUP=1
+if [[ "${TOULIAO_LEGACY_SETUP:-}" != 1 ]]; then
+  echo "本脚本已废弃，换服务器请用: sudo bash deploy/migrate-to-new-server.sh --backup <备份.age> --identity <age私钥>" >&2
+  echo "（确需运行旧流程请设置 TOULIAO_LEGACY_SETUP=1）" >&2
+  exit 1
+fi
 # ===================================================================
 # 投聊 一键部署脚本（新服务器）
 #
