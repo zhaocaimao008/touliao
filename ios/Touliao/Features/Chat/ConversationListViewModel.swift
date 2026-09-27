@@ -142,6 +142,8 @@ final class ConversationListViewModel: ObservableObject {
 
     /// 归档会话聚合未读数（归档入口行角标，>99 由 UI 显示 99+）
     var archiveUnreadTotal: Int { archivedConversations.reduce(0) { $0 + max(0, $1.unreadCount) } }
+    /// 底部「消息」Tab 角标：未归档且未免打扰的会话未读合计（与安卓、网页同口径）
+    var tabUnreadTotal: Int { activeConversations.reduce(0) { $0 + ($1.muted == 1 ? 0 : max(0, $1.unreadCount)) } }
 
     /// 归档/取消归档：仅本人维度，就地翻转标记（后端成功才改本地，失败提示）
     func setArchived(_ conv: Conversation, archived: Bool) {

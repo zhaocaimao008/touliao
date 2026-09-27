@@ -675,6 +675,8 @@ router.post  ('/conversation/:convId/archive',     auth, conv.archive);
  *         description: Messages cleared
  */
 router.delete('/conversation/:convId/messages', auth, conv.clearConversation);
+// 删除聊天（仅自己）：清空我这一侧并从我的列表隐藏，新消息到来时会话重新出现；对方记录不受影响
+router.post  ('/conversation/:convId/hide', auth, conv.hideConversation);
 
 /**
  * @swagger

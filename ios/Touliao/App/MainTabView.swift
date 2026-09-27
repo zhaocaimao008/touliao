@@ -9,16 +9,20 @@ struct MainTabView: View {
     // 选中的 Tab（0=消息）；点推送通知需切回消息页再打开会话
     @State private var selectedTab = 0
     @StateObject private var discoverVM = DiscoverViewModel()
+    // 会话列表 VM 提到 Tab 层持有：「消息」Tab 角标显示未读合计（此前 iOS 底部没有未读数，安卓/网页都有）
+    @StateObject private var chatsVM: ConversationListViewModel
     @Environment(\.scenePhase) private var scenePhase
 
     init(myId: String) {
         self.myId = myId
+        _chatsVM = StateObject(wrappedValue: ConversationListViewModel(myId: myId))
     }
 
     var body: some View {
         TabView(selection: $selectedTab) {
-            ConversationListView(myId: myId)
+            ConversationListView(myId: myId, vm: chatsVM)
                 .tabItem { Label("消息", touliaoIcon: "chat") }
+                .badge(chatsVM.tabUnreadTotal)
                 .accessibilityIdentifier("nav-tab-chats")
                 .tag(0)
 

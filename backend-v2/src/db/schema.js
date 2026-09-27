@@ -696,6 +696,8 @@ function applySchema(db) {
     )`,
     ...require('./migrations/batch2'),
     ...require('./migrations/batch4'),
+    // 删除聊天（仅自己）：1=从我的会话列表隐藏，直到出现个人清空水位之后的新消息（对齐微信"删除聊天"）
+    "ALTER TABLE conversation_settings ADD COLUMN hidden INTEGER DEFAULT 0",
   ];
 
   // ── 迁移执行：版本追踪 + 错误分级 ────────────────────────────────

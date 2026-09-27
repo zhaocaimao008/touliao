@@ -197,9 +197,10 @@ export default function GroupInfo({ conversation, currentUserId, onClose, onLeav
   useEffect(() => {
     const handler = e => {
       if (e.key !== 'Escape') return;
-      if (showInvite) { setShowInvite(false); return; }
-      if (showTransferOwner) { setShowTransferOwner(false); return; }
-      if (showQR) { setShowQR(false); return; }
+      // preventDefault：告知 ChatWindow 这次 Esc 已被子弹窗消费，不要连带关闭整个群资料面板
+      if (showInvite) { e.preventDefault(); setShowInvite(false); return; }
+      if (showTransferOwner) { e.preventDefault(); setShowTransferOwner(false); return; }
+      if (showQR) { e.preventDefault(); setShowQR(false); return; }
     };
     document.addEventListener('keydown', handler);
     return () => document.removeEventListener('keydown', handler);

@@ -140,8 +140,12 @@ export default function ImgOptimized({
               onClick={onClick}
               style={{
                 ...imgBaseStyle,
+                // 容器尺寸由缩略图撑开；原图必须铺满容器，否则按原始像素尺寸绘制（竖长图只露出左上角）
                 position: 'absolute',
                 inset: 0,
+                width: '100%',
+                height: '100%',
+                objectFit: 'cover',
                 transition: 'opacity var(--dur-normal, .3s)',
                 opacity: fullLoaded ? 1 : 0,
                 pointerEvents: fullLoaded ? undefined : 'none',

@@ -708,6 +708,8 @@ export default {
   'chatlist.deleteChat': '刪除聊天',
   'chatlist.leaveGroup': '退出群組',
   'chatlist.confirmLeaveGroupTemplate': '確定要退出群組「{name}」嗎？',
+  'chatlist.confirmDeleteChatTemplate': '刪除與「{name}」的聊天？僅清空你這邊的聊天紀錄，對方不受影響。',
+  'chatlist.deleteChatFailed': '刪除失敗，請重試',
   'chatlist.empty': '暫無聊天',
   'chatlist.emptyDesc': '和朋友打個招呼，開始聊天吧',
   'chatlist.archive': '封存',
