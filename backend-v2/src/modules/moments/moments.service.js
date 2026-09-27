@@ -82,24 +82,44 @@ function assertVisible(viewerId, m) {
   }
 }
 
+// 互动可见范围（对齐微信「只显示共同好友」）：动态作者看到全部点赞/评论；其他人只看到自己、
+// 作者和自己好友的。评论还要求被回复人也在范围内（好友回复陌生人的「A 回复 B」同样不显示）。
+// 计数与列表同口径，避免从数字上推出看不到的人。所有 SQL 都 JOIN moments mo 取作者；
+// 占位符依次绑定 viewerId（点赞 ×3，评论 ×6）。
+function audience(userCol) {
+  return `(mo.user_id = ? OR ${userCol} = ? OR ${userCol} = mo.user_id OR ${userCol} IN (SELECT contact_id FROM contacts WHERE user_id = ?))`;
+}
+const LIKE_AUDIENCE = audience('ml.user_id');
+const COMMENT_AUDIENCE = `${audience('mc.user_id')} AND (COALESCE(mc.reply_to_user, '') = '' OR ${audience('mc.reply_to_user')})`;
+const likeViewer = viewerId => [viewerId, viewerId, viewerId];
+const commentViewer = viewerId => [viewerId, viewerId, viewerId, viewerId, viewerId, viewerId];
+function visibleLikeCount(viewerId, momentId) {
+  return db.prepare(`SELECT COUNT(*) AS n FROM moment_likes ml JOIN moments mo ON mo.id=ml.moment_id WHERE ml.moment_id=? AND ${LIKE_AUDIENCE}`)
+    .get(momentId, ...likeViewer(viewerId)).n;
+}
+function visibleCommentCount(viewerId, momentId) {
+  return db.prepare(`SELECT COUNT(*) AS n FROM moment_comments mc JOIN moments mo ON mo.id=mc.moment_id WHERE mc.moment_id=? AND ${COMMENT_AUDIENCE}`)
+    .get(momentId, ...commentViewer(viewerId)).n;
+}
+
 // 单条动态装配（作者、图片、点赞、评论、本人是否已赞）
 // 列表(timeline/userMoments)传 caps 限制内联返回的点赞/评论条数，避免热门动态把上万条全拉下来；
 // 计数走 COUNT(*)、liked 走直查——即便数组被截断也准确。详情(getMoment)不传 caps = 全量。
 // hasMoreLikes/hasMoreComments 为加法字段，前端可据此用分页接口加载剩余（不传也优雅降级）。
 function enrich(viewerId, m, { likeLimit = 0, commentLimit = 0 } = {}) {
   const author = db.prepare('SELECT id, username, avatar FROM users WHERE id=?').get(m.user_id);
-  const likeCount = db.prepare('SELECT COUNT(*) AS n FROM moment_likes WHERE moment_id=?').get(m.id).n;
-  const commentCount = db.prepare('SELECT COUNT(*) AS n FROM moment_comments WHERE moment_id=?').get(m.id).n;
+  const likeCount = visibleLikeCount(viewerId, m.id);
+  const commentCount = visibleCommentCount(viewerId, m.id);
   const liked = !!db.prepare('SELECT 1 FROM moment_likes WHERE moment_id=? AND user_id=?').get(m.id, viewerId);
   const MAX_CAP = 500;
   const likeCap = ` LIMIT ${Math.min(likeLimit > 0 ? parseInt(likeLimit, 10) : MAX_CAP, MAX_CAP)}`;
   const commentCap = ` LIMIT ${Math.min(commentLimit > 0 ? parseInt(commentLimit, 10) : MAX_CAP, MAX_CAP)}`;
   const likes = db.prepare(
-    `SELECT ml.user_id, u.username FROM moment_likes ml JOIN users u ON u.id=ml.user_id WHERE ml.moment_id=? ORDER BY ml.created_at${likeCap}`
-  ).all(m.id);
+    `SELECT ml.user_id, u.username FROM moment_likes ml JOIN users u ON u.id=ml.user_id JOIN moments mo ON mo.id=ml.moment_id WHERE ml.moment_id=? AND ${LIKE_AUDIENCE} ORDER BY ml.created_at${likeCap}`
+  ).all(m.id, ...likeViewer(viewerId));
   const comments = db.prepare(
-    `SELECT mc.id, mc.user_id, mc.content, mc.reply_to_user, ru.username AS reply_to_username, mc.created_at, u.username, u.avatar FROM moment_comments mc JOIN users u ON u.id=mc.user_id LEFT JOIN users ru ON ru.id=mc.reply_to_user WHERE mc.moment_id=? ORDER BY mc.created_at${commentCap}`
-  ).all(m.id);
+    `SELECT mc.id, mc.user_id, mc.content, mc.reply_to_user, ru.username AS reply_to_username, mc.created_at, u.username, u.avatar FROM moment_comments mc JOIN users u ON u.id=mc.user_id JOIN moments mo ON mo.id=mc.moment_id LEFT JOIN users ru ON ru.id=mc.reply_to_user WHERE mc.moment_id=? AND ${COMMENT_AUDIENCE} ORDER BY mc.created_at${commentCap}`
+  ).all(m.id, ...commentViewer(viewerId));
   // 剥离 visible_to（分组可见名单，不外泄）与 likes（已废弃的 JSON 旧字段，
   // 点赞真相源是 moment_likes 表；此处剥离防止 SELECT * 把死数据带进响应）
   const { visible_to, likes: _legacyLikes, ...mPub } = m;
@@ -130,11 +150,13 @@ function batchEnrich(viewerId, rows, { likeLimit = 0, commentLimit = 0 } = {}) {
     .forEach(u => authorMap.set(u.id, u));
 
   const likeCountMap = new Map(ids.map(id => [id, 0]));
-  db.prepare(`SELECT moment_id, COUNT(*) AS n FROM moment_likes WHERE moment_id IN (${ph}) GROUP BY moment_id`).all(...ids)
+  db.prepare(`SELECT ml.moment_id, COUNT(*) AS n FROM moment_likes ml JOIN moments mo ON mo.id=ml.moment_id
+    WHERE ml.moment_id IN (${ph}) AND ${LIKE_AUDIENCE} GROUP BY ml.moment_id`).all(...ids, ...likeViewer(viewerId))
     .forEach(r => likeCountMap.set(r.moment_id, r.n));
 
   const commentCountMap = new Map(ids.map(id => [id, 0]));
-  db.prepare(`SELECT moment_id, COUNT(*) AS n FROM moment_comments WHERE moment_id IN (${ph}) GROUP BY moment_id`).all(...ids)
+  db.prepare(`SELECT mc.moment_id, COUNT(*) AS n FROM moment_comments mc JOIN moments mo ON mo.id=mc.moment_id
+    WHERE mc.moment_id IN (${ph}) AND ${COMMENT_AUDIENCE} GROUP BY mc.moment_id`).all(...ids, ...commentViewer(viewerId))
     .forEach(r => commentCountMap.set(r.moment_id, r.n));
 
   const likedSet = new Set();
@@ -145,29 +167,31 @@ function batchEnrich(viewerId, rows, { likeLimit = 0, commentLimit = 0 } = {}) {
   const likesMap = new Map(ids.map(id => [id, []]));
   db.prepare(`
     WITH ranked AS (
-      SELECT moment_id, user_id,
-             ROW_NUMBER() OVER (PARTITION BY moment_id ORDER BY created_at, rowid) AS rn
-      FROM moment_likes WHERE moment_id IN (${ph})
+      SELECT ml.moment_id, ml.user_id,
+             ROW_NUMBER() OVER (PARTITION BY ml.moment_id ORDER BY ml.created_at, ml.rowid) AS rn
+      FROM moment_likes ml JOIN moments mo ON mo.id=ml.moment_id
+      WHERE ml.moment_id IN (${ph}) AND ${LIKE_AUDIENCE}
     )
-    SELECT ml.moment_id, ml.user_id, u.username
-    FROM ranked ml JOIN users u ON u.id=ml.user_id
-    WHERE ml.rn <= ? ORDER BY ml.moment_id, ml.rn
-  `).all(...ids, likeLimit || 10)
+    SELECT r.moment_id, r.user_id, u.username
+    FROM ranked r JOIN users u ON u.id=r.user_id
+    WHERE r.rn <= ? ORDER BY r.moment_id, r.rn
+  `).all(...ids, ...likeViewer(viewerId), likeLimit || 10)
     .forEach(({ moment_id, ...like }) => likesMap.get(moment_id).push(like));
 
   const commentsMap = new Map(ids.map(id => [id, []]));
   db.prepare(`
     WITH ranked AS (
-      SELECT moment_id, id, user_id, content, reply_to_user, created_at,
-             ROW_NUMBER() OVER (PARTITION BY moment_id ORDER BY created_at, rowid) AS rn
-      FROM moment_comments WHERE moment_id IN (${ph})
+      SELECT mc.moment_id, mc.id, mc.user_id, mc.content, mc.reply_to_user, mc.created_at,
+             ROW_NUMBER() OVER (PARTITION BY mc.moment_id ORDER BY mc.created_at, mc.rowid) AS rn
+      FROM moment_comments mc JOIN moments mo ON mo.id=mc.moment_id
+      WHERE mc.moment_id IN (${ph}) AND ${COMMENT_AUDIENCE}
     )
-    SELECT mc.moment_id, mc.id, mc.user_id, mc.content, mc.reply_to_user,
-           ru.username AS reply_to_username, mc.created_at, u.username, u.avatar
-    FROM ranked mc JOIN users u ON u.id=mc.user_id
-    LEFT JOIN users ru ON ru.id=mc.reply_to_user
-    WHERE mc.rn <= ? ORDER BY mc.moment_id, mc.rn
-  `).all(...ids, commentLimit || 10)
+    SELECT r.moment_id, r.id, r.user_id, r.content, r.reply_to_user,
+           ru.username AS reply_to_username, r.created_at, u.username, u.avatar
+    FROM ranked r JOIN users u ON u.id=r.user_id
+    LEFT JOIN users ru ON ru.id=r.reply_to_user
+    WHERE r.rn <= ? ORDER BY r.moment_id, r.rn
+  `).all(...ids, ...commentViewer(viewerId), commentLimit || 10)
     .forEach(({ moment_id, ...comment }) => commentsMap.get(moment_id).push(comment));
 
   return rows.map(m => {
@@ -424,15 +448,13 @@ function toggleLike(io, userId, momentId) {
     } catch (e) {
       if (e.code === 'SQLITE_CONSTRAINT_PRIMARYKEY') { liked = true; } // 并发插入已成功，like 实际存在
       else throw e;
-      const likeCount = db.prepare('SELECT COUNT(*) AS n FROM moment_likes WHERE moment_id=?').get(momentId).n;
-      return { liked, likeCount };
+      return { liked, likeCount: visibleLikeCount(userId, momentId) };
     }
     liked = true;
     if (io && m.user_id !== userId) io.to(`user_${m.user_id}`).emit('moment_liked', { momentId, userId });
     addInteractNotification({ recipientId: m.user_id, actorId: userId, momentId, type: 'like' });
   }
-  const likeCount = db.prepare('SELECT COUNT(*) AS n FROM moment_likes WHERE moment_id=?').get(momentId).n;
-  return { liked, likeCount };
+  return { liked, likeCount: visibleLikeCount(userId, momentId) };
 }
 
 // ── 评论 ────────────────────────────────────────────────────────
@@ -484,10 +506,10 @@ function listLikes(viewerId, momentId, { limit = 20, offset = 0 } = {}) {
   if (!m) throw notFound('动态不存在');
   assertVisible(viewerId, m);
   const { limit: n, offset: off } = pagination({ limit, offset });
-  const total = db.prepare('SELECT COUNT(*) AS n FROM moment_likes WHERE moment_id=?').get(momentId).n;
+  const total = visibleLikeCount(viewerId, momentId);
   const rows = db.prepare(
-    'SELECT ml.user_id, ml.created_at, u.username, u.avatar FROM moment_likes ml JOIN users u ON u.id=ml.user_id WHERE ml.moment_id=? ORDER BY ml.created_at LIMIT ? OFFSET ?'
-  ).all(momentId, n, off);
+    `SELECT ml.user_id, ml.created_at, u.username, u.avatar FROM moment_likes ml JOIN users u ON u.id=ml.user_id JOIN moments mo ON mo.id=ml.moment_id WHERE ml.moment_id=? AND ${LIKE_AUDIENCE} ORDER BY ml.created_at LIMIT ? OFFSET ?`
+  ).all(momentId, ...likeViewer(viewerId), n, off);
   return paginated(rows, { total, limit: n, offset: off });
 }
 
@@ -496,10 +518,10 @@ function listComments(viewerId, momentId, { limit = 20, offset = 0 } = {}) {
   if (!m) throw notFound('动态不存在');
   assertVisible(viewerId, m);
   const { limit: n, offset: off } = pagination({ limit, offset });
-  const total = db.prepare('SELECT COUNT(*) AS n FROM moment_comments WHERE moment_id=?').get(momentId).n;
+  const total = visibleCommentCount(viewerId, momentId);
   const rows = db.prepare(
-    'SELECT mc.id, mc.user_id, mc.content, mc.reply_to_user, ru.username AS reply_to_username, mc.created_at, u.username, u.avatar FROM moment_comments mc JOIN users u ON u.id=mc.user_id LEFT JOIN users ru ON ru.id=mc.reply_to_user WHERE mc.moment_id=? ORDER BY mc.created_at LIMIT ? OFFSET ?'
-  ).all(momentId, n, off);
+    `SELECT mc.id, mc.user_id, mc.content, mc.reply_to_user, ru.username AS reply_to_username, mc.created_at, u.username, u.avatar FROM moment_comments mc JOIN users u ON u.id=mc.user_id JOIN moments mo ON mo.id=mc.moment_id LEFT JOIN users ru ON ru.id=mc.reply_to_user WHERE mc.moment_id=? AND ${COMMENT_AUDIENCE} ORDER BY mc.created_at LIMIT ? OFFSET ?`
+  ).all(momentId, ...commentViewer(viewerId), n, off);
   return paginated(rows, { total, limit: n, offset: off });
 }
 

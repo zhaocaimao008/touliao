@@ -10,6 +10,16 @@ const uploadMomentImages = makeImageUploader(path.join(config.uploadsRoot, 'mome
 // 朋友圈视频（F1 #1）：与图片同存 moments 目录（/uploads/moments/<uuid>.mp4），访问鉴权同类别
 const uploadMomentVideo = makeVideoUploader(path.join(config.uploadsRoot, 'moments'), 'video');
 
+// 后台关闭「朋友圈」后，所有朋友圈接口一律拒绝（此前只拦发布，刷朋友圈/点赞/评论仍可绕过客户端入口直连）。
+// 放在各路由（含上传 multer）之前：关闭时不接收任何文件。每次请求读 admin_settings，开关实时生效。
+const { db } = require('../../db/connection');
+router.use((req, res, next) => {
+  if (db.prepare('SELECT value FROM admin_settings WHERE key=?').get('feature_moments')?.value === 'off') {
+    return res.status(403).json({ error: '管理员已关闭朋友圈功能', code: 'MOMENTS_DISABLED' });
+  }
+  next();
+});
+
 /**
  * @swagger
  * /moments:
