@@ -418,15 +418,15 @@ body[data-skin="wecom"] .wc-msg-bubble.mine .wc-voice-play-icon-offset {
   fill: var(--brand-700) !important;
 }
 
-/* 深色档: mine 气泡品牌渐变 + 白字(恢复默认, 仅确保品牌色一致) */
+/* 深色档: mine 气泡用皮肤的深色气泡色 + 白字（原用亮色品牌渐变 #68dca2/#91beff，白字几乎看不清） */
 body[data-skin="wechat"].dark-mode .wc-msg-bubble.mine,
 body[data-skin="wecom"].dark-mode .wc-msg-bubble.mine {
-  background: var(--grad-brand) !important;
+  background: var(--tl-message-outgoing, var(--grad-brand)) !important;
   color: #fff !important;
 }
 body[data-skin="wechat"].dark-mode .wc-msg-bubble.mine::after,
 body[data-skin="wecom"].dark-mode .wc-msg-bubble.mine::after {
-  border-color: transparent transparent transparent var(--brand-500) !important;
+  border-color: transparent transparent transparent var(--tl-message-outgoing, var(--brand-500)) !important;
 }
 body[data-skin="wechat"].dark-mode .wc-msg-bubble.mine a,
 body[data-skin="wecom"].dark-mode .wc-msg-bubble.mine a {
