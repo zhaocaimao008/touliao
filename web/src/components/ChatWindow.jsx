@@ -1,5 +1,5 @@
 import TouliaoIcon from '../ui-kit/Icon';
-import { clientStorage as localStorage } from '../utils/clientStorage';
+import { clientStorage as localStorage, isIsolatedWindow } from '../utils/clientStorage';
 
 import React, { useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo, useReducer, lazy, Suspense } from 'react';
 import { createPortal } from 'react-dom';
@@ -520,10 +520,18 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
         // keepalive=true 与 sendBeacon 同样可在页面卸载时可靠投递
         const csrfToken = document.cookie.split(';').map(c => c.trim())
           .find(c => c.startsWith('csrf_token='))?.slice('csrf_token='.length);
+        // 原生 fetch 不经 axios 拦截器：桌面端/隔离窗口靠 Bearer 鉴权，需手动带上，否则恒 401
+        const authorization = axios.defaults.headers.common?.Authorization;
         fetch(fullUrl, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json', ...(csrfToken ? { 'X-CSRF-Token': csrfToken } : {}) },
+          headers: {
+            'Content-Type': 'application/json',
+            ...(csrfToken ? { 'X-CSRF-Token': csrfToken } : {}),
+            ...(authorization ? { Authorization: authorization } : {}),
+            ...(isIsolatedWindow() ? { 'X-Touliao-Session': 'isolated' } : {}),
+          },
           body,
+          credentials: 'include',
           keepalive: true,
         }).catch(() => {});
       } catch { /* 清理函数中的异常静默忽略，不影响 React 卸载流程 */ }
