@@ -728,10 +728,9 @@ export default function Home() {
 
   useEffect(() => {
     return registerUnreadCleared(({ conversationId }) => {
-      setUnread(prev => {
-        if (!prev[conversationId]) return prev;
-        const next = { ...prev }; delete next[conversationId]; return next;
-      });
+      // 置 0 而不是删键：ChatList 找不到键时会退回会话列表里拉取时的 unreadCount（多为旧值），
+      // 其他设备读过之后本设备的角标就一直不消失
+      setUnread(prev => (prev[conversationId] === 0 ? prev : { ...prev, [conversationId]: 0 }));
     });
   }, [registerUnreadCleared]);
 

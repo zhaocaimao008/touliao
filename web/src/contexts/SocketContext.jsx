@@ -6,6 +6,7 @@ import axios from 'axios';
 import { useAuth } from './AuthContext';
 import { getConfig, isConfigLoaded } from '../utils/config';
 import { isBearerClient, isIsolatedWindow } from '../utils/clientStorage';
+import { setLogoutReason, clearLogoutReason, hasLogoutReason } from '../utils/logoutReason';
 
 // 拆分成两个 context 避免 reconnect 引起无关组件 re-render：
 // SocketCoreContext  — socket 实例 + 稳定回调（重连时不变）
@@ -69,13 +70,35 @@ export const SocketProvider = ({ children }) => {
       if (everConnectedRef.current) setReconnectCount(n => n + 1);
       everConnectedRef.current = true;
     });
-    s.on('disconnect', () => {
+    // 核验会话：发一次需鉴权的请求，失效则由 axios 拦截器走既有的刷新 token / 回登录页流程；
+    // 仍有效（如本设备刚改完密码、Cookie 已续期）则把被服务端断开的连接接回来。
+    let expiredNotified = false; // 服务端明确通知过会话失效：保留其原因，核验通过也不清（见下）
+    const verifySession = (reason) => {
+      if (reason && !hasLogoutReason()) setLogoutReason(reason); // 先到的原因最准确（如「密码已修改」），不被随后的重连报错覆盖
+      axios.get('/api/auth/me')
+        .then(() => { if (!expiredNotified) clearLogoutReason(); if (!s.connected && !s.active) s.connect(); })
+        .catch(() => {});
+    };
+    s.on('disconnect', (reason) => {
       setConnected(false);
       disconnectAtRef.current = Math.floor(Date.now() / 1000);
+      // 服务端主动断开（改密码 / 移除设备 / 封禁都会踢掉全部连接）时 socket.io 不会自动重连，
+      // 页面却一直显示「正在重连」。这里核验一次：失效就回登录页，没失效就重连。
+      if (reason === 'io server disconnect') verifySession();
     });
-    // 会话失效（别处改密码/退出/token 到期）：服务端随即断开且不会自动重连。发一次需鉴权的请求，
-    // 由 axios 拦截器走既有的刷新 token / 回登录页流程，而不是停在「已登录但收不到消息」。
-    s.on('session_expired', () => { axios.get('/api/auth/me').catch(() => {}); });
+    // 会话失效（别处改密码/退出/token 到期）：服务端随即断开且不会自动重连。
+    // 改密码时服务端先通知再落库（为了尽快断开），立刻核验可能还查到旧会话：稍等再核验
+    s.on('session_expired', (payload) => {
+      expiredNotified = true;
+      if (payload?.reason && !hasLogoutReason()) setLogoutReason(payload.reason);
+      setTimeout(() => verifySession(), 1500);
+    });
+    // 重连握手被拒（原因来自服务端鉴权：密码已修改 / 会话已失效 / 账号已被封禁 …）：
+    // 不再无限重试，核验后按原因登出
+    s.on('connect_error', (err) => {
+      const msg = err?.message || '';
+      if (/未授权|失效|重新登录|封禁|Token无效|用户不存在/.test(msg)) verifySession(msg);
+    });
     s.on('sync:unread_cleared', (payload) => {
       unreadClearedListeners.current.forEach(fn => fn(payload));
     });

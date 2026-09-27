@@ -255,11 +255,25 @@ class SocketManager @Inject constructor(
         socket = s
 
         s.on(Socket.EVENT_CONNECT) { _status.value = SocketStatus.CONNECTED }
-        s.on(Socket.EVENT_DISCONNECT) { _status.value = SocketStatus.DISCONNECTED }
+        s.on(Socket.EVENT_DISCONNECT) { args ->
+            _status.value = SocketStatus.DISCONNECTED
+            // 服务端主动断开（改密码 / 设备被移除 / 封禁都会踢掉全部连接）时库不会自动重连：
+            // 走一次会话核验（401 → 回登录页）；会话仍有效（其他原因被踢）则稍后重连，不停在「断开」
+            if (args.firstOrNull() == "io server disconnect" && tokenStore.isCurrent(credential)) {
+                _sessionExpired.tryEmit(Unit)
+                android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+                    if (socket === s && tokenStore.isCurrent(credential) && !s.connected()) s.connect()
+                }, 2_000)
+            }
+        }
         s.on("session_expired") { if (tokenStore.isCurrent(credential)) _sessionExpired.tryEmit(Unit) }
         s.on(Socket.EVENT_CONNECT_ERROR) { args ->
             _status.value = SocketStatus.DISCONNECTED
-            Log.w(TAG, "connect_error: ${args.firstOrNull()}")
+            val err = args.firstOrNull()
+            Log.w(TAG, "connect_error: $err")
+            // 握手鉴权被拒（会话已失效 / 密码已修改 / 封禁…）：不再拿失效凭证无限重连，核验后登出
+            val msg = (err as? Exception)?.message ?: (err as? JSONObject)?.optString("message") ?: err?.toString().orEmpty()
+            if (tokenStore.isCurrent(credential) && AUTH_FAILURE_HINTS.any { msg.contains(it) }) _sessionExpired.tryEmit(Unit)
         }
 
         s.on("new_message") { args -> if (!tokenStore.isCurrent(credential)) return@on; parseMessage(args.firstOrNull())?.let(_incomingMessages::tryEmit) }
@@ -822,5 +836,7 @@ class SocketManager @Inject constructor(
 
     private companion object {
         const val TAG = "SocketManager"
+        /** 服务端握手鉴权失败的报错（realtime/index.js），与 iOS SocketService fatalAuth 同口径 */
+        val AUTH_FAILURE_HINTS = listOf("未授权", "失效", "请重新登录", "账号已被封禁", "Token无效")
     }
 }

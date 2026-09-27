@@ -7,6 +7,7 @@ import { invalidateMediaTickets } from '../utils/url';
 import { isBearerClient, isIsolatedWindow } from '../utils/clientStorage';
 import { pushScope } from '../utils/pushScope';
 import { activateSession, captureSession, invalidateSession, isOperationCurrent, isOperationGenerationCurrent, SESSION_OWNER_KEY } from '../utils/sessionContext';
+import { setLogoutReason, hasLogoutReason } from '../utils/logoutReason';
 
 // 所有请求自动携带 httpOnly Cookie（同源时浏览器自动附加，跨域需此选项）
 axios.defaults.withCredentials = true;
@@ -111,6 +112,7 @@ export const AuthProvider = ({ children }) => {
         const isAuthBootstrap = url.includes('/auth/refresh') || url.includes('/auth/login');
         if (err.response?.status === 401 && userRef.current && !isAuthBootstrap) {
           if (err.config?._sessionStale) return Promise.reject(err);
+          if (!hasLogoutReason()) setLogoutReason(); // 登录页据此提示「登录已失效」，而不是无声跳回
           invalidateSession();
           setUser(null);
           setElectronToken(null);

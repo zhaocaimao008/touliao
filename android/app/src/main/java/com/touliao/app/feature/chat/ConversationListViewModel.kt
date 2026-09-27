@@ -197,16 +197,25 @@ class ConversationListViewModel @Inject constructor(
     private fun observeIncoming() {
         viewModelScope.launch {
             chatRepository.incomingMessages.collect { msg ->
+                // 未在列表中（删除过的会话来了新消息 / 被拉进新群后的首条消息）：整表刷新，
+                // 否则要等下次下拉/重连才出现（与 Web onMsg 找不到会话时 fetchConvs 同口径）
+                if (_uiState.value.conversations.none { it.id == msg.conversation_id }) { refresh(); return@collect }
                 _uiState.update { state ->
                     val list = state.conversations.toMutableList()
                     val idx = list.indexOfFirst { it.id == msg.conversation_id }
-                    if (idx < 0) return@update state   // 未在列表中（新会话）暂忽略，下次刷新可见
+                    if (idx < 0) return@update state
                     val old = list.removeAt(idx)
                     val updated = old.copy(
                         // 阅后即焚：预览不透出原文（与服务端列表/推送同口径）
-                        lastMessage = if (msg.burn_after > 0) "[阅后即焚消息]" else msg.content,
+                        lastMessage = when {
+                            msg.burn_after > 0 -> "[阅后即焚消息]"
+                            msg.type == "call" && msg.sender_id != myId -> calleeCallText(msg.content)
+                            else -> msg.content
+                        },
                         lastMessageType = msg.type,
                         lastTime = msg.created_at,
+                        // 群预览是「发送者: 内容」，不同步发送者会把新内容挂到上一条的发送者名下
+                        lastSenderName = msg.senderName.ifBlank { old.lastSenderName },
                         unreadCount = if (msg.sender_id != myId) old.unreadCount + 1 else old.unreadCount,
                     )
                     if (updated.archived == 1) list.add(idx, updated) else list.add(0, updated)
@@ -251,4 +260,11 @@ class ConversationListViewModel @Inject constructor(
     fun logout() {
         viewModelScope.launch { sessionManager.logout() }
     }
+}
+
+/** 通话消息 content 是主叫文案；被叫的列表预览换成被叫视角（与服务端会话列表同口径）。 */
+internal fun calleeCallText(content: String): String = when (content) {
+    "对方已拒绝" -> "已拒绝"
+    "已取消", "对方无应答" -> "未接来电"
+    else -> content
 }

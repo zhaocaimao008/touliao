@@ -15,6 +15,7 @@ import { showToast } from '../utils/toast';
 import AccountWindowButton from '../components/AccountWindowButton';
 import { safeReturnPath } from '../utils/returnPath';
 import { isWindowsDesktop } from '../utils/desktopPlatform';
+import { takeLogoutReason, GENERIC_LOGOUT_REASON } from '../utils/logoutReason';
 
 const isElectron = !!window.__ELECTRON_CONFIG__;
 
@@ -42,6 +43,11 @@ export default function Login() {
   useEffect(() => {
     if (location.state?.notice) showToast(location.state.notice, 'info');
   }, [location.state?.notice]);
+  // 被动登出（别处改密码 / 设备被移除 / 会话过期）后落到登录页：说明原因
+  useEffect(() => {
+    const reason = takeLogoutReason();
+    if (reason) showToast(reason === GENERIC_LOGOUT_REASON ? t('auth.sessionExpiredNotice') : reason, 'info');
+  }, [t]);
 
   const loadCaptcha = useCallback(() => {
     setCaptchaText('');

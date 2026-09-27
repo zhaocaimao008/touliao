@@ -23,7 +23,7 @@ const moderation = require('../moderation/moderation.service');
 const MAX = config.limits.maxMsgLength;
 
 // ── 历史消息（批量 replyTo + reactions，群已读数 / 私聊送达）──────
-function history(convId, userId, { before, after, limit, beforeId }, io=null) {
+function history(convId, userId, { before, after, limit, beforeId, afterId }, io=null) {
   requireMember(convId, userId);
   require('./burn.service').expireDueMessages();
 
@@ -64,7 +64,21 @@ function history(convId, userId, { before, after, limit, beforeId }, io=null) {
       params.push(beforeTs);
     }
   }
-  if (hasAfter)  { query += ' AND m.created_at > ?'; params.push(afterTs); }
+  if (hasAfter) {
+    // 与 beforeId 对称：跳转到历史位置后向下翻页，同秒消息多于一页时靠 (created_at, rowid) 不丢不重
+    let afterRowid = null;
+    if (afterId) {
+      const r = db.prepare('SELECT rowid AS rid FROM messages WHERE id=? AND conversation_id=?').get(afterId, convId);
+      if (r) afterRowid = r.rid;
+    }
+    if (afterRowid != null) {
+      query += ' AND (m.created_at > ? OR (m.created_at = ? AND m.rowid > ?))';
+      params.push(afterTs, afterTs, afterRowid);
+    } else {
+      query += ' AND m.created_at > ?';
+      params.push(afterTs);
+    }
+  }
   query += hasAfter ? ' ORDER BY m.created_at ASC, m.rowid ASC LIMIT ?' : ' ORDER BY m.created_at DESC, m.rowid DESC LIMIT ?';
   params.push(lim);
 
@@ -977,7 +991,7 @@ function aroundMessage(convId, msgId, userId) {
   )`;
 
   const target = db.prepare(`
-    SELECT created_at FROM messages
+    SELECT created_at, rowid AS rid FROM messages
     WHERE id=? AND conversation_id=? AND deleted=0
     AND rowid > COALESCE((SELECT cleared_rowid FROM conversation_clears WHERE user_id=? AND conversation_id=?), 0
     )
@@ -988,19 +1002,22 @@ function aroundMessage(convId, msgId, userId) {
   const before = db.prepare(`
     SELECT m.*, COALESCE(u.username, '') as senderName, COALESCE(u.avatar, '') as senderAvatar
     FROM messages m LEFT JOIN users u ON u.id=m.sender_id
-    WHERE m.conversation_id=? AND m.created_at<=? AND m.deleted=0 ${clearClause} ${userDelClause}
+    WHERE m.conversation_id=? AND (m.created_at < ? OR (m.created_at = ? AND m.rowid <= ?)) AND m.deleted=0 ${clearClause} ${userDelClause}
     ORDER BY m.created_at DESC, m.rowid DESC LIMIT ?
-  `).all(convId, target.created_at, userId, userId, HALF + 1);
+  `).all(convId, target.created_at, target.created_at, target.rid, userId, userId, HALF + 1);
 
   const after = db.prepare(`
     SELECT m.*, COALESCE(u.username, '') as senderName, COALESCE(u.avatar, '') as senderAvatar
     FROM messages m LEFT JOIN users u ON u.id=m.sender_id
-    WHERE m.conversation_id=? AND m.created_at>? AND m.deleted=0 ${clearClause} ${userDelClause}
+    WHERE m.conversation_id=? AND (m.created_at > ? OR (m.created_at = ? AND m.rowid > ?)) AND m.deleted=0 ${clearClause} ${userDelClause}
     ORDER BY m.created_at ASC, m.rowid ASC LIMIT ?
-  `).all(convId, target.created_at, userId, userId, HALF);
+  `).all(convId, target.created_at, target.created_at, target.rid, userId, userId, HALF + 1);
 
+  // (created_at, rowid) 复合比较：同一秒内消息很多时，目标本身也一定落在窗口里
   const hasMore = before.length > HALF;
-  const messages = [...before.slice(0, HALF).reverse(), ...after];
+  // 目标之后还有更多（窗口不含最新消息）：客户端据此在滚到底部时继续向下加载
+  const hasNewer = after.length > HALF;
+  const messages = [...before.slice(0, HALF).reverse(), ...after.slice(0, HALF)];
 
   const replyIds = [...new Set(messages.filter(m => m.reply_to_id).map(m => m.reply_to_id))];
   const replyMap = new Map();
@@ -1032,6 +1049,7 @@ function aroundMessage(convId, msgId, userId) {
       return msg;
     }),
     hasMore,
+    hasNewer,
   };
 }
 
