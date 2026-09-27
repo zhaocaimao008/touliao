@@ -214,15 +214,6 @@ struct ProfileView: View {
     }
 
     @ViewBuilder private var avatarView: some View {
-        if let avatar = user?.avatar, !avatar.isEmpty,
-           let src = MediaUrlResolver.kfSource(raw: avatar) {
-            KFImage(source: src)
-                .resizable().scaledToFill()
-                .frame(width: Tok.avatarSize, height: Tok.avatarSize)
-                .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-        } else {
-            InitialAvatar(name: user?.username ?? "?", size: Tok.avatarSize)
-                .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-        }
+        InitialAvatar(name: user?.username ?? "?", size: Tok.avatarSize, avatarUrl: user?.avatar)
     }
 }

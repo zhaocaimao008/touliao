@@ -289,7 +289,7 @@ struct ChatView: View {
                     ForEach(vm.groupMembers) { m in
                         Button { vm.appendMention(m); showMentionPicker = false } label: {
                             HStack(spacing: 12) {
-                                InitialAvatar(name: m.displayName.isEmpty ? "?" : m.displayName, size: 36)
+                                InitialAvatar(name: m.displayName.isEmpty ? "?" : m.displayName, size: 36, avatarUrl: m.avatar)
                                 Text(m.displayName.isEmpty ? "未命名" : m.displayName).foregroundColor(.vxinText)
                             }
                         }
@@ -310,7 +310,7 @@ struct ChatView: View {
                     } label: {
                         HStack {
                             TouliaoIcon(forwardSelected.contains(conv.id) ? "selected" : "unselected").foregroundColor(.vxinBrand)
-                            InitialAvatar(name: conv.name.isEmpty ? "?" : conv.name, size: 32)
+                            InitialAvatar(name: conv.name.isEmpty ? "?" : conv.name, size: 32, avatarUrl: conv.avatar)
                             Text(conv.name.isEmpty ? "未命名会话" : conv.name).foregroundColor(.vxinText).lineLimit(1)
                         }
                     }
@@ -340,7 +340,7 @@ struct ChatView: View {
                         } label: {
                             HStack {
                                 TouliaoIcon(multiForwardSelected.contains(conv.id) ? "selected" : "unselected").foregroundColor(.vxinBrand)
-                                InitialAvatar(name: conv.name.isEmpty ? "?" : conv.name, size: 32)
+                                InitialAvatar(name: conv.name.isEmpty ? "?" : conv.name, size: 32, avatarUrl: conv.avatar)
                                 Text(conv.name.isEmpty ? "未命名会话" : conv.name).foregroundColor(.vxinText).lineLimit(1)
                             }
                         }
@@ -1000,7 +1000,7 @@ private struct MessageBubble: View {
     var body: some View {
         HStack(alignment: .top, spacing: 6) {
             if isMine { Spacer(minLength: 40) } else {
-                InitialAvatar(name: msg.senderName.isEmpty ? "?" : msg.senderName, size: 36)
+                InitialAvatar(name: msg.senderName.isEmpty ? "?" : msg.senderName, size: 36, avatarUrl: msg.senderAvatar)
                     .onTapGesture(count: 2) { vm.nudge(msg.senderId) }
             }
             VStack(alignment: isMine ? .trailing : .leading, spacing: 2) {
@@ -1114,7 +1114,7 @@ private struct MessageBubble: View {
                 }
             }
             if !isMine { Spacer(minLength: 40) } else {
-                InitialAvatar(name: msg.senderName.isEmpty ? "我" : msg.senderName, size: 36)
+                InitialAvatar(name: msg.senderName.isEmpty ? "我" : msg.senderName, size: 36, avatarUrl: msg.senderAvatar)
             }
         }
         .padding(.vertical, 2)

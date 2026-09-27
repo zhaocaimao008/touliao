@@ -210,7 +210,7 @@ struct MomentComposeView: View {
                         Button { vm.toggleFriend(f.id) } label: {
                             HStack {
                                 TouliaoIcon(vm.visibleTo.contains(f.id) ? "selected" : "unselected").foregroundColor(.vxinBrand)
-                                InitialAvatar(name: f.displayName.isEmpty ? "?" : f.displayName, size: 32)
+                                InitialAvatar(name: f.displayName.isEmpty ? "?" : f.displayName, size: 32, avatarUrl: f.avatar)
                                 Text(f.displayName.isEmpty ? "用户" : f.displayName).foregroundColor(.vxinText).lineLimit(1)
                             }
                         }

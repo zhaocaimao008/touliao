@@ -96,7 +96,7 @@ struct CallHistoryView: View {
         let missed = c.direction == "in" && (c.status == "missed" || c.status == "canceled")
         let isGroup = c.kind == "group"
         HStack(spacing: 12) {
-            InitialAvatar(name: c.peerName.isEmpty ? (isGroup ? "群" : "?") : c.peerName, size: 42)
+            InitialAvatar(name: c.peerName.isEmpty ? (isGroup ? "群" : "?") : c.peerName, size: 42, avatarUrl: c.peerAvatar)
             VStack(alignment: .leading, spacing: 3) {
                 Text(c.peerName.isEmpty ? (isGroup ? "群聊" : "用户") : c.peerName)
                     .touliaoText(.secondary).fontWeight(.medium)

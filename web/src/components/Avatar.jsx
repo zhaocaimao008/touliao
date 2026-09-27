@@ -64,7 +64,6 @@ export default memo(function Avatar({ src, name = '', size = 'list', style = {},
               src={thumbFailed ? originalUrl : thumbUrl}
               alt={name}
               loading="lazy"
-              crossOrigin="anonymous"
               onError={() => {
                 // 缩略图失败（旧头像无缩略图/生成失败）先回退原图，原图也失败才落到字母头像
                 if (!thumbFailed && thumbUrl !== originalUrl) { setThumbFailed(true); return; }

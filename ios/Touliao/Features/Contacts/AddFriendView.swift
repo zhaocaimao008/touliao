@@ -49,7 +49,7 @@ struct AddFriendView: View {
             List(vm.results) { user in
                 Group {
                 HStack(spacing: 12) {
-                    InitialAvatar(name: user.username.isEmpty ? "?" : user.username, size: 44)
+                    InitialAvatar(name: user.username.isEmpty ? "?" : user.username, size: 44, avatarUrl: user.avatar)
                     VStack(alignment: .leading, spacing: 2) {
                         Text(user.username.isEmpty ? "未命名" : user.username)
                         if !user.wechatId.isEmpty {
@@ -128,7 +128,7 @@ private struct ScannedUserProfileSheet: View {
         let alreadySent = vm.sentIds.contains(detail.id)
 
         VStack(spacing: 12) {
-            InitialAvatar(name: detail.username.isEmpty ? "?" : detail.username, size: 72)
+            InitialAvatar(name: detail.username.isEmpty ? "?" : detail.username, size: 72, avatarUrl: detail.avatar)
 
             Text(detail.username.isEmpty ? "未命名" : detail.username)
                 .touliaoText(.headline).fontWeight(.semibold)

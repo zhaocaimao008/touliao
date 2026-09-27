@@ -67,7 +67,7 @@ struct ContactsView: View {
                         ForEach(vm.aiBots) { bot in
                             Button { Task { if let conv = await vm.startAiChat(bot) { onStartChat(conv) } } } label: {
                                 HStack(spacing: 12) {
-                                    InitialAvatar(name: bot.name.isEmpty ? "?" : bot.name, size: 40)
+                                    InitialAvatar(name: bot.name.isEmpty ? "?" : bot.name, size: 40, avatarUrl: bot.avatar)
                                     VStack(alignment: .leading, spacing: 2) {
                                         Text(bot.name.isEmpty ? bot.username : bot.name).foregroundColor(.vxinText)
                                         if !bot.description.isEmpty {
@@ -90,7 +90,7 @@ struct ContactsView: View {
                 ForEach(vm.contacts) { contact in
                     Button { Task { if let conv = await vm.startPrivateChat(contact) { onStartChat(conv) } } } label: {
                         HStack(spacing: 12) {
-                            InitialAvatar(name: contact.displayName.isEmpty ? "?" : contact.displayName, size: 44)
+                            InitialAvatar(name: contact.displayName.isEmpty ? "?" : contact.displayName, size: 44, avatarUrl: contact.avatar)
                                 .overlay(alignment: .bottomTrailing) {
                                     if vm.onlineIds.contains(contact.id) {
                                         Circle().fill(Color.vxinOnline).frame(width: 12, height: 12)

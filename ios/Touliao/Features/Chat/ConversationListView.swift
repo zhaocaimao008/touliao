@@ -297,7 +297,7 @@ struct ConversationRow: View {
 
     var body: some View {
         HStack(spacing: 12) {
-            InitialAvatar(name: conversation.name.isEmpty ? "?" : conversation.name, size: 44)
+            InitialAvatar(name: conversation.name.isEmpty ? "?" : conversation.name, size: 44, avatarUrl: conversation.avatar)
             VStack(alignment: .leading, spacing: 3) {
                 Text(conversation.name.isEmpty ? "未命名会话" : conversation.name)
                     .touliaoText(.body)

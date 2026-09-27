@@ -310,7 +310,7 @@ private struct MomentCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack {
-                InitialAvatar(name: moment.author.username.isEmpty ? "?" : moment.author.username, size: 40)
+                InitialAvatar(name: moment.author.username.isEmpty ? "?" : moment.author.username, size: 40, avatarUrl: moment.author.avatar)
                 Text(moment.author.username.isEmpty ? "未命名" : moment.author.username)
                     .foregroundColor(.vxinBrand).touliaoText(.secondary)
                 Spacer()
@@ -509,7 +509,7 @@ private struct MomentNotifSheet: View {
                     List(items) { n in
                         Group {
                         HStack(spacing: 12) {
-                            InitialAvatar(name: n.actor.username.isEmpty ? "?" : n.actor.username, size: 40)
+                            InitialAvatar(name: n.actor.username.isEmpty ? "?" : n.actor.username, size: 40, avatarUrl: n.actor.avatar)
                             VStack(alignment: .leading, spacing: 3) {
                                 (Text(n.actor.username.isEmpty ? "用户" : n.actor.username).fontWeight(.medium)
                                     + Text(n.type == "like" ? " 赞了你的动态" : " 评论：\(n.commentContent)"))
