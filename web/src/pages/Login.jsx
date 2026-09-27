@@ -159,7 +159,6 @@ export default function Login() {
           </div>
           <h1 className="auth-brand-name auth-brand-name--brand">{t('common.appName')}</h1>
           <p className="auth-brand-desc">{t('auth.slogan')}</p>
-          {!isWindowsDesktop() && <AccountWindowButton />}
         </div>
 
         {/* 最近登录：点击仅回填手机号。 */}
@@ -269,7 +268,8 @@ export default function Login() {
         <p className="auth-footer">
           {t('auth.noAccountYet')}<Link to="/register" className="auth-link">{t('auth.registerNew')}</Link>
         </p>
-        {isWindowsDesktop() && <div className="windows-account-entry"><AccountWindowButton /></div>}
+        {/* 多开入口属于进阶功能：统一放在表单下方，不占品牌区的首屏焦点 */}
+        <div className={isWindowsDesktop() ? 'windows-account-entry' : 'auth-account-entry'}><AccountWindowButton /></div>
 
         {/* 下载客户端 — 仅网页端显示 */}
         {!isElectron && (

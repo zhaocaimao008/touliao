@@ -830,6 +830,7 @@ body.dark-mode * {
 .wc-msg-bubble:has(.wc-msg-video),
 .wc-msg-bubble:has(.wc-msg-sticker),
 .wc-msg-bubble:has(.wc-redpacket-card),
+.wc-msg-bubble:has(.wc-transfer-card),
 .wc-msg-bubble:has(.wc-contact-card) {
   padding: 0;
   background: transparent !important;
@@ -1563,7 +1564,7 @@ body.dark-mode .wc-me-header { background: var(--bg-card); }
   background: var(--bg-hover); border-radius: var(--radius-md);
   font-size: var(--text-sm2); color: var(--text-secondary);
 }
-.wc-moment-heart { color: var(--green); }
+.wc-moment-heart { color: var(--green); margin-right: 6px; vertical-align: -2px; flex-shrink: 0; }
 .wc-moment-comments {
   margin-top: 6px; padding: 4px 10px;
   background: var(--bg-hover); border-radius: var(--radius-md);
@@ -3841,7 +3842,8 @@ body.dark-mode .we-empty-svg { opacity: .25; }
 
 /* === ContactList component classes === */
 .cl-panel { display: flex; flex-direction: column; height: 100%; position: relative; background: var(--bg-panel); }
-.cl-divider { height: 8px; background: var(--divider); }
+/* 快捷入口与联系人列表之间留白分隔（原 8px 实心灰条过重） */
+.cl-divider { height: 12px; background: transparent; }
 .cl-avatar-wrap { position: relative; }
 .cl-avatar-rounded { border-radius: var(--radius-md); }
 .cl-contact-info { flex: 1; min-width: 0; }
@@ -4097,12 +4099,11 @@ body.dark-mode .wc-confirm-ok { background: linear-gradient(135deg, var(--brand-
 /* ── 群公告置顶轮播条 ── */
 .wc-announce-banner { display: flex; align-items: center; gap: 8px; padding: 7px 14px; background: var(--info-banner-bg); cursor: pointer; border-bottom: 1px solid rgba(0,0,0,.04); overflow: hidden; }
 .wc-announce-badge { flex-shrink: 0; color: var(--info-banner-fg); font-size: var(--text-sm); font-weight: 600; }
-.wc-announce-marquee { flex: 1; min-width: 0; overflow: hidden; white-space: nowrap; position: relative; }
-.wc-announce-text { display: inline-block; padding-left: 100%; font-size: var(--text-sm2); color: var(--text-primary); animation: wcAnnounceScroll 18s linear infinite; }
-.wc-announce-banner:hover .wc-announce-text { animation-play-state: paused; }
+/* 静态单行 + 省略号，点击展开全文（原跑马灯一直滚动，截取瞬间常只露出半句、干扰阅读） */
+.wc-announce-marquee { flex: 1; min-width: 0; overflow: hidden; white-space: nowrap; }
+.wc-announce-text { display: block; overflow: hidden; text-overflow: ellipsis; font-size: var(--text-sm2); color: var(--text-primary); }
 .wc-announce-toggle { flex-shrink: 0; color: var(--text-secondary); font-size: var(--text-xs); }
 .wc-announce-detail { padding: 10px 14px; background: var(--info-banner-bg-soft); font-size: var(--text-sm2); color: var(--text-primary); white-space: pre-wrap; word-break: break-word; border-bottom: 1px solid rgba(0,0,0,.04); }
-@keyframes wcAnnounceScroll { 0% { transform: translateX(0); } 100% { transform: translateX(-100%); } }
 body.dark-mode .wc-announce-banner { background: var(--info-banner-bg); border-bottom-color: rgba(255,255,255,.06); }
 body.dark-mode .wc-announce-detail { background: var(--info-banner-bg-soft); }
 

@@ -12,7 +12,6 @@ import { useI18n } from '../contexts/I18nContext';
 import { FixedSizeList } from 'react-window';
 import AutoSizer from 'react-virtualized-auto-sizer';
 import { archiveUnreadTotal, splitArchivedConversations } from '../utils/archiveConversations';
-import { isWindowsDesktop } from '../utils/desktopPlatform';
 import { useSwipe } from '../hooks/useSwipe';
 import { EmptyState } from './StateViews';
 import designTokens from '../ui-kit/tokens.json';
@@ -447,7 +446,8 @@ export default function ChatList({ onSelectConv, activeConvId, unread = {}, sear
           ))}
         </div>
       )}
-      {!searchQuery && !showArchived && (!isWindowsDesktop() || archivedConversations.length > 0) && (
+      {/* 没有归档会话时不显示入口（原网页端常驻「归档 0」占一行） */}
+      {!searchQuery && !showArchived && archivedConversations.length > 0 && (
         <button type="button" className="wc-archive-entry" onClick={() => setShowArchived(true)}>
           <span className="wc-archive-icon" aria-hidden="true">▣</span>
           <span>{t('chatlist.archive')}</span>

@@ -258,8 +258,8 @@ html.windows-desktop body .wc-msg-bubble.mine .wc-msg-reply:not(.wc-msg-reply--o
 html.windows-desktop body .wc-msg-bubble.mine .wc-msg-reply:not(.wc-msg-reply--on-media) :is(.wc-msg-reply-name, .wc-msg-reply-text) { color: var(--windows-bubble-secondary) !important; }
 html.windows-desktop body .wc-msg-bubble.mine :is(.wc-voice-play-icon, .wc-voice-play-icon-offset) { color: var(--windows-action-bg); }
 /* Media and cards retain their own surfaces and their independent reply cards. */
-html.windows-desktop body .wc-msg-bubble:has(.wc-msg-img, .wc-msg-video, .wc-msg-sticker, .wc-redpacket-card, .wc-contact-card),
-html.windows-desktop body.dark-mode[data-skin] .wc-msg-bubble:has(.wc-msg-img, .wc-msg-video, .wc-msg-sticker, .wc-redpacket-card, .wc-contact-card) { background: transparent !important; padding: 0; border: 0; }
+html.windows-desktop body .wc-msg-bubble:has(.wc-msg-img, .wc-msg-video, .wc-msg-sticker, .wc-redpacket-card, .wc-transfer-card, .wc-contact-card),
+html.windows-desktop body.dark-mode[data-skin] .wc-msg-bubble:has(.wc-msg-img, .wc-msg-video, .wc-msg-sticker, .wc-redpacket-card, .wc-transfer-card, .wc-contact-card) { background: transparent !important; padding: 0; border: 0; }
 html.windows-desktop body .wc-msg-time span { background: transparent; backdrop-filter: none; padding: 0; }
 html.windows-desktop body .wc-input-area { background: var(--bg-input) !important; border-top: 1px solid var(--border-default); }
 html.windows-desktop body .wc-input-toolbar { height: 36px; padding: 4px 16px; }

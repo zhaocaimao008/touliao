@@ -36,6 +36,7 @@ const IcoDesktop = () => <TouliaoIcon name="device" className="wc-ico" />;
 const IcoMoon = () => <TouliaoIcon name="appearance" className="wc-ico" />;
 const IcoBell = () => <TouliaoIcon name="notification" className="wc-ico" />;
 const IcoShield = () => <TouliaoIcon name="security" className="wc-ico" />;
+const IcoLock = () => <TouliaoIcon name="lock" className="wc-ico" />;
 const IcoServer = () => <TouliaoIcon name="server" className="wc-ico" />;
 const IcoKeyboard = () => <TouliaoIcon name="adjustments" className="wc-ico" />;
 const IcoQR = () => <TouliaoIcon name="qrcode"  />;
@@ -1473,7 +1474,7 @@ export default function Profile({ isMobile = false }) {
         <Card>
           <CRow icon={<IcoDesktop />} bg="var(--icon-bg-neutral)" label={t('profile.deviceManagement')} desc={t('profile.deviceMenuDesc')} onClick={() => setSubPage('devices')} />
           <CRow icon={<IcoShield />}  bg="var(--icon-bg-neutral)" label={t('settings.privacy')} desc={t('profile.privacyMenuDesc')} onClick={() => setSubPage('privacy')} />
-          <CRow icon={<IcoShield />}  bg="var(--icon-bg-neutral)" label={t('profile.changePasswordTitle')} desc={t('profile.changePasswordDesc')} onClick={() => setSubPage('change-password')} />
+          <CRow icon={<IcoLock />}  bg="var(--icon-bg-neutral)" label={t('profile.changePasswordTitle')} desc={t('profile.changePasswordDesc')} onClick={() => setSubPage('change-password')} />
         </Card>
       </div>
 

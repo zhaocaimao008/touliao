@@ -11,3 +11,7 @@
 .auth-window-button:focus-visible { outline: 2px solid var(--color-primary, #6D5AE6); outline-offset: 2px; }
 /* 登录页已是浅色底（v3），不能再用白字白边，否则几乎不可见 */
 .auth-brand .auth-window-button { margin-top: 12px; color: var(--text-secondary, #4b5563); border-color: var(--border-default, #d1d5db); }
+/* 网页端登录页：表单下方的次要文字入口 */
+.auth-account-entry { display: flex; justify-content: center; margin-top: 4px; }
+.auth-account-entry .auth-window-button { border: 0; padding: 4px 8px; color: var(--text-secondary, #4b5563); font-size: 12px; }
+.auth-account-entry .auth-window-button:hover { color: var(--color-primary, #6D5AE6); }

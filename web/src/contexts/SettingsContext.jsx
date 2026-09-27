@@ -23,7 +23,11 @@ export function SettingsProvider({ children }) {
   const [themeMode, setThemeMode] = useState(() => {
     const t = localStorage.getItem('wc_theme');
     if (t === 'light' || t === 'dark' || t === 'auto') return t;
-    return localStorage.getItem('wc_dark') === '1' ? 'dark' : 'light';
+    // 旧版布尔存储按原选择迁移；全新安装默认「跟随系统」（与 iOS/Android 一致）
+    const legacy = localStorage.getItem('wc_dark');
+    if (legacy === '1') return 'dark';
+    if (legacy === '0') return 'light';
+    return 'auto';
   });
   const [systemDark, setSystemDark] = useState(getSystemDark);
   const [fontSize, setFontSize] = useState(() => localStorage.getItem('wc_font') || 'normal');
