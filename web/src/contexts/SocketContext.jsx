@@ -92,6 +92,8 @@ export const SocketProvider = ({ children }) => {
 
     const onVisible = () => { if (document.visibilityState === 'visible' && !s.connected) s.connect(); };
     const onOnline  = () => { if (!s.connected) s.connect(); };
+    // 断网立即断开：否则要等心跳超时（最长约 45 秒）才判定断线，期间界面无任何提示、发出的消息卡住
+    const onOffline = () => { if (s.connected) s.disconnect(); };
     // Electron 专属：主进程 powerMonitor 监听到系统休眠唤醒后转发的事件（见 preload.js）。
     // 没有它的话，休眠唤醒后要等 socket.io pingTimeout(20秒) 超时才会判定断线开始重连；
     // 唤醒瞬间主动 connect() 能把这个滞后降到几乎瞬间（AUDIT.md 十二节🟡）。
@@ -105,6 +107,7 @@ export const SocketProvider = ({ children }) => {
     const onStorage = event => { if (!isIsolatedWindow() && event.key === 'touliao_session_revision') onCredentialsUpdated(); };
     document.addEventListener('visibilitychange', onVisible);
     window.addEventListener('online', onOnline);
+    window.addEventListener('offline', onOffline);
     window.addEventListener('electron:resume', onElectronResume);
     window.addEventListener('touliao:credentials-updated', onCredentialsUpdated);
     window.addEventListener('storage', onStorage);
@@ -114,6 +117,7 @@ export const SocketProvider = ({ children }) => {
       disconnectAtRef.current = 0;
       document.removeEventListener('visibilitychange', onVisible);
       window.removeEventListener('online', onOnline);
+      window.removeEventListener('offline', onOffline);
       window.removeEventListener('electron:resume', onElectronResume);
       window.removeEventListener('touliao:credentials-updated', onCredentialsUpdated);
       window.removeEventListener('storage', onStorage);

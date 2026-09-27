@@ -1,6 +1,6 @@
 import TouliaoField from '../ui-kit/Field';
 import TouliaoIcon from '../ui-kit/Icon';
-import React, { useState, useEffect, useCallback, useRef, useMemo, Suspense, lazy } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo, Suspense } from 'react';
 import { showConfirm, showToast } from '../utils/toast';
 import { playMessageTone } from '../utils/notifySound';
 import { startCallVisualAlert, stopCallVisualAlert } from '../utils/callVisualAlert';
@@ -20,15 +20,15 @@ import { ChatSkeleton, PanelSkeleton } from '../components/PanelSkeleton';
 import { IcoChat, IcoContacts, IcoSearch, IcoAdd, IcoMe, IcoMoments, IcoCall, IcoStar, IcoBack, IcoCheck, IcoClose, IcoPersonAdd } from '../components/Icons';
 // 非常驻的重型面板/模态框懒加载，减小首屏 chunk（各自本地 Suspense 兜底）
 // ChatWindow(~2700 行)仅在选中会话后才渲染，懒加载可显著缩小 Home 首屏 chunk。
-const ChatWindow    = lazy(() => import('../components/ChatWindow'));
-const Moments       = lazy(() => import('../components/Moments'));
-const CallHistory   = lazy(() => import('../components/CallHistory'));
-const CallModal     = lazy(() => import('../components/CallModal'));
-const GroupCallModal = lazy(() => import('../components/GroupCallModal'));
-const Collections   = lazy(() => import('../components/Collections'));
-const AddFriendModal = lazy(() => import('../components/AddFriendModal'));
-const MentionList   = lazy(() => import('../components/MentionList'));
-const ScanQR        = lazy(() => import('../components/ScanQR'));
+const ChatWindow    = lazyWithRetry(() => import('../components/ChatWindow'));
+const Moments       = lazyWithRetry(() => import('../components/Moments'));
+const CallHistory   = lazyWithRetry(() => import('../components/CallHistory'));
+const CallModal     = lazyWithRetry(() => import('../components/CallModal'));
+const GroupCallModal = lazyWithRetry(() => import('../components/GroupCallModal'));
+const Collections   = lazyWithRetry(() => import('../components/Collections'));
+const AddFriendModal = lazyWithRetry(() => import('../components/AddFriendModal'));
+const MentionList   = lazyWithRetry(() => import('../components/MentionList'));
+const ScanQR        = lazyWithRetry(() => import('../components/ScanQR'));
 import Avatar from '../components/Avatar';
 import AuthImage from '../components/AuthImage';
 import ReconnectingBanner from '../components/ReconnectingBanner';
@@ -41,6 +41,7 @@ import { warmupCacheDB } from '../utils/msgCache';
 import { saveCred, removeCred } from '../utils/rememberedCreds';
 import { useI18n } from '../contexts/I18nContext';
 import { useLocation, useNavigate } from 'react-router-dom';
+import { lazyWithRetry } from '../utils/lazyWithRetry';
 
 function WcEmpty() {
   // 对齐微信 PC：未选会话时近乎纯净留白，仅一枚极淡的单色图标，无文字、无彩色

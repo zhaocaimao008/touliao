@@ -1,7 +1,7 @@
 import TouliaoIcon from '../ui-kit/Icon';
 import { clientStorage as localStorage, isIsolatedWindow } from '../utils/clientStorage';
 
-import React, { useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo, useReducer, lazy, Suspense } from 'react';
+import React, { useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo, useReducer, Suspense } from 'react';
 import { createPortal } from 'react-dom';
 import { composeReducer, initialComposeState } from '../reducers/composeReducer';
 import { showToast, showConfirm } from '../utils/toast';
@@ -44,17 +44,17 @@ const CHAT_ACCEPT_ATTR = [...CHAT_ALLOWED_EXTS].map(e => '.' + e).join(',');
 // 媒体消息类型(图片/视频/文件/语音/名片/红包/表情)：flatItems 逐条判断是否参与"连续消息"压缩，
 // 原为循环体内每条消息都 new Set 一次，提到模块级避免重复分配。
 const MEDIA_TYPES = new Set(['image', 'video', 'file', 'voice', 'contact_card', 'red_packet', 'sticker', 'merged']);
-const EmojiPicker         = lazy(() => import('./EmojiPicker'));
-const StickerPanel        = lazy(() => import('./StickerPanel'));
-const GroupInfo           = lazy(() => import('./GroupInfo'));
-const UserProfile         = lazy(() => import('./UserProfile'));
-const RedPacketModal      = lazy(() => import('./RedPacketModal'));
-const TransferModal       = lazy(() => import('./TransferModal'));
-const ForwardModal        = lazy(() => import('./ForwardModal'));
-const ScheduleSendModal   = lazy(() => import('./ScheduleSendModal'));
-const PrivateChatSettings = lazy(() => import('./PrivateChatSettings'));
-const ChatFiles           = lazy(() => import('./ChatFiles'));
-const ReadStatusModal     = lazy(() => import('./ReadStatusModal'));
+const EmojiPicker         = lazyWithRetry(() => import('./EmojiPicker'));
+const StickerPanel        = lazyWithRetry(() => import('./StickerPanel'));
+const GroupInfo           = lazyWithRetry(() => import('./GroupInfo'));
+const UserProfile         = lazyWithRetry(() => import('./UserProfile'));
+const RedPacketModal      = lazyWithRetry(() => import('./RedPacketModal'));
+const TransferModal       = lazyWithRetry(() => import('./TransferModal'));
+const ForwardModal        = lazyWithRetry(() => import('./ForwardModal'));
+const ScheduleSendModal   = lazyWithRetry(() => import('./ScheduleSendModal'));
+const PrivateChatSettings = lazyWithRetry(() => import('./PrivateChatSettings'));
+const ChatFiles           = lazyWithRetry(() => import('./ChatFiles'));
+const ReadStatusModal     = lazyWithRetry(() => import('./ReadStatusModal'));
 import { useSocket } from '../contexts/SocketContext';
 import { useAuth } from '../contexts/AuthContext';
 import { useI18n } from '../contexts/I18nContext';
@@ -69,6 +69,7 @@ import './ChatWindow.css';
 import { IcoImage, IcoFile, IcoVideo, IcoContacts } from './Icons';
 
 import MessageActionMenu from '../ui-kit/MessageActionMenu';
+import { lazyWithRetry } from '../utils/lazyWithRetry';
 
 // 发送图片前从本地 File 解码出真实像素宽高（w/h）。用于在拿到最终 url 后预置 aspect
 // 缓存，使图片消息 socket 回显的首帧就按真实比例预留高度，避免图片解码后撑高、
@@ -159,7 +160,10 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
   // 切换会话=全清），改为原子 dispatch，杜绝散落 setState 的不一致。见
   // reducers/composeReducer.js（已 vitest 穷举测试）。recording 由 MediaRecorder
   // 副作用驱动，仍用独立 useState。
-  const [compose, dispatchCompose] = useReducer(composeReducer, initialComposeState);
+  // 首页以 key={会话id} 渲染本组件，切换会话即重新挂载：草稿必须在初始化时载入
+  // （下方「conversation.id 变化」分支在重新挂载时不会触发，原先草稿存了却从不回填输入框）
+  const [compose, dispatchCompose] = useReducer(composeReducer, conversation.id,
+    id => composeReducer(initialComposeState, { type: 'RESET', draft: localStorage.getItem(`draft_${id}`) || '' }));
   const { input, mode: composerMode, editingMsg, replyTo, fromDraft } = compose;
   const voiceMode = composerMode === 'VOICE';
   const [typingName, setTypingName] = useState('');
@@ -2197,7 +2201,8 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
     switch (action) {
       case 'reply':
         dispatchCompose({ type: 'SET_REPLY', msg });
-        textareaRef.current?.focus();
+        // 等右键菜单卸载、回复条渲染后再聚焦：同步 focus 会被菜单关闭抢走，用户还得再点一次输入框
+        requestAnimationFrame(() => textareaRef.current?.focus());
         break;
 
       case 'addSticker':

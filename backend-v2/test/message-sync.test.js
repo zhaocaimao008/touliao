@@ -209,3 +209,22 @@ describe('统一消息同步游标', () => {
     expect(response.body.retryable_message_ids).toContain(invalidId);
   });
 });
+
+describe('增量同步补全引用块与表情回应', () => {
+  test('同步返回的回复带 replyTo，带表情的消息带 reactions', async () => {
+    const a = await makeUser({ username: 'syncq_a' });
+    const b = await makeUser({ username: 'syncq_b' });
+    await befriend(a, b);
+    const convId = await privateConversation(a, b);
+    const original = await messageService.send(null, convId, a.userId, { content: '原消息', type: 'text' });
+    const reply = await messageService.send(null, convId, b.userId, { content: '这是回复', type: 'text', reply_to_id: original.id });
+    await messageService.react(null, a.userId, original.id, '👍');
+    const res = await request(app).get(`/api/messages/${convId}/sync?cursor=0&limit=100`).set('Authorization', `Bearer ${a.token}`);
+    expect(res.status).toBe(200);
+    const msgs = res.body.messages.map(e => e.message).filter(Boolean);
+    const syncedReply = msgs.find(m => m.id === reply.id);
+    expect(syncedReply.replyTo).toMatchObject({ id: original.id, content: '原消息', senderName: 'syncq_a' });
+    const syncedOriginal = msgs.find(m => m.id === original.id);
+    expect(syncedOriginal.reactions).toEqual([expect.objectContaining({ emoji: '👍', count: 1 })]);
+  });
+});

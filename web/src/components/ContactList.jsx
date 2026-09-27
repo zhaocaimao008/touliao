@@ -1,6 +1,6 @@
 import { EmptyState } from './StateViews';
 import TouliaoIcon from '../ui-kit/Icon';
-import React, { useState, useEffect, useCallback, useRef, useMemo, memo, Suspense, lazy } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo, memo, Suspense } from 'react';
 import axios from 'axios';
 import Avatar from './Avatar';
 
@@ -9,12 +9,13 @@ import './ContactList.css';
 import { GroupAvatar } from './GroupAvatar';
 import { useSocketCore } from '../contexts/SocketContext'; // 只订阅 socket，重连不触发无关 re-render
 // 懒加载：AddFriendModal 仅在点「添加朋友」时才渲染，避免打进 ContactList/Home 首屏 chunk
-const AddFriendModal = lazy(() => import('./AddFriendModal'));
+const AddFriendModal = lazyWithRetry(() => import('./AddFriendModal'));
 import { showToast, showConfirm } from '../utils/toast';
 import { firstLetter, comparePinyin } from '../utils/pinyin';
 import { formatLastOnline } from '../utils/time';
 import { useI18n } from '../contexts/I18nContext';
 import { IcoBack, IcoCheck, IcoContacts, IcoPersonAdd } from './Icons';
+import { lazyWithRetry } from '../utils/lazyWithRetry';
 
 function formatRequestTime(timestamp, formatter) {
   const seconds = Number(timestamp);

@@ -111,6 +111,31 @@ function syncConversation(conversationId, userId, query = {}, io=null) {
     };
   });
 
+  // 与 history 同口径补全引用块与表情回应：原先写死 replyTo:null / reactions:[]，客户端用同步结果
+  // 覆盖实时消息后，回复丢失引用块、带表情的消息表情消失（离线补拉的消息同样如此）。
+  const synced = envelopes.map(e => e.message).filter(m => m && m.deleted !== 2);
+  const replyIds = [...new Set(synced.filter(m => m.reply_to_id).map(m => m.reply_to_id))];
+  if (replyIds.length) {
+    const ph = replyIds.map(() => '?').join(',');
+    const replyMap = new Map(db.prepare(`
+      SELECT m.id, m.type, CASE WHEN m.burn_after>0 THEN '' ELSE m.content END AS content, CASE WHEN m.burn_after>0 THEN '' ELSE m.file_url END AS file_url, m.deleted, COALESCE(u.username, '') AS senderName
+      FROM messages m LEFT JOIN users u ON u.id = m.sender_id WHERE m.id IN (${ph}) AND m.conversation_id = ?
+    `).all(...replyIds, conversationId).map(r => [r.id, r]));
+    for (const m of synced) if (m.reply_to_id) m.replyTo = replyMap.get(m.reply_to_id) || null;
+  }
+  if (synced.length) {
+    const ph = synced.map(() => '?').join(',');
+    const reactionsMap = new Map();
+    db.prepare(`
+      SELECT message_id, emoji, GROUP_CONCAT(user_id) AS userIds, COUNT(*) AS count
+      FROM message_reactions WHERE message_id IN (${ph}) GROUP BY message_id, emoji
+    `).all(...synced.map(m => m.id)).forEach(r => {
+      if (!reactionsMap.has(r.message_id)) reactionsMap.set(r.message_id, []);
+      reactionsMap.get(r.message_id).push({ emoji: r.emoji, count: r.count, userIds: r.userIds.split(',') });
+    });
+    for (const m of synced) m.reactions = reactionsMap.get(m.id) || [];
+  }
+
   require('./burn.service').recordDelivery(userId,envelopes.map(e=>e.message).filter(Boolean),io);
 
   let nextCursor;
