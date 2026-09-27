@@ -54,7 +54,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import coil.compose.AsyncImage
 import com.touliao.app.feature.update.UpdateCheckDialog
 import com.touliao.app.feature.update.UpdateViewModel
 import com.touliao.app.ui.theme.TouliaoMetrics
@@ -160,21 +159,11 @@ fun ProfileScreen(
                             .padding(Tok.L),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        val avatarUrl = viewModel.resolveAvatarUrl(user?.avatar)
-                        if (!user?.avatar.isNullOrBlank()) {
-                            AsyncImage(
-                                model = avatarUrl,
-                                contentDescription = "头像",
-                                modifier = Modifier
-                                    .size(Tok.avatarSize)
-                                    .clip(RoundedCornerShape(Tok.avatarRadius)),
-                            )
-                        } else {
-                            InitialAvatar(
-                                name = user?.username ?: "?",
-                                size = Tok.avatarSize,
-                            )
-                        }
+                        InitialAvatar(
+                            name = user?.username ?: "?",
+                            size = Tok.avatarSize,
+                            avatarUrl = user?.avatar,
+                        )
                         if (state.uploadingAvatar) {
                             CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp, color = Tok.Green)
                         }
@@ -376,7 +365,7 @@ private fun AccountSwitchSheet(
                             .padding(horizontal = Tok.L),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        InitialAvatar(name = acc.username.ifBlank { "?" }, size = 40.dp)
+                        InitialAvatar(name = acc.username.ifBlank { "?" }, size = 40.dp, avatarUrl = acc.avatar)
                         Spacer(Modifier.width(Tok.M))
                         Column(Modifier.weight(1f)) {
                             Text(

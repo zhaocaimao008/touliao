@@ -49,7 +49,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import coil.compose.AsyncImage
 import com.touliao.app.data.model.GroupMember
 import com.touliao.app.ui.TouliaoIcons
 import com.touliao.app.ui.components.InitialAvatar
@@ -130,12 +129,12 @@ fun GroupInfoScreen(
                             horizontalAlignment = Alignment.CenterHorizontally,
                         ) {
                             Box(contentAlignment = Alignment.Center) {
-                                val url = viewModel.resolveUrl(info.avatar)
-                                if (info.avatar.isNotBlank()) {
-                                    AsyncImage(model = url, contentDescription = "群头像", modifier = Modifier.size(72.dp).clip(RoundedCornerShape(com.touliao.app.ui.theme.VxinRadius.card)))
-                                } else {
-                                    InitialAvatar(name = info.name.ifBlank { "群" }, size = 72.dp)
-                                }
+                                InitialAvatar(
+                                    name = info.name.ifBlank { "群" },
+                                    size = 72.dp,
+                                    avatarUrl = info.avatar,
+                                    shape = RoundedCornerShape(com.touliao.app.ui.theme.VxinRadius.card),
+                                )
                                 if (state.uploadingAvatar) CircularProgressIndicator(Modifier.size(24.dp), color = MaterialTheme.colorScheme.onSurface)
                             }
                             Spacer(Modifier.size(12.dp))
