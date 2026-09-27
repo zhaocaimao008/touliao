@@ -1,31 +1,37 @@
 # 投聊 部署指南（换服务器免配置）
 
-## 一键部署（全新服务器）
+## 换服务器：一键迁移（推荐，唯一入口）
 
-新服务器只需 3 步，无需手改任何配置文件：
+**思路**：新服务器 = 装环境 + 用每日加密备份恢复。备份里已有代码、`.env`、数据库、附件、网页/后台/落地页、
+下载站、nginx、HTTPS 证书、TURN、备份任务、SSH 授权公钥与各类凭据；脚本按原路径放回并自检。
 
+**准备**
+- 一台全新 Ubuntu 22.04 / 24.04（有 `ubuntu` 用户或允许脚本创建），开放 22 / 80 / 443 / 3478 / 5349 端口
+- 最新备份：旧服务器上现导一份（最完整）
+  `sudo /usr/local/bin/touliao-backup-export > touliao-latest.tar.age`
+  或从 `touliao-private-backups` 仓库 Actions 下载最近一次 `snapshot.tar.age`
+- age 解密私钥（负责人保管，不在任何服务器上）
+
+**执行（新服务器上）**
 ```bash
-# 1. 准备环境（一次性）：Node 18+、nginx、pm2
-npm i -g pm2
-
-# 2. 拉代码
-git clone <仓库地址> /root/touliao && cd /root/touliao
-
-# 3. 一键部署（把域名换成你的）
-./deploy/setup.sh chat.example.com
+git clone https://github.com/zhaocaimao008/touliao.git /tmp/touliao-src
+# 可先只校验备份、不改系统：
+sudo bash /tmp/touliao-src/deploy/migrate-to-new-server.sh --backup /root/touliao-latest.tar.age --identity /root/age.key --verify-only
+# 正式迁移：
+sudo bash /tmp/touliao-src/deploy/migrate-to-new-server.sh --backup /root/touliao-latest.tar.age --identity /root/age.key --email 你的邮箱
 ```
 
-脚本会自动完成：
-- 生成 `backend-v2/.env`，**自动产生强随机 `JWT_SECRET`**（不会用弱默认值）
-- 创建 `uploads` 目录、设置自包含路径
-- 安装后端依赖、构建前端（前端用相对路径，天然适配任何域名）
-- 由 `nginx.conf.template` 生成本机 nginx 配置（自动填域名/端口）
-- 用 pm2 启动后端 `touliao-backend`
+脚本 12 步：预检 → 装工具 → 解密校验（与异地备份每日恢复校验同一流程）→ 装 nginx/Redis/Docker/certbot/ffmpeg/Node/pm2
+→ 运行用户与 SSH 授权 → 代码（切到备份时的提交并带上未提交改动）→ 数据库（integrity_check）与附件
+→ 后端依赖、Redis 密码、图片审核环境 → 静态站点 → 证书（注册新 ACME 账号写回续期配置）→ nginx
+→ TURN（沿用原密钥、按新公网 IP 生成配置）与备份任务 → 启动后端并自检，最后打印**切流量清单**。
 
-完成后申请 HTTPS 证书：
-```bash
-certbot --nginx -d chat.example.com
-```
+- **只装不切**：脚本不改 DNS、不改 GitHub 配置；自检全部通过后按清单切换
+- **可重复执行**：中途失败修好后重跑；已有数据库/附件不覆盖，切换前用最后一份备份加 `--overwrite-data` 重跑
+- **客户端无需改动**：域名不变；TURN 凭据沿用原密钥
+- 已在全新 Ubuntu 24.04 容器中用合成备份完整演练（容器无 Docker 时 TURN 一项会提示未启动，属正常）
+
+> 旧的 `setup.sh` / `bootstrap-server.sh` / `setup-new-server.sh` 已废弃（目录布局与线上不一致），默认拒绝执行。
 
 ## 为什么能"免配置"
 
