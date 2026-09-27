@@ -87,7 +87,7 @@ private fun CandidateRow(contact: Contact, checked: Boolean, onToggle: () -> Uni
         if (checked) Icon(com.touliao.app.ui.TouliaoIcons.Selected, contentDescription = "已选", tint = VxinBrand)
         else RadioButton(selected = false, onClick = onToggle)
         Spacer(Modifier.width(8.dp))
-        InitialAvatar(name = contact.displayName.ifBlank { "?" }, size = 40.dp)
+        InitialAvatar(name = contact.displayName.ifBlank { "?" }, size = 40.dp, avatarUrl = contact.avatar)
         Spacer(Modifier.width(12.dp))
         Text(contact.displayName.ifBlank { "未命名" }, style = MaterialTheme.typography.bodyLarge)
     }

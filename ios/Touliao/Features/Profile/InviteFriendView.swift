@@ -47,7 +47,7 @@ struct InviteFriendView: View {
                     Section("邀请的好友") {
                         ForEach(inv.invitees.prefix(20)) { u in
                             HStack(spacing: 10) {
-                                InitialAvatar(name: u.username.isEmpty ? "?" : u.username, size: 32)
+                                InitialAvatar(name: u.username.isEmpty ? "?" : u.username, size: 32, avatarUrl: u.avatar)
                                 Text(u.username.isEmpty ? "未命名" : u.username)
                                     .touliaoText(.secondary)
                             }

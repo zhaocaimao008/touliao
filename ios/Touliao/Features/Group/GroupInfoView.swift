@@ -147,7 +147,7 @@ struct GroupInfoView: View {
                         }
                         ForEach(info.members) { member in
                             HStack(spacing: 12) {
-                                InitialAvatar(name: member.displayName.isEmpty ? "?" : member.displayName, size: 40)
+                                InitialAvatar(name: member.displayName.isEmpty ? "?" : member.displayName, size: 40, avatarUrl: member.avatar)
                                 VStack(alignment: .leading, spacing: 2) {
                                     Text(member.displayName.isEmpty ? "未命名" : member.displayName)
                                     if member.role != "member" {
@@ -267,24 +267,12 @@ struct GroupInfoView: View {
     }
 
     @ViewBuilder private func groupAvatar(_ info: GroupInfo) -> some View {
-        if !info.avatar.isEmpty, let src = MediaUrlResolver.kfSource(raw: info.avatar) {
-            KFImage(source: src)
-                .resizable().scaledToFill()
-                .frame(width: 40, height: 40).clipShape(Circle())
-        } else {
-            InitialAvatar(name: info.name.isEmpty ? "群" : info.name, size: 40)
-        }
+        InitialAvatar(name: info.name.isEmpty ? "群" : info.name, size: 40, avatarUrl: info.avatar)
     }
 
     /// Hero 大群头像：72pt 圆角方，浮于渐变横幅
     @ViewBuilder private func groupHeroAvatar(_ info: GroupInfo) -> some View {
-        if !info.avatar.isEmpty, let src = MediaUrlResolver.kfSource(raw: info.avatar) {
-            KFImage(source: src)
-                .resizable().scaledToFill()
-                .frame(width: 72, height: 72)
-                .clipShape(RoundedRectangle(cornerRadius: VxinRadius.card, style: .continuous))
-        } else {
-            InitialAvatar(name: info.name.isEmpty ? "群" : info.name, size: 72)
-        }
+        InitialAvatar(name: info.name.isEmpty ? "群" : info.name, size: 72, avatarUrl: info.avatar,
+                      shape: RoundedRectangle(cornerRadius: VxinRadius.card, style: .continuous))
     }
 }

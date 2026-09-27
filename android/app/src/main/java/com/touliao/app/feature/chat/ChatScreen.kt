@@ -1526,7 +1526,7 @@ private fun MessageContent(
                     val card = parseContactCard(msg.content)
                     MediaCard(isMine, onClick = {}) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            InitialAvatar(card.username.ifBlank { "?" }, size = 40.dp)
+                            InitialAvatar(card.username.ifBlank { "?" }, size = 40.dp, avatarUrl = card.avatar)
                             Spacer(Modifier.size(10.dp))
                             Column {
                                 Text(card.username.ifBlank { "用户" }, color = bubbleTextColor(isMine))

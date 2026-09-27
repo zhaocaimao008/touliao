@@ -2,9 +2,13 @@ package com.touliao.app.data.model
 
 import kotlinx.serialization.Serializable
 
-/** GET /api/config 响应：后台功能开关（朋友圈/收藏可隐藏）。 */
+/** GET /api/config 响应：后台功能开关（朋友圈/收藏可隐藏）+ 客户端最低版本（强制升级）。 */
 @Serializable
-data class AppConfig(val features: Features = Features())
+data class AppConfig(val features: Features = Features(), val minVersion: MinVersion = MinVersion())
+
+/** 低于 android(versionCode) 的客户端必须升级才能继续使用；0 = 不强制。 */
+@Serializable
+data class MinVersion(val android: Int = 0)
 
 @Serializable
 data class Features(

@@ -13,7 +13,7 @@ struct MyQRCodeView: View {
         ScrollView {
         VStack(spacing: 16) {
             if let user = session.currentUser {
-                InitialAvatar(name: user.username.isEmpty ? "?" : user.username, size: 64)
+                InitialAvatar(name: user.username.isEmpty ? "?" : user.username, size: 64, avatarUrl: user.avatar)
                 Text(user.username).touliaoText(.headline, weight: .semibold)
                 if !user.wechatId.isEmpty {
                     Text("投聊号: \(user.wechatId)").touliaoText(.secondary).foregroundColor(.vxinTextSecondary)

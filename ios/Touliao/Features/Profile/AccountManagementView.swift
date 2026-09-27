@@ -66,7 +66,7 @@ private struct AccountRow: View {
     var body: some View {
         Button(action: onSwitch) {
             HStack(spacing: 12) {
-                InitialAvatar(name: account.username.isEmpty ? "?" : account.username, size: 40)
+                InitialAvatar(name: account.username.isEmpty ? "?" : account.username, size: 40, avatarUrl: account.avatar)
                     .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
                 Text(account.username.isEmpty ? "未命名" : account.username)
                     .touliaoText(.body)

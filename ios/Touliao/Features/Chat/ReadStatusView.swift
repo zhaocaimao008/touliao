@@ -138,7 +138,7 @@ struct ReadStatusDetailSheet: View {
                             Section("已读成员") {
                                 ForEach(model.readers) { reader in
                                     HStack(spacing: 12) {
-                                        InitialAvatar(name: reader.name.isEmpty ? "?" : reader.name, size: 36)
+                                        InitialAvatar(name: reader.name.isEmpty ? "?" : reader.name, size: 36, avatarUrl: reader.avatar)
                                         Text(reader.name.isEmpty ? "未知成员" : reader.name)
                                     }
                                 }

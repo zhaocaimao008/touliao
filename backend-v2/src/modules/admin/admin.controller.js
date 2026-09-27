@@ -300,6 +300,20 @@ exports.kickMember = asyncHandler(async (req, res) => {
 });
 
 exports.getFeatures = asyncHandler(async (req, res) => res.json(svc.getFeatures()));
+exports.getMinVersions = asyncHandler(async (req, res) => res.json(svc.getMinVersions()));
+exports.setMinVersions = asyncHandler(async (req, res) => {
+  const minVersion = svc.setMinVersions(req.body);
+  logAuditEvent({
+    adminId: req.admin.username,
+    adminUsername: req.admin.username,
+    action: 'MIN_VERSION_UPDATE',
+    resourceType: 'config',
+    details: minVersion,
+    ip: req.ip,
+    userAgent: req.headers['user-agent'],
+  });
+  res.json(minVersion);
+});
 exports.setFeatures = asyncHandler(async (req, res) => {
   const features = svc.setFeatures(req.body);
   logAuditEvent({

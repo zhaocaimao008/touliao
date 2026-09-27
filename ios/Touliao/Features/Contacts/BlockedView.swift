@@ -36,7 +36,7 @@ struct BlockedView: View {
                 List(vm.users) { user in
                     Group {
                     HStack(spacing: 12) {
-                        InitialAvatar(name: user.username.isEmpty ? "?" : user.username, size: 44)
+                        InitialAvatar(name: user.username.isEmpty ? "?" : user.username, size: 44, avatarUrl: user.avatar)
                         Text(user.username.isEmpty ? "未命名" : user.username)
                         Spacer()
                         Button("移出") { vm.unblock(user) }

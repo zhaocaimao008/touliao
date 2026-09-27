@@ -49,7 +49,6 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import coil.compose.AsyncImage
 import com.touliao.app.ui.TouliaoIcons
 import com.touliao.app.ui.components.InitialAvatar
 import com.touliao.app.ui.theme.VxinBrand
@@ -101,12 +100,7 @@ fun ProfileEditScreen(
                                 onClick = { avatarPicker.launch("image/*") },
                                 trailingContent = {
                                     Box(contentAlignment = Alignment.Center) {
-                                        val avatarUrl = viewModel.resolveAvatarUrl(user?.avatar)
-                                        if (!user?.avatar.isNullOrBlank()) {
-                                            AsyncImage(model = avatarUrl, contentDescription = "头像", modifier = Modifier.size(40.dp).clip(RoundedCornerShape(10.dp)))
-                                        } else {
-                                            InitialAvatar(name = user?.username ?: "?", size = 40.dp)
-                                        }
+                                        InitialAvatar(name = user?.username ?: "?", size = 40.dp, avatarUrl = user?.avatar)
                                         if (state.uploadingAvatar) CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp, color = Color.White)
                                     }
                                 },

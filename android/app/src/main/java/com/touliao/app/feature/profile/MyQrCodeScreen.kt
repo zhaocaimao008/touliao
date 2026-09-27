@@ -56,7 +56,7 @@ fun MyQrCodeScreen(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center,
         ) {
-            InitialAvatar(name = user?.username ?: "?", size = 64.dp)
+            InitialAvatar(name = user?.username ?: "?", size = 64.dp, avatarUrl = user?.avatar)
             Spacer(Modifier.size(8.dp))
             Text(user?.username ?: "", style = MaterialTheme.typography.titleMedium)
             user?.wechat_id?.takeIf { it.isNotBlank() }?.let {

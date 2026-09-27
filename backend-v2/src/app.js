@@ -474,8 +474,8 @@ app.use('/api/ai',            stub501);   // P12 AI 增强 (mock, 内容审核�
 app.use('/api/web3',          stub501);   // P13 Web3 集成 (mock)
 
 // 公开配置（前端读取功能开关，决定朋友圈/收藏入口显隐）
-const { getFeatures } = require('./modules/admin/admin.service');
-app.get('/api/config', (req, res) => res.json({ features: getFeatures() }));
+const { getFeatures, getMinVersions } = require('./modules/admin/admin.service');
+app.get('/api/config', (req, res) => res.json({ features: getFeatures(), minVersion: getMinVersions() }));
 
 // 健康检查（含数据库探测 + schema drift 状态）
 // 注意：503 响应体禁止出现 "ok" 键/子串（deploy.yml 健康检查 grep '"ok":true' 精确匹配，

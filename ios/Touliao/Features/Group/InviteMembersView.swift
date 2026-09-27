@@ -25,7 +25,7 @@ struct InviteMembersView: View {
                         HStack(spacing: 12) {
                             TouliaoIcon(vm.selected.contains(contact.id) ? "selected" : "unselected")
                                 .foregroundColor(vm.selected.contains(contact.id) ? .vxinBrand : .vxinTextSecondary)
-                            InitialAvatar(name: contact.displayName.isEmpty ? "?" : contact.displayName, size: 40)
+                            InitialAvatar(name: contact.displayName.isEmpty ? "?" : contact.displayName, size: 40, avatarUrl: contact.avatar)
                             Text(contact.displayName.isEmpty ? "未命名" : contact.displayName).foregroundColor(.vxinText)
                             Spacer()
                         }

@@ -35,7 +35,7 @@ struct FriendRequestsView: View {
             List(vm.requests) { req in
                 Group {
                 HStack(spacing: 12) {
-                    InitialAvatar(name: req.username.isEmpty ? "?" : req.username, size: 44)
+                    InitialAvatar(name: req.username.isEmpty ? "?" : req.username, size: 44, avatarUrl: req.avatar)
                     VStack(alignment: .leading, spacing: 2) {
                         HStack(alignment: .firstTextBaseline) {
                             Text(req.username.isEmpty ? "未命名" : req.username)
@@ -71,7 +71,7 @@ struct FriendRequestsView: View {
             List(vm.sent) { req in
                 Group {
                 HStack(spacing: 12) {
-                    InitialAvatar(name: req.username.isEmpty ? "?" : req.username, size: 44)
+                    InitialAvatar(name: req.username.isEmpty ? "?" : req.username, size: 44, avatarUrl: req.avatar)
                     VStack(alignment: .leading, spacing: 2) {
                         HStack(alignment: .firstTextBaseline) {
                             Text(req.username.isEmpty ? "未命名" : req.username)

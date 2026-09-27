@@ -6,7 +6,6 @@ import androidx.lifecycle.viewModelScope
 import com.touliao.app.core.auth.SessionManager
 import com.touliao.app.core.media.MediaUploader
 import com.touliao.app.core.network.toUserMessage
-import com.touliao.app.core.util.MediaUrlResolver
 import com.touliao.app.data.model.User
 import com.touliao.app.data.repository.ProfileRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -35,7 +34,6 @@ class ProfileViewModel @Inject constructor(
     private val sessionManager: SessionManager,
     private val profileRepository: ProfileRepository,
     private val mediaUploader: MediaUploader,
-    private val mediaUrlResolver: MediaUrlResolver,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(ProfileUiState(user = sessionManager.currentUser))
@@ -64,8 +62,6 @@ class ProfileViewModel @Inject constructor(
     fun refreshUser() {
         _uiState.update { it.copy(user = sessionManager.currentUser) }
     }
-
-    fun resolveAvatarUrl(url: String?): String? = mediaUrlResolver.resolve(url)
 
     fun saveProfile(username: String, bio: String) {
         if (_uiState.value.saving) return

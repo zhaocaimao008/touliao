@@ -185,7 +185,7 @@ private fun SearchRow(user: SearchUser, sent: Boolean, onAdd: () -> Unit) {
         modifier = Modifier.fillMaxWidth().padding(vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        InitialAvatar(name = user.username.ifBlank { "?" }, size = 44.dp)
+        InitialAvatar(name = user.username.ifBlank { "?" }, size = 44.dp, avatarUrl = user.avatar)
         Spacer(Modifier.width(12.dp))
         Column(Modifier.weight(1f)) {
             Text(user.username.ifBlank { "未命名" }, style = MaterialTheme.typography.bodyLarge)
@@ -234,7 +234,7 @@ private fun ScannedUserProfileSheet(
             }
             else -> {
                 Spacer(Modifier.height(16.dp))
-                InitialAvatar(name = detail.username.ifBlank { "?" }, size = 72.dp)
+                InitialAvatar(name = detail.username.ifBlank { "?" }, size = 72.dp, avatarUrl = detail.avatar)
                 Spacer(Modifier.height(12.dp))
                 Text(
                     text = detail.username.ifBlank { "未命名" },

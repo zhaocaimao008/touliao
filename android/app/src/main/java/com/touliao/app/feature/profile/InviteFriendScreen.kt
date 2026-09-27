@@ -98,6 +98,7 @@ fun InviteFriendScreen(
                             com.touliao.app.ui.components.InitialAvatar(
                                 name = u.username.ifBlank { "?" },
                                 size = 36.dp,
+                                avatarUrl = u.avatar,
                             )
                             Spacer(Modifier.width(10.dp))
                             Text(u.username.ifBlank { "未命名" }, fontSize = 14.sp)
