@@ -92,7 +92,7 @@ class NativeUIReviewTest {
         val pages = listOf("login", "register", "forgot-password", "conversations", "chat", "files", "mentions",
             "contacts", "add-friend", "friend-requests", "create-group", "blocked", "friend-labels", "group", "invite-members",
             "search", "my-qr", "group-qr", "profile", "edit-profile", "settings", "appearance", "notifications", "privacy", "sessions", "call-history", "call-controls", "wallet",
-            "favorites", "moments", "compose-moment", "invite-friend")
+            "favorites", "moments", "compose-moment", "invite-friend", "discover")
         for (night in listOf(false, true)) for (page in pages) {
             compose.runOnIdle { screen.value = page; dark.value = night; large.value = false }
             settle()
@@ -310,6 +310,7 @@ class NativeUIReviewTest {
             "call-history" -> com.touliao.app.feature.callhistory.CallHistoryScreen(onBack = back)
             "wallet" -> WalletScreen(onBack = back)
             "favorites" -> FavoritesScreen(onBack = back)
+            "discover" -> com.touliao.app.feature.discover.DiscoverScreen(showMoments = true, showFavorites = true, momentUnread = 3, onResume = {}, onOpenMoments = {}, onOpenCallHistory = {}, onOpenFavorites = {})
             "moments" -> MomentsScreen(onBack = back)
             "compose-moment" -> MomentComposeScreen(onBack = back, onPublished = {})
             "invite-friend" -> InviteFriendScreen(onBack = back)

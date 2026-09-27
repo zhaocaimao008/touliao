@@ -1050,6 +1050,7 @@ export default {
   'home.tab.chats': 'Chats',
   'home.tab.contacts': 'Contacts',
   'home.tab.moments': 'Moments',
+  'home.tab.discover': 'Discover',
   'home.tab.calls': 'Calls',
   'home.tab.favorites': 'Favorites',
   'home.tab.me': 'Me',

@@ -1068,6 +1068,7 @@ const translations = {
     'home.tab.chats': '消息',
     'home.tab.contacts': '通讯录',
     'home.tab.moments': '朋友圈',
+    'home.tab.discover': '发现',
     'home.tab.calls': '通话',
     'home.tab.favorites': '收藏',
     'home.tab.me': '我',

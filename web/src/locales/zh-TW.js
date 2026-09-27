@@ -1049,6 +1049,7 @@ export default {
   'home.tab.chats': '訊息',
   'home.tab.contacts': '通訊錄',
   'home.tab.moments': '朋友圈',
+  'home.tab.discover': '發現',
   'home.tab.calls': '通話',
   'home.tab.favorites': '收藏',
   'home.tab.me': '我',

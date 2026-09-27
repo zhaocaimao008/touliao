@@ -151,6 +151,7 @@ object Routes {
     const val NOTIFICATIONS = "notificationSettings"
     const val APPEARANCE = "appearanceSettings"
     const val CALL_HISTORY = "callHistory"
+    const val DISCOVER = "discover"
     const val SETTINGS_HOME = "settingsHome"
     const val PROFILE_EDIT = "profileEdit"
     const val INVITE_FRIEND = "inviteFriend"
@@ -226,11 +227,12 @@ private fun AuthFlow() {
 
 private data class TabItem(val route: String, val label: String, val icon: ImageVector, val testKey: String)
 
-// 底部导航：仅保留 消息 / 通讯录 / 我（已按需移除 朋友圈 与 收藏）
+// 底部导航（四端一致）：消息 / 通讯录 / 发现 / 我；朋友圈、通话记录、收藏收进「发现」
 // 图标改用自绘品牌图标集 TouliaoIcons（取代 Material 通用图标）
 private val TAB_ITEMS = listOf(
     TabItem(Routes.CONVERSATIONS, "消息", TouliaoIcons.Chat, "chats"),
     TabItem(Routes.CONTACTS, "通讯录", TouliaoIcons.Contacts, "contacts"),
+    TabItem(Routes.DISCOVER, "发现", TouliaoIcons.Discover, "discover"),
     TabItem(Routes.PROFILE, "我", TouliaoIcons.Profile, "me"),
 )
 private val TAB_ROUTES = TAB_ITEMS.map { it.route }.toSet()
@@ -241,8 +243,11 @@ private fun MainFlow(features: Features, unreadTotal: Int = 0, appViewModel: App
     val backStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = backStackEntry?.destination?.route
 
-    // 底部 tab 已固定为 消息/通讯录/我，无需再按 features 开关过滤
+    // 底部 tab 固定四项；朋友圈/收藏的显隐在「发现」页内按 features 开关处理
     val visibleTabs = TAB_ITEMS
+    val discoverViewModel: com.touliao.app.feature.discover.DiscoverViewModel = hiltViewModel()
+    val momentUnread by discoverViewModel.momentUnread.collectAsStateWithLifecycle()
+    val discoverBadge = if (features.moments) momentUnread else 0
 
     // 通知点击跳会话：navController 在这里已就绪，消费 PendingConversationHolder 并导航。
     // 用 LaunchedEffect(Unit) + collect（而非 LaunchedEffect(pendingConvId) 配合状态变量）：
@@ -286,8 +291,13 @@ private fun MainFlow(features: Features, unreadTotal: Int = 0, appViewModel: App
                             },
                             icon = {
                                 // 「消息」tab 显示未读总数红点角标
-                                if (tab.route == Routes.CONVERSATIONS && unreadTotal > 0) {
-                                    BadgedBox(badge = { Badge { Text(if (unreadTotal > 99) "99+" else unreadTotal.toString()) } }) {
+                                val badgeCount = when (tab.route) {
+                                    Routes.CONVERSATIONS -> unreadTotal
+                                    Routes.DISCOVER -> discoverBadge
+                                    else -> 0
+                                }
+                                if (badgeCount > 0) {
+                                    BadgedBox(badge = { Badge { Text(if (badgeCount > 99) "99+" else badgeCount.toString()) } }) {
                                         Icon(tab.icon, contentDescription = tab.label, modifier = Modifier.size(com.touliao.app.ui.IconSize.Md))
                                     }
                                 } else {
@@ -315,7 +325,8 @@ private fun MainFlow(features: Features, unreadTotal: Int = 0, appViewModel: App
                     onOpenConversation = { conv -> navController.navigate(Routes.chat(conv.id, conv.name, conv.type, conv.otherUser?.id.orEmpty())) },
                     onOpenSearch = { navController.navigate(Routes.SEARCH) },
                     onOpenMentions = { navController.navigate(Routes.MENTIONS) },
-                    showMoments = features.moments,
+                    // 朋友圈入口已移到底部「发现」，消息页顶栏不再重复放
+                    showMoments = false,
                     onOpenMoments = { navController.navigate(Routes.MOMENTS) },
                 )
             }
@@ -400,8 +411,22 @@ private fun MainFlow(features: Features, unreadTotal: Int = 0, appViewModel: App
                     onOpenChat = { target -> navController.navigate(Routes.chat(target.conversationId, target.title, "private", target.peerUserId)) },
                 )
             }
-            // 收藏 仍按需移除；朋友圈改为「消息」页顶栏图标入口（方案A，2026-09-02），
-            // 受后台 features.moments 开关实时控制（不在底部导航常驻，符合新手引导简化的原始考量）。
+            composable(Routes.DISCOVER) {
+                com.touliao.app.feature.discover.DiscoverScreen(
+                    showMoments = features.moments,
+                    showFavorites = features.collect,
+                    momentUnread = discoverBadge,
+                    onResume = { discoverViewModel.refresh() },
+                    onOpenMoments = { navController.navigate(Routes.MOMENTS) },
+                    onOpenCallHistory = { navController.navigate(Routes.CALL_HISTORY) },
+                    onOpenFavorites = { navController.navigate(Routes.FAVORITES) },
+                )
+            }
+            // 收藏页此前实现了但从未注册路由（App 内无任何入口），现从「发现」进入
+            composable(Routes.FAVORITES) {
+                com.touliao.app.feature.favorites.FavoritesScreen(onBack = { navController.popBackStack() })
+            }
+            // 朋友圈：从「发现」进入，受后台 features.moments 开关实时控制
             composable(Routes.MOMENTS) {
                 com.touliao.app.feature.moments.MomentsScreen(
                     onBack = { navController.popBackStack() },
