@@ -1603,6 +1603,7 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
     localStorage.removeItem(`draft_${conversation.id}`);
     window.dispatchEvent(new CustomEvent('draft-changed', { detail: { convId: conversation.id, text: '' } }));
     closePanels();
+    clearTimeout(typingTimer.current); lastTypingEmitRef.current = 0;
     socket?.emit('stop_typing', { conversationId: conversation.id });
 
     transmitText(optimistic);
@@ -1761,9 +1762,18 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
       sendMessage();
       return;
     }
-    socket?.emit('typing', { conversationId: conversation.id });
+  };
+
+  // 「正在输入」按内容变化发（而不是 keydown）：中文输入法上屏、粘贴、语音输入、手机键盘
+  // 都不一定触发 keydown，原先这些情况对方看不到。1.5s 内只发一次，停顿 2s 或清空即发 stop。
+  const lastTypingEmitRef = useRef(0);
+  const notifyTyping = (val) => {
+    if (!socket || editingMsg) return;
     clearTimeout(typingTimer.current);
-    typingTimer.current = setTimeout(() => socket?.emit('stop_typing', { conversationId: conversation.id }), 2000);
+    if (!val.trim()) { lastTypingEmitRef.current = 0; socket.emit('stop_typing', { conversationId: conversation.id }); return; }
+    const now = Date.now();
+    if (now - lastTypingEmitRef.current > 1500) { lastTypingEmitRef.current = now; socket.emit('typing', { conversationId: conversation.id }); }
+    typingTimer.current = setTimeout(() => { lastTypingEmitRef.current = 0; socket.emit('stop_typing', { conversationId: conversation.id }); }, 2000);
   };
 
   const insertAtMention = (member) => {
@@ -2704,6 +2714,7 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
         onStartGroupCall={startGroupCall}
         onToggleGroupInfo={toggleGroupInfo}
         onToggleSearch={toggleSearchBar}
+        typingName={typingName}
       />
 
       {/* ── 会话内搜索栏 ── */}
@@ -2770,11 +2781,6 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
           />
           {/* 首屏加载态：无消息且数据在途（无缓存/慢网络）→ 骨架屏，避免纯空白 */}
           {!flatItems.length && initialLoading && <ChatSkeleton />}
-          {typingName && (
-            <div className="cw-typing" style={{ position: 'absolute', bottom: 4, left: 20, right: 20, pointerEvents: 'none', zIndex: 1 }}>
-              <span></span><span></span><span></span> {t('chat.typingTemplate').replace('{name}', typingName)}
-            </div>
-          )}
           {(showScrollBtn || hasNewer) && (
             <button
               data-testid="chat-scroll-bottom"
@@ -3083,6 +3089,7 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
                   onChange={e => {
                     const val = e.target.value;
                     dispatchCompose({ type: 'SET_INPUT', value: val });
+                    notifyTyping(val);
                     // @提及：群聊内解析光标处 @token，驱动候选列表开关与过滤
                     // （token 为局部解析结果，勿与 mention 状态混淆）
                     const mentionToken = conversation.type === 'group'

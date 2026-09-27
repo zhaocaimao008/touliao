@@ -104,6 +104,10 @@ export default function CallHistory({ onOpenChat, refreshKey = 0 }) {
           const stRaw = STATUS[c.status] || STATUS.completed;
           const st = { ...stRaw, label: t(`callHistory.status.${stRaw.key}`) };
           const isMissed = c.direction === 'in' && (c.status === 'missed' || c.status === 'canceled');
+          // 红色只留给「需要处理」的：未接来电、异常中断。自己打出去被拒/自己取消、自己拒接的都是灰色，
+          // 否则整页一片红，看起来像有很多未接电话
+          const statusColor = (isMissed || c.status === 'interrupted') ? 'var(--color-badge)'
+            : c.status === 'ongoing' ? st.color : 'var(--text-tertiary)';
           return (
             <div key={c.id} className="tl-call-log" data-testid="call-log-item" onClick={() => openPeer(c)}
               role={onOpenChat ? 'button' : undefined} tabIndex={onOpenChat ? 0 : undefined}
@@ -114,7 +118,7 @@ export default function CallHistory({ onOpenChat, refreshKey = 0 }) {
                 : <Avatar src={c.peer_avatar} name={c.peer_name} size='md' />}
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontSize: 'var(--text-name)', fontWeight: 500, color: isMissed ? 'var(--color-badge)' : 'var(--text-primary)' }}>{c.peer_name || t('messageItem.defaultUsername')}</div>
-                <div style={{ fontSize: 'var(--text-sm)', color: st.color, marginTop: 2, display: 'flex', alignItems: 'center', gap: 6 }}>
+                <div style={{ fontSize: 'var(--text-sm)', color: statusColor, marginTop: 2, display: 'flex', alignItems: 'center', gap: 6 }}>
                   <TouliaoIcon name={isMissed ? 'callMissed' : c.direction === 'out' ? 'callOutgoing' : 'callIncoming'} size="xs" />
                   {c.direction === 'out' ? t('callHistory.outgoing') : t('callHistory.incoming')} · {c.kind === 'group'
                     ? (c.type === 'video' ? t('chat.groupVideoCall') : t('chat.groupVoiceCall'))

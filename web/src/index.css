@@ -3004,6 +3004,11 @@ body.dark-mode .wc-msg-time span { background: rgba(255,255,255,.08); }
 .up-action-grey { background: var(--bg-panel); color: var(--text-secondary); border: 1px solid var(--border-color); }
 .up-action-warn { background: rgba(250,140,0,.08); color: var(--color-warning); border: 1px solid rgba(250,140,0,.2); }
 .up-action-danger { background: rgba(250,81,81,.08); color: var(--color-badge); border: 1px solid rgba(250,81,81,.18); }
+/* 发消息/拍一拍/删除用的是 ui-kit 按钮：其 label 是横排 inline 且左右内边距大，四个按钮并排时
+   「发消息」「拍一拍」「删除」被挤成两行。统一成图标在上、文字在下，与「拉黑」一致 */
+html.touliao-ui body .up-actions .up-action-btn { flex: 1; min-width: 0; min-height: 0; padding: 10px 6px; }
+html.touliao-ui body .up-actions .up-action-btn .tl-button-label { display: flex; flex-direction: column; align-items: center; gap: 5px; white-space: nowrap; font-size: var(--text-sm); }
+.up-safety-note { margin: -6px 18px 16px; font-size: var(--text-xs, 12px); line-height: 1.5; color: var(--text-tertiary); }
 
 /* 通用按钮 */
 .up-btn-primary {
@@ -3922,6 +3927,7 @@ body.dark-mode .we-empty-svg { opacity: .25; }
 
 /* === ChatWindow component classes === */
 /* v3 极光：对方正在输入 — 三点用极光靛，带 subtle 微光 */
+.wc-chat-header-typing { color: var(--color-primary); }
 .cw-typing { font-size: var(--text-sm); color: var(--text-tertiary); padding: 4px 0 2px; display: flex; align-items: center; gap: 3px; }
 .cw-typing span { width: 5px; height: 5px; border-radius: var(--radius-full); background: var(--aurora-indigo, #6D5AE6); display: inline-block; animation: cwDotAnim 1.4s infinite ease-in-out both, cwDotGlow 2.8s infinite ease-in-out; }
 .cw-typing span:nth-child(1) { animation-delay: -0.32s, 0s; }

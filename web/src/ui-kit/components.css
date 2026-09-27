@@ -46,7 +46,7 @@ html.touliao-ui body .tl-dialog {
   background: var(--tl-surface); color: var(--tl-text); box-shadow: var(--tl-shadow-dialog);
 }
 html.touliao-ui body .tl-dialog-title { font-size: var(--tl-type-headline-size); line-height: 1.4; margin: 0 0 var(--tl-space-3); }
-html.touliao-ui body .tl-dialog-body { padding: 0; font-size: var(--tl-type-body-size); line-height: 1.6; overflow-wrap: anywhere; }
+html.touliao-ui body .tl-dialog-body { padding: 0; font-size: var(--tl-type-body-size); line-height: 1.6; overflow-wrap: anywhere; white-space: pre-line; }
 html.touliao-ui body .tl-dialog-actions { display: flex; justify-content: flex-end; gap: var(--tl-space-3); padding: 0; border: 0; margin-top: var(--tl-space-6); }
 html.touliao-ui body .tl-dialog-actions .tl-button { flex: 1; min-width: 0; }
 html.touliao-ui body :is(.tl-button, .tl-switch):focus-visible { outline: 2px solid var(--tl-focus); outline-offset: 2px; }
