@@ -318,6 +318,7 @@ export default function ChatList({ onSelectConv, activeConvId, unread = {}, sear
     socket.on('conversation_messages_cleared', onCleared);
     socket.on('group_updated', onGroupUpdated);
     socket.on('group_kicked', onGroupKicked);
+    socket.on('group_left', onGroupKicked); // 本账号在其他设备退群：同样移出会话列表
     socket.on('group_dismissed', onGroupDismissed);
     return () => {
       socket.off('new_message', onMsg);
@@ -330,6 +331,7 @@ export default function ChatList({ onSelectConv, activeConvId, unread = {}, sear
       socket.off('message_deleted', onDeletedEvt);
       socket.off('group_updated', onGroupUpdated);
       socket.off('group_kicked', onGroupKicked);
+      socket.off('group_left', onGroupKicked);
       socket.off('group_dismissed', onGroupDismissed);
     };
   }, [socket, fetchConvs]);

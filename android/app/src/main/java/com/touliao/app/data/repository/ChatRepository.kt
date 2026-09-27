@@ -46,6 +46,7 @@ class ChatRepository @Inject constructor(
     val readEvents: SharedFlow<ReadEvent> = socketManager.readEvents
     val unreadClearedEvents: SharedFlow<String> = socketManager.unreadClearedEvents
     val newConversationEvents: SharedFlow<Unit> = socketManager.newConversationEvents
+    val sessionExpiredEvents: SharedFlow<Unit> = socketManager.sessionExpiredEvents
     val messageDeletedEvents: SharedFlow<String> = socketManager.messageDeletedEvents
     val messageRecalledEvents: SharedFlow<String> = socketManager.messageRecalledEvents
     val messageDeletedForMeEvents: SharedFlow<String> = socketManager.messageDeletedForMeEvents

@@ -229,6 +229,8 @@ function kick(io, convId, callerId, uid) {
   if (callerRole === 'admin' && targetRole !== 'member') throw forbidden('管理员只能移除普通成员');
 
   db.prepare('DELETE FROM conversation_members WHERE conversation_id=? AND user_id=?').run(convId, uid);
+  // 与 leave 一致：清掉被踢者在该群的个人会话设置，否则重新入群会带着旧的归档/置顶/免打扰/已读水位
+  db.prepare('DELETE FROM conversation_settings WHERE conversation_id=? AND user_id=?').run(convId, uid);
   invalidateConv(convId); // 移除成员后 isMember 缓存立即失效，防 5s 内仍按成员放行附件/会话
   if (io) {
     io.in(`user_${uid}`).socketsLeave(convId);
@@ -240,7 +242,7 @@ function kick(io, convId, callerId, uid) {
 // ── 退群（非群主专用）────────────────────────────────────────────
 // 群主不可直接退群：必须先转让群主，成为普通成员后再退；或调 dissolve 解散。
 function leave(io, convId, userId) {
-  const conv = db.prepare('SELECT owner_id FROM conversations WHERE id=?').get(convId);
+  const conv = db.prepare("SELECT owner_id FROM conversations WHERE id=? AND type='group'").get(convId);
   if (!conv) throw notFound('群不存在');
   if (conv.owner_id === userId) throw badRequest('群主不能直接退出群聊，请先转让群主后再退出，或解散群聊');
   const result = db.prepare('DELETE FROM conversation_members WHERE conversation_id=? AND user_id=?').run(convId, userId);
@@ -389,7 +391,7 @@ function listPinned(convId, userId) {
     JOIN messages m ON m.id=pm.message_id
     JOIN users u ON u.id=m.sender_id
     JOIN users pu ON pu.id=pm.pinned_by
-    WHERE pm.conversation_id=? ORDER BY pm.created_at DESC LIMIT 20
+    WHERE pm.conversation_id=? AND m.deleted=0 ORDER BY pm.created_at DESC LIMIT 20
   `).all(convId);
 }
 

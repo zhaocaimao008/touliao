@@ -142,9 +142,12 @@ describe('private call signaling contract', () => {
     const alice = createSocket('alice-busy', 'web-busy', io);
     registerCallHandler(io, alice, registry);
 
-    alice.handlers['call:request']({ to: 'bob-busy', type: 'audio' }, jest.fn());
+    const ack = jest.fn();
+    alice.handlers['call:request']({ to: 'bob-busy', type: 'audio' }, ack);
 
     expect(alice.last('call:error').payload.code).toBe('CALL_BUSY');
+    // 移动端以 ack 判定发起结果：忙线必须立即回 ack，不能让主叫空响到超时
+    expect(ack).toHaveBeenCalledWith({ error: 'CALL_BUSY' });
   });
 
   test('accepted response binds its socket and forwards the resolved callId', () => {

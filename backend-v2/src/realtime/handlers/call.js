@@ -200,6 +200,7 @@ function registerCallHandler(io, socket, registry) {
     if (rawType != null && (typeof rawType !== 'string' || (rawType !== 'audio' && rawType !== 'video'))) {
       console.warn(`[realtime] 非法 callType 被拒绝 event=call:request type=${typeof rawType === 'string' ? rawType : typeof rawType} from=${userId}`);
       socket.emit('call:error', { code: 'INVALID_CALL_REQUEST', event: 'call:request', field: 'type' });
+      if (typeof ack === 'function') ack({ error: 'INVALID_CALL_REQUEST' });
       return;
     }
     const type = rawType == null ? 'audio' : rawType;
@@ -208,7 +209,7 @@ function registerCallHandler(io, socket, registry) {
     // 给 ack 回执明确失败，避免客户端白等整个超时窗口（"主叫假响铃"）
     const now = Date.now();
     if (now - (callRateMap.get(userId) || 0) < CALL_COOLDOWN_MS) {
-      if (typeof ack === 'function') ack({ callId: null, error: 'CALL_RATE_LIMIT' });
+      if (typeof ack === 'function') ack({ error: 'CALL_RATE_LIMIT' });
       return;
     }
     setCooldown(userId, now);
@@ -221,12 +222,16 @@ function registerCallHandler(io, socket, registry) {
       WHERE cm1.user_id=? AND cm2.user_id=? LIMIT 1`).get(userId, to);
     if (blocked || !shareConv) {
       socket.emit('call:response', { from: to, accepted: false }); // 给主叫一个"被拒"信号，避免界面一直转
+      if (typeof ack === 'function') ack({ error: 'CALL_REJECTED' });
       return;
     }
     const t = type === 'video' ? 'video' : 'audio';
     // 后台开关拦截：被关闭的通话类型直接拒绝发起（实时生效，无需重启/重连）
     if (!privateCallAllowed(t)) {
-      socket.emit('call:error', { code: t === 'video' ? 'VIDEO_CALL_DISABLED' : 'VOICE_CALL_DISABLED', event: 'call:request' });
+      const code = t === 'video' ? 'VIDEO_CALL_DISABLED' : 'VOICE_CALL_DISABLED';
+      socket.emit('call:error', { code, event: 'call:request' });
+      // 移动端以 ack 判定发起结果：不回 ack 会让主叫空响回铃音直到 10s 超时（与限流分支一致）
+      if (typeof ack === 'function') ack({ error: code });
       return;
     }
     const id = uuidv4();
@@ -277,6 +282,8 @@ function registerCallHandler(io, socket, registry) {
     });
     if (!created.ok) {
       socket.emit('call:error', { code: created.code, callId: created.callId });
+      // 对方忙线（CALL_BUSY）等：同样立即回 ack，否则移动端主叫空响 10s 后才静默挂断
+      if (typeof ack === 'function') ack({ error: created.code });
       return;
     }
     const timer = scheduleCallTimeout(key, io, registry);

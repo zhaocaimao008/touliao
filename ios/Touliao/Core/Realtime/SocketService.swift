@@ -225,6 +225,12 @@ final class SocketService {
             }
         }
         sock.on("new_conversation") { [weak self] _, _ in self?.newConversation.send(()) }
+        // 会话失效（别处改密码/退出/token 到期）：服务端随即断开且不会自动重连。发一次需鉴权的
+        // 请求，401 走 APIClient.unauthorizedNotification 的既有登出流程，而不是停在「已登录但收不到消息」。
+        sock.on("session_expired") { _, _ in
+            guard KeychainStore.shared.isCurrent(credential) else { return }
+            Task { _ = try? await AuthRepository.shared.restoreSession() }
+        }
         sock.on("message_deleted") { [weak self] data, _ in
             if let id = (data.first as? [String: Any])?["msgId"] as? String, !id.isEmpty {
                 self?.messageDeleted.send(id)
@@ -311,6 +317,10 @@ final class SocketService {
             if let id = (data.first as? [String: Any])?["conversationId"] as? String, !id.isEmpty { self?.groupGone.send(id) }
         }
         sock.on("group_dismissed") { [weak self] data, _ in
+            if let id = (data.first as? [String: Any])?["conversationId"] as? String, !id.isEmpty { self?.groupGone.send(id) }
+        }
+        // 本账号在其他设备退群：同样视为该群不可用（移出会话列表、关闭聊天页）
+        sock.on("group_left") { [weak self] data, _ in
             if let id = (data.first as? [String: Any])?["conversationId"] as? String, !id.isEmpty { self?.groupGone.send(id) }
         }
         sock.on("group_updated") { [weak self] data, _ in
@@ -488,7 +498,8 @@ final class SocketService {
         socket?.emit("nudge", payload)
     }
 
-    struct CallRequestAck { let callId: String; let resumeToken: String? }
+    /// callId 为空表示服务端拒绝发起，原因见 error（CALL_BUSY / VOICE_CALL_DISABLED / CALL_RATE_LIMIT …）
+    struct CallRequestAck { let callId: String; let resumeToken: String?; var error: String? = nil }
 
     // ── 通话信令发送 ──
     /// 主叫发起：ack 携带服务端生成的 callId（随后随 accept/reject/hangup 回传，供服务端
@@ -502,9 +513,13 @@ final class SocketService {
         return await withCheckedContinuation { continuation in
             sock.emitWithAck("call:request", payload)
                 .timingOut(after: 10) { ackData in
-                    guard let dict = ackData.first as? [String: Any],
-                          let callId = dict["callId"] as? String, !callId.isEmpty else {
+                    guard let dict = ackData.first as? [String: Any] else {
                         continuation.resume(returning: nil); return
+                    }
+                    guard let callId = dict["callId"] as? String, !callId.isEmpty else {
+                        // 服务端明确拒绝（忙线/功能关闭/限流）：带回原因，调用方立即收尾
+                        let error = (dict["error"] as? String).flatMap { $0.isEmpty ? nil : $0 }
+                        continuation.resume(returning: error.map { CallRequestAck(callId: "", resumeToken: nil, error: $0) }); return
                     }
                     let resumeToken = (dict["resumeToken"] as? String).flatMap { $0.isEmpty ? nil : $0 }
                     continuation.resume(returning: CallRequestAck(callId: callId, resumeToken: resumeToken))

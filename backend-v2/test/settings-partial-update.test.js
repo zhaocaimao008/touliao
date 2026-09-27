@@ -11,6 +11,7 @@
  * 另：锁定 PUT /users/profile 返回体含 phone（与 getMe 一致，避免客户端整体替换丢手机号）。
  */
 const { request, app, makeUser } = require('./helpers');
+const { normalizePhone } = require('../src/utils/phone');
 
 describe('设置局部更新 & 资料返回 phone', () => {
   let u;
@@ -46,7 +47,7 @@ describe('设置局部更新 & 资料返回 phone', () => {
       .set('Authorization', `Bearer ${u.token}`)
       .send({ bio: '签名测试' });
     expect(res.status).toBe(200);
-    expect(res.body.phone).toBe(u.phone);   // 关键：不再丢失 phone
+    expect(res.body.phone).toBe(normalizePhone(u.phone));   // 关键：不再丢失 phone（按规范化号码存储）
     expect(res.body.bio).toBe('签名测试');
   });
 });

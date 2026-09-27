@@ -27,6 +27,8 @@ struct CallState {
     var isMinimized: Bool = false
     /// 2026-09-02新增：通话质量指示（getStats 2s 采样）。""=未采样 / good=优 / medium=中 / poor=差
     var callQuality: String = ""
+    /// 发起被服务端拒绝时的原因（结束页显示，如「对方忙线中」）；空 = 普通结束
+    var endMessage: String = ""
 }
 
 /// GET /api/turn/credentials 响应。
@@ -193,6 +195,14 @@ final class CallManager: NSObject, ObservableObject {
             let requestAck = await socket.emitCallRequest(to: peerId, type: video ? "video" : "audio", callerName: callerName)
             // ack 超时/未连接返回 nil：不强行挂断——callId 缺失时后端按兼容模式放行，仅丢失
             // 过期应答/串话保护。仅在仍是同一通呼出时才回填（防重拨/挂断后污染新状态）。
+            if let requestAck, requestAck.callId.isEmpty {
+                // 服务端已明确拒绝（未建立通话）：立即结束并说明原因，不再空响回铃到超时
+                if callIdentityEpoch == identityEpoch, state.stage == .outgoing, state.peerId == peerId {
+                    state.endMessage = Self.callRejectMessage(requestAck.error)
+                    cleanup(.ended)
+                }
+                return
+            }
             if let requestAck,
                callIdentityEpoch == identityEpoch,
                KeychainStore.shared.snapshot().identityEpoch == identityEpoch,
@@ -203,6 +213,17 @@ final class CallManager: NSObject, ObservableObject {
                 participatingIdentityEpoch = identityEpoch
                 participatingResumeToken = requestAck.resumeToken
             }
+        }
+    }
+
+    private static func callRejectMessage(_ code: String?) -> String {
+        switch code {
+        case "CALL_BUSY": return "对方忙线中，请稍后再拨"
+        case "VOICE_CALL_DISABLED": return "语音通话功能已关闭"
+        case "VIDEO_CALL_DISABLED": return "视频通话功能已关闭"
+        case "CALL_RATE_LIMIT": return "操作太频繁，请稍后再拨"
+        case "CALL_REJECTED": return "对方暂时无法接听"
+        default: return "呼叫失败，请稍后重试"
         }
     }
 
@@ -734,7 +755,7 @@ final class CallManager: NSObject, ObservableObject {
             // CallView，之前挂在CallView.onChange里的自动consumeEnded就永远不会触发，
             // 小窗会卡死在"已结束"画面。改成manager自己调度，不依赖哪个UI正在显示。
             state.isMinimized = false
-            let delay: UInt64 = state.timedOut ? 1_800_000_000 : 800_000_000
+            let delay: UInt64 = (state.timedOut || !state.endMessage.isEmpty) ? 1_800_000_000 : 800_000_000
             endedDismissTask = Task { [weak self] in
                 try? await Task.sleep(nanoseconds: delay)
                 guard let self, !Task.isCancelled else { return }

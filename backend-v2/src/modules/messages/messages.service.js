@@ -459,21 +459,27 @@ async function forward(io, userId, { msgId, msgIds, conversationIds, client_batc
 }
 
 // ── 批量撤回 ────────────────────────────────────────────────────
+// 撤回他人消息的权限（与 groups.kick 一致）：群主可处理任何人；管理员只能处理普通成员/已退群者，
+// 不能撤回群主或其他管理员的消息。
+function canModerate(convId, callerRole, senderId) {
+  if (callerRole === 'owner') return true;
+  if (callerRole !== 'admin') return false;
+  const senderRole = memberRole(convId, senderId);
+  return senderRole !== 'owner' && senderRole !== 'admin';
+}
+
 async function batchDelete(io, userId, { msgIds, conversationId }) {
   if (!msgIds?.length || !conversationId) throw badRequest('参数缺失');
   if (msgIds.length > 20) throw badRequest('单次最多批量撤回 20 条');
   const role = memberRole(conversationId, userId);
   if (!role) throw forbidden('不在会话中');
 
-  const isAdmin = role === 'owner' || role === 'admin';
-  const now = Math.floor(Date.now() / 1000);
   const deleted = [];
   // 批量查询代替 N 次单独 SELECT
   const ph2 = msgIds.map(() => '?').join(',');
   const msgs = db.prepare(`SELECT * FROM messages WHERE id IN (${ph2}) AND conversation_id=? AND deleted=0`).all(...msgIds, conversationId);
   msgs.forEach(msg => {
-    const isOwn = msg.sender_id === userId;
-    if (isOwn || isAdmin) {
+    if (msg.sender_id === userId || canModerate(conversationId, role, msg.sender_id)) {
       deleted.push(msg.id);
     }
   });
@@ -505,8 +511,7 @@ async function remove(io, userId, msgId, forEveryone, vanish, forMe) {
     // 彻底删除不留痕迹：内容清空，deleted=2，对方也不见任何提示
     const callerRole = memberRole(msg.conversation_id, userId);
     if (!callerRole) throw forbidden('您已不在该会话中');
-    const isAdmin = callerRole === 'owner' || callerRole === 'admin';
-    if (msg.sender_id !== userId && !isAdmin) throw forbidden('无权删除该消息');
+    if (msg.sender_id !== userId && !canModerate(msg.conversation_id, callerRole, msg.sender_id)) throw forbidden('无权删除该消息');
     if (msg.deleted === 2) return; // 幂等：已彻底删除的消息再次删除直接成功返回，不报错不重复广播
     // 真实事故：发送后「立刻」彻底删除——message_vanished 立即单发，但如果这条消息
     // 刚发出、还卡在 new_message 的批量合并窗口里（BATCH_WINDOW_MS），批处理稍后会把
@@ -552,11 +557,9 @@ async function remove(io, userId, msgId, forEveryone, vanish, forMe) {
   }
 
   if (forEveryone) {
-    const isOwn = msg.sender_id === userId;
     const callerRole = memberRole(msg.conversation_id, userId);
     if (!callerRole) throw forbidden('您已不在该会话中');
-    const isAdmin = callerRole === 'owner' || callerRole === 'admin';
-    if (!isOwn && !isAdmin) throw forbidden('无权删除该消息');
+    if (msg.sender_id !== userId && !canModerate(msg.conversation_id, callerRole, msg.sender_id)) throw forbidden('无权删除该消息');
     if (msg.deleted === 2) return; // 幂等：已撤回的消息再次撤回直接成功返回，不报错不重复广播
     // 真实事故（用户反馈：发送方撤回/删除了，接收方还是能看到消息）：撤回是立即单发，
     // 但如果这条消息刚发出、还没被 new_message 的批量合并窗口(BATCH_WINDOW_MS)冲刷出去，

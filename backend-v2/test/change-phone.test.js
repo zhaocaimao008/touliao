@@ -5,6 +5,7 @@
 require('./testEnv');
 const request = require('supertest');
 const { app, makeUser } = require('./helpers');
+const { normalizePhone } = require('../src/utils/phone');
 
 describe('换绑手机号', () => {
   let user;
@@ -22,7 +23,7 @@ describe('换绑手机号', () => {
 
     expect(res.status).toBe(200);
     expect(res.body.success).toBe(true);
-    expect(res.body.phone).toBe(newPhone);
+    expect(res.body.phone).toBe(normalizePhone(newPhone)); // 按规范化号码存储
 
     // 换绑后旧手机号无法登录
     const loginOld = await request(app)

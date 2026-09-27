@@ -78,7 +78,8 @@ fun CallHost(
     // 结束态：短暂展示后自动关闭
     LaunchedEffect(state.stage) {
         if (state.stage == CallStage.ENDED) {
-            kotlinx.coroutines.delay(800)
+            // 有失败原因（如对方忙线）时多停留一会儿，保证看得到
+            kotlinx.coroutines.delay(if (state.endMessage.isNotEmpty()) 2000 else 800)
             viewModel.consumeEnded()
         }
     }
@@ -180,7 +181,7 @@ fun CallHost(
                 Text(state.peerName.ifBlank { "通话" }, color = Color.White, fontSize = com.touliao.app.ui.theme.VxinTextSize.displaySm)
                 Spacer(Modifier.height(8.dp))
                 Text(
-                    callStatusOrDuration(state.stage, state.isVideo, state.connectedAt, state.endedAt),
+                    state.endMessage.ifEmpty { callStatusOrDuration(state.stage, state.isVideo, state.connectedAt, state.endedAt) },
                     color = TouliaoMedia.secondary, fontSize = com.touliao.app.ui.theme.VxinTextSize.base,
                 )
                 // 通话质量指示：getStats 2s 采样（RTT<200ms/丢包<2% 优; <500ms/<8% 中; 否则差）
