@@ -719,6 +719,8 @@ const translations = {
     'chatlist.deleteChat': '删除聊天',
     'chatlist.leaveGroup': '退出群聊',
     'chatlist.confirmLeaveGroupTemplate': '确认退出群聊「{name}」？',
+    'chatlist.confirmDeleteChatTemplate': '删除与「{name}」的聊天？仅清空你这边的聊天记录，对方不受影响。',
+    'chatlist.deleteChatFailed': '删除失败，请重试',
     'chatlist.empty': '暂无聊天',
     'chatlist.emptyDesc': '和朋友打个招呼，开始聊天吧',
     'chatlist.archive': '归档',

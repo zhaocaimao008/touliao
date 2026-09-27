@@ -29,12 +29,13 @@ export default function ScheduleSendModal({ convId, defaultContent = '', onClose
   const inputRef = useRef(null);
 
   // 挂载时：读一次当前时间（副作用，不在 render 中调 Date.now，保证 render 纯净），
-  // 默认发送时间=1 小时后，最小可选=15 分钟后。同时聚焦内容框。
+  // 默认发送时间=1 小时后，最小可选=16 分钟后（精确到分会截掉秒，+15 分钟截断后会不足服务端要求的 15 分钟，
+  // 用户选最早时间必被拒）。同时聚焦内容框。
   /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     const now = Date.now();
     setSendAtLocal(toLocalInput(new Date(now + 3600 * 1000)));
-    setMinDateTime(toLocalInput(new Date(now + 15 * 60 * 1000)));
+    setMinDateTime(toLocalInput(new Date(now + 16 * 60 * 1000)));
     inputRef.current?.focus();
   }, []);
   /* eslint-enable react-hooks/set-state-in-effect */
@@ -58,9 +59,14 @@ export default function ScheduleSendModal({ convId, defaultContent = '', onClose
     e.preventDefault();
     setError('');
     if (!content.trim()) { setError(t('ss.errEmptyContent')); return; }
-    const sendAt = Math.floor(new Date(sendAtLocal).getTime() / 1000);
+    let sendAt = Math.floor(new Date(sendAtLocal).getTime() / 1000);
     const now = Math.floor(Date.now() / 1000);
-    if (sendAt - now < 14 * 60) { setError(t('ss.errTooSoon')); return; }
+    if (sendAt - now < 15 * 60) { // 与服务端 MIN_DELTA 一致
+      // 选的是弹窗允许的时间、只是填写耗时让它变得不足 15 分钟：顺延到最早合法的整分钟，而不是让用户重选
+      const minAllowed = Math.floor(new Date(minDateTime).getTime() / 1000);
+      if (!(sendAt >= minAllowed)) { setError(t('ss.errTooSoon')); return; }
+      sendAt = Math.ceil((now + 15 * 60 + 30) / 60) * 60;
+    }
     if (sendAt - now > 30 * 24 * 3600) { setError(t('ss.errTooFar')); return; }
 
     setSaving(true);

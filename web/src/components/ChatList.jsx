@@ -10,6 +10,7 @@ import { format } from '../utils/time';
 import { showConfirm, showToast } from '../utils/toast';
 import { useI18n } from '../contexts/I18nContext';
 import { FixedSizeList } from 'react-window';
+import { createPortal } from 'react-dom';
 import AutoSizer from 'react-virtualized-auto-sizer';
 import { archiveUnreadTotal, splitArchivedConversations } from '../utils/archiveConversations';
 import { useSwipe } from '../hooks/useSwipe';
@@ -60,7 +61,8 @@ const ConvRow = memo(function ConvRow({ index, style, data }) {
         onContextMenu={e => {
           e.preventDefault();
           // 视口内收敛坐标，避免菜单在靠近右/下边缘时溢出屏幕外
-          const MENU_W = 160, MENU_H = 200;
+          // 与 index.css .wc-ctx-menu 的 width:260px 一致；高度按 5 项估算，渲染后再按实测尺寸校正
+          const MENU_W = 268, MENU_H = 250;
           const x = Math.min(e.clientX, window.innerWidth - MENU_W);
           const y = Math.min(e.clientY, window.innerHeight - MENU_H);
           onCtxMenu({ x: Math.max(8, x), y: Math.max(8, y), conv });
@@ -168,7 +170,7 @@ function ChatListSkeleton() {
 // 阅后即焚：会话列表预览不透出原文（与服务端列表/推送同口径），否则不点开就能读到内容
 const previewOf = (msg) => (msg.burn_after > 0 ? '[阅后即焚消息]' : msg.content);
 
-export default function ChatList({ onSelectConv, activeConvId, unread = {}, searchQuery = '', convRefreshKey = 0, onOpenMentions }) {
+export default function ChatList({ onSelectConv, activeConvId, unread = {}, searchQuery = '', convRefreshKey = 0, onOpenMentions, onMutedChange }) {
   const [itemHeight, setItemHeight] = useState(rowHeight);
   const [filter, setFilter] = useState('all');
   useEffect(() => {
@@ -233,6 +235,10 @@ export default function ChatList({ onSelectConv, activeConvId, unread = {}, sear
   }, [onSelectConv]);
 
   // 当前打开的会话收到 @ 不打标记（用户正在看）；用 ref 避免每次切会话都重订阅 socket 事件
+  // 上报免打扰会话集合（内容不变时不触发父组件更新）
+  const mutedKey = useMemo(() => conversations.filter(c => c.muted).map(c => c.id).sort().join(','), [conversations]);
+  useEffect(() => { onMutedChange?.(new Set(mutedKey ? mutedKey.split(',') : [])); }, [mutedKey, onMutedChange]);
+
   const activeConvIdRef = useRef(activeConvId);
   useEffect(() => { activeConvIdRef.current = activeConvId; }, [activeConvId]);
 
@@ -266,6 +272,8 @@ export default function ChatList({ onSelectConv, activeConvId, unread = {}, sear
         socket.emit('join_conversation', { conversationId: conv.id });
         return [conv, ...prev].sort(byPinnedThenTime);
       });
+      // 推送里的群不带成员头像，先插入占位再补拉一次列表，群头像拼图才不会一直是"群"字
+      if (conv.type === 'group' && !conv.members?.length) fetchConvs();
     };
     const onCleared = ({ conversationId }) => {
       setConversations(prev => prev.map(c => c.id === conversationId ? {
@@ -283,6 +291,7 @@ export default function ChatList({ onSelectConv, activeConvId, unread = {}, sear
     socket.on('message_recall', onDeletedEvt);
     socket.on('message_deleted_for_me', onDeletedEvt);
     socket.on('message_deleted', onDeletedEvt);
+    socket.on('message_vanished', onDeletedEvt); // 阅后即焚到期销毁：预览不能停在「[阅后即焚消息]」
     // 群更新（群名/头像/公告等变化时刷新）
     const onGroupUpdated = () => fetchConvs();
     // 被踢出群 / 群解散：从列表中立即移除该会话
@@ -328,6 +337,8 @@ export default function ChatList({ onSelectConv, activeConvId, unread = {}, sear
     socket.on('group_kicked', onGroupKicked);
     socket.on('group_left', onGroupKicked); // 本账号在其他设备退群：同样移出会话列表
     socket.on('group_dismissed', onGroupDismissed);
+    // 本账号在其他设备"删除聊天"：同样从列表移除
+    socket.on('conversation_hidden', onGroupKicked);
     // 实时 @ 我：会话列表立即显示「[有人@我]」（原先只有刷新列表时由服务端计算，群消息多时被 @ 的人注意不到）
     const onMentioned = ({ conversationId }) => {
       if (!conversationId || conversationId === activeConvIdRef.current) return;
@@ -344,10 +355,12 @@ export default function ChatList({ onSelectConv, activeConvId, unread = {}, sear
       socket.off('message_recall', onDeletedEvt);
       socket.off('message_deleted_for_me', onDeletedEvt);
       socket.off('message_deleted', onDeletedEvt);
+      socket.off('message_vanished', onDeletedEvt);
       socket.off('group_updated', onGroupUpdated);
       socket.off('group_kicked', onGroupKicked);
       socket.off('group_left', onGroupKicked);
       socket.off('group_dismissed', onGroupDismissed);
+      socket.off('conversation_hidden', onGroupKicked);
     };
   }, [socket, fetchConvs]);
 
@@ -402,7 +415,15 @@ export default function ChatList({ onSelectConv, activeConvId, unread = {}, sear
       if (!(await showConfirm(t('chatlist.confirmLeaveGroupTemplate').replace('{name}', conv.name)))) return;
       await axios.post(`/api/messages/conversation/${conv.id}/leave`).catch(() => {});
     } else {
-      await axios.delete(`/api/messages/conversation/${conv.id}/messages`).catch(() => {});
+      // 仅删除自己这一侧（原先误调双向清空接口：不确认就把对方的聊天记录也删了，且刷新后会话又回来）
+      if (!(await showConfirm(t('chatlist.confirmDeleteChatTemplate').replace('{name}', conv.name)))) return;
+      try {
+        await axios.post(`/api/messages/conversation/${conv.id}/hide`);
+      } catch {
+        showToast(t('chatlist.deleteChatFailed'), 'error');
+        return;
+      }
+      // 本地消息缓存由 SocketContext 收到 conversation_messages_cleared 时清掉
     }
     setConversations(prev => prev.filter(c => c.id !== conv.id));
   }, [t]);
@@ -523,7 +544,7 @@ export default function ChatList({ onSelectConv, activeConvId, unread = {}, sear
         )}
       </div>
 
-      {ctxMenu && (
+      {ctxMenu && createPortal(
         <>
           <div
             style={{ position: 'fixed', inset: 0, zIndex: "calc(var(--z-top) - 1)" }}
@@ -535,6 +556,13 @@ export default function ChatList({ onSelectConv, activeConvId, unread = {}, sear
           />
           <div
             className="wc-ctx-menu"
+            ref={el => {
+              // 按实测尺寸收进视口（字号放大/语言不同菜单会更高更宽）
+              if (!el) return;
+              const r = el.getBoundingClientRect();
+              if (r.right > window.innerWidth - 8) el.style.left = `${Math.max(8, window.innerWidth - r.width - 8)}px`;
+              if (r.bottom > window.innerHeight - 8) el.style.top = `${Math.max(8, window.innerHeight - r.height - 8)}px`;
+            }}
             style={{ left: ctxMenu.x, top: ctxMenu.y, zIndex: "var(--z-top)" }}
             role="menu"
             onKeyDown={e => { if (e.key === 'Escape') { e.stopPropagation(); setCtxMenu(null); } }}
@@ -556,7 +584,8 @@ export default function ChatList({ onSelectConv, activeConvId, unread = {}, sear
               {ctxMenu.conv.type === 'group' ? t('chatlist.leaveGroup') : t('chatlist.deleteChat')}
             </button>
           </div>
-        </>
+        </>,
+        document.body
       )}
 
     </div>

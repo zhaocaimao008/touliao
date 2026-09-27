@@ -43,7 +43,14 @@ function getOrCreatePrivate(myId, otherId, { internal = false, io = null } = {})
     }
   }
   const existing = _findPrivate.get(myId, otherId);
-  if (existing) return { conversationId: existing.id };
+  if (existing) {
+    // 主动打开（通讯录"发消息"）或重新成为好友（internal）时，取消之前"删除聊天"的隐藏，否则会话不出现在列表里
+    const unhide = db.prepare('UPDATE conversation_settings SET hidden=0 WHERE user_id=? AND conversation_id=? AND hidden=1');
+    for (const uid of internal ? [myId, otherId] : [myId]) {
+      if (unhide.run(uid, existing.id).changes) invalidateConvCacheForUser(uid);
+    }
+    return { conversationId: existing.id };
+  }
   // 走到这里 = 要新建会话。已封禁账号不允许再建立新的私聊。
   // 刻意放在 existing 查询【之后】：已经存在的会话必须还能打开（否则历史消息就
   // 直接失联了），只是往里发消息会被 privateSendGuard 挡住并给出明确提示。
@@ -283,7 +290,9 @@ async function listConversations(uid, { includeArchived = false, offset = 0, lim
               )
     LEFT JOIN users ou ON ou.id = cm_o.user_id
     LEFT JOIN contacts ct ON ct.user_id = ? AND ct.contact_id = ou.id
-    ${includeArchived ? '' : 'WHERE COALESCE(cs.archived, 0) = 0'}
+    -- 已"删除聊天"且之后没有新消息：不出现在列表里（新消息到来即 m 非空，会话自动回来）
+    WHERE NOT (COALESCE(cs.hidden, 0) = 1 AND m.id IS NULL)
+    ${includeArchived ? '' : 'AND COALESCE(cs.archived, 0) = 0'}
     ORDER BY COALESCE(cs.pinned, 0) DESC, COALESCE(m.created_at, c.created_at) DESC, c.id DESC
     LIMIT ? OFFSET ?
   `).all(uid, uid, uid, meUsername, meUsername, uid, uid, uid, uid, uid, uid, lim, off);
@@ -479,8 +488,10 @@ async function markUnread(userId, convId) {
 // ── 阅后即焚：每个用户对某会话的独立销毁时间（秒）──────────────
 async function setBurnAfter(userId, convId, seconds) {
   requireMember(convId, userId, '无权操作');
+  // 下限与三端最短选项（10 秒）一致：原来下限 60 会把用户选的 10秒/30秒 静默改成 1 分钟，界面却仍显示 10 秒
+  const MIN_BURN = 10;
   const MAX_BURN = 7 * 24 * 3600;
-  const s = (!seconds || seconds === '0' || seconds === 0) ? 0 : Math.min(Math.max(60, parseInt(seconds) || 60), MAX_BURN);
+  const s = (!seconds || seconds === '0' || seconds === 0) ? 0 : Math.min(Math.max(MIN_BURN, parseInt(seconds) || 60), MAX_BURN);
   await writeAsync(`
     INSERT INTO conversation_settings (user_id, conversation_id, burn_after) VALUES (?, ?, ?)
     ON CONFLICT(user_id, conversation_id) DO UPDATE SET burn_after=excluded.burn_after
@@ -558,6 +569,36 @@ function clearConversation(io, userId, convId) {
   if (io) io.to(convId).emit('conversation_messages_cleared', { conversationId: convId, clearedBy: userId, clearedRowid: maxRowid, server_sequence: result.sequence });
   require('../messages/sync.service').emitSyncAvailable(io, convId, result.sequence);
   return clearedIds.length;
+}
+
+// 删除聊天（仅自己）：个人清空水位 + 从我的列表隐藏；对方的聊天记录完全不受影响。
+// 与 clearConversation（双向清空，所有成员都看不到）是两种语义，网页会话列表的"删除聊天"此前误用了后者。
+function hideConversation(io, userId, convId) {
+  requireMember(convId, userId, '无权操作');
+  const sequence = db.transaction(() => {
+    const now = Math.floor(Date.now() / 1000);
+    db.prepare(`
+      INSERT INTO conversation_clears (user_id, conversation_id, cleared_at, cleared_rowid)
+      VALUES (?, ?, ?, (SELECT COALESCE(MAX(rowid), 0) FROM messages WHERE conversation_id=?))
+      ON CONFLICT(user_id, conversation_id) DO UPDATE SET cleared_at=excluded.cleared_at, cleared_rowid=excluded.cleared_rowid
+    `).run(userId, convId, now, convId);
+    db.prepare(`
+      INSERT INTO conversation_settings (user_id, conversation_id, hidden, pinned, manually_unread) VALUES (?, ?, 1, 0, 0)
+      ON CONFLICT(user_id, conversation_id) DO UPDATE SET hidden=1, pinned=0, manually_unread=0
+    `).run(userId, convId);
+    return require('../messages/sync.service').appendConversationEventTx({
+      conversationId: convId, eventType: 'conversation_cleared', messageId: convId,
+      actorId: userId, targetUserId: userId, payload: { scope: 'personal' }, apply: () => {},
+    });
+  }).immediate();
+  invalidateConvCacheForUser(userId);
+  invalidateSearchCaches([userId], [convId]);
+  if (io) {
+    // 只通知自己的其他设备：本地移除该会话并清掉本地缓存的消息
+    io.to(`user_${userId}`).emit('conversation_hidden', { conversationId: convId });
+    io.to(`user_${userId}`).emit('conversation_messages_cleared', { conversationId: convId, clearedBy: userId, server_sequence: sequence });
+    io.to(`user_${userId}`).emit('conversation_sync_available', { conversationId: convId, server_sequence: sequence });
+  }
 }
 
 function clearAllConversations(io, userId) {
@@ -662,6 +703,6 @@ function batchGetOrCreatePrivate(myId, userIds, { io = null } = {}) {
 module.exports = {
   getOrCreatePrivate, batchGetOrCreatePrivate, getOrCreateFileHelper, createGroup, listConversations, listMembers,
   unreadCounts, myGroups, setPinned, setMuted, setBackground, markRead, markUnread, setBurnAfter,
-  setArchived, clearConversation, clearAllConversations, media,
+  setArchived, clearConversation, hideConversation, clearAllConversations, media,
   invalidateConvCacheForConversation, invalidateConvCacheForUser,
 };

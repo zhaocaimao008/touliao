@@ -2537,6 +2537,18 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
   const memberCount = conversation.type === 'group' ? (members.length || '') : null;
   // 稳定回调：供 memo 化的 ChatHeader 使用，避免顶栏随父级高频重渲染而重渲染。
   const toggleGroupInfo = useCallback(() => setShowGroupInfo(v => !v), []);
+  // 桌面端 Esc 关闭右侧群资料/聊天设置面板（窄屏由面板自身焦点陷阱处理）。
+  // 输入框内的 Esc 留给输入框（取消改名等），面板内子弹窗已处理的 Esc（defaultPrevented）不重复关闭。
+  useEffect(() => {
+    if (!showGroupInfo) return;
+    const onKey = e => {
+      if (e.key !== 'Escape' || e.defaultPrevented) return;
+      if (e.target?.closest?.('input, textarea, select, [contenteditable="true"], [role="dialog"]')) return;
+      setShowGroupInfo(false);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [showGroupInfo]);
   const openUserProfile = useCallback((id) => setShowUserProfile(id), []);
   const togglePinnedDetail = useCallback(() => setShowPinnedDetail(v => !v), []);
   const cancelUpload = useCallback(() => setUploadState(null), []);

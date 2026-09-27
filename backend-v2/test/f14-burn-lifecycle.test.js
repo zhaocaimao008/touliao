@@ -146,3 +146,11 @@ test('expiry and upload lookup plans use selective indexes',()=>{
  ];
  for(const [sql,args] of plans) {const plan=db.prepare('EXPLAIN QUERY PLAN '+sql).all(...args).map(x=>x.detail).join('; ');console.info('F14_QUERY_PLAN',plan);expect(plan).not.toMatch(/SCAN (messages|conversation_events|pinned_messages|scheduled_messages|revoked_burn_files)\b/);expect(plan).toMatch(/SEARCH/);}
 });
+test('客户端提供的 10 秒/30 秒选项原样生效（不被静默改成 1 分钟），越界值收敛到 [10秒, 7天]', async () => {
+ const f = fixture();
+ expect((await conv.setBurnAfter(f.a, f.id, 10)).burn_after).toBe(10);
+ expect((await conv.setBurnAfter(f.a, f.id, 30)).burn_after).toBe(30);
+ expect((await conv.setBurnAfter(f.a, f.id, 3)).burn_after).toBe(10);
+ expect((await conv.setBurnAfter(f.a, f.id, 99999999)).burn_after).toBe(604800);
+ expect((await conv.setBurnAfter(f.a, f.id, 0)).burn_after).toBe(0);
+});

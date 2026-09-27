@@ -15,6 +15,12 @@ struct ConversationListView: View {
         _vm = StateObject(wrappedValue: ConversationListViewModel(myId: myId))
     }
 
+    /// 由 MainTabView 持有 VM：底部「消息」Tab 需要读取未读合计做角标
+    init(myId: String, vm: ConversationListViewModel) {
+        self.myId = myId
+        _vm = StateObject(wrappedValue: vm)
+    }
+
     var body: some View {
         NavigationStack(path: $path) {
             content

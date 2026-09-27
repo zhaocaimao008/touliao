@@ -709,6 +709,8 @@ export default {
   'chatlist.deleteChat': 'Delete Chat',
   'chatlist.leaveGroup': 'Leave Group',
   'chatlist.confirmLeaveGroupTemplate': 'Leave the group "{name}"?',
+  'chatlist.confirmDeleteChatTemplate': 'Delete your chat with "{name}"? Only your copy of the history is cleared; the other person keeps theirs.',
+  'chatlist.deleteChatFailed': 'Failed to delete. Please try again.',
   'chatlist.empty': 'No chats yet',
   'chatlist.emptyDesc': 'Say hi to a friend and start chatting',
   'chatlist.archive': 'Archive',

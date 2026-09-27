@@ -69,6 +69,10 @@ exports.setBurnAfter = asyncHandler(async (req, res) => {
   res.json({ success: true, ...r });
 });
 
+exports.hideConversation = asyncHandler(async (req, res) => {
+  svc.hideConversation(io(req), req.user.id, req.params.convId);
+  res.json({ success: true });
+});
 exports.clearConversation = asyncHandler(async (req, res) => {
   const deleted = svc.clearConversation(io(req), req.user.id, req.params.convId);
   res.json({ success: true, deleted });

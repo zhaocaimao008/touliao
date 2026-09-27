@@ -525,6 +525,8 @@ export default function Home() {
   const [showScan, setShowScan] = useState(false);          // 扫一扫入群
   const [activeConv, setActiveConv] = useState(null);
   const [unread, setUnread] = useState({});
+  // 免打扰会话 id（由 ChatList 上报）：不计入底部红点、标题和任务栏角标，与安卓一致
+  const [mutedConvIds, setMutedConvIds] = useState(() => new Set());
   // 朋友圈互动未读（手机「发现」标签红点）：进出页面与收到互动事件时刷新；朋友圈关闭时接口 403，按 0 处理
   const [momentUnread, setMomentUnread] = useState(0);
   useEffect(() => {
@@ -1037,7 +1039,7 @@ export default function Home() {
     if (t === 'contacts') setFriendReqCount(0);
   };
 
-  const totalUnread = Object.values(unread).reduce((a, b) => a + b, 0);
+  const totalUnread = Object.entries(unread).reduce((sum, [id, n]) => (mutedConvIds.has(id) ? sum : sum + n), 0);
   const badges = { chats: totalUnread, contacts: friendReqCount };
 
   // 浏览器标签页标题显示未读总数「(N) 投聊」——切到别的 tab 也能一眼看到有新消息(对齐一线 IM)。
@@ -1075,7 +1077,7 @@ export default function Home() {
   const renderMain = () => {
     switch (tab) {
       case 'chats':
-        return <ChatList onSelectConv={isMobile ? handleMobileSelectConv : handleSelectConv} activeConvId={activeConv?.id} unread={unread} searchQuery={search} convRefreshKey={convRefreshKey} onOpenMentions={() => setShowMentions(true)} />;
+        return <ChatList onSelectConv={isMobile ? handleMobileSelectConv : handleSelectConv} activeConvId={activeConv?.id} unread={unread} searchQuery={search} convRefreshKey={convRefreshKey} onMutedChange={setMutedConvIds} onOpenMentions={() => setShowMentions(true)} />;
       case 'contacts':
         return <ContactList onStartChat={(conv) => handleSelectConv(conv)} searchQuery={search} addFriendRequest={addFriendRequest} onAddFriendConsumed={handleAddFriendConsumed} openFriendRequests={openFriendRequests} onOpenFriendRequestsConsumed={handleOpenFriendRequestsConsumed} />;
       case 'moments':
@@ -1292,7 +1294,7 @@ export default function Home() {
                 ) : tab === 'chats' ? (
                   <ChatList onSelectConv={handleMobileSelectConv} activeConvId={activeConv?.id}
                     unread={unread} searchQuery={search}
-                    convRefreshKey={convRefreshKey} onOpenMentions={() => setShowMentions(true)} />
+                    convRefreshKey={convRefreshKey} onMutedChange={setMutedConvIds} onOpenMentions={() => setShowMentions(true)} />
                 ) : tab === 'discover' ? (
                   <DiscoverList items={discoverItems} momentUnread={features.moments !== false ? momentUnread : 0} onOpen={handleTabChange} />
                 ) : renderMain()}
