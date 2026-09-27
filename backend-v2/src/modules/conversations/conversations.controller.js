@@ -18,13 +18,14 @@ exports.createPrivateBatch = asyncHandler(async (req, res) => {
 exports.fileHelper    = asyncHandler(async (req, res) => res.json(svc.getOrCreateFileHelper(req.user.id)));
 exports.createGroup   = asyncHandler(async (req, res) => res.json(svc.createGroup(io(req), req.user.id, req.body)));
 exports.list          = asyncHandler(async (req, res) => {
-  // 会话列表变化频率高，短时缓存 10s 防重连风暴批量请求；stale-while-revalidate 保证实时感
   // includeArchived=1 时含已归档会话（默认排除，向后兼容）
   const includeArchived = req.query.includeArchived === '1' || req.query.includeArchived === 'true';
   // Q12 全修：offset/limit 续页，缺省时与旧行为完全一致（前 500 条）
   const offset = parseInt(req.query.offset, 10);
   const limit = parseInt(req.query.limit, 10);
-  res.setHeader('Cache-Control', 'private, max-age=10, stale-while-revalidate=30');
+  // 必须每次回源校验（no-cache + ETag → 未变化时 304）：客户端在收到 new_conversation / 撤回 / 群变更等
+  // 事件后会立刻重拉列表，max-age 会让浏览器/URLSession 直接返回 10~40 秒前的旧列表（新好友会话不出现）
+  res.setHeader('Cache-Control', 'private, no-cache');
   res.json(await svc.listConversations(req.user.id, {
     includeArchived,
     ...(Number.isInteger(offset) ? { offset } : {}),

@@ -5,8 +5,8 @@ const svc = require('./contacts.service');
 const io = req => req.app.get('io');
 
 exports.listContacts   = asyncHandler(async (req, res) => {
-  // 联系人列表变化频率低(添加/删除好友才变)，短暂缓存 30s 避免重连风暴中重复请求
-  res.setHeader('Cache-Control', 'private, max-age=30, stale-while-revalidate=60');
+  // 每次回源校验（未变化时 304）：通过好友申请后客户端立刻重拉，max-age 会让新好友 30~90 秒内不出现在通讯录
+  res.setHeader('Cache-Control', 'private, no-cache');
   res.json(svc.listContacts(req.user.id));
 });
 exports.deleteContact  = asyncHandler(async (req, res) => { svc.deleteContact(req.user.id, req.params.contactId); res.json({ success: true }); });
