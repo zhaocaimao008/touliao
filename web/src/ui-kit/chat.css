@@ -40,7 +40,8 @@ html.touliao-ui body .wc-chat-header-btn { width: 36px; height: 36px; min-width:
 html.touliao-ui body .wc-messages { padding: 20px 24px; }
 html.touliao-ui body .wc-msg-bubble { padding: 8px 12px; border-radius: 18px; font-size: var(--font-msg); line-height: 1.6; max-width: 560px; overflow-wrap: anywhere; box-shadow: none; }
 /* v3 极光：我方气泡 speech-bubble 锚点角（右下 4px）+ 极光靛微渐变 + 柔光 */
-html.touliao-ui body .wc-msg-bubble.mine { background: linear-gradient(135deg, #6D5AE6 0%, #5A47D6 100%) !important; color: var(--tl-message-outgoing-text) !important; border: 0; border-radius: 18px 18px 4px 18px; box-shadow: 0 2px 8px rgba(109, 90, 230, .22), 0 1px 3px rgba(20, 24, 40, .08); }
+/* 气泡色随皮肤变化：原先写死紫色渐变且 !important，微信/企业微信皮肤（v4 规则不覆盖它们）切换后气泡仍是紫色 */
+html.touliao-ui body .wc-msg-bubble.mine { background: var(--tl-message-outgoing) !important; color: var(--tl-message-outgoing-text) !important; border: 0; border-radius: 18px 18px 4px 18px; box-shadow: 0 2px 8px rgba(109, 90, 230, .22), 0 1px 3px rgba(20, 24, 40, .08); }
 html.touliao-ui body .wc-msg-bubble.other { background: var(--tl-message-incoming); color: var(--tl-text); border: 1px solid var(--tl-border); border-radius: 18px 18px 18px 4px; }
 html.touliao-ui body .wc-msg-bubble::after { display: none; }
 html.touliao-ui body .wc-msg-bubble.mine a { color: var(--tl-message-outgoing-text) !important; text-decoration: underline; text-underline-offset: 3px; }
