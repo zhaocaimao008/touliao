@@ -2,12 +2,13 @@ import SwiftUI
 import UIKit
 import UserNotifications
 
-/// 底部 Tab：消息 / 通讯录 / 我（已按需移除 朋友圈 与 收藏）
+/// 底部 Tab（四端一致）：消息 / 通讯录 / 发现 / 我；朋友圈、通话记录、收藏收进「发现」
 struct MainTabView: View {
     let myId: String
 
     // 选中的 Tab（0=消息）；点推送通知需切回消息页再打开会话
     @State private var selectedTab = 0
+    @StateObject private var discoverVM = DiscoverViewModel()
     @Environment(\.scenePhase) private var scenePhase
 
     init(myId: String) {
@@ -26,10 +27,16 @@ struct MainTabView: View {
                 .accessibilityIdentifier("nav-tab-contacts")
                 .tag(1)
 
+            DiscoverView(vm: discoverVM)
+                .tabItem { Label("发现", touliaoIcon: "discover") }
+                .badge(discoverVM.momentsEnabled ? discoverVM.momentUnread : 0)
+                .accessibilityIdentifier("nav-tab-discover")
+                .tag(2)
+
             NavigationStack { ProfileView() }
                 .tabItem { Label("我", touliaoIcon: "profile") }
                 .accessibilityIdentifier("nav-tab-me")
-                .tag(2)
+                .tag(3)
         }
         .tint(.vxinBrand)
         // 点推送通知 → 切回消息页（会话打开由 ConversationListView 观察同一通知处理）

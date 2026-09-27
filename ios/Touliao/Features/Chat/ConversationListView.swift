@@ -5,7 +5,6 @@ struct ConversationListView: View {
     @State private var path = NavigationPath()
     @State private var clearTarget: Conversation?
     @State private var showMentions = false          // @我消息聚合全屏弹窗
-    @State private var showMoments = false           // 朋友圈全屏弹窗（方案A：顶栏图标，非底部 tab）
     @State private var filter = ConversationFilter.all
     @State private var showArchived = false          // F5 归档视图（本地分流，不动导航栈）
     @State private var showClearArchiveConfirm = false
@@ -27,14 +26,7 @@ struct ConversationListView: View {
                 // 广播可能丢失；挂载/重新出现时检查 PendingConversation 缓存并消费。
                 .onAppear { consumePendingConversation() }
                 .toolbar {
-                    // 朋友圈入口（方案A：不占底部导航，受后台 features.moments 开关实时控制）
-                    if vm.momentsEnabled {
-                        ToolbarItem(placement: .navigationBarTrailing) {
-                            Button { showMoments = true } label: { TouliaoIcon("image", size: .md) }
-                                .accessibilityLabel("朋友圈")
-                                .accessibilityIdentifier("conv-list-moments-btn")
-                        }
-                    }
+                    // 朋友圈入口已移到底部「发现」Tab，消息页顶栏不再重复放
                     ToolbarItem(placement: .navigationBarTrailing) {
                         Button { path.append(SearchRoute.search) } label: { TouliaoIcon("search", size: .md) }
                             .accessibilityLabel("搜索")
@@ -93,18 +85,6 @@ struct ConversationListView: View {
                             path = NavigationPath()
                             path.append(conv)
                         }
-                    }
-                }
-                // 朋友圈（全屏）：MomentsView 本身不带 NavigationStack/关闭按钮（设计上预期被嵌入已有导航栈），
-                // 这里用 fullScreenCover 独立弹出时补一层 NavigationStack + 关闭按钮。
-                .fullScreenCover(isPresented: $showMoments) {
-                    NavigationStack {
-                        MomentsView()
-                            .toolbar {
-                                ToolbarItem(placement: .navigationBarLeading) {
-                                    Button("关闭") { showMoments = false }
-                                }
-                            }
                     }
                 }
         }
