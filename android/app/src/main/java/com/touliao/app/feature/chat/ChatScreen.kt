@@ -312,13 +312,21 @@ fun ChatScreen(
     androidx.activity.compose.BackHandler(enabled = state.multiSelect) { viewModel.exitMultiSelect() }
 
     // 跳到指定消息并高亮(供「回复引用」「搜索结果」共用)。仅在已加载消息里查找。
-    val jumpToMessage: (String) -> Unit = jump@{ targetId ->
-        val headerOffset = if (!state.reachedStart && state.messages.isNotEmpty()) 1 else 0
-        val idx = state.messages.indexOfFirst { it.id == targetId }
-        if (idx < 0) return@jump
-        scope.launch { listState.animateScrollToItem(idx + headerOffset) }
-        highlightedMsgId = targetId
-        scope.launch { kotlinx.coroutines.delay(1500); if (highlightedMsgId == targetId) highlightedMsgId = null }
+    val jumpToMessage: (String) -> Unit = { targetId ->
+        scope.launch {
+            // 目标还没加载（搜索结果 / 引用了很早的消息）：先向前翻页直到加载进来，原先直接忽略、点了没反应
+            if (!viewModel.ensureMessageLoaded(targetId)) {
+                android.widget.Toast.makeText(context, "无法定位到该消息", android.widget.Toast.LENGTH_SHORT).show()
+                return@launch
+            }
+            val s = viewModel.uiState.value
+            val headerOffset = if (!s.reachedStart && s.messages.isNotEmpty()) 1 else 0
+            val idx = s.messages.indexOfFirst { it.id == targetId }
+            if (idx < 0) return@launch
+            listState.animateScrollToItem(idx + headerOffset)
+            highlightedMsgId = targetId
+            kotlinx.coroutines.delay(1500); if (highlightedMsgId == targetId) highlightedMsgId = null
+        }
     }
     // 被踢/群解散 → 自动返回
     LaunchedEffect(state.closed) { if (state.closed) onBack() }

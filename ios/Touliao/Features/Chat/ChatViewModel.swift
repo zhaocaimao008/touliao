@@ -449,12 +449,46 @@ final class ChatViewModel: ObservableObject {
         }
     }
 
-    /// 点击引用条：滚动到原消息并高亮
+    /// 点击引用条 / 会话内搜索结果：滚动到原消息并高亮。
+    /// 目标还没加载（很早的消息）时先逐页向前加载直到出现——原先直接 return，点了没反应。
     func jumpTo(_ msgId: String) {
-        guard messages.contains(where: { $0.id == msgId }) else { return }
-        scrollTarget = msgId
-        highlightedId = msgId
-        Task { try? await Task.sleep(nanoseconds: 1_500_000_000); if highlightedId == msgId { highlightedId = nil } }
+        Task {
+            guard await ensureMessageLoaded(msgId) else { self.error = "无法定位到该消息"; return }
+            scrollTarget = msgId
+            highlightedId = msgId
+            try? await Task.sleep(nanoseconds: 1_500_000_000)
+            if highlightedId == msgId { highlightedId = nil }
+        }
+    }
+
+    /// 逐页向前加载直到目标消息进入列表（最多约 1000 条），沿用向前翻页，列表始终连续
+    func ensureMessageLoaded(_ targetId: String) async -> Bool {
+        guard let credential = captureAttempt() else { return false }
+        for _ in 0..<20 {
+            if messages.contains(where: { $0.id == targetId }) { return true }
+            if reachedStart || !currentAttempt(credential) { return false }
+            if loadingEarlier {   // 用户手动上滑正在加载：等它完成
+                try? await Task.sleep(nanoseconds: 150_000_000)
+                continue
+            }
+            await historyPagination.execute(
+                conversationId: conversationId,
+                state: {
+                    HistoryPaginationState(
+                        messages: self.messages,
+                        loadingEarlier: self.loadingEarlier,
+                        reachedStart: self.reachedStart
+                    )
+                },
+                isCurrentAttempt: { self.currentAttempt(credential) },
+                apply: { state in
+                    self.messages = state.messages
+                    self.loadingEarlier = state.loadingEarlier
+                    self.reachedStart = state.reachedStart
+                }
+            )
+        }
+        return messages.contains(where: { $0.id == targetId })
     }
 
     // ── 会话内消息搜索 ──
