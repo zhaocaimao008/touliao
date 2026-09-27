@@ -154,6 +154,12 @@ async function register({ username, phone, password, inviteCode }, req) {
   return { token: signToken({ id, username }, jti), user };
 }
 // 2026-09-26 起不再要求/记录隐私政策与用户协议同意；旧客户端仍会携带 legalConsent 字段，忽略即可。
+// 去掉空格/横线/括号，+86 或 86 开头的 13 位号码折算为 11 位大陆号码。
+function normalizePhone(phone) {
+  const digits = String(phone).replace(/[\s\-()]/g, '').replace(/^\+/, '');
+  return /^86\d{11}$/.test(digits) ? digits.slice(2) : digits;
+}
+
 async function login({ phone, password, captchaId, captchaText }, req) {
   if (typeof phone !== 'string' || typeof password !== 'string' || !phone || !password) throw badRequest('请填写手机号和密码');
   // 图形验证码：开关开启时强制校验，且必须先于密码比对完成（不能等密码验证过了才发现验证码错，
@@ -161,7 +167,10 @@ async function login({ phone, password, captchaId, captchaText }, req) {
   if (isLoginCaptchaRequired() && !(await captcha.verify(captchaId, captchaText))) {
     throw badRequest('验证码错误或已过期，请重新获取');
   }
-  const user = db.prepare('SELECT id,username,phone,avatar,bio,wechat_id,cover_photo,password,banned FROM users WHERE phone=?').get(phone);
+  // 客户端自动填充常带空格/横线/+86（iOS textContentType=.telephoneNumber）；原样精确匹配优先，
+  // 其次按规范化号码匹配，历史上带格式注册的账号不受影响。
+  const user = db.prepare('SELECT id,username,phone,avatar,bio,wechat_id,cover_photo,password,banned FROM users WHERE phone IN (?, ?) ORDER BY phone=? DESC LIMIT 1')
+    .get(phone, normalizePhone(phone), phone);
   // 时序保护：无论用户是否存在，都执行完整 bcrypt.compare（约 200ms），
   // 防止通过响应时间区分「手机号未注册」与「密码错误」（时序侧信道 / 用户枚举）。
   const hashToCompare = user?.password || DUMMY_HASH;

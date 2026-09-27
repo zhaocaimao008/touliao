@@ -59,6 +59,19 @@ describe('登录', () => {
     expect(res.body.token).toBeTruthy();
   });
 
+  test('正常路径：自动填充格式（+86 空格分组）的手机号也能登录纯数字注册的账号', async () => {
+    const plain = `13${Date.now().toString().slice(-9)}`;
+    const reg = await request(app).post('/api/auth/register').send({
+      phone: plain, password: seededPassword, username: `fmt_${Date.now()}`, inviteCode: INVITE_CODE,
+      legalConsent: require('./legal-consent.cjs'),
+    });
+    expect(reg.status).toBe(200);
+    const formatted = `+86 ${plain.slice(0, 3)} ${plain.slice(3, 7)} ${plain.slice(7)}`;
+    const res = await request(app).post('/api/auth/login').send({ phone: formatted, password: seededPassword });
+    expect(res.status).toBe(200);
+    expect(res.body.user.id).toBe(reg.body.user.id);
+  });
+
   test('异常路径：密码错误 → 400，且错误提示不区分"账号不存在"与"密码错误"', async () => {
     const res = await request(app).post('/api/auth/login').send({ ...({ phone: seededPhone, password: 'wrongPassw0rd' }), legalConsent: require('./legal-consent.cjs') });
     expect(res.status).toBe(400);
