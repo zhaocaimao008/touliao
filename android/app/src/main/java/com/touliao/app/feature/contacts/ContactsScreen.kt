@@ -295,7 +295,10 @@ private fun ContactsIndexedList(
 ) {
     // 分组并排序：按字母分组，字母表顺序，# 归最后
     val grouped = remember(contacts) {
+        // 组内按拼音排序：Android 的 Collator 基于 ICU，中文区域规则即拼音序
+        val collator = java.text.Collator.getInstance(java.util.Locale.CHINA)
         contacts.groupBy { sectionLetterOf(it.displayName.ifBlank { it.username }) }
+            .mapValues { (_, list) -> list.sortedWith(compareBy(collator) { it.displayName.ifBlank { it.username } }) }
             .toSortedMap(compareBy { if (it == '#') Char.MAX_VALUE else it })
     }
     val letters = remember(grouped) { grouped.keys.toList() }
