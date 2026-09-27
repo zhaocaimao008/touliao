@@ -2,6 +2,7 @@ import { clearCache, removeFromCache } from '../utils/msgCache';
 import { clientStorage as localStorage } from '../utils/clientStorage';
 import React, { createContext, useContext, useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import { io } from 'socket.io-client';
+import axios from 'axios';
 import { useAuth } from './AuthContext';
 import { getConfig, isConfigLoaded } from '../utils/config';
 import { isBearerClient, isIsolatedWindow } from '../utils/clientStorage';
@@ -72,6 +73,9 @@ export const SocketProvider = ({ children }) => {
       setConnected(false);
       disconnectAtRef.current = Math.floor(Date.now() / 1000);
     });
+    // 会话失效（别处改密码/退出/token 到期）：服务端随即断开且不会自动重连。发一次需鉴权的请求，
+    // 由 axios 拦截器走既有的刷新 token / 回登录页流程，而不是停在「已登录但收不到消息」。
+    s.on('session_expired', () => { axios.get('/api/auth/me').catch(() => {}); });
     s.on('sync:unread_cleared', (payload) => {
       unreadClearedListeners.current.forEach(fn => fn(payload));
     });

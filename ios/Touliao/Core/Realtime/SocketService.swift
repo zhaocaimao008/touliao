@@ -225,6 +225,12 @@ final class SocketService {
             }
         }
         sock.on("new_conversation") { [weak self] _, _ in self?.newConversation.send(()) }
+        // 会话失效（别处改密码/退出/token 到期）：服务端随即断开且不会自动重连。发一次需鉴权的
+        // 请求，401 走 APIClient.unauthorizedNotification 的既有登出流程，而不是停在「已登录但收不到消息」。
+        sock.on("session_expired") { _, _ in
+            guard KeychainStore.shared.isCurrent(credential) else { return }
+            Task { _ = try? await AuthRepository.shared.restoreSession() }
+        }
         sock.on("message_deleted") { [weak self] data, _ in
             if let id = (data.first as? [String: Any])?["msgId"] as? String, !id.isEmpty {
                 self?.messageDeleted.send(id)
@@ -311,6 +317,10 @@ final class SocketService {
             if let id = (data.first as? [String: Any])?["conversationId"] as? String, !id.isEmpty { self?.groupGone.send(id) }
         }
         sock.on("group_dismissed") { [weak self] data, _ in
+            if let id = (data.first as? [String: Any])?["conversationId"] as? String, !id.isEmpty { self?.groupGone.send(id) }
+        }
+        // 本账号在其他设备退群：同样视为该群不可用（移出会话列表、关闭聊天页）
+        sock.on("group_left") { [weak self] data, _ in
             if let id = (data.first as? [String: Any])?["conversationId"] as? String, !id.isEmpty { self?.groupGone.send(id) }
         }
         sock.on("group_updated") { [weak self] data, _ in

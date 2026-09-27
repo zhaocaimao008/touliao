@@ -99,6 +99,9 @@ class AppViewModel @Inject constructor(
         viewModelScope.launch { chatRepository.incomingMessages.collect { refreshUnread() } }
         viewModelScope.launch { chatRepository.unreadClearedEvents.collect { refreshUnread() } }
         viewModelScope.launch { chatRepository.newConversationEvents.collect { refreshUnread() } }
+        // 会话失效：发一次需鉴权的请求，401 由 AuthInterceptor 走既有登出流程回登录页，
+        // 而不是停在「已登录但收不到消息」（服务端断开后不会自动重连）
+        viewModelScope.launch { chatRepository.sessionExpiredEvents.collect { refreshUnread() } }
 
         // 启动时静默检查更新（仅打印日志，不干扰启动流程）
         viewModelScope.launch { updateChecker.check() }

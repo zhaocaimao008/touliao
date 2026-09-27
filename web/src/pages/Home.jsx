@@ -862,7 +862,8 @@ export default function Home() {
       setUnread(prev => { const n = { ...prev }; delete n[conversationId]; return n; });
     };
     socket.on('group_kicked', onGroupKicked);
-    return () => socket.off('group_kicked', onGroupKicked);
+    socket.on('group_left', onGroupKicked); // 本账号在其他设备退群：关闭该会话
+    return () => { socket.off('group_kicked', onGroupKicked); socket.off('group_left', onGroupKicked); };
   }, [socket]);
 
   const [activeCall, setActiveCall] = useState(null);

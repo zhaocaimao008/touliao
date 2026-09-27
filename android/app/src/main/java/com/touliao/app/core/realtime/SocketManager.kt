@@ -109,6 +109,9 @@ class SocketManager @Inject constructor(
     /** 新会话（如被拉入群聊）→ 提示列表刷新 */
     private val _newConversation = MutableSharedFlow<Unit>(extraBufferCapacity = 8)
     val newConversationEvents: SharedFlow<Unit> = _newConversation.asSharedFlow()
+    // 会话失效（别处改密码/退出/token 到期）：服务端随即断开且不会自动重连
+    private val _sessionExpired = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
+    val sessionExpiredEvents: SharedFlow<Unit> = _sessionExpired.asSharedFlow()
 
     /** 消息撤回/删除 → msgId */
     private val _messageDeleted = MutableSharedFlow<String>(extraBufferCapacity = 64)
@@ -253,6 +256,7 @@ class SocketManager @Inject constructor(
 
         s.on(Socket.EVENT_CONNECT) { _status.value = SocketStatus.CONNECTED }
         s.on(Socket.EVENT_DISCONNECT) { _status.value = SocketStatus.DISCONNECTED }
+        s.on("session_expired") { if (tokenStore.isCurrent(credential)) _sessionExpired.tryEmit(Unit) }
         s.on(Socket.EVENT_CONNECT_ERROR) { args ->
             _status.value = SocketStatus.DISCONNECTED
             Log.w(TAG, "connect_error: ${args.firstOrNull()}")
@@ -394,6 +398,10 @@ class SocketManager @Inject constructor(
             (args.firstOrNull() as? JSONObject)?.optString("conversationId")?.takeIf { it.isNotEmpty() }?.let(_groupGone::tryEmit)
         }
         s.on("group_dismissed") { args ->
+            (args.firstOrNull() as? JSONObject)?.optString("conversationId")?.takeIf { it.isNotEmpty() }?.let(_groupGone::tryEmit)
+        }
+        // 本账号在其他设备退群：同样视为该群不可用（移出会话列表、关闭聊天页）
+        s.on("group_left") { args ->
             (args.firstOrNull() as? JSONObject)?.optString("conversationId")?.takeIf { it.isNotEmpty() }?.let(_groupGone::tryEmit)
         }
         s.on("group_updated") { args ->
