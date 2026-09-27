@@ -29,6 +29,11 @@ const { _electron: electron } = require('playwright');
       args: [...(process.env.TOULIAO_PACKAGED_APP ? [] : [appDir]), ...(process.platform === 'linux' ? ['--no-sandbox'] : [])], env,
     });
     apps.push(app);
+    // 未登录的新 profile 查 /auth/me、/auth/refresh 必然 401：在本地直接应答同样的 401，
+    // 不再打到生产（否则每次 CI 在线上留下成批 401，污染监控）。配置/更新源仍走真实服务。
+    await app.context().route(/\/api\/auth\/(me|refresh)(\?|$)/, route => route.fulfill({
+      status: 401, contentType: 'application/json', body: JSON.stringify({ error: '未授权' }),
+    }));
     app.process().stdout?.on('data', data => process.stdout.write(data));
     app.process().stderr?.on('data', data => process.stderr.write(data));
     app.process().on('exit', (code, signal) => console.log('Electron process exited:', { code, signal }));
