@@ -561,7 +561,7 @@ export default function GroupInfo({ conversation, currentUserId, onClose, onLeav
               </div>
               <div className="gi-f1">
                 <span className="gi-text14 gi-fw5">{t('groupInfo.manageTitle')}</span>
-                {(info.mute_all || info.no_private_chat || info.no_add_friend) && (
+                {!!(info.mute_all || info.no_private_chat || info.no_add_friend) && (
                   <div className="gi-mg-active">
                     {[info.mute_all && t('groupInfo.muteAllLabel'), info.no_private_chat && t('groupInfo.noPrivateChatLabel'), info.no_add_friend && t('groupInfo.noAddFriendPill')].filter(Boolean).join(' · ')}
                   </div>
@@ -634,19 +634,19 @@ export default function GroupInfo({ conversation, currentUserId, onClose, onLeav
         {/* 状态提示条（非管理员时展示当前限制） */}
         {!isAdmin && (info.mute_all || info.no_private_chat || info.no_add_friend) && (
           <div className="gi-warn">
-            {info.mute_all && (
+            {!!info.mute_all && (
               <div className="gi-warn-row">
                 <TouliaoIcon name="mute" className="gi-s12 gi-warn-icon" size="sm" />
                 {t('groupInfo.muteAllWarning')}
               </div>
             )}
-            {info.no_private_chat && (
+            {!!info.no_private_chat && (
               <div className="gi-warn-row">
                 <TouliaoIcon name="warning" className="gi-s12 gi-warn-icon" size="sm" />
                 {t('groupInfo.noPrivateChatWarning')}
               </div>
             )}
-            {info.no_add_friend && (
+            {!!info.no_add_friend && (
               <div className="gi-warn-row">
                 <TouliaoIcon name="warning" className="gi-s12 gi-warn-icon" size="sm" />
                 {t('groupInfo.noAddFriendWarning')}

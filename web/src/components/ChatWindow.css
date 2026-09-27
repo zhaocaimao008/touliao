@@ -506,6 +506,15 @@
   border-radius: var(--radius-xs, 4px);
   padding: 0 2px;
 }
+/* 自己发出的气泡本身是品牌色：@ 文字若仍用品牌色会与背景同色而「消失」，改为跟随气泡文字色 */
+.wc-msg-bubble.mine .wc-msg-mention,
+.wc-msg-bubble.mine .wc-msg-mention-me {
+  color: inherit;
+  font-weight: 600;
+  background: rgba(255, 255, 255, .2);
+  border-radius: var(--radius-xs, 4px);
+  padding: 0 2px;
+}
 /* 被@的消息气泡：品牌色描边提醒 */
 .wc-msg-bubble.mentioned {
   box-shadow: 0 0 0 1.5px var(--color-primary);

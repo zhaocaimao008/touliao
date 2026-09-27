@@ -95,8 +95,8 @@ function sendFriendRequest(io, fromId, { toId, message }) {
       // 在线双方全端即时入新私聊房间，否则首条消息只广播到房间、要等重连才能实时收到。
       io.in(`user_${fromId}`).socketsJoin(conversationId);
       io.in(`user_${toId}`).socketsJoin(conversationId);
-      const convForSender = { id: conversationId, type: 'private', name: target?.username || '', avatar: target?.avatar || '', pinned: 0, muted: 0, lastMessage: '', lastMessageType: '', lastTime: 0 };
-      const convForTarget = { id: conversationId, type: 'private', name: sender?.username || '', avatar: sender?.avatar || '', pinned: 0, muted: 0, lastMessage: '', lastMessageType: '', lastTime: 0 };
+      const convForSender = { id: conversationId, type: 'private', name: target?.username || '', avatar: target?.avatar || '', pinned: 0, muted: 0, lastMessage: '', lastMessageType: '', lastTime: Math.floor(Date.now() / 1000) };
+      const convForTarget = { id: conversationId, type: 'private', name: sender?.username || '', avatar: sender?.avatar || '', pinned: 0, muted: 0, lastMessage: '', lastMessageType: '', lastTime: Math.floor(Date.now() / 1000) };
       io.to(`user_${fromId}`).emit('new_conversation', convForSender);
       io.to(`user_${toId}`).emit('new_conversation', convForTarget);
     }
@@ -208,8 +208,8 @@ function handleRequest(io, userId, requestId, action) {
       // 在线双方全端即时入新私聊房间，否则首条消息只广播到房间、要等重连才能实时收到。
       io.in(`user_${userId}`).socketsJoin(conversationId);
       io.in(`user_${request.from_id}`).socketsJoin(conversationId);
-      const convForAccepter = { id: conversationId, type: 'private', name: requester?.username || '', avatar: requester?.avatar || '', pinned: 0, muted: 0, lastMessage: '', lastMessageType: '', lastTime: 0 };
-      const convForRequester = { id: conversationId, type: 'private', name: accepter?.username || '', avatar: accepter?.avatar || '', pinned: 0, muted: 0, lastMessage: '', lastMessageType: '', lastTime: 0 };
+      const convForAccepter = { id: conversationId, type: 'private', name: requester?.username || '', avatar: requester?.avatar || '', pinned: 0, muted: 0, lastMessage: '', lastMessageType: '', lastTime: Math.floor(Date.now() / 1000) };
+      const convForRequester = { id: conversationId, type: 'private', name: accepter?.username || '', avatar: accepter?.avatar || '', pinned: 0, muted: 0, lastMessage: '', lastMessageType: '', lastTime: Math.floor(Date.now() / 1000) };
       io.to(`user_${userId}`).emit('new_conversation', convForAccepter);
       io.to(`user_${request.from_id}`).emit('new_conversation', convForRequester);
     }

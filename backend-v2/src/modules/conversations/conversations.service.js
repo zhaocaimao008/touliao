@@ -221,7 +221,8 @@ async function listConversations(uid, { includeArchived = false, offset = 0, lim
       -- 阅后即焚：列表预览不透出原文（与推送同口径），否则不点开就能在会话列表读到内容
       CASE WHEN m.burn_after > 0 THEN '[阅后即焚消息]' ELSE m.content END AS lastMessage,
       m.type       AS lastMessageType,
-      m.created_at AS lastTime,
+      -- 无消息的会话（如刚加的好友）用会话创建时间，与下方 ORDER BY 同口径；否则客户端按 lastTime 重排后沉到列表底部
+      COALESCE(m.created_at, c.created_at) AS lastTime,
       su.username  AS lastSenderName,
       COALESCE(cs.pinned, 0)                AS pinned,
       COALESCE(cs.muted,  0)                AS muted,

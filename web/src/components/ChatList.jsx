@@ -1,6 +1,6 @@
 import TouliaoIcon from '../ui-kit/Icon';
 import { clientStorage as localStorage } from '../utils/clientStorage';
-import React, { useState, useEffect, useCallback, memo, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useRef, memo, useMemo } from 'react';
 import axios from 'axios';
 import Avatar from './Avatar';
 import { GroupAvatar } from './GroupAvatar';
@@ -226,11 +226,15 @@ export default function ChatList({ onSelectConv, activeConvId, unread = {}, sear
   }, []);
 
   const handleSelectConv = useCallback((conv) => {
-    if (conv.manually_unread) {
-      setConversations(prev => prev.map(c => c.id === conv.id ? { ...c, manually_unread: 0 } : c));
+    if (conv.manually_unread || conv.hasMention) {
+      setConversations(prev => prev.map(c => c.id === conv.id ? { ...c, manually_unread: 0, hasMention: false } : c));
     }
     onSelectConv(conv);
   }, [onSelectConv]);
+
+  // 当前打开的会话收到 @ 不打标记（用户正在看）；用 ref 避免每次切会话都重订阅 socket 事件
+  const activeConvIdRef = useRef(activeConvId);
+  useEffect(() => { activeConvIdRef.current = activeConvId; }, [activeConvId]);
 
   useEffect(() => { fetchConvs(); }, [fetchConvs]);
 
@@ -254,7 +258,9 @@ export default function ChatList({ onSelectConv, activeConvId, unread = {}, sear
         return updated.sort(byPinnedThenTime);
       });
     };
-    const onNewConv = (conv) => {
+    const onNewConv = (incoming) => {
+      // 新会话（刚加的好友/新建的群）还没有消息：按「现在」排序放到顶部，否则 lastTime=0 会沉到列表最底部
+      const conv = incoming.lastTime ? incoming : { ...incoming, lastTime: Math.floor(Date.now() / 1000) };
       setConversations(prev => {
         if (prev.find(c => c.id === conv.id)) return prev;
         socket.emit('join_conversation', { conversationId: conv.id });
@@ -322,7 +328,14 @@ export default function ChatList({ onSelectConv, activeConvId, unread = {}, sear
     socket.on('group_kicked', onGroupKicked);
     socket.on('group_left', onGroupKicked); // 本账号在其他设备退群：同样移出会话列表
     socket.on('group_dismissed', onGroupDismissed);
+    // 实时 @ 我：会话列表立即显示「[有人@我]」（原先只有刷新列表时由服务端计算，群消息多时被 @ 的人注意不到）
+    const onMentioned = ({ conversationId }) => {
+      if (!conversationId || conversationId === activeConvIdRef.current) return;
+      setConversations(prev => prev.map(c => c.id === conversationId ? { ...c, hasMention: true } : c));
+    };
+    socket.on('mentioned', onMentioned);
     return () => {
+      socket.off('mentioned', onMentioned);
       socket.off('new_message', onMsg);
       socket.off('new_message_batch', onMsgBatch);
       socket.off('new_message_notify', onNotify);
