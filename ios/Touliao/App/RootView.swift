@@ -9,15 +9,19 @@ struct RootView: View {
     @AppStorage(AppearanceStore.fontKey) private var fontRaw = AppFontScale.standard.rawValue
 
     @Environment(\.dynamicTypeSize) private var systemTextSize
+    @State private var forceUpdate = false
 
     var body: some View {
-        content
-            .safeAreaInset(edge: .top) {
-                if let message = session.recoveryMessage { Text(message).font(.footnote).frame(maxWidth: .infinity).padding(6).background(Color.orange.opacity(0.15)) }
-            }
-            .touliaoPage()
-            .preferredColorScheme((AppTheme(rawValue: themeRaw) ?? .system).colorScheme)
-            .dynamicTypeSize(touliaoTextSize(system: systemTextSize, preference: (AppFontScale(rawValue: fontRaw) ?? .standard).dynamicTypeSize))
+        Group {
+            if forceUpdate { ForceUpdateView() } else { content }
+        }
+        .task { forceUpdate = await ForceUpdate.required() }
+        .safeAreaInset(edge: .top) {
+            if let message = session.recoveryMessage { Text(message).font(.footnote).frame(maxWidth: .infinity).padding(6).background(Color.orange.opacity(0.15)) }
+        }
+        .touliaoPage()
+        .preferredColorScheme((AppTheme(rawValue: themeRaw) ?? .system).colorScheme)
+        .dynamicTypeSize(touliaoTextSize(system: systemTextSize, preference: (AppFontScale(rawValue: fontRaw) ?? .standard).dynamicTypeSize))
     }
 
     @ViewBuilder private var content: some View {

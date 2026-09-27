@@ -494,6 +494,40 @@ function setFeatures({ moments, collect, inviteRequired, groupVoiceCall, groupVi
   return getFeatures();
 }
 
+// ── 客户端最低版本（强制升级）──────────────────────────────────
+// 低于该版本的客户端显示不可关闭的「必须升级」页。0/空 = 不强制。
+// 优先后台设置（admin_settings，改完即时生效），其次 .env（换服务器一键部署时随配置带过去）。
+// android = versionCode（整数）；ios = CFBundleVersion 构建号（整数）；desktop = 版本号 x.y.z。
+const MIN_VERSION_KEYS = { android: 'min_version_android', ios: 'min_version_ios', desktop: 'min_version_desktop' };
+const MIN_VERSION_ENV = { android: 'MIN_VERSION_ANDROID', ios: 'MIN_VERSION_IOS', desktop: 'MIN_VERSION_DESKTOP' };
+function validMinVersion(platform, value) {
+  const v = String(value ?? '').trim();
+  if (platform === 'desktop') return /^\d+(\.\d+){0,3}$/.test(v) || v === '' ? v : null;
+  return /^\d{1,12}$/.test(v) || v === '' ? v : null;
+}
+function getMinVersions() {
+  const get = k => db.prepare('SELECT value FROM admin_settings WHERE key=?').get(k)?.value;
+  const out = {};
+  for (const platform of Object.keys(MIN_VERSION_KEYS)) {
+    const raw = get(MIN_VERSION_KEYS[platform]) ?? process.env[MIN_VERSION_ENV[platform]] ?? '';
+    const v = validMinVersion(platform, raw) || '';
+    out[platform] = platform === 'desktop' ? v : Number(v || 0);
+  }
+  return out;
+}
+function setMinVersions(body = {}) {
+  for (const platform of Object.keys(MIN_VERSION_KEYS)) {
+    if (body[platform] === undefined) continue;
+    const v = validMinVersion(platform, body[platform]);
+    if (v === null) throw badRequest(`${platform} 最低版本格式不正确`);
+    db.prepare(`
+      INSERT INTO admin_settings (key, value, updated_at) VALUES (?, ?, strftime('%s','now'))
+      ON CONFLICT(key) DO UPDATE SET value=excluded.value, updated_at=excluded.updated_at
+    `).run(MIN_VERSION_KEYS[platform], v);
+  }
+  return getMinVersions();
+}
+
 // ── 邀请裂变排行榜（后台）：谁拉新最多 ─────────────────────────
 function topInviters({ limit = 20 } = {}) {
   const { limit: lim } = pagination({ limit }, 100);
@@ -520,6 +554,6 @@ module.exports = {
   grantCoins, deleteUser, listMessages, deleteMessage, listGroups, groupDetail, dismissGroup,
   muteGroup, kickMember,
   getInviteCode, setInviteCode, generateInviteCode,
-  getFeatures, setFeatures,
+  getFeatures, setFeatures, getMinVersions, setMinVersions,
   topInviters,
 };

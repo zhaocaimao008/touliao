@@ -76,13 +76,20 @@ class AppViewModel @Inject constructor(
     private val _features = MutableStateFlow(Features())
     val features: StateFlow<Features> = _features.asStateFlow()
 
+    // 当前版本低于后台设置的最低版本 → 整个 App 只显示强制升级页
+    private val _forceUpdate = MutableStateFlow(false)
+    val forceUpdate: StateFlow<Boolean> = _forceUpdate.asStateFlow()
+
     // 底部「消息」tab 未读总数（用于红点角标）
     private val _unreadTotal = MutableStateFlow(0)
     val unreadTotal: StateFlow<Int> = _unreadTotal.asStateFlow()
 
     init {
         viewModelScope.launch {
-            runCatching { configApi.getConfig() }.onSuccess { _features.value = it.features }
+            runCatching { configApi.getConfig() }.onSuccess {
+                _features.value = it.features
+                _forceUpdate.value = it.minVersion.android > com.touliao.app.BuildConfig.VERSION_CODE
+            }
         }
         // 后台 config:updated 实时推送（管理员改开关立即生效，无需重启 App，
         // 对齐 ChatViewModel 里群语音/视频开关的同一套机制）
@@ -169,11 +176,16 @@ fun AppNavigation(appViewModel: AppViewModel = hiltViewModel()) {
     val authState by appViewModel.authState.collectAsStateWithLifecycle()
     val features by appViewModel.features.collectAsStateWithLifecycle()
     val unreadTotal by appViewModel.unreadTotal.collectAsStateWithLifecycle()
+    val forceUpdate by appViewModel.forceUpdate.collectAsStateWithLifecycle()
 
     val recovery by appViewModel.recovery.collectAsStateWithLifecycle()
     val context = androidx.compose.ui.platform.LocalContext.current
     LaunchedEffect(recovery) {
         recovery?.let { android.widget.Toast.makeText(context, it, android.widget.Toast.LENGTH_LONG).show() }
+    }
+    if (forceUpdate) {
+        com.touliao.app.feature.update.ForceUpdateScreen()
+        return
     }
     when (authState) {
         // 启动画面已全部移除：Loading 状态不渲染任何画面，等鉴权结果直接进主界面/登录页

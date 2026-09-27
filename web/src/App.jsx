@@ -8,6 +8,7 @@ import { FilePreviewProvider } from './contexts/FilePreviewContext';
 import ElectronTitlebar from './components/ElectronTitlebar';
 import UpdateBanner from './components/UpdateBanner';
 import ErrorBoundary from './components/ErrorBoundary';
+import { useDesktopForceUpdate, ForceUpdateScreen } from './components/ForceUpdateGate';
 
 // 路由级代码分割：每个页面拆成独立 chunk，减小首屏 bundle。
 // Home 体量最大（聊天主页 + ChatWindow 等），懒加载收益最高。
@@ -56,6 +57,7 @@ const SkipLink = () => {
 
 export default function App() {
   const isElectron = !!window.__ELECTRON_CONFIG__;
+  const forceUpdate = useDesktopForceUpdate();
   return (
     // 最外层兜底：任何子树渲染异常都降级为友好错误页，绝不白屏
     <ErrorBoundary>
@@ -66,7 +68,7 @@ export default function App() {
       <SkipLink />
       {isElectron && <ElectronTitlebar />}
       {isElectron && <UpdateBanner />}
-      <div id="main-content" role="main" style={isElectron ? { paddingTop: 30, height: '100vh', boxSizing: 'border-box', overflow: 'hidden' } : {}}>
+      {forceUpdate ? <ForceUpdateScreen /> : <div id="main-content" role="main" style={isElectron ? { paddingTop: 30, height: '100vh', boxSizing: 'border-box', overflow: 'hidden' } : {}}>
         <Router>
           {/* Suspense 兜底懒加载 chunk 拉取期间的加载态 */}
           <Suspense fallback={<RouteFallback />}>
@@ -90,7 +92,7 @@ export default function App() {
             </Routes>
           </Suspense>
         </Router>
-      </div>
+      </div>}
     </AuthProvider>
     </SettingsProvider>
     </I18nProvider>

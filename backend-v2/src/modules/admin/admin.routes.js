@@ -436,6 +436,9 @@ router.post('/invite-code/generate', adminAuth, c.generateInviteCode);
  */
 router.get('/features', adminAuth, c.getFeatures);
 router.put('/features', adminAuth, c.setFeatures);
+// 客户端最低版本（强制升级）：{ android: versionCode, ios: 构建号, desktop: "x.y.z" }，0/空 = 不强制
+router.get('/min-versions', adminAuth, c.getMinVersions);
+router.put('/min-versions', adminAuth, c.setMinVersions);
 
 // ── 邀请裂变排行榜（谁拉新最多）──────────────────────────────────
 router.get('/top-inviters', adminAuth, c.topInviters);
