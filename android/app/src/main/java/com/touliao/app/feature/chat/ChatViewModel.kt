@@ -40,6 +40,7 @@ import java.util.UUID
 import javax.inject.Inject
 
 private const val HISTORY_PAGE = 50   // 与 MessageApi.history 默认 limit 一致
+private const val LOCATE_MAX_PAGES = 20 // 定位更早消息最多向前翻的页数（约 1000 条）
 
 /** 上传中的占位项（成功后被真实 Message 替换） */
 data class PendingUpload(
@@ -926,6 +927,27 @@ class ChatViewModel @Inject constructor(
                 }
                 .onFailure { e -> if (currentAttempt(credential)) _uiState.update { it.copy(loading = false, error = e.toUserMessage("加载消息失败")) } }
         }
+    }
+
+    /**
+     * 定位到还没加载的更早消息（会话内搜索结果 / 点引用条）：逐页向前加载直到目标出现。
+     * 原先目标不在已加载范围时直接忽略——点了没反应。沿用向前翻页，列表始终连续，不需要向下补页。
+     */
+    suspend fun ensureMessageLoaded(targetId: String): Boolean {
+        val credential = captureAttempt() ?: return false
+        repeat(LOCATE_MAX_PAGES) {
+            val s = _uiState.value
+            if (s.messages.any { it.id == targetId }) return true
+            if (s.reachedStart || !currentAttempt(credential)) return false
+            if (s.loadingEarlier) { kotlinx.coroutines.delay(150); return@repeat }   // 用户手动上滑正在加载：等它完成
+            historyPagination.execute(
+                conversationId = conversationId,
+                state = { _uiState.value },
+                isCurrentAttempt = { currentAttempt(credential) },
+                updateState = { transform -> _uiState.update(transform) },
+            )
+        }
+        return _uiState.value.messages.any { it.id == targetId }
     }
 
     /** 上滑加载更早消息（按最早一条的时间向前翻页） */
