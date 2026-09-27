@@ -657,8 +657,14 @@ class SocketManager @Inject constructor(
                 override fun onSuccess(vararg ackArgs: Any?) {
                     if (!cont.isActive) return
                     val ack = ackArgs.firstOrNull() as? JSONObject
-                    val callId = ack?.optString("callId")?.takeIf { it.isNotEmpty() }
-                    cont.resume(callId?.let { CallRequestAck(it, ack.optString("resumeToken").takeIf { t -> t.isNotEmpty() }) })
+                    // org.json 对 JSON null 的 optString 返回字符串 "null"，必须先判 isNull
+                    val callId = ack?.takeUnless { it.isNull("callId") }?.optString("callId")?.takeIf { it.isNotEmpty() }
+                    val error = ack?.takeUnless { it.isNull("error") }?.optString("error")?.takeIf { it.isNotEmpty() }
+                    cont.resume(when {
+                        callId != null -> CallRequestAck(callId, ack.optString("resumeToken").takeIf { t -> t.isNotEmpty() })
+                        error != null -> CallRequestAck("", null, error)   // 服务端明确拒绝（忙线/功能关闭/限流）
+                        else -> null
+                    })
                 }
 
                 override fun onTimeout() {
@@ -669,7 +675,8 @@ class SocketManager @Inject constructor(
         }
     }
 
-    data class CallRequestAck(val callId: String, val resumeToken: String?)
+    /** callId 为空表示服务端拒绝发起，原因见 error（CALL_BUSY / VOICE_CALL_DISABLED / CALL_RATE_LIMIT …） */
+    data class CallRequestAck(val callId: String, val resumeToken: String?, val error: String? = null)
 
     /**
      * 被叫应答。accepted=true 且传入 onAck 时会等服务端 ack 拿 resumeToken（Q06 全修，

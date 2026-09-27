@@ -61,6 +61,8 @@ data class CallState(
     // 2026-08-29新增：通话小窗(对齐iOS)。true时CallHost渲染悬浮小窗而非全屏通话界面，
     // 用户可退回App其它页面继续操作，PeerConnection/信令不受UI切换影响。
     val isMinimized: Boolean = false,
+    // 发起被服务端拒绝时的原因（结束页显示，如「对方忙线中」）；空 = 普通结束
+    val endMessage: String = "",
 )
 
 /**
@@ -403,6 +405,14 @@ class CallManager @Inject constructor(
             val name = sessionManager.currentUser?.username.orEmpty()
             // ack 携带服务端生成的 callId + resumeToken；期间可能已挂断/重拨/被覆盖，仅在仍是同一通呼出时才回填（attempt 序号 + peer + stage 三重校验）
             val requestAck = socketManager.emitCallRequest(peerId, if (_state.value.isVideo) "video" else "audio", name)
+            if (requestAck != null && requestAck.callId.isEmpty()) {
+                // 服务端已明确拒绝（未建立通话，无需补发 call:end）：立即收尾并说明原因
+                if (attempt == callAttempt && _state.value.stage == CallStage.OUTGOING) {
+                    _state.update { it.copy(endMessage = callRejectMessage(requestAck.error)) }
+                    cleanup(CallStage.ENDED)
+                }
+                return@launch
+            }
             if (requestAck == null) {
                 // ack 超时/socket 未连/请求被拒（P1-4）：立即收尾并提示，不再静默回铃 60s。
                 // AUDIT P2（幽灵响铃）：请求可能已到达服务端而仅 ack 丢失——此时服务端
@@ -424,6 +434,15 @@ class CallManager @Inject constructor(
                 participatingResumeToken = requestAck.resumeToken
             }
         }
+    }
+
+    private fun callRejectMessage(code: String?): String = when (code) {
+        "CALL_BUSY" -> "对方忙线中，请稍后再拨"
+        "VOICE_CALL_DISABLED" -> "语音通话功能已关闭"
+        "VIDEO_CALL_DISABLED" -> "视频通话功能已关闭"
+        "CALL_RATE_LIMIT" -> "操作太频繁，请稍后再拨"
+        "CALL_REJECTED" -> "对方暂时无法接听"
+        else -> "呼叫失败，请稍后重试"
     }
 
     /** 被叫接听 */

@@ -488,7 +488,8 @@ final class SocketService {
         socket?.emit("nudge", payload)
     }
 
-    struct CallRequestAck { let callId: String; let resumeToken: String? }
+    /// callId 为空表示服务端拒绝发起，原因见 error（CALL_BUSY / VOICE_CALL_DISABLED / CALL_RATE_LIMIT …）
+    struct CallRequestAck { let callId: String; let resumeToken: String?; var error: String? = nil }
 
     // ── 通话信令发送 ──
     /// 主叫发起：ack 携带服务端生成的 callId（随后随 accept/reject/hangup 回传，供服务端
@@ -502,9 +503,13 @@ final class SocketService {
         return await withCheckedContinuation { continuation in
             sock.emitWithAck("call:request", payload)
                 .timingOut(after: 10) { ackData in
-                    guard let dict = ackData.first as? [String: Any],
-                          let callId = dict["callId"] as? String, !callId.isEmpty else {
+                    guard let dict = ackData.first as? [String: Any] else {
                         continuation.resume(returning: nil); return
+                    }
+                    guard let callId = dict["callId"] as? String, !callId.isEmpty else {
+                        // 服务端明确拒绝（忙线/功能关闭/限流）：带回原因，调用方立即收尾
+                        let error = (dict["error"] as? String).flatMap { $0.isEmpty ? nil : $0 }
+                        continuation.resume(returning: error.map { CallRequestAck(callId: "", resumeToken: nil, error: $0) }); return
                     }
                     let resumeToken = (dict["resumeToken"] as? String).flatMap { $0.isEmpty ? nil : $0 }
                     continuation.resume(returning: CallRequestAck(callId: callId, resumeToken: resumeToken))
