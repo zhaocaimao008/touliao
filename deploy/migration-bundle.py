@@ -38,7 +38,11 @@ def sha(stream):
 
 
 def run(args):
-    result = subprocess.run(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=False)
+    # 导出以 root 运行；git status 默认会顺手刷新并重写 .git/index，使部署目录的索引
+    # 变成 root 所有，之后以 ubuntu 身份的自动部署 git 拉取失败（Permission denied）。
+    # GIT_OPTIONAL_LOCKS=0 让只读的 git 命令不写索引。
+    env = {**os.environ, "GIT_OPTIONAL_LOCKS": "0"}
+    result = subprocess.run(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=False, env=env)
     require(result.returncode == 0, "Required snapshot command failed: " + Path(args[0]).name)
     return result.stdout
 
