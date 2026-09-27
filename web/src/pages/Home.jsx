@@ -1317,7 +1317,8 @@ export default function Home() {
           <div className={`wc-panel${['moments', 'favorites', 'me', 'profile', 'calls'].includes(tab) ? ' wc-panel-wide' : ''}`}>
 
             <div className="tl-panel-heading"><h1>{t(TABS.find(item => item.key === tab)?.labelKey || 'home.tab.chats')}</h1></div>
-            {/* 固定顶栏：搜索 + 二维码 + 添加 */}
+            {/* 固定顶栏：搜索 + 二维码 + 添加——只在消息/通讯录显示；朋友圈/通话/收藏/我的页面放全局搜索和「+」没有意义 */}
+            {['chats', 'contacts'].includes(tab) && (
             <div className="wc-panel-topbar">
               <TouliaoField className="wc-search tl-global-search" variant="SEARCH"
                 icon={<IcoSearch className="ico-sm" />} placeholder={t('common.search')}
@@ -1329,6 +1330,7 @@ export default function Home() {
                 <IcoAdd className="ico-md" />
               </button>
             </div>
+            )}
 
             <CallSoundGuide />
             <PushPermissionGuide permission={pushPermission} onEnable={enablePush} />

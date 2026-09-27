@@ -12,7 +12,6 @@ import { useI18n } from '../contexts/I18nContext';
 import { FixedSizeList } from 'react-window';
 import AutoSizer from 'react-virtualized-auto-sizer';
 import { archiveUnreadTotal, splitArchivedConversations } from '../utils/archiveConversations';
-import { isWindowsDesktop } from '../utils/desktopPlatform';
 import { useSwipe } from '../hooks/useSwipe';
 import { EmptyState } from './StateViews';
 import designTokens from '../ui-kit/tokens.json';
@@ -166,6 +165,9 @@ function ChatListSkeleton() {
   );
 }
 
+// 阅后即焚：会话列表预览不透出原文（与服务端列表/推送同口径），否则不点开就能读到内容
+const previewOf = (msg) => (msg.burn_after > 0 ? '[阅后即焚消息]' : msg.content);
+
 export default function ChatList({ onSelectConv, activeConvId, unread = {}, searchQuery = '', convRefreshKey = 0, onOpenMentions }) {
   const [itemHeight, setItemHeight] = useState(rowHeight);
   const [filter, setFilter] = useState('all');
@@ -248,7 +250,7 @@ export default function ChatList({ onSelectConv, activeConvId, unread = {}, sear
         const idx = prev.findIndex(c => c.id === msg.conversation_id);
         if (idx === -1) { fetchConvs(); return prev; }
         const updated = [...prev];
-        updated[idx] = { ...updated[idx], lastMessage: msg.content, lastMessageType: msg.type, lastTime: msg.created_at, lastSenderName: msg.senderName };
+        updated[idx] = { ...updated[idx], lastMessage: previewOf(msg), lastMessageType: msg.type, lastTime: msg.created_at, lastSenderName: msg.senderName };
         return updated.sort(byPinnedThenTime);
       });
     };
@@ -300,7 +302,7 @@ export default function ChatList({ onSelectConv, activeConvId, unread = {}, sear
           const msg = msgMap[c.id];
           if (!msg) return c;
           changed = true;
-          return { ...c, lastMessage: msg.content, lastMessageType: msg.type, lastTime: msg.created_at, lastSenderName: msg.senderName };
+          return { ...c, lastMessage: previewOf(msg), lastMessageType: msg.type, lastTime: msg.created_at, lastSenderName: msg.senderName };
         });
         for (const id of Object.keys(msgMap)) {
           if (!knownIds.has(id) && !fetched) { fetchConvs(); fetched = true; }
@@ -444,7 +446,8 @@ export default function ChatList({ onSelectConv, activeConvId, unread = {}, sear
           ))}
         </div>
       )}
-      {!searchQuery && !showArchived && (!isWindowsDesktop() || archivedConversations.length > 0) && (
+      {/* 没有归档会话时不显示入口（原网页端常驻「归档 0」占一行） */}
+      {!searchQuery && !showArchived && archivedConversations.length > 0 && (
         <button type="button" className="wc-archive-entry" onClick={() => setShowArchived(true)}>
           <span className="wc-archive-icon" aria-hidden="true">▣</span>
           <span>{t('chatlist.archive')}</span>

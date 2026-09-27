@@ -54,10 +54,15 @@ html.touliao-ui body .gs-time-filter button.active { color: var(--tl-primary); b
   /* Details overlay the conversation when three columns cannot fit. */
   html.touliao-ui body .gi-panel { position: absolute; right: 0; top: 0; bottom: 0; z-index: 40; box-shadow: var(--tl-shadow-popover); max-width: 100%; }
 }
-@media (max-width: 767px) {
+@media (max-width: 768px) {
   html.touliao-ui body :is(.wc-contact-item, .gs-row) { min-height: 76px; }
   html.touliao-ui body :is(.wc-contact-item-name, .req-name, .gs-name) { font-size: 16px; }
   html.touliao-ui body :is(.cl-section-back, .cgm-close, .afm-close-btn, .gi-close-btn, .req-accept, .req-reject, .lt-action-btn, .lt-delete-btn) { min-height: 44px; }
   html.touliao-ui body .gi-panel { width: 100%; min-width: 0; }
   html.touliao-ui body .req-btns { margin-left: auto; }
+}
+
+/* 窄屏：右侧字母索引是绝对定位，给列表留出索引宽度，避免字母压在行尾箭头/徽标上 */
+@media (max-width: 768px) {
+  html.touliao-ui body .cl-panel .wc-list { padding-right: 18px; }
 }

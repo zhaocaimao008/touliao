@@ -218,7 +218,8 @@ async function listConversations(uid, { includeArchived = false, offset = 0, lim
   const rows = db.prepare(`
     SELECT
       c.id, c.type, c.name, c.avatar, c.group_number,
-      m.content    AS lastMessage,
+      -- 阅后即焚：列表预览不透出原文（与推送同口径），否则不点开就能在会话列表读到内容
+      CASE WHEN m.burn_after > 0 THEN '[阅后即焚消息]' ELSE m.content END AS lastMessage,
       m.type       AS lastMessageType,
       m.created_at AS lastTime,
       su.username  AS lastSenderName,

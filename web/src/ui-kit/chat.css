@@ -48,7 +48,7 @@ html.touliao-ui body .wc-msg-bubble.mine :is(.wc-msg-file-name, .wc-msg-file-siz
 html.touliao-ui body .wc-msg-bubble.mine :is(.wc-voice-play-icon, .wc-voice-play-icon-offset) { fill: var(--tl-message-outgoing) !important; }
 html.touliao-ui body .wc-msg-bubble.mine .wc-msg-reply:not(.wc-msg-reply--on-media) { background: #0001; border-left-color: var(--tl-message-outgoing-text); }
 html.touliao-ui body .wc-msg-bubble.mine .wc-msg-reply:not(.wc-msg-reply--on-media) :is(.wc-msg-reply-name, .wc-msg-reply-text) { color: var(--tl-message-outgoing-text) !important; }
-html.touliao-ui body .wc-msg-bubble:has(.wc-msg-img, .wc-msg-video, .wc-msg-sticker, .wc-redpacket-card, .wc-contact-card) { background: transparent !important; padding: 0; border: 0; }
+html.touliao-ui body .wc-msg-bubble:has(.wc-msg-img, .wc-msg-video, .wc-msg-sticker, .wc-redpacket-card, .wc-transfer-card, .wc-contact-card) { background: transparent !important; padding: 0; border: 0; }
 html.touliao-ui body :is(.wc-msg-time, .wc-msg-read, .wc-msg-sender) { font-size: 12px; color: var(--tl-readable-muted); }
 html.touliao-ui body .wc-msg-time span { background: transparent; backdrop-filter: none; padding: 0; }
 html.touliao-ui body .wc-input-area { background: var(--tl-surface) !important; border-top: 1px solid var(--tl-border); }

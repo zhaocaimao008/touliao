@@ -148,6 +148,14 @@ html.touliao-ui body:not([data-skin="wechat"]):not([data-skin="wecom"]) .wc-msg-
   border: 0;
   border-radius: 20px 20px 20px 6px;
 }
+/* 卡片类消息（图片/视频/表情/红包/转账/名片）自带外观，不再套一层聊天气泡：
+   上面 .mine 的 !important 背景优先级高于 chat.css 的 :has 去背景规则，导致卡片外裹一圈紫色 */
+html.touliao-ui body:not([data-skin="wechat"]):not([data-skin="wecom"]) .wc-msg-bubble:is(.mine, .other):has(.wc-msg-img, .wc-msg-video, .wc-msg-sticker, .wc-redpacket-card, .wc-transfer-card, .wc-contact-card) {
+  background: transparent !important;
+  padding: 0;
+  border: 0;
+  box-shadow: none;
+}
 
 /* 输入：悬浮玻璃胶囊，输入框单行起、随内容增高 */
 html.touliao-ui body:not([data-skin="wechat"]):not([data-skin="wecom"]) .wc-input-area {
@@ -291,7 +299,8 @@ html.touliao-ui body:not([data-skin="wechat"]):not([data-skin="wecom"]) .auth-su
 /* 单人头像为圆形（群头像九宫格保持圆角方形） */
 html.touliao-ui body:not([data-skin="wechat"]):not([data-skin="wecom"]) :is(.wc-chat-item-avatar, .wc-msg-row, .m-contact-item, .wc-contact-item) > .wc-avatar-face,
 html.touliao-ui body:not([data-skin="wechat"]):not([data-skin="wecom"]) :is(.wc-chat-item-avatar, .wc-msg-row) > div > .wc-avatar-face,
-html.touliao-ui body:not([data-skin="wechat"]):not([data-skin="wecom"]) .wc-chat-item-avatar > div:not([class*="group"]) .wc-avatar-face { border-radius: 50% !important; }
+/* v4：个人头像统一圆形（四端一致）——此前只对会话列表生效，聊天/通讯录/朋友圈/资料页仍是方圆角 */
+html.touliao-ui body:not([data-skin="wechat"]):not([data-skin="wecom"]) .wc-avatar-face { border-radius: 50% !important; }
 
 html.touliao-ui body:not([data-skin="wechat"]):not([data-skin="wecom"]) .permission-guide {
   margin: 4px 12px 10px;

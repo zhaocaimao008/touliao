@@ -434,7 +434,7 @@ const MessageItem = memo(function MessageItem({ item, cbRef, measure }) {
                       <div className="wc-redpacket-greeting">
                         {rp.greeting || t('messageItem.redPacketFallbackGreeting')}
                       </div>
-                      <div className="wc-redpacket-hint">{t('messageItem.clickToClaimRedPacket')}</div>
+                      <div className="wc-redpacket-hint">{isMine ? t('messageItem.viewRedPacket') : t('messageItem.clickToClaimRedPacket')}</div>
                     </div>
                   </div>
                   <div className="wc-redpacket-footer">{t('messageItem.touliaoRedPacket')}</div>
@@ -451,7 +451,7 @@ const MessageItem = memo(function MessageItem({ item, cbRef, measure }) {
                   <div className="wc-transfer-body">
                     <div className="wc-transfer-icon"><TouliaoIcon name="transfer" size="lg" /></div>
                     <div className="wc-transfer-info">
-                      <div className="wc-transfer-amount">¥ {tf.amount} {t('chat.coinUnit')}</div>
+                      <div className="wc-transfer-amount">{tf.amount} {t('chat.coinUnit')}</div>
                       {tf.note ? <div className="wc-transfer-note">{tf.note}</div> : null}
                     </div>
                   </div>
