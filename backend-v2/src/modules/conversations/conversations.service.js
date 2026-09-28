@@ -5,7 +5,7 @@
  */
 const { v4: uuidv4 } = require('uuid');
 const { db, generateGroupNumber } = require('../../db/connection');
-const { writeAsync, write } = require('../../db/writer');
+const { writeAsync } = require('../../db/writer');
 const config = require('../../config');
 const { badRequest, forbidden, notFound } = require('../../utils/http');
 const { pagination } = require('../../utils/pagination');
@@ -187,6 +187,11 @@ function invalidateConvCacheForConversation(convId) {
 // 失效单个用户的会话列表缓存（仅影响自己的操作，如置顶/免打扰/清空）。
 function invalidateConvCacheForUser(userId) {
   convCache.delete(userId);
+}
+
+// 全部失效：改昵称/头像这类会出现在很多人列表里、且很少发生的变更用（缓存本身只有 2s）。
+function invalidateAllConvCaches() {
+  convCache.clear();
 }
 
 // Q12 全修：合法会话数可达 1000（当前建群上限），固定 LIMIT 500 且无分页契约时，
@@ -453,16 +458,21 @@ async function markRead(io, userId, convId, messageId) {
     if (last) { readAt = last.created_at; readMsgId = last.id; readRowid = last.rid; }
   }
 
-  // #4 尾延迟：markRead 是最热接口。已读状态为最终一致即可，
-  // 改 fire-and-forget 写 + 后台缓存失效，立即返回，不等 worker commit。
-  write(`
-    INSERT INTO conversation_settings (user_id, conversation_id, last_read_at, last_read_message_id, manually_unread)
-    VALUES (?, ?, ?, ?, 0)
-    ON CONFLICT(user_id, conversation_id) DO UPDATE SET
-      last_read_at = excluded.last_read_at,
-      last_read_message_id = excluded.last_read_message_id,
-      manually_unread = 0
-  `, [userId, convId, readAt, readMsgId]);
+  // 等已读位置落库再失效缓存、再通知其他端（写队列约 8ms 一批，代价很小）。原先 fire-and-forget、
+  // 提交前就失效缓存并立即返回：提交前到达的列表请求（客户端收到新消息/已读同步后常会立刻刷新列表）
+  // 会把旧的已读位置重新写进缓存，此后列表一直显示未读，与 /unread-counts 不一致（两账号实测约一半概率）。
+  try {
+    await writeAsync(`
+      INSERT INTO conversation_settings (user_id, conversation_id, last_read_at, last_read_message_id, manually_unread)
+      VALUES (?, ?, ?, ?, 0)
+      ON CONFLICT(user_id, conversation_id) DO UPDATE SET
+        last_read_at = excluded.last_read_at,
+        last_read_message_id = excluded.last_read_message_id,
+        manually_unread = 0
+    `, [userId, convId, readAt, readMsgId]);
+  } catch (e) {
+    console.warn('[markRead] 写入已读位置失败:', e.message);
+  }
   invalidateConvCacheForUser(userId);
 
   if (io) {
@@ -716,5 +726,5 @@ module.exports = {
   getOrCreatePrivate, batchGetOrCreatePrivate, getOrCreateFileHelper, createGroup, listConversations, listMembers,
   unreadCounts, myGroups, setPinned, setMuted, setBackground, markRead, markUnread, setBurnAfter,
   setArchived, clearConversation, hideConversation, clearAllConversations, media,
-  invalidateConvCacheForConversation, invalidateConvCacheForUser,
+  invalidateConvCacheForConversation, invalidateConvCacheForUser, invalidateAllConvCaches,
 };

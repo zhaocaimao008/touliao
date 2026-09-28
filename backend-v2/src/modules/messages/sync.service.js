@@ -14,7 +14,7 @@ const EVENT_TYPES = new Set([
 async function appendConversationEvent({ conversationId, eventType, messageId, actorId, targetUserId = null, payload = {}, batchId = null, clientBatchId = null, ops = [] }) {
   if (!EVENT_TYPES.has(eventType)) throw new Error(`unsupported sync event: ${eventType}`);
   if (!conversationId || !messageId || !actorId) throw new Error('sync event identifiers required');
-  return writeSequencedEvent({
+  const result = await writeSequencedEvent({
     conversationId,
     event: {
       id: uuidv4(), eventType, messageId, actorId, targetUserId,
@@ -24,6 +24,11 @@ async function appendConversationEvent({ conversationId, eventType, messageId, a
     },
     ops,
   });
+  // 所有消息类变更（发送/撤回/编辑/系统提示…）都经此落库：提交后失效全体成员的会话列表缓存。
+  // 否则对方收到 new_message 等事件后立刻重拉列表，会拿到 2s 缓存里的旧预览/旧未读并一直停在那里。
+  // 懒加载：conversations.service 依赖 messages 模块，避免加载期循环依赖。
+  require('../conversations/conversations.service').invalidateConvCacheForConversation(conversationId);
+  return result;
 }
 
 /** 供必须保持同步事务的资金路径调用；调用方必须已处于 db.transaction 内。 */
