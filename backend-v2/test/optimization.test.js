@@ -95,6 +95,12 @@ describe('P4 优化特性测试', () => {
       batchAck = new BatchAckManager();
     });
 
+    // 处理完仍在排队的批次（同时清掉各批次的超时定时器）：否则定时器在全部测试结束后才触发、
+    // 往控制台写日志，Jest 报「Cannot log after tests are done」并以退出码 1 结束（去掉 --forceExit 后偶发）
+    afterAll(async () => {
+      await batchAck.flushAll();
+    });
+
     test('应该添加 ACK 到待处理队列', async () => {
       const result = await batchAck.addToBatch('delivery', 'msg-1', 'user-1');
       expect(result.queued).toBe(true);
