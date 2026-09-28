@@ -25,9 +25,13 @@ function generateResumeToken() {
  * Stores process-local call ownership. Socket and persistence effects belong in
  * realtime handlers; this module only enforces membership and busy state.
  */
+// 宽限定时器不单独撑住进程：服务端进程本就常驻，unref 不影响生产；
+// 测试结束时则不必再等最长 15s 才自然退出（GATE_JEST_EXIT）。
+const unrefTimeout = (fn, ms) => { const t = setTimeout(fn, ms); t.unref?.(); return t; };
+
 function createRegistry({
   graceMs = 15_000,
-  setTimer = setTimeout,
+  setTimer = unrefTimeout,
   clearTimer = clearTimeout,
   onGraceExpired = () => {},
 } = {}) {

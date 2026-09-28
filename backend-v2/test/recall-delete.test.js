@@ -139,3 +139,16 @@ describe('撤回后引用消息无痕', () => {
     expect(hb.some(m => m.id === refId)).toBe(false);
   });
 });
+
+test('未指明删除方式（forEveryone/forMe/vanish 皆假）→ 400，而不是静默返回成功', async () => {
+  const { request, app } = require('./helpers');
+  const a = await makeUser({ username: 'rd_noflag_a' });
+  const b = await makeUser({ username: 'rd_noflag_b' });
+  await befriend(a, b);
+  const convId = await privateConversation(a, b);
+  const sent = await request(app).post(`/api/messages/${convId}`).set('Authorization', `Bearer ${a.token}`).send({ content: 'x' });
+  const del = await request(app).delete(`/api/messages/${sent.body.id}`).set('Authorization', `Bearer ${a.token}`).send({});
+  expect(del.status).toBe(400);
+  const still = db.prepare('SELECT deleted FROM messages WHERE id=?').get(sent.body.id);
+  expect(still.deleted).toBe(0);
+});

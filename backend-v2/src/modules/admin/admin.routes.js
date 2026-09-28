@@ -1,6 +1,5 @@
 'use strict';
 const router = require('express').Router();
-const rateLimit = require('express-rate-limit');
 const config = require('../../config');
 const adminAuth = require('../../middleware/adminAuth');
 const c = require('./admin.controller');
@@ -17,12 +16,8 @@ router.use((req, res, next) => {
   return res.status(403).json({ error: '后台仅限白名单 IP 访问' });
 });
 
-// 后台登录限流：15分钟 10 次
-const adminLoginLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, max: 10,
-  message: { error: '登录尝试过于频繁，请稍后再试' },
-  standardHeaders: true, legacyHeaders: false,
-});
+// 后台登录限流：按 IP + 按用户名（见 loginLimiters.js）
+const { adminLoginLimiter, adminUsernameLimiter } = require('./loginLimiters');
 
 // ── 认证 ────────────────────────────────────────────────────────
 
@@ -48,7 +43,7 @@ const adminLoginLimiter = rateLimit({
  *       200:
  *         description: Login successful
  */
-router.post('/login',  adminLoginLimiter, c.login);
+router.post('/login',  adminLoginLimiter, adminUsernameLimiter, c.login);
 
 /**
  * @swagger

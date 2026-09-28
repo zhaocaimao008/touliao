@@ -197,11 +197,8 @@ router.post('/dedup/check', auth, async (req, res, next) => {
     const isDuplicate = await deduplicator.isDuplicate(req.user.id, clientMsgId);
     const metadata = await deduplicator.getProcessedMetadata(req.user.id, clientMsgId);
 
-    res.json({
-      isDuplicate,
-      metadata,
-      stats: await deduplicator.getStats(),
-    });
+    // 不返回全站去重统计（运维信息），需要时走 adminAuth 的 /api/optimization/stats
+    res.json({ isDuplicate, metadata });
   } catch (err) {
     next(err);
   }
