@@ -649,7 +649,7 @@ async function react(io, userId, msgId, emoji) {
     } else {
       db.prepare('INSERT OR REPLACE INTO message_reactions (message_id,user_id,emoji) VALUES (?,?,?)').run(msgId, userId, emoji);
     }
-  })();
+  }).immediate(); // 先读后写：一开始拿写锁，防并发时 database is locked
   const result = db.prepare(`
     SELECT emoji, GROUP_CONCAT(user_id) as userIds, COUNT(*) as count
     FROM message_reactions WHERE message_id=? GROUP BY emoji
