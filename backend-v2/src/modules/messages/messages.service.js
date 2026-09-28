@@ -10,7 +10,7 @@ const config = require('../../config');
 const { badRequest, forbidden, notFound, conflict } = require('../../utils/http');
 const { pagination } = require('../../utils/pagination');
 const { collectionDedupKey } = require('../../utils/collections');
-const { canUseMessageCache, isMember, requireMember, memberRole, buildMessage, privateSendGuard } = require('./shared');
+const { canUseMessageCache, isMember, requireMember, memberRole, buildMessage, privateSendGuard, applyGroupNicknames } = require('./shared');
 const cache = require('../../utils/cache');
 const broadcaster = require('../../realtime/broadcaster');
 // 会话列表缓存失效：发消息/转发/撤回改变会话「最新消息/排序」，需失效该会话所有成员
@@ -137,6 +137,7 @@ function history(convId, userId, { before, after, limit, beforeId, afterId }, io
   }
 
   require('./burn.service').recordDelivery(userId,messages,io);
+  applyGroupNicknames(convId, messages);
   return messages.map(msg => {
     msg.replyTo   = msg.reply_to_id ? (replyMap.get(msg.reply_to_id) || null) : null;
     msg.reactions = reactionsMap.get(msg.id) || [];
@@ -1042,6 +1043,7 @@ function aroundMessage(convId, msgId, userId) {
     });
   }
 
+  applyGroupNicknames(convId, messages);
   return {
     messages: messages.map(msg => {
       msg.replyTo   = msg.reply_to_id ? (replyMap.get(msg.reply_to_id) || null) : null;
