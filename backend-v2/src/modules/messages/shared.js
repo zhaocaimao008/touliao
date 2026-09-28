@@ -205,4 +205,22 @@ function purgeConversation(id) {
   })();
 }
 
-module.exports = { canUseMessageCache, isMember, requireMember, memberRole, buildMessage, purgeConversation, privateSendGuard, deletedRelation, invalidateConv, invalidateBlocked };
+// 群昵称：群聊里消息署名优先显示发送者在本群设置的昵称（对齐微信）。在服务端统一替换，
+// 各端（含尚未更新的旧客户端）显示 senderName 即可生效。系统提示不改（署名不展示）。
+const _groupNicknames = readDb.prepare(`
+  SELECT cm.user_id, cm.nickname FROM conversation_members cm
+  JOIN conversations c ON c.id = cm.conversation_id AND c.type = 'group'
+  WHERE cm.conversation_id = ? AND cm.nickname IS NOT NULL AND cm.nickname != ''`);
+function applyGroupNicknames(convId, msgs) {
+  if (!convId || !msgs?.length) return msgs;
+  const rows = _groupNicknames.all(convId);
+  if (!rows.length) return msgs;
+  const nick = new Map(rows.map(r => [r.user_id, r.nickname]));
+  for (const m of msgs) {
+    const n = m && m.type !== 'system' && nick.get(m.sender_id);
+    if (n) m.senderName = n;
+  }
+  return msgs;
+}
+
+module.exports = { applyGroupNicknames, canUseMessageCache, isMember, requireMember, memberRole, buildMessage, purgeConversation, privateSendGuard, deletedRelation, invalidateConv, invalidateBlocked };

@@ -45,6 +45,8 @@ function setIo(io) { _io = io; }
  */
 function broadcastMessage(room, msg) {
   stats.totalMessages++;
+  // 群昵称署名（room 即会话 id；私聊/非会话房间查不到群昵称，原样返回）
+  require('../modules/messages/shared').applyGroupNicknames(room, [msg]);
   // 压测对照开关：BCAST_IMMEDIATE=1 时退回逐条立即派发（不合并），用于 A/B
   if (process.env.BCAST_IMMEDIATE === '1') { if (_io) { _io.to(room).emit('new_message', msg); stats.totalEmits++; } return; }
   let slot = pending.get(room);

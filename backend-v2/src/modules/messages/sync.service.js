@@ -119,6 +119,7 @@ function syncConversation(conversationId, userId, query = {}, io=null) {
   // 与 history 同口径补全引用块与表情回应：原先写死 replyTo:null / reactions:[]，客户端用同步结果
   // 覆盖实时消息后，回复丢失引用块、带表情的消息表情消失（离线补拉的消息同样如此）。
   const synced = envelopes.map(e => e.message).filter(m => m && m.deleted !== 2);
+  require('./shared').applyGroupNicknames(conversationId, synced);
   const replyIds = [...new Set(synced.filter(m => m.reply_to_id).map(m => m.reply_to_id))];
   if (replyIds.length) {
     const ph = replyIds.map(() => '?').join(',');
