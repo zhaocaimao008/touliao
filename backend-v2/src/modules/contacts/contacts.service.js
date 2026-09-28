@@ -25,12 +25,19 @@ function listContacts(userId) {
   `).all(userId);
 }
 
+// 重新成为好友：清掉双方之间的删除记录，恢复私聊
+function clearDeletions(a, b) {
+  db.prepare('DELETE FROM contact_deletions WHERE (user_id=? AND contact_id=?) OR (user_id=? AND contact_id=?)').run(a, b, b, a);
+}
+
 function deleteContact(userId, contactId) {
   // 同步删除双向记录：A删除B后，B不再能通过好友关系查看A的私密朋友圈。
   // 一并清理双方好友标签成员关系，避免删除后再加回时残留旧标签分组（脏数据 + 越权可见风险）。
   db.transaction(() => {
     db.prepare('DELETE FROM contacts WHERE (user_id=? AND contact_id=?) OR (user_id=? AND contact_id=?)')
       .run(userId, contactId, contactId, userId);
+    // 记下「谁删了谁」：此后双方私聊/通话被拒，直到重新加为好友（见 messages/shared privateSendGuard）
+    db.prepare('INSERT OR REPLACE INTO contact_deletions (user_id, contact_id) VALUES (?, ?)').run(userId, contactId);
     db.prepare(`
       DELETE FROM friend_label_members
       WHERE (friend_id=? AND label_id IN (SELECT id FROM friend_labels WHERE user_id=?))
@@ -86,6 +93,7 @@ function sendFriendRequest(io, fromId, { toId, message }) {
       const add = db.prepare('INSERT OR IGNORE INTO contacts (id,user_id,contact_id) VALUES (?,?,?)');
       add.run(uuidv4(), fromId, toId);
       add.run(uuidv4(), toId, fromId);
+      clearDeletions(fromId, toId);
     })();
     const sender = db.prepare('SELECT id,username,avatar,wechat_id FROM users WHERE id=?').get(fromId);
     const target = db.prepare('SELECT id,username,avatar FROM users WHERE id=?').get(toId);
@@ -109,7 +117,7 @@ function sendFriendRequest(io, fromId, { toId, message }) {
     if (db.prepare('SELECT id FROM friend_requests WHERE from_id=? AND to_id=? AND status=?').get(fromId, toId, 'pending')) return;
     db.prepare('INSERT INTO friend_requests (id,from_id,to_id,message) VALUES (?,?,?,?)').run(id, fromId, toId, safeMessage);
     inserted = true;
-  })();
+  }).immediate(); // 先读后写：一开始就拿写锁，否则与异步写入并发时升级写锁直接报 database is locked
   if (!inserted) throw badRequest('请求已发送');
   const sender = db.prepare('SELECT id,username,avatar,wechat_id FROM users WHERE id=?').get(fromId);
   if (io) io.to(`user_${toId}`).emit('new_friend_request', { id, from: sender, message: safeMessage });
@@ -192,6 +200,7 @@ function handleRequest(io, userId, requestId, action) {
       const add = db.prepare('INSERT OR IGNORE INTO contacts (id,user_id,contact_id) VALUES (?,?,?)');
       add.run(uuidv4(), request.from_id, request.to_id);
       add.run(uuidv4(), request.to_id, request.from_id);
+      clearDeletions(request.from_id, request.to_id);
     }
   })();
   if (action === 'accepted') {

@@ -471,7 +471,15 @@ struct ChatView: View {
                                 .frame(maxWidth: .infinity, alignment: .center)
                                 .padding(.vertical, 4)
                         }
-                        if msg.type == "nudge" {
+                        if msg.type == "system" {
+                            // 群系统提示（入群/移出/转让群主/改群名等）：居中灰字
+                            Text(vm.systemText(msg))
+                                .touliaoText(.caption).foregroundColor(.vxinTextSecondary)
+                                .multilineTextAlignment(.center)
+                                .frame(maxWidth: .infinity, alignment: .center)
+                                .padding(.vertical, 4).padding(.horizontal, 24)
+                                .id(msg.id)
+                        } else if msg.type == "nudge" {
                             Text(vm.nudgeText(msg))
                                 .touliaoText(.caption).foregroundColor(.vxinTextSecondary)
                                 .frame(maxWidth: .infinity, alignment: .center)
@@ -1093,6 +1101,9 @@ private struct MessageBubble: View {
                     if msg.localStatus == LocalMsgStatus.sending {
                         // 发送中：转圈（对齐 Web/Android）
                         ProgressView().scaleEffect(0.6).frame(height: 12)
+                    } else if msg.localStatus == LocalMsgStatus.rejected {
+                        // 服务端明确拒收：不提供重发（原因已在顶部提示）
+                        Text("未送达").touliaoText(.caption).foregroundColor(IconColor.danger)
                     } else if msg.localStatus == LocalMsgStatus.failed {
                         // 失败：红色感叹号，点击重发
                         Label("发送失败，点击重发", touliaoIcon: "error")

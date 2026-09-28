@@ -284,7 +284,7 @@ async function deleteAccount(userId, password) {
     // 补清此前遗漏的用户脏数据（参照 admin.deleteUser 的清理口径；自助注销仅软删用户本体，不删他人可见的会话/消息）
     db.prepare('DELETE FROM conversation_settings WHERE user_id=?').run(userId);
     db.prepare('DELETE FROM conversation_clears WHERE user_id=?').run(userId);
-  })();
+  }).immediate(); // 先读后写：一开始拿写锁，防并发时 database is locked
 }
 
 async function changePassword(userId, { oldPassword, newPassword, currentToken }, req) {
@@ -319,7 +319,7 @@ async function changePassword(userId, { oldPassword, newPassword, currentToken }
     const sessionId = upsertSession(userId, req || { headers: {} });
     recordDeviceAccount(req?.cookies?.[config.walletCookie], userId, sessionId);
     return sessionId;
-  })();
+  }).immediate(); // 先读后写：一开始拿写锁，防并发时 database is locked
   // 将当前 token 加入黑名单，防止改密后旧 token 继续有效（最长 7 天）
   if (currentToken) await addToBlacklist(currentToken, jwt.decode(currentToken)?.exp);
   invalidateUser(userId); // 驱逐状态缓存

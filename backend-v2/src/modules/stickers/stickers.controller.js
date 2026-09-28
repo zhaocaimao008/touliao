@@ -52,7 +52,7 @@ exports.collect = asyncHandler(async (req, res) => {
     if (countOf(req.user.id) >= MAX_STICKERS) throw badRequest(`表情已达上限 ${MAX_STICKERS} 个`);
     db.prepare('INSERT OR IGNORE INTO user_stickers (id,user_id,url) VALUES (?,?,?)').run(id, req.user.id, url);
     inserted = true;
-  })();
+  }).immediate(); // 先读后写：一开始拿写锁，防并发时 database is locked
   if (!inserted) return res.json({ success: true, already: true });
   res.json({ id, url });
 });

@@ -485,7 +485,7 @@ function addComment(io, userId, momentId, { content, replyToUser }) {
     if (myComments >= 20) throw badRequest('你对该动态的评论已达上限');
     db.prepare('INSERT INTO moment_comments (id,moment_id,user_id,content,reply_to_user) VALUES (?,?,?,?,?)')
       .run(id, momentId, userId, text, replyTo);
-  })();
+  }).immediate(); // 先读后写：一开始拿写锁，防并发时 database is locked
   if (io && m.user_id !== userId) io.to(`user_${m.user_id}`).emit('moment_commented', { momentId, userId });
   addInteractNotification({ recipientId: m.user_id, actorId: userId, momentId, type: 'comment', commentId: id });
   // 被回复人≠动态作者 且 被回复人≠评论者 时，另行通知

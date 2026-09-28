@@ -560,7 +560,8 @@ fun ChatScreen(
                 )
             } else {
                 // 最后一条自己发的消息 id：仅在其上显示已读状态
-                val lastOwnMsgId = state.messages.lastOrNull { it.sender_id == viewModel.myId }?.id
+                // 居中系统类消息（群提示/通话记录/拍一拍）不显示已读，不能占掉「最后一条自己的消息」
+                val lastOwnMsgId = state.messages.lastOrNull { it.sender_id == viewModel.myId && it.type !in setOf("system", "call", "nudge") }?.id
                 LazyColumn(
                     state = listState,
                     modifier = Modifier.fillMaxSize().padding(horizontal = 12.dp, vertical = 8.dp),
@@ -595,6 +596,13 @@ fun ChatScreen(
                                         .padding(horizontal = 8.dp, vertical = 2.dp),
                                 )
                             }
+                        }
+                        if (msg.type == "system") {
+                            // 群系统提示（入群/移出/转让群主/改群名等）：居中灰字
+                            Box(Modifier.fillMaxWidth().padding(vertical = 4.dp, horizontal = 24.dp), contentAlignment = Alignment.Center) {
+                                Text(viewModel.systemText(msg), color = VxinTextSecondary, fontSize = com.touliao.app.ui.theme.VxinTextSize.sm, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+                            }
+                            return@itemsIndexed
                         }
                         if (msg.type == "nudge") {
                             Box(Modifier.fillMaxWidth().padding(vertical = 4.dp), contentAlignment = Alignment.Center) {
@@ -1257,6 +1265,10 @@ private fun MessageBubble(
                             .testTag("msg-send-failed-${msg.id}")
                             .padding(horizontal = 4.dp, vertical = 1.dp),
                     )
+                }
+                isMine && msg.localStatus == LocalMsgStatus.REJECTED -> {
+                    // 服务端明确拒收：不提供重发（原因已在顶部提示）
+                    Text("未送达", fontSize = com.touliao.app.ui.theme.VxinTextSize.xs2, color = com.touliao.app.ui.theme.VxinError)
                 }
                 isMine && showReadStatus -> {
                     Row(verticalAlignment = Alignment.CenterVertically) {

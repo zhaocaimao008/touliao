@@ -13,6 +13,7 @@ import { renderRichText, mentionsUser } from '../utils/richText';
 import { useI18n } from '../contexts/I18nContext';
 import { useSwipe } from '../hooks/useSwipe';
 import MergedMessageCard from './MergedMessageCard';
+import { groupSystemText } from '../utils/groupSystemText';
 
 // Time divider rendered as a list item
 export const TimeDivider = memo(function TimeDivider({ time }) {
@@ -73,6 +74,15 @@ const MessageItem = memo(function MessageItem({ item, cbRef, measure }) {
   };
 
   // 拍一拍：居中系统提示「你 拍了拍 X」/「X 拍了拍 你」/「X 拍了拍 Y」
+  // 群系统提示（入群/移出/转让群主/改群名等）：居中灰字，涉及自己时显示「你」
+  if (msg.type === 'system') {
+    return (
+      <div className="wc-msg-time">
+        <span>{groupSystemText(msg, userId, t)}</span>
+      </div>
+    );
+  }
+
   if (msg.type === 'nudge') {
     let n;
     try { n = JSON.parse(msg.content); } catch { n = {}; }

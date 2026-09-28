@@ -18,6 +18,10 @@ final class ContactsViewModel: ObservableObject {
         repo.friendEventsPublisher
             .sink { [weak self] in Task { @MainActor in await self?.refresh() } }
             .store(in: &cancellables)
+        // 好友改了昵称/头像：刷新通讯录（备注优先级由服务端决定）
+        repo.profileUpdatedPublisher
+            .sink { [weak self] in Task { @MainActor in await self?.refresh() } }
+            .store(in: &cancellables)
         repo.presencePublisher
             .sink { [weak self] (userId, online) in
                 Task { @MainActor in

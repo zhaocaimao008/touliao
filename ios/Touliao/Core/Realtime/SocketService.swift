@@ -64,6 +64,8 @@ final class SocketService {
     let unreadCleared = PassthroughSubject<String, Never>()
     /// 新会话（如被拉入群聊）→ 提示列表刷新
     let newConversation = PassthroughSubject<Void, Never>()
+    /// 好友/群成员/本人改了昵称或头像（user_profile_updated）
+    let profileUpdated = PassthroughSubject<(userId: String, username: String, avatar: String), Never>()
     /// 消息撤回/删除 → msgId
     let messageDeleted = PassthroughSubject<String, Never>()
     /// 撤回（新协议 message_recall，幂等）→ msgId
@@ -225,6 +227,10 @@ final class SocketService {
             }
         }
         sock.on("new_conversation") { [weak self] _, _ in self?.newConversation.send(()) }
+        sock.on("user_profile_updated") { [weak self] data, _ in
+            guard let d = data.first as? [String: Any], let id = d["userId"] as? String, !id.isEmpty else { return }
+            self?.profileUpdated.send((id, d["username"] as? String ?? "", d["avatar"] as? String ?? ""))
+        }
         // 会话失效（别处改密码/退出/token 到期）：服务端随即断开且不会自动重连。发一次需鉴权的
         // 请求，401 走 APIClient.unauthorizedNotification 的既有登出流程，而不是停在「已登录但收不到消息」。
         sock.on("session_expired") { _, _ in
@@ -469,8 +475,12 @@ final class SocketService {
                         if let ok = dict["success"] as? Bool, ok,
                            let msgDict = dict["message"], let msg = self.decode(msgDict) {
                             continuation.resume(returning: .success(msg))
-                        } else {
+                        } else if (dict["code"] as? String) == "RATE_LIMITED" {
+                            // 限流是暂时的，可重发
                             continuation.resume(returning: .failure(SocketError.server((dict["error"] as? String) ?? "发送失败")))
+                        } else {
+                            // 服务端明确拒收（拉黑 / 已删除好友 / 屏蔽陌生人…）：重发也不会成功
+                            continuation.resume(returning: .failure(SocketError.rejected((dict["error"] as? String) ?? "发送失败")))
                         }
                     }
                 }
@@ -643,12 +653,12 @@ final class SocketService {
 }
 
 enum SocketError: LocalizedError {
-    case notConnected, noResponse, server(String)
+    case notConnected, noResponse, server(String), rejected(String)
     var errorDescription: String? {
         switch self {
         case .notConnected: return "连接已断开"
         case .noResponse: return "无响应"
-        case .server(let m): return m
+        case .server(let m), .rejected(let m): return m
         }
     }
 }

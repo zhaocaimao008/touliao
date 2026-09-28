@@ -185,6 +185,7 @@ class ChatViewModel @Inject constructor(
         loadHistory()
         loadBackground()
         observeIncoming()
+        observeProfileUpdates()
         observeSyncAvailable()
         observeNotify()
         observeTyping()
@@ -445,6 +446,32 @@ class ChatViewModel @Inject constructor(
     }
 
     /** 解析 nudge 消息为展示文案：「你/X 拍了拍 你/Y」 */
+    /** 群系统提示（type=system）：file_url 为 { event, actorId, actorName, targets:[{id,name}], name? }，
+     *  涉及自己时显示「你」；解析失败/未知事件退回 content（服务端写的中性人话）。 */
+    fun systemText(msg: Message): String {
+        val obj = runCatching { json.parseToJsonElement(msg.file_url) }.getOrNull() as? kotlinx.serialization.json.JsonObject
+            ?: return msg.content
+        fun str(o: kotlinx.serialization.json.JsonObject?, k: String) = (o?.get(k) as? kotlinx.serialization.json.JsonPrimitive)?.content.orEmpty()
+        fun who(id: String, name: String) = if (id == myId) "你" else name.ifEmpty { "某人" }
+        val actor = who(str(obj, "actorId"), str(obj, "actorName"))
+        val targets = (obj["targets"] as? kotlinx.serialization.json.JsonArray).orEmpty()
+            .mapNotNull { it as? kotlinx.serialization.json.JsonObject }
+            .map { who(str(it, "id"), str(it, "name")) }
+        val t = if (targets.size > 10) "${targets.take(10).joinToString("、")} 等 ${targets.size} 人" else targets.joinToString("、")
+        return when (str(obj, "event")) {
+            "invited" -> "$actor 邀请 $t 加入了群聊"
+            "joined" -> "$actor 通过邀请链接加入了群聊"
+            "removed" -> "$actor 将 $t 移出了群聊"
+            "owner" -> "$actor 已将群主转让给 $t"
+            "renamed" -> "$actor 修改群名为「${str(obj, "name")}」"
+            "mute_on" -> "$actor 开启了全员禁言"
+            "mute_off" -> "$actor 关闭了全员禁言"
+            "admin_on" -> "$actor 将 $t 设为管理员"
+            "admin_off" -> "$actor 取消了 $t 的管理员身份"
+            else -> msg.content
+        }
+    }
+
     fun nudgeText(msg: Message): String {
         val o = runCatching { json.parseToJsonElement(msg.content) }.getOrNull()
         val obj = (o as? kotlinx.serialization.json.JsonObject)
@@ -973,6 +1000,18 @@ class ChatViewModel @Inject constructor(
         if (value && !was) markReadLatest()   // 刚滚回底部：把在底看到的最新消息补标已读
     }
 
+    /** 聊天对象/群成员改了昵称或头像：更新已显示消息的署名与头像 */
+    private fun observeProfileUpdates() {
+        viewModelScope.launch {
+            chatRepository.profileUpdatedEvents.collect { p ->
+                _uiState.update { s ->
+                    if (s.messages.none { it.sender_id == p.userId }) s
+                    else s.copy(messages = s.messages.map { if (it.sender_id == p.userId) it.copy(senderName = p.username, senderAvatar = p.avatar) else it })
+                }
+            }
+        }
+    }
+
     private fun observeIncoming() {
         viewModelScope.launch {
             chatRepository.incomingMessages.collect { msg ->
@@ -1241,6 +1280,10 @@ class ChatViewModel @Inject constructor(
                     }
                 },
                 onFailure = { replaceMessage(optimistic.id) { it.copy(localStatus = LocalMsgStatus.FAILED) } },
+                onRejected = { reason ->
+                    replaceMessage(optimistic.id) { it.copy(localStatus = LocalMsgStatus.REJECTED) }
+                    _uiState.update { it.copy(error = reason) }
+                },
             )
         }
     }

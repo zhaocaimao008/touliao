@@ -6,6 +6,7 @@ const { db } = require('../../db/connection');
 const config = require('../../config');
 const { badRequest, forbidden, notFound } = require('../../utils/http');
 const { isMember, requireMember, memberRole, purgeConversation, invalidateConv } = require('../messages/shared');
+const { groupEvent } = require('./groupEvents');
 
 // 新成员入群：已读位置设到当前最后一条消息，入群前的历史不计入未读
 // （否则一进大群就是「99+」，与「刚加入」的直觉不符；历史记录仍可正常翻看）。
@@ -144,6 +145,7 @@ function joinByToken(io, userId, token) {
     io.to(`user_${userId}`).emit('new_conversation', conv);
     io.to(invite.conversation_id).emit('group_updated', { id: invite.conversation_id });
   }
+  groupEvent(io, invite.conversation_id, 'joined', userId);
   return { success: true, conversationId: invite.conversation_id, conversation: conv };
 }
 
@@ -161,6 +163,7 @@ function updateInfo(io, convId, userId, { name, announcement }) {
   if (role === 'member') throw forbidden('仅群主和管理员可修改群信息');
 
   if (name !== undefined) db.prepare('UPDATE conversations SET name=? WHERE id=?').run(name.trim(), convId);
+  if (name !== undefined && name.trim() !== conv.name) groupEvent(io, convId, 'renamed', userId, [], { name: name.trim() });
   if (announcement !== undefined) db.prepare('UPDATE conversations SET announcement=? WHERE id=?').run(announcement, convId);
   const updated = db.prepare('SELECT id, name, announcement, owner_id FROM conversations WHERE id=?').get(convId);
   if (io) io.to(convId).emit('group_updated', updated);
@@ -214,7 +217,7 @@ function invite(io, convId, userId, userIds) {
       if (!validSet.has(uid)) return;
       if (add.run(convId, uid).changes > 0) { added.push(uid); markHistoryRead(convId, uid); }
     });
-  })();
+  }).immediate(); // 先读后写：一开始就拿写锁，否则与异步写入并发时升级写锁直接报 database is locked
   if (io && added.length > 0) {
     const conv = db.prepare('SELECT id,type,name,avatar FROM conversations WHERE id=?').get(convId);
     added.forEach(uid => {
@@ -225,6 +228,7 @@ function invite(io, convId, userId, userIds) {
     });
     io.to(convId).emit('group_updated', { id: convId });
   }
+  if (added.length) groupEvent(io, convId, 'invited', userId, added);
   return { added: added.length, blocked: blocked.length };
 }
 
@@ -248,6 +252,7 @@ function kick(io, convId, callerId, uid) {
     io.to(convId).emit('group_updated', { id: convId });
     io.to(`user_${uid}`).emit('group_kicked', { conversationId: convId });
   }
+  groupEvent(io, convId, 'removed', callerId, [uid]);
 }
 
 // ── 退群（非群主专用）────────────────────────────────────────────
@@ -315,6 +320,7 @@ function manage(io, convId, userId, body) {
 
   params.push(convId);
   db.prepare(`UPDATE conversations SET ${updates.join(',')} WHERE id=?`).run(...params);
+  if (mute_all !== undefined && (mute_all ? 1 : 0) !== (conv.mute_all ? 1 : 0)) groupEvent(io, convId, mute_all ? 'mute_on' : 'mute_off', userId);
   const updated = db.prepare('SELECT id, no_private_chat, mute_all, no_add_friend, member_can_invite FROM conversations WHERE id=?').get(convId);
   if (io) io.to(convId).emit('group_settings_updated', updated);
   return updated;
@@ -345,6 +351,7 @@ function transferOwner(io, convId, ownerId, newOwnerId) {
     io.to(`user_${newOwnerId}`).emit('role_changed', { conversationId: convId, role: 'owner' });
     io.to(`user_${ownerId}`).emit('role_changed', { conversationId: convId, role: 'admin' });
   }
+  groupEvent(io, convId, 'owner', ownerId, [newOwnerId]);
 }
 
 function setRole(io, convId, ownerId, uid, role) {
@@ -363,6 +370,7 @@ function setRole(io, convId, ownerId, uid, role) {
     io.to(convId).emit('group_updated', { id: convId });
     io.to(`user_${uid}`).emit('role_changed', { conversationId: convId, role });
   }
+  if (role !== target.role) groupEvent(io, convId, role === 'admin' ? 'admin_on' : 'admin_off', ownerId, [uid]);
 }
 
 // ── 置顶消息 ────────────────────────────────────────────────────
@@ -378,7 +386,7 @@ function pinMessage(io, convId, userId, msgId) {
     if (pinCount >= 20) throw badRequest('置顶消息已达上限 20 条，请先取消置顶');
     db.prepare('INSERT OR REPLACE INTO pinned_messages (id,conversation_id,message_id,pinned_by) VALUES (?,?,?,?)')
       .run(uuidv4(), convId, msgId, userId);
-  })();
+  }).immediate(); // 先读后写：一开始就拿写锁，否则与异步写入并发时升级写锁直接报 database is locked
   const pinner = db.prepare('SELECT username FROM users WHERE id=?').get(userId);
   if (io) io.to(convId).emit('message_pinned', { msgId, convId, pinnedBy: pinner?.username, content: msg.content, type: msg.type });
 }

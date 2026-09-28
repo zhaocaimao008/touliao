@@ -53,6 +53,22 @@ function isMember(convId, userId) {
 //
 // 读走 readDb（block()/settings 经 db 同步提交，此处立即可见）。群聊(type!=private)直接放行。
 // @param conv 可选：调用方已查到的会话行，至少含 { type }。传入则省一次 conversations 查询。
+/**
+ * 删除好友后的私聊限制：两人现在不是好友，且存在删除记录时返回拒绝原因，否则 null。
+ * 普通陌生人（从未加过好友，如群成员）不受影响。
+ */
+function deletedRelation(senderId, otherId) {
+  const friends = readDb.prepare('SELECT 1 FROM contacts WHERE user_id=? AND contact_id=?').get(senderId, otherId);
+  if (friends) return null;
+  const rows = readDb.prepare(
+    'SELECT user_id FROM contact_deletions WHERE (user_id=? AND contact_id=?) OR (user_id=? AND contact_id=?)'
+  ).all(senderId, otherId, otherId, senderId);
+  if (!rows.length) return null;
+  return rows.some(r => r.user_id === senderId)
+    ? '你已删除对方，请重新添加好友后再发消息'
+    : '对方已不是你的好友，请先发送好友申请';
+}
+
 function privateSendGuard(convId, senderId, conv = null) {
   const type = conv?.type ?? (cacheGet(convTypeCache, convId)?.type ?? readDb.prepare('SELECT type FROM conversations WHERE id=?').get(convId)?.type);
   if (conv && !convTypeCache.has(convId)) cacheSet(convTypeCache, convId, { type: conv.type, mute_all: conv.mute_all ?? 0 });
@@ -81,6 +97,10 @@ function privateSendGuard(convId, senderId, conv = null) {
       ? '你已将对方加入黑名单，移出后才能发送'
       : '消息已发出，但被对方拒收';
   }
+
+  // 1.5) 删除好友：任一方删过对方且两人现在不是好友 → 拒绝（对齐微信；重新加好友即恢复）
+  const deleted = deletedRelation(senderId, otherId);
+  if (deleted) return deleted;
 
   // 2) 对方账号已被封禁：拒绝发送。
   //    此前 banned=1 只在 middleware/auth.js 拦被封者**自己**的 token，对其他人完全不可见——
@@ -185,4 +205,4 @@ function purgeConversation(id) {
   })();
 }
 
-module.exports = { canUseMessageCache, isMember, requireMember, memberRole, buildMessage, purgeConversation, privateSendGuard, invalidateConv, invalidateBlocked };
+module.exports = { canUseMessageCache, isMember, requireMember, memberRole, buildMessage, purgeConversation, privateSendGuard, deletedRelation, invalidateConv, invalidateBlocked };

@@ -100,6 +100,7 @@ final class ContactRepository {
     }
 
     var friendEventsPublisher: AnyPublisher<Void, Never> { SocketService.shared.friendEvents.eraseToAnyPublisher() }
+    var profileUpdatedPublisher: AnyPublisher<Void, Never> { SocketService.shared.profileUpdated.map { _ in () }.eraseToAnyPublisher() }
     var presencePublisher: AnyPublisher<(String, Bool), Never> { SocketService.shared.presence.eraseToAnyPublisher() }
 
     func handleRequest(id: String, accept: Bool) async throws {

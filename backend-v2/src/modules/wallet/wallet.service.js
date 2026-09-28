@@ -48,7 +48,7 @@ function applyDeltaTx(userId, delta, type, refId = null, memo = '') {
 
 /** 自带事务版（单步操作，如充值）。 */
 function applyDelta(userId, delta, type, refId = null, memo = '') {
-  return db.transaction(() => applyDeltaTx(userId, delta, type, refId, memo))();
+  return db.transaction(() => applyDeltaTx(userId, delta, type, refId, memo)).immediate(); // 先读后写：一开始拿写锁，防并发时 database is locked
 }
 
 function listTransactions(userId, { limit = 20, offset = 0 } = {}) {

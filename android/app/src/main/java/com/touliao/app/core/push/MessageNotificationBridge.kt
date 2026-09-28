@@ -63,6 +63,7 @@ class MessageNotificationBridge @Inject constructor(
             chatRepository.incomingMessages.collect { msg ->
                 if (msg.sender_id == sessionManager.currentUser?.id) return@collect // 自己发的不提醒
                 if (msg.deleted == 1) return@collect                              // 已撤回/删除不提醒
+                if (msg.type == "system") return@collect                         // 群系统提示不提醒
                 // 只处理前台：给震动反馈（尊重「震动」设置）。
                 // 后台/锁屏通知统一交给服务端 FCM（服务端已改为总是推送，见 push.js），
                 // 不再由本桥弹本地通知——否则与 FCM 通知重复。

@@ -79,6 +79,14 @@ class ConversationListViewModel @Inject constructor(
         viewModelScope.launch {
             chatRepository.newConversationEvents.collect { refresh() }
         }
+        // 好友/群成员改了昵称或头像：刷新列表（与 Web 一致，备注优先级由服务端决定）
+        viewModelScope.launch {
+            chatRepository.profileUpdatedEvents.collect { p ->
+                // 本账号在其他设备改了资料：同步「我」页的昵称/头像
+                if (p.userId == myId) sessionManager.currentUser?.let { sessionManager.updateCurrentUser(it.copy(username = p.username, avatar = p.avatar)) }
+                refresh()
+            }
+        }
     }
 
     /** 本人已读某会话（本端或其他端）→ 清零未读 */
@@ -216,7 +224,7 @@ class ConversationListViewModel @Inject constructor(
                         lastTime = msg.created_at,
                         // 群预览是「发送者: 内容」，不同步发送者会把新内容挂到上一条的发送者名下
                         lastSenderName = msg.senderName.ifBlank { old.lastSenderName },
-                        unreadCount = if (msg.sender_id != myId) old.unreadCount + 1 else old.unreadCount,
+                        unreadCount = if (msg.sender_id != myId && msg.type != "system") old.unreadCount + 1 else old.unreadCount,  // 群系统提示不计未读
                     )
                     if (updated.archived == 1) list.add(idx, updated) else list.add(0, updated)
                     state.copy(conversations = list)

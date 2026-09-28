@@ -219,6 +219,8 @@ struct MessageSyncResponse: Decodable {
 enum LocalMsgStatus {
     static let sending = "sending"
     static let failed = "failed"
+    /// 服务端明确拒收（拉黑 / 已删除好友 / 屏蔽陌生人…）：重发也不会成功，不自动重发
+    static let rejected = "rejected"
 }
 
 struct MessageReaction: Decodable, Equatable {

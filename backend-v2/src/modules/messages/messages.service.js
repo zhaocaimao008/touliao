@@ -649,7 +649,7 @@ async function react(io, userId, msgId, emoji) {
     } else {
       db.prepare('INSERT OR REPLACE INTO message_reactions (message_id,user_id,emoji) VALUES (?,?,?)').run(msgId, userId, emoji);
     }
-  })();
+  }).immediate(); // 先读后写：一开始拿写锁，防并发时 database is locked
   const result = db.prepare(`
     SELECT emoji, GROUP_CONCAT(user_id) as userIds, COUNT(*) as count
     FROM message_reactions WHERE message_id=? GROUP BY emoji
@@ -749,7 +749,7 @@ async function searchGlobal(userId, { q, limit = 20, offset = 0, type, from, to,
     const joinParams = [userId, userId];
 
     const conds = [
-      'm.deleted = 0', 'm.burn_after = 0',
+      'm.deleted = 0', 'm.burn_after = 0', "m.type != 'system'", // 群系统提示不进搜索
       'NOT EXISTS (SELECT 1 FROM user_message_deletions d WHERE d.message_id=m.id AND d.user_id=?)',
       'm.rowid > COALESCE((SELECT cleared_rowid FROM conversation_clears WHERE user_id=? AND conversation_id=m.conversation_id), 0)',
     ];
@@ -908,7 +908,7 @@ async function searchInConversation(convId, userId, q, filters = {}) {
     const toTs   = to   != null && to   !== '' ? parseInt(to, 10)   : null;
 
     const conds = [
-      'm.conversation_id = ?', 'm.deleted = 0', 'm.burn_after = 0',
+      'm.conversation_id = ?', 'm.deleted = 0', 'm.burn_after = 0', "m.type != 'system'",
       'NOT EXISTS (SELECT 1 FROM user_message_deletions d WHERE d.message_id=m.id AND d.user_id=?)',
       'm.rowid > COALESCE((SELECT cleared_rowid FROM conversation_clears WHERE user_id=? AND conversation_id=m.conversation_id), 0)',
     ];
@@ -954,7 +954,7 @@ async function searchInConversation(convId, userId, q, filters = {}) {
       SELECT m.*, COALESCE(u.username, '') AS senderName, COALESCE(u.avatar, '') AS senderAvatar
       FROM messages m
       LEFT JOIN users u ON u.id = m.sender_id
-      WHERE m.conversation_id = ? AND m.deleted = 0 AND m.burn_after = 0
+      WHERE m.conversation_id = ? AND m.deleted = 0 AND m.burn_after = 0 AND m.type != 'system'
         AND m.content LIKE ? ESCAPE '\\'
         AND NOT EXISTS (SELECT 1 FROM user_message_deletions d WHERE d.message_id=m.id AND d.user_id=?)
         AND m.rowid > COALESCE((SELECT cleared_rowid FROM conversation_clears WHERE user_id=? AND conversation_id=m.conversation_id), 0)
@@ -1258,6 +1258,7 @@ function getMentions(userId, { offset = 0, limit = 20, before, beforeId }) {
          ON cm.conversation_id = m.conversation_id AND cm.user_id = ?
     WHERE m.deleted = 0
       AND m.burn_after = 0  -- 阅后即焚不进「@我」列表（列表会透出原文）
+      AND m.type != 'system'
       AND m.sender_id != ?
       AND instr(m.content, ?) > 0
   `;

@@ -698,6 +698,14 @@ function applySchema(db) {
     ...require('./migrations/batch4'),
     // 删除聊天（仅自己）：1=从我的会话列表隐藏，直到出现个人清空水位之后的新消息（对齐微信"删除聊天"）
     "ALTER TABLE conversation_settings ADD COLUMN hidden INTEGER DEFAULT 0",
+    // 删除好友记录（user_id 删除了 contact_id）：双方不再是好友且存在该记录时禁止私聊/通话（对齐微信），
+    // 重新加为好友即清除。普通陌生人私聊（如群成员之间）不受影响。
+    `CREATE TABLE IF NOT EXISTS contact_deletions (
+      user_id    TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      contact_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      created_at INTEGER NOT NULL DEFAULT (strftime('%s','now')),
+      PRIMARY KEY (user_id, contact_id)
+    )`,
   ];
 
   // ── 迁移执行：版本追踪 + 错误分级 ────────────────────────────────
