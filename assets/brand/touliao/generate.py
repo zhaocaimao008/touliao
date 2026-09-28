@@ -11,12 +11,12 @@ from PIL import Image, ImageDraw, ImageFilter
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '..'))
 KIT = os.path.join(ROOT, 'assets', 'brand', 'touliao')
-MASTER = os.path.join(KIT, 'master', 'touliao-icon-master.png')
+MASTER_ORIGINAL = os.path.join(KIT, 'master', 'touliao-icon-master.png')   # 原始母版（备份，不直接使用）
+MASTER = os.path.join(KIT, 'master', 'touliao-master-clean.png')          # 唯一出图源：已清除左下角孤立杂点
 
 # 母版几何（由 alpha>20 连通域分析得到）：主体包围盒与离主体中心最远点（气泡尾部）半径
 BODY = (99, 86, 1190, 1162)
 BODY_RADIUS = 727.1
-STRAY_SPECK = (328, 1186, 342, 1199)   # 母版左下角与主体不相连的 68px 杂点，透明化处理
 
 BG_CENTER = (42, 18, 80)     # 深紫黑径向渐变：中心
 BG_EDGE = (18, 7, 32)        # 深紫黑径向渐变：边缘  #120720
@@ -32,34 +32,107 @@ def out(rel, im, **kw):
     return p
 
 
-def load_emblem():
+# 光学尺寸（optical size）：小尺寸不做机械缩小。按「主体实际渲染尺寸」选择简化级别：
+#   xs (≤21px)：隐藏柱状图，保留 T + 气泡 + 上升箭头；
+#   s  (≤30px)：只留最高一根柱子（极简柱状图）；
+#   m  (≤50px)：完整柱状图；
+#   以上三级都去掉淡外发光、压低过曝高光、缩小前轻微平滑、缩小后轻微锐化。
+#   >50px：干净母版直接高质量缩小。
+BARS = [(676, 868, 780), (780, 790, 890), (900, 722, 1010)]   # 三根柱子 (x0, 顶端, x1)，母版像素坐标
+RING_EDGE = [(660, 1040), (780, 1022), (880, 992), (960, 968), (1020, 945)]  # 柱子底部与气泡圆环的分界
+
+
+def _ring_limit(x):
+    for (x0, y0), (x1, y1) in zip(RING_EDGE, RING_EDGE[1:]):
+        if x0 <= x <= x1:
+            return y0 + (y1 - y0) * (x - x0) / (x1 - x0)
+    return RING_EDGE[-1][1]
+
+
+def _load_master(keep_bars=(0, 1, 2), optical=False):
     im = Image.open(MASTER).convert('RGBA')
-    px = im.load()
-    x0, y0, x1, y1 = STRAY_SPECK
-    for y in range(y0, y1 + 1):
-        for x in range(x0, x1 + 1):
-            r, g, b, _ = px[x, y]
-            px[x, y] = (r, g, b, 0)
+    if optical:
+        px = im.load()
+        W, H = im.size
+        for i, (x0, top, x1) in enumerate(BARS):
+            if i in keep_bars:
+                continue
+            for x in range(x0, x1 + 1):
+                for y in range(top, int(_ring_limit(x))):
+                    px[x, y] = (0, 0, 0, 0)
+        for y in range(H):
+            for x in range(W):
+                r, g, b, a = px[x, y]
+                if a == 0:
+                    continue
+                if a < 60:                      # 去掉淡外发光，小尺寸边缘更干净
+                    px[x, y] = (0, 0, 0, 0)
+                elif 0.299 * r + 0.587 * g + 0.114 * b > 215:   # 压低过曝高光
+                    px[x, y] = (int(r * 0.86), int(g * 0.86), int(b * 0.86), a)
     bx0, by0, bx1, by1 = BODY
     cx, cy = (bx0 + bx1) / 2, (by0 + by1) / 2
     side = int(math.ceil(2 * BODY_RADIUS)) + 8          # 以主体中心为圆心、能容纳最远点的正方形
     canvas = Image.new('RGBA', (side, side), (0, 0, 0, 0))
     canvas.paste(im, (int(round(side / 2 - cx)), int(round(side / 2 - cy))), im)
-    return canvas, side
+    return canvas.convert('RGBa'), side                 # 预乘 alpha：缩放不产生黑边/紫边
 
 
-EMBLEM, EM_SIDE = load_emblem()
-EM_RADIUS_FRAC = BODY_RADIUS / EM_SIDE      # 最远点半径 / 画布边长
+_LEVELS = {}
 
 
-def emblem_for_radius(canvas_px, radius_px):
+def _level(name):
+    if name not in _LEVELS:
+        if name == 'full':
+            _LEVELS[name] = _load_master()
+        elif name == 'xs':
+            _LEVELS[name] = _load_master(keep_bars=(), optical=True)
+        elif name == 's':
+            _LEVELS[name] = _load_master(keep_bars=(2,), optical=True)
+        else:
+            _LEVELS[name] = _load_master(optical=True)
+    return _LEVELS[name]
+
+
+EMBLEM = _load_master()[0].convert('RGBA')
+EM_SIDE = EMBLEM.size[0]
+
+
+def optical_level(radius_px):
+    eff = 2 * radius_px / 0.97          # 主体等效图标尺寸（px）
+    return 'xs' if eff <= 21 else 's' if eff <= 30 else 'm' if eff <= 50 else 'full'
+
+
+def emblem_for_radius(canvas_px, radius_px, level=None):
     """缩放主体，使最远点半径 = radius_px，返回放在 canvas_px 透明画布中央的图层。"""
-    scale = radius_px / BODY_RADIUS
-    size = max(1, int(round(EM_SIDE * scale)))
-    em = EMBLEM.resize((size, size), Image.LANCZOS)
+    level = level or optical_level(radius_px)
+    src, side = _level(level)
+    n = max(1, int(round(side * radius_px / BODY_RADIUS)))
+    if level == 'full':
+        em = src.resize((n, n), Image.LANCZOS)
+    else:
+        p = src.filter(ImageFilter.GaussianBlur(4 if level != 'm' else 3))
+        f = max(1, side // (n * 4))
+        if f > 1:
+            p = p.reduce(f)
+        em = p.resize((n, n), Image.LANCZOS)
+    em = em.convert('RGBA')
+    if level != 'full':
+        rgb = em.convert('RGB')
+        if level == 'xs':   # 最小一级：适度提高对比/饱和，让金色 T 与紫色气泡分开（经 16/20px 对比选定，未改配色方向）
+            from PIL import ImageEnhance
+            rgb = ImageEnhance.Color(ImageEnhance.Contrast(rgb).enhance(1.25)).enhance(1.15)
+            rgb = rgb.filter(ImageFilter.UnsharpMask(radius=0.5, percent=50, threshold=1))
+        else:
+            rgb = rgb.filter(ImageFilter.UnsharpMask(radius=0.5, percent=40 if level != 'm' else 30, threshold=2))
+        a = em.getchannel('A')
+        em = rgb.convert('RGBA')
+        em.putalpha(a)
     layer = Image.new('RGBA', (canvas_px, canvas_px), (0, 0, 0, 0))
-    off = (canvas_px - size) // 2
-    layer.alpha_composite(em, (off, off)) if off >= 0 else layer.paste(em.crop((-off, -off, -off + canvas_px, -off + canvas_px)), (0, 0))
+    off = (canvas_px - n) // 2
+    if off >= 0:
+        layer.alpha_composite(em, (off, off))
+    else:
+        layer.alpha_composite(em.crop((-off, -off, -off + canvas_px, -off + canvas_px)))
     return layer
 
 
@@ -149,7 +222,9 @@ def main():
     w = lambda rel, im, **kw: written.append(os.path.relpath(out(rel, im, **kw), ROOT))
 
     # ── 品牌资源包 ─────────────────────────────────────────
-    w('assets/brand/touliao/master/touliao-icon-master-clean.png', EMBLEM, optimize=True)
+    # 独立尺寸 PNG（透明底；≤48px 为光学尺寸简化版，≥64px 为干净母版缩小）
+    for s in (16, 20, 24, 29, 32, 40, 48, 64, 128, 256, 512, 1024):
+        w(f'assets/brand/touliao/sizes/touliao-{s}.png', transparent(s, R_FULL), optimize=True)
     w('assets/brand/touliao/master/touliao-standard-1024.png', tile(1024, R_TILE).convert('RGB'), optimize=True)
     w('assets/brand/touliao/master/touliao-transparent-1024.png', transparent(1024, R_FULL), optimize=True)
     w('assets/brand/touliao/master/touliao-dark-bg-1024.png', tile(1024, R_TILE).convert('RGB'), optimize=True)
@@ -272,6 +347,46 @@ def main():
     logo = glow_layer(260, 0.25, 70); logo.alpha_composite(transparent(260, 0.40))
     sp_prev.alpha_composite(logo, ((390 - 260) // 2, (844 - 260) // 2))
     w(f'{prev}/splash-phone-390x844.png', sp_prev)
+
+    # ICON_OPTICAL_SIZE_PREVIEW：各尺寸实际像素放大（最近邻），浅色/深色背景各一行
+    from PIL import ImageFont
+    sizes = (16, 24, 32, 48, 64, 128, 256, 512)
+    disp = {16: 192, 24: 192, 32: 192, 48: 192, 64: 256, 128: 256, 256: 256, 512: 256}
+    colw = [disp[s] + 24 for s in sizes]
+    sheet = Image.new('RGBA', (sum(colw) + 24, 2 * (256 + 48) + 40), (250, 250, 252, 255))
+    d = ImageDraw.Draw(sheet)
+    for row, bgc in enumerate(((255, 255, 255, 255), (28, 26, 34, 255))):
+        x = 24
+        y = 40 + row * (256 + 48)
+        for s, cw in zip(sizes, colw):
+            t = Image.new('RGBA', (s, s), bgc)
+            t.alpha_composite(Image.open(os.path.join(KIT, 'sizes', f'touliao-{s}.png')))
+            k = disp[s]
+            sheet.paste(t.resize((k, k), Image.NEAREST if s <= 64 else Image.LANCZOS), (x, y))
+            d.text((x, y - 18), f'{s}x{s}' + (' (optical)' if s <= 48 else ''), fill=(60, 60, 70, 255))
+            x += cw
+    w('assets/brand/touliao/preview/ICON_OPTICAL_SIZE_PREVIEW.png', sheet)
+
+    # ANDROID_MASK_PREVIEW：自适应图标（背景层 + 前景层，72dp 可视区）在三种遮罩下
+    a = 432
+    comp = radial_bg(a)
+    comp.alpha_composite(transparent(a, R_ADAPT))
+    vis = int(a * 72 / 108)
+    off = (a - vis) // 2
+    view = comp.crop((off, off, off + vis, off + vis))
+    masks = (('Circle', circle_mask(vis)), ('Squircle', superellipse_mask(vis)), ('Rounded Square', rounded_mask(vis, 0.18)))
+    sheet = Image.new('RGBA', (len(masks) * (vis + 30) + 30, vis + 70), (238, 238, 242, 255))
+    d = ImageDraw.Draw(sheet)
+    for i, (name, m) in enumerate(masks):
+        t = view.copy()
+        t.putalpha(m)
+        sheet.alpha_composite(t, (30 + i * (vis + 30), 40))
+        d.text((30 + i * (vis + 30), 14), name, fill=(40, 40, 50, 255))
+        # 安全圆（直径 66dp）参考线
+        r = vis * 33 / 72
+        cxp, cyp = 30 + i * (vis + 30) + vis / 2, 40 + vis / 2
+        d.ellipse((cxp - r, cyp - r, cxp + r, cyp + r), outline=(0, 200, 120, 160))
+    w('assets/brand/touliao/preview/ANDROID_MASK_PREVIEW.png', sheet)
 
     json.dump(sorted(set(written)), open(os.path.join(KIT, 'generated-files.json'), 'w'), indent=1, ensure_ascii=False)
     print(len(set(written)), 'files written')
