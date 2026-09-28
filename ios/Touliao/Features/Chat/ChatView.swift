@@ -247,7 +247,9 @@ struct ChatView: View {
                             Text(pinnedPreview(p)).lineLimit(2)
                         }
                         Spacer()
-                        Button("取消", role: .destructive) { vm.unpinMessage(p.msgId) }.buttonStyle(.borderless)
+                        if vm.canManageGroup {
+                            Button("取消", role: .destructive) { vm.unpinMessage(p.msgId) }.buttonStyle(.borderless)
+                        }
                     }
                     }.listRowBackground(Color.vxinSurface).listRowSeparatorTint(Color.vxinBorder)
                 }
@@ -1049,7 +1051,7 @@ private struct MessageBubble: View {
                         if vm.canEdit(msg) {
                             Button { vm.editTarget = msg } label: { Label("编辑", touliaoIcon: "edit") }
                         }
-                        if vm.isGroup {
+                        if vm.isGroup && vm.canManageGroup {   // 服务端只允许群主/管理员置顶
                             Button {
                                 if vm.isPinned(msg.id) { vm.unpinMessage(msg.id) } else { vm.pinMessage(msg) }
                             } label: { Label(vm.isPinned(msg.id) ? "取消置顶" : "置顶", touliaoIcon: "pin") }

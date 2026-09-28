@@ -2771,7 +2771,7 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
         pinnedMessages={pinnedMessages}
         showPinnedDetail={showPinnedDetail}
         onToggleDetail={togglePinnedDetail}
-        onUnpin={unpinMessage}
+        onUnpin={(myGroupRole === 'owner' || myGroupRole === 'admin') ? unpinMessage : undefined}
       />
 
       {/* ── Body ── */}
@@ -3203,8 +3203,8 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
           {!ctxMenu.msg.deleted && canShare() && ['text', 'image', 'video', 'file'].includes(ctxMenu.msg.type) && (ctxMenu.msg.type === 'text' || ctxMenu.msg.file_url) && (
             <div className="wc-ctx-item" role="menuitem" tabIndex={0} data-testid="ctx-share" onClick={() => ctxAction('share')} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); ctxAction('share'); } }}><TouliaoIcon name="share" size="sm" />{t('chat.shareTo')}</div>
           )}
-          {/* 置顶：仅群聊可用（对齐 Android/iOS canPin=isGroup） */}
-          {conversation.type === 'group' && (
+          {/* 置顶：仅群主/管理员可用（服务端只允许他们置顶/取消，普通成员点了只会报错） */}
+          {conversation.type === 'group' && (myGroupRole === 'owner' || myGroupRole === 'admin') && (
           <div className="wc-ctx-item" role="menuitem" tabIndex={0} onClick={() => ctxAction('pin')} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); ctxAction('pin'); } }}><TouliaoIcon name="pin" size="sm" />
             {pinnedMessages.some(p => p.msgId === ctxMenu.msg.id) ? t('chat.unpinMessage') : t('chat.pinMessage')}
           </div>
