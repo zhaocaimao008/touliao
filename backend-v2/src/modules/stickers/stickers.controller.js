@@ -5,7 +5,7 @@ const { db } = require('../../db/connection');
 const config = require('../../config');
 const { asyncHandler, badRequest, notFound, forbidden } = require('../../utils/http');
 const { makeImageUploader } = require('../../utils/upload');
-const { registerFile } = require('../../utils/fileRegistry');
+const { registerFile, canReferenceFile } = require('../../utils/fileRegistry');
 const { isMember } = require('../messages/shared');
 const msgSvc = require('../messages/messages.service');
 const { getPublicBase } = require('../../utils/cloudStorage');
@@ -45,6 +45,9 @@ exports.collect = asyncHandler(async (req, res) => {
   const pub = getPublicBase();
   const ok = url.startsWith('/uploads/') || (pub && url.startsWith(pub + '/'));
   if (!ok) throw badRequest('图片来源不合法');
+  // 与发送时同一口径：只能收藏自己有权引用的图片。原先任意 /uploads/ 地址都能收进表情列表，
+  // 发送时才被拒，留下一条永远发不出去的表情
+  if (url.startsWith('/uploads/') && !canReferenceFile(url, req.user.id)) throw forbidden('无权使用该图片');
   const id = uuidv4();
   let inserted = false;
   db.transaction(() => {
