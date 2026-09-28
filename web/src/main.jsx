@@ -11,7 +11,7 @@ import './index.css';
 import './skins.css';   // 皮肤层:微信绿 / 企业微信蓝 (body[data-skin] 变量覆盖,必须在 index.css 之后)
 import './mobile-adapt.css';
 import { isWindowsDesktop } from './utils/desktopPlatform';
-import { loadRemoteConfig, getConfig } from './utils/config';
+import { loadRemoteConfig, getConfig, readManualServer } from './utils/config';
 import { migrateStorage } from './utils/migrateStorage';
 import { initWebVitals } from './utils/webVitals';
 import { initImageOptimizer } from './utils/imageOptimizer';
@@ -63,7 +63,7 @@ if (import.meta.env.PROD && import.meta.env.VITE_SENTRY_DSN) {
   //    FE-001：Web 端不阻塞首屏——最多等 800ms，超时先用同源相对路径渲染，
   //    config 到达后再补设 baseURL（后续请求自动生效）。
   //    Electron/Capacitor 必须等到完整 URL（相对路径无效），保持原行为。
-  const manualUrl = localStorage.getItem('touliao_server_url');
+  const manualUrl = await readManualServer();
   let cfg;
   if (isElectron || isMobile) {
     await loadRemoteConfig();

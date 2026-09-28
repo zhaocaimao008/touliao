@@ -193,11 +193,19 @@ let WS_ORIGIN = API_ORIGIN.replace(/^http/, 'ws');
 // 云存储/CDN 来源（用于 CSP connect-src，使图片/文件直传 xhr PUT 不被拦）。
 // 从 config.json 的 cdn 字段解析；默认空(只走后端直传)。
 let CDN_ORIGIN = '';
+// 远程 config.json 下发的默认后端（未拉到时为内置默认域名）。
+let remoteServerOrigin = 'https://touliao.cc';
 
 // 启动时从 CONFIG_URLS 依次拉 config.json，取 api(回退 socket) 作为后端地址并据此
 // 刷新 SERVER_URL/API_ORIGIN/WS_ORIGIN（驱动 CSP connect-src）。须在 setupSecurity()
 // 与 createWindow() 之前 await 调用。远程全部不可达则沿用 store/默认（manual override
 // 仍生效，与渲染端 remote→cache→fallback 行为一致）。
+function applyServerOrigin(origin) {
+  SERVER_URL = origin;
+  API_ORIGIN = origin;
+  WS_ORIGIN = origin.replace(/^http/, 'ws');
+}
+
 async function loadRemoteServerUrl() {
   await Promise.race([
     loadRemoteServerUrlInner(),
@@ -210,6 +218,14 @@ async function loadRemoteServerUrl() {
 }
 
 async function loadRemoteServerUrlInner() {
+  // 用户在设置里确认切换过的私有服务器优先于远程 config.json；否则每次冷启动都被远程
+  // 配置改回默认域名，CSP connect-src 不含该服务器，渲染层请求全被自家 CSP 拦下。
+  const manual = store.get('manualServerUrl');
+  if (manual && isValidServerUrl(manual) && new URL(manual).protocol === 'https:') {
+    applyServerOrigin(new URL(manual).origin);
+    log.info(`[RemoteConfig] 使用手动服务器: ${SERVER_URL}`);
+    return;
+  }
   for (const url of CONFIG_URLS) {
     try {
       const buf = await fetchBuffer(url);
@@ -218,6 +234,7 @@ async function loadRemoteServerUrlInner() {
       if (api && isValidServerUrl(api)) {
         SERVER_URL = new URL(api).origin;
         API_ORIGIN = SERVER_URL;
+        remoteServerOrigin = SERVER_URL;
         // socket 可与 api 分属不同主机(config.json 的 socket 字段)。单独解析,
         // 使 CSP connect-src 白名单包含真实 ws 主机,否则分离部署时桌面端实时连接被自家CSP拦死。
         const sock = (cfg.socket && String(cfg.socket).trim()) || '';
@@ -1181,10 +1198,15 @@ function setupIPC() {
       log.info('用户取消切换服务器:', u.origin);
       return false;
     }
-    store.set('serverUrl', url);
+    // 切回远程配置下发的默认服务器时清除手动记录，恢复随 config.json 换服务器的能力。
+    if (u.origin === remoteServerOrigin) store.delete('manualServerUrl');
+    else store.set('manualServerUrl', u.origin);
+    store.set('serverUrl', u.origin);
+    applyServerOrigin(u.origin);   // CSP 每次响应现算，渲染层重载后即可连新服务器
     return true;
   });
-  ipcMain.handle('config:getServerUrl', () => store.get('serverUrl'));
+  // 返回当前 CSP 放行的后端地址；渲染层据此判断本地保存的手动地址是否可用。
+  ipcMain.handle('config:getServerUrl', () => SERVER_URL);
   ipcMain.handle('window:newAccount', (_e) => {
     if (!isTrustedSender(_e)) return;
     return openAccountWindow();

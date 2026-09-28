@@ -277,15 +277,14 @@ export const AuthProvider = ({ children }) => {
   // 2. 更新 axios baseURL
   // 3. 清除当前登录态 → PrivateRoute 自动跳转登录页 → 用户用新服务器账号重新登录
   const changeServer = async (newUrl) => {
+    const clean = newUrl.trim().replace(/\/$/, '');
+    // 桌面端先经主进程确认（仅 https）；被拒则保持原服务器与登录态不变
+    if (window.__ELECTRON_CONFIG__ && !await window.electronAPI?.setServerUrl?.(clean)) return false;
     invalidateSession();
     const operation = captureSession();
-    const clean = newUrl.trim().replace(/\/$/, '');
     const response = await axios.post('/api/auth/logout', null, { _sessionContext: operation }).catch(error => error);
-    if (!canPublishResponse(operation, response)) return;
-    if (window.__ELECTRON_CONFIG__) {
-      localStorage.setItem('touliao_server_url', clean);
-      window.electronAPI?.setServerUrl?.(clean);
-    }
+    if (!canPublishResponse(operation, response)) return false;
+    if (window.__ELECTRON_CONFIG__) localStorage.setItem('touliao_server_url', clean);
     axios.defaults.baseURL = clean;
     setElectronToken(null);
     clearCsrfCache();
