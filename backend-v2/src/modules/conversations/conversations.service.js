@@ -264,6 +264,7 @@ async function listConversations(uid, { includeArchived = false, offset = 0, lim
         WHERE  mm.conversation_id = c.id
           AND  mm.sender_id      != ?
           AND  mm.deleted         = 0
+          AND  mm.type           != 'system'  -- 改群名为「@所有人…」之类不能误判成被@
           AND  mm.created_at      > COALESCE(cs.last_read_at, 0)
           AND  c.type             = 'group'
           AND  ? != ''

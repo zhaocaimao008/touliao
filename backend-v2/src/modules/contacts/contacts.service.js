@@ -117,7 +117,7 @@ function sendFriendRequest(io, fromId, { toId, message }) {
     if (db.prepare('SELECT id FROM friend_requests WHERE from_id=? AND to_id=? AND status=?').get(fromId, toId, 'pending')) return;
     db.prepare('INSERT INTO friend_requests (id,from_id,to_id,message) VALUES (?,?,?,?)').run(id, fromId, toId, safeMessage);
     inserted = true;
-  })();
+  }).immediate(); // 先读后写：一开始就拿写锁，否则与异步写入并发时升级写锁直接报 database is locked
   if (!inserted) throw badRequest('请求已发送');
   const sender = db.prepare('SELECT id,username,avatar,wechat_id FROM users WHERE id=?').get(fromId);
   if (io) io.to(`user_${toId}`).emit('new_friend_request', { id, from: sender, message: safeMessage });

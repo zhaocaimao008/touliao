@@ -560,7 +560,8 @@ fun ChatScreen(
                 )
             } else {
                 // 最后一条自己发的消息 id：仅在其上显示已读状态
-                val lastOwnMsgId = state.messages.lastOrNull { it.sender_id == viewModel.myId }?.id
+                // 居中系统类消息（群提示/通话记录/拍一拍）不显示已读，不能占掉「最后一条自己的消息」
+                val lastOwnMsgId = state.messages.lastOrNull { it.sender_id == viewModel.myId && it.type !in setOf("system", "call", "nudge") }?.id
                 LazyColumn(
                     state = listState,
                     modifier = Modifier.fillMaxSize().padding(horizontal = 12.dp, vertical = 8.dp),

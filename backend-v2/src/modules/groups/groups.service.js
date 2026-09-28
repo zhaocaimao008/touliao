@@ -217,7 +217,7 @@ function invite(io, convId, userId, userIds) {
       if (!validSet.has(uid)) return;
       if (add.run(convId, uid).changes > 0) { added.push(uid); markHistoryRead(convId, uid); }
     });
-  })();
+  }).immediate(); // 先读后写：一开始就拿写锁，否则与异步写入并发时升级写锁直接报 database is locked
   if (io && added.length > 0) {
     const conv = db.prepare('SELECT id,type,name,avatar FROM conversations WHERE id=?').get(convId);
     added.forEach(uid => {
@@ -386,7 +386,7 @@ function pinMessage(io, convId, userId, msgId) {
     if (pinCount >= 20) throw badRequest('置顶消息已达上限 20 条，请先取消置顶');
     db.prepare('INSERT OR REPLACE INTO pinned_messages (id,conversation_id,message_id,pinned_by) VALUES (?,?,?,?)')
       .run(uuidv4(), convId, msgId, userId);
-  })();
+  }).immediate(); // 先读后写：一开始就拿写锁，否则与异步写入并发时升级写锁直接报 database is locked
   const pinner = db.prepare('SELECT username FROM users WHERE id=?').get(userId);
   if (io) io.to(convId).emit('message_pinned', { msgId, convId, pinnedBy: pinner?.username, content: msg.content, type: msg.type });
 }

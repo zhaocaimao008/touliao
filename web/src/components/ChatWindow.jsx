@@ -159,6 +159,9 @@ function callStartErrorText(code, t) {
   }
 }
 
+// 居中显示的系统类消息：不是某人的「发言」（不参与连续合并、不显示已读）
+const CENTERED_TYPES = new Set(['system', 'call', 'nudge']);
+
 export default function ChatWindow({ conversation: initialConv, features = {}, onClose, onStartCall, onStartGroupCall, onStartChat }) {
   useMediaCredentials();
   const { t } = useI18n();
@@ -2469,7 +2472,8 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
   // Precompute the last mine message id to avoid O(n) per message in flatItems
   const lastMineId = useMemo(() => {
     for (let i = messages.length - 1; i >= 0; i--) {
-      if (messages[i].sender_id === user.id && !messages[i].deleted) return messages[i].id;
+      // 居中系统类消息（群提示/通话记录/拍一拍）不显示已读，不能占掉「最后一条自己的消息」
+      if (messages[i].sender_id === user.id && !messages[i].deleted && !CENTERED_TYPES.has(messages[i].type)) return messages[i].id;
     }
     return null;
   }, [messages, user.id]);
@@ -2505,7 +2509,7 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
       const consecutive = !dividerInserted && prevSenderId === msg.sender_id
         && !isMedia && !prevIsMedia;
       // 居中系统类消息（群提示/通话记录/拍一拍）不算某人的发言：之后同一人的消息要正常显示头像和名字
-      prevSenderId = (msg.type === 'system' || msg.type === 'call' || msg.type === 'nudge') ? null : msg.sender_id;
+      prevSenderId = CENTERED_TYPES.has(msg.type) ? null : msg.sender_id;
       prevIsMedia = isMedia;
 
       const isMine = msg.sender_id === user.id;
