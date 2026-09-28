@@ -4,7 +4,7 @@ apk=${1:?Verified signed release APK required}
 evidence=${2:-android-release-evidence}
 test -n "${DEPLOY_SSH_KEY:-}"
 test -n "${DEPLOY_USER:-}"
-test "${DEPLOY_HOST:-}" = '13.212.117.22'
+test "${DEPLOY_HOST:-}" = '13.213.234.231'
 run_id="${GITHUB_RUN_ID:?}-${GITHUB_RUN_ATTEMPT:?}"
 [[ "$run_id" =~ ^[0-9]+-[0-9]+$ ]]
 version=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["versionName"])' "$evidence/new-version.json")
