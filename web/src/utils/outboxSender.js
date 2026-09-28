@@ -27,9 +27,10 @@ export function sendOwnedText({ socket, scope, message, isActive = () => true, o
       onAck(ack.message);
     } else if (ack?.code === 'RATE_LIMITED' && onRateLimited?.(ack.retryAfterMs)) {
       // 调用方接管了退避重发调度：保持"发送中"，不落 outbox、不判失败。
-    } else if (ack && ack.success === false && ack.error && onRejected) {
+    } else if (ack && ack.success === false && ack.error && ack.code !== 'RATE_LIMITED' && onRejected) {
       // 服务端明确拒收（拉黑 / 已删除好友 / 屏蔽陌生人 / 禁言…）：重发也不会成功，不进 outbox，
-      // 标失败并把原因告诉用户（原先只显示「发送失败」且进队列反复重试）
+      // 标失败并把原因告诉用户（原先只显示「发送失败」且进队列反复重试）。
+      // 限流/服务器繁忙（RATE_LIMITED）是暂时的：自动退避次数用完后走下方 fail() 进发件箱，不算拒收。
       removeFromOutbox(message.conversation_id, id, scope);
       onStatus('error');
       onRejected(ack.error);

@@ -66,3 +66,17 @@ test('server rejection (blocked / deleted friend) reports the reason and never e
   expect(reason).toBe('你已删除对方，请重新添加好友后再发消息');
   expect(loadOutbox('same-group', scope)).toHaveLength(0);
 });
+
+test('transient busy / exhausted rate-limit retries stay in the outbox instead of counting as a rejection', () => {
+  const scope = captureSession();
+  let ack;
+  const events = [];
+  let reason = null;
+  sendOwnedText({ scope, message, socket: { connected: true, emit: (_e, _b, cb) => { ack = cb; } },
+    onStatus: s => events.push(s), onRateLimited: () => false, onRejected: r => { reason = r; } });
+  ack({ success: false, error: '服务器繁忙，请稍后重试', code: 'RATE_LIMITED', retryAfterMs: 1000 });
+  vi.runAllTimers();
+  expect(events).toEqual(['sending', 'error']);
+  expect(reason).toBe(null);
+  expect(loadOutbox('same-group', scope)).toHaveLength(1);
+});

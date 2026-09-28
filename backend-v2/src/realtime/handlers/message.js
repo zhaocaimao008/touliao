@@ -232,7 +232,9 @@ module.exports = function registerMessageHandler(io, socket) {
         const existing = checkDedup(userId, data.clientMsgId, data.conversationId);
         if (existing) { ack?.({ success: true, message: dedupPayload(existing) }); return; }
       }
-      ack?.({ success: false, error: '服务器内部错误，请重试' });
+      // 内部故障（如写库繁忙）是暂时的：必须让客户端按「可重发」处理。三端只把 code=RATE_LIMITED
+      // 视为可重发，其余 success:false 都当作服务端明确拒收（拉黑/禁言…）而丢出发件箱、不再重试。
+      ack?.({ success: false, error: '服务器繁忙，请稍后重试', code: 'RATE_LIMITED', retryAfterMs: 1000 });
     }
   });
 };
