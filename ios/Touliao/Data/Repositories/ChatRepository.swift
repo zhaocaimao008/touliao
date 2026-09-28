@@ -33,6 +33,7 @@ final class ChatRepository: HistoryPageSource {
     var readPublisher: AnyPublisher<ReadEvent, Never> { socket.read.eraseToAnyPublisher() }
     var unreadClearedPublisher: AnyPublisher<String, Never> { socket.unreadCleared.eraseToAnyPublisher() }
     var newConversationPublisher: AnyPublisher<Void, Never> { socket.newConversation.eraseToAnyPublisher() }
+    var profileUpdatedPublisher: AnyPublisher<(userId: String, username: String, avatar: String), Never> { socket.profileUpdated.eraseToAnyPublisher() }
     var messageDeletedPublisher: AnyPublisher<String, Never> { socket.messageDeleted.eraseToAnyPublisher() }
     var messageRecalledPublisher: AnyPublisher<String, Never> { socket.messageRecalled.eraseToAnyPublisher() }
     var messageDeletedForMePublisher: AnyPublisher<String, Never> { socket.messageDeletedForMe.eraseToAnyPublisher() }

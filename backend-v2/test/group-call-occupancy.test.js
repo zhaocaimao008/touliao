@@ -18,7 +18,7 @@ jest.mock('../src/db/connection', () => ({
   },
 }));
 jest.mock('../src/db/writer', () => ({ write: jest.fn() }));
-jest.mock('../src/modules/messages/shared', () => ({ isMember: jest.fn(() => true) }));
+jest.mock('../src/modules/messages/shared', () => ({ isMember: jest.fn(() => true), deletedRelation: jest.fn(() => null) }));
 
 const createRegistryFactory = require('../src/realtime/callSessionRegistry');
 const registerGroupCallHandler = require('../src/realtime/handlers/groupCall');

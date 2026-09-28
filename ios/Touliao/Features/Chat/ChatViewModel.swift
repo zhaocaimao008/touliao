@@ -146,6 +146,16 @@ final class ChatViewModel: ObservableObject {
             .sink { [weak self] e in Task { @MainActor in self?.onRead(e) } }
             .store(in: &cancellables)
 
+        // 聊天对象/群成员改了昵称或头像：更新已显示消息的署名与头像
+        repo.profileUpdatedPublisher
+            .sink { [weak self] p in Task { @MainActor in
+                guard let self, self.messages.contains(where: { $0.senderId == p.userId }) else { return }
+                self.messages = self.messages.map { m in
+                    guard m.senderId == p.userId else { return m }
+                    var n = m; n.senderName = p.username; n.senderAvatar = p.avatar; return n
+                }
+            } }
+            .store(in: &cancellables)
         repo.messageDeletedPublisher
             .sink { [weak self] msgId in Task { @MainActor in
                 guard let self else { return }
@@ -322,6 +332,32 @@ final class ChatViewModel: ObservableObject {
     }
 
     /// 解析 nudge 消息为展示文案：「你/X 拍了拍 你/Y」
+    /// 群系统提示（type=system）：fileUrl 为 { event, actorId, actorName, targets:[{id,name}], name? }，
+    /// 涉及自己时显示「你」；解析失败/未知事件退回 content（服务端写的中性人话）
+    func systemText(_ msg: Message) -> String {
+        guard let data = msg.fileUrl.data(using: .utf8),
+              let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return msg.content }
+        func who(_ id: String?, _ name: String?) -> String {
+            if let id, id == myId { return "你" }
+            return (name?.isEmpty == false ? name! : "某人")
+        }
+        let actor = who(obj["actorId"] as? String, obj["actorName"] as? String)
+        let names = ((obj["targets"] as? [[String: Any]]) ?? []).map { who($0["id"] as? String, $0["name"] as? String) }
+        let t = names.count > 10 ? "\(names.prefix(10).joined(separator: "、")) 等 \(names.count) 人" : names.joined(separator: "、")
+        switch obj["event"] as? String ?? "" {
+        case "invited": return "\(actor) 邀请 \(t) 加入了群聊"
+        case "joined": return "\(actor) 通过邀请链接加入了群聊"
+        case "removed": return "\(actor) 将 \(t) 移出了群聊"
+        case "owner": return "\(actor) 已将群主转让给 \(t)"
+        case "renamed": return "\(actor) 修改群名为「\(obj["name"] as? String ?? "")」"
+        case "mute_on": return "\(actor) 开启了全员禁言"
+        case "mute_off": return "\(actor) 关闭了全员禁言"
+        case "admin_on": return "\(actor) 将 \(t) 设为管理员"
+        case "admin_off": return "\(actor) 取消了 \(t) 的管理员身份"
+        default: return msg.content
+        }
+    }
+
     func nudgeText(_ msg: Message) -> String {
         guard let data = msg.content.data(using: .utf8),
               let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return "拍一拍" }
@@ -1126,7 +1162,11 @@ final class ChatViewModel: ObservableObject {
                         self.messages = ChatMessageMerge.relocate(self.messages, at: idx)
                     } else { self.messages = ChatMessageMerge.insertBySeq(self.messages, real) }
                 },
-                onFailure: { self.setLocalStatus(optimistic.id, LocalMsgStatus.failed) })
+                onFailure: { self.setLocalStatus(optimistic.id, LocalMsgStatus.failed) },
+                onRejected: { reason in
+                    self.setLocalStatus(optimistic.id, LocalMsgStatus.rejected)
+                    self.error = reason
+                })
         }
     }
 

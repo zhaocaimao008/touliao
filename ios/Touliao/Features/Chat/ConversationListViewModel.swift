@@ -40,6 +40,11 @@ final class ConversationListViewModel: ObservableObject {
             }
             .store(in: &cancellables)
 
+        // 好友/群成员改了昵称或头像 → 整表刷新（与 Web/安卓一致）
+        repo.profileUpdatedPublisher
+            .sink { [weak self] _ in Task { @MainActor in await self?.refresh() } }
+            .store(in: &cancellables)
+
         // 被拉入群聊/新会话 → 整表刷新
         repo.newConversationPublisher
             .sink { [weak self] _ in
@@ -252,7 +257,7 @@ final class ConversationListViewModel: ObservableObject {
         if !msg.senderName.isEmpty { conv.lastSenderName = msg.senderName }
         conv.lastMessageType = msg.type
         conv.lastTime = msg.createdAt
-        if msg.senderId != myId {
+        if msg.senderId != myId && msg.type != "system" {   // 群系统提示不计未读、不震动
             conv.unreadCount += 1
             // 前台收到他人消息 → 震动反馈（尊重系统静音：UINotificationFeedbackGenerator 不受铃声开关影响）
             // iOS 后台靠 APNs 震动，前台 App 收到 socket 消息此前完全无反馈，这是「开了震动不震」的根因。

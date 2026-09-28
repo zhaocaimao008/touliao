@@ -16,6 +16,7 @@ import { archiveUnreadTotal, splitArchivedConversations } from '../utils/archive
 import { useSwipe } from '../hooks/useSwipe';
 import { EmptyState } from './StateViews';
 import designTokens from '../ui-kit/tokens.json';
+import { groupSystemPreview } from '../utils/groupSystemText';
 
 const rowHeight = () => window.innerWidth < designTokens.layout.breakpoints.compactDesktopMin
   ? designTokens.components.listRow.mobileMinimum : designTokens.components.listRow.desktopMinimum;
@@ -124,6 +125,7 @@ function previewMsg(conv, user, t) {
       return t('chatlist.nudgeTemplate').replace('{a}', a).replace('{b}', b);
     } catch { return t('chatlist.previewNudge'); }
   }
+  if (mt === 'system') return groupSystemPreview(conv.lastMessage, user?.username, t);
   if (mt === 'call') {
     // 通话系统消息预览:content 即人话(如「语音通话 30 秒」),直接显示
     return conv.lastMessage || t('chatlist.previewCall');
@@ -369,6 +371,15 @@ export default function ChatList({ onSelectConv, activeConvId, unread = {}, sear
       socket.off('conversation_hidden', onGroupKicked);
     };
   }, [socket, fetchConvs, user?.id]);
+
+  // 好友/群成员改了昵称或头像（服务端 user_profile_updated）：重拉列表，备注优先级由服务端决定
+  useEffect(() => {
+    if (!socket) return;
+    let timer;
+    const onProfile = () => { clearTimeout(timer); timer = setTimeout(fetchConvs, 300); };
+    socket.on('user_profile_updated', onProfile);
+    return () => { clearTimeout(timer); socket.off('user_profile_updated', onProfile); };
+  }, [socket, fetchConvs]);
 
   // 备注变更后刷新会话列表
   useEffect(() => {

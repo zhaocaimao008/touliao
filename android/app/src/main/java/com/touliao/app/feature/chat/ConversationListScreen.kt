@@ -418,6 +418,8 @@ private fun previewText(conv: Conversation): String {
         "nudge" -> "[拍一拍]"
         // call 的 content 即人话(如「语音通话 30 秒」),预览直接显示
         "call" -> conv.lastMessage ?: "[通话]"
+        // 群系统提示：content 即人话（「X 邀请 Y 加入了群聊」），不加发送者前缀
+        "system" -> return conv.lastMessage ?: ""
         "contact_card", "contact" -> "[名片]"
         "merged" -> "[聊天记录]"
         else -> conv.lastMessage ?: ""

@@ -148,6 +148,8 @@ function createGroup(io, ownerId, { name, memberIds }) {
       io.to(`user_${uid}`).emit('new_conversation', conv);
     });
   }
+  // 群系统提示「X 邀请 A、B 加入了群聊」：新群一出现就有首条内容，而不是空会话
+  if (validMemberIds.length) require('../groups/groupEvents').groupEvent(io, id, 'invited', ownerId, validMemberIds);
   return { conversationId: id, groupNumber };
 }
 
@@ -251,6 +253,7 @@ async function listConversations(uid, { includeArchived = false, offset = 0, lim
         WHERE  mu.conversation_id = c.id
           AND  mu.sender_id      != ?
           AND  mu.deleted         = 0
+          AND  mu.type           != 'system'
           AND  mu.created_at      > COALESCE(cs.last_read_at, 0)
           AND  mu.rowid > COALESCE((SELECT cleared_rowid FROM conversation_clears
                                               WHERE user_id=? AND conversation_id=c.id), 0)
@@ -364,6 +367,7 @@ function unreadCounts(userId) {
         WHERE  conversation_id = cm.conversation_id
           AND  sender_id      != ?
           AND  deleted         = 0
+          AND  type           != 'system'  -- 群系统提示不计未读
           AND  created_at      > COALESCE(cs.last_read_at, 0)
         LIMIT 99
       )) AS unread_count

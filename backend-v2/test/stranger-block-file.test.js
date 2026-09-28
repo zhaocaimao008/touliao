@@ -44,6 +44,9 @@ describe('屏蔽陌生人消息：文本与文件一致拦截（round43 回归�
     const del = await request(app).delete(`/api/users/contacts/${u2.userId}`)
       .set('Authorization', `Bearer ${u1.token}`);
     expect(del.status).toBe(200);
+    // 删除好友本身也会拦截私聊（contact_deletions，另有专门测试）；这里清掉删除记录，
+    // 让 u1 成为「从未加过好友的陌生人」，专门覆盖屏蔽陌生人这条拦截
+    require('../src/db/connection').db.prepare('DELETE FROM contact_deletions WHERE user_id=? AND contact_id=?').run(u1.userId, u2.userId);
   });
 
   test('陌生人发文本被拒（403）', async () => {

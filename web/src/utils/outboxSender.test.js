@@ -52,3 +52,17 @@ test('new action after same-account credential rotation can ACK original failure
   expect(accepted).toBe('real');
   expect(loadOutbox('same-group', original)).toEqual([]);
 });
+
+test('server rejection (blocked / deleted friend) reports the reason and never enters the outbox', () => {
+  const scope = captureSession();
+  let ack;
+  const events = [];
+  let reason = null;
+  sendOwnedText({ scope, message, socket: { connected: true, emit: (_e, _b, cb) => { ack = cb; } },
+    onStatus: s => events.push(s), onAck: () => events.push('ack'), onRejected: r => { reason = r; } });
+  ack({ success: false, error: '你已删除对方，请重新添加好友后再发消息' });
+  vi.runAllTimers();
+  expect(events).toEqual(['sending', 'error']);
+  expect(reason).toBe('你已删除对方，请重新添加好友后再发消息');
+  expect(loadOutbox('same-group', scope)).toHaveLength(0);
+});

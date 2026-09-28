@@ -106,6 +106,8 @@ export default function ContactList({ onStartChat, searchQuery = '', addFriendRe
     const onOffline = ({ userId }) => setOnlineIds(prev => { const s = new Set(prev); s.delete(userId); return s; });
     const onFriendReq = (req) => setRequests(prev => [req, ...prev]);
     const onAccepted = () => { fetchContacts(); fetchRequests(); fetchSent(); };
+    const onProfile = () => fetchContacts(); // 好友改了昵称/头像
+    socket.on('user_profile_updated', onProfile);
     // 2026-08-29 新增：本账号在别的设备拒绝了申请 → 这台设备也刷新，去掉那条已处理的申请，
     // 否则会停留在"接受/拒绝"两个按钮上，点击时后端返回"请求不存在"(该请求已非pending状态)。
     const onRejected = () => fetchRequests();
@@ -118,6 +120,7 @@ export default function ContactList({ onStartChat, searchQuery = '', addFriendRe
     socket.on('new_conversation', onNewConv);
     socket.on('group_updated', onNewConv);
     return () => {
+      socket.off('user_profile_updated', onProfile);
       socket.off('user_online', onOnline);
       socket.off('user_offline', onOffline);
       socket.off('new_friend_request', onFriendReq);

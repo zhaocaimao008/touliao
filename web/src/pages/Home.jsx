@@ -792,6 +792,7 @@ export default function Home() {
       setConvRefreshKey(k => k + 1); // 刷新会话列表（置顶 + lastMessage 摘要）
     };
     const onMsg = (msg) => {
+      if (msg.type === 'system') return; // 群系统提示：不计未读、不弹通知、不响铃
       const isActiveConv = msg.conversation_id === activeConvIdRef.current;
       setUnread(prev => {
         if (isActiveConv) return prev;
@@ -843,6 +844,7 @@ export default function Home() {
         const next = { ...prev };
         let changed = false;
         for (const msg of arr) {
+          if (msg.type === 'system') continue;
           if (msg.conversation_id !== activeConvIdRef.current) {
             next[msg.conversation_id] = (next[msg.conversation_id] || 0) + 1;
             changed = true;
@@ -852,7 +854,7 @@ export default function Home() {
       });
       // 通知：每个会话只取最新一条，避免批量弹多条通知
       const latestByConv = new Map();
-      for (const msg of arr) latestByConv.set(msg.conversation_id, msg);
+      for (const msg of arr) if (msg.type !== 'system') latestByConv.set(msg.conversation_id, msg);
       for (const msg of latestByConv.values()) {
         if (msg.conversation_id !== activeConvIdRef.current || document.hidden) {
           const bodyText =

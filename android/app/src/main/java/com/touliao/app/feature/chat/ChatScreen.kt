@@ -596,6 +596,13 @@ fun ChatScreen(
                                 )
                             }
                         }
+                        if (msg.type == "system") {
+                            // 群系统提示（入群/移出/转让群主/改群名等）：居中灰字
+                            Box(Modifier.fillMaxWidth().padding(vertical = 4.dp, horizontal = 24.dp), contentAlignment = Alignment.Center) {
+                                Text(viewModel.systemText(msg), color = VxinTextSecondary, fontSize = com.touliao.app.ui.theme.VxinTextSize.sm, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+                            }
+                            return@itemsIndexed
+                        }
                         if (msg.type == "nudge") {
                             Box(Modifier.fillMaxWidth().padding(vertical = 4.dp), contentAlignment = Alignment.Center) {
                                 Text(viewModel.nudgeText(msg), color = VxinTextSecondary, fontSize = com.touliao.app.ui.theme.VxinTextSize.sm)
@@ -1257,6 +1264,10 @@ private fun MessageBubble(
                             .testTag("msg-send-failed-${msg.id}")
                             .padding(horizontal = 4.dp, vertical = 1.dp),
                     )
+                }
+                isMine && msg.localStatus == LocalMsgStatus.REJECTED -> {
+                    // 服务端明确拒收：不提供重发（原因已在顶部提示）
+                    Text("未送达", fontSize = com.touliao.app.ui.theme.VxinTextSize.xs2, color = com.touliao.app.ui.theme.VxinError)
                 }
                 isMine && showReadStatus -> {
                     Row(verticalAlignment = Alignment.CenterVertically) {

@@ -135,6 +135,8 @@ data class MessageSyncResponse(
 object LocalMsgStatus {
     const val SENDING = "sending"
     const val FAILED = "failed"
+    /** 服务端明确拒收（拉黑 / 已删除好友 / 屏蔽陌生人…）：重发也不会成功，不自动重发 */
+    const val REJECTED = "rejected"
 }
 
 @Serializable

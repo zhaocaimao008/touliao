@@ -220,7 +220,8 @@ function registerCallHandler(io, socket, registry) {
       JOIN conversation_members cm2 ON cm1.conversation_id = cm2.conversation_id
       JOIN conversations c ON c.id = cm1.conversation_id AND c.type='private'
       WHERE cm1.user_id=? AND cm2.user_id=? LIMIT 1`).get(userId, to);
-    if (blocked || !shareConv) {
+    // 删除好友后同样不能呼叫（与私聊发消息同一规则，见 messages/shared deletedRelation）
+    if (blocked || !shareConv || require('../../modules/messages/shared').deletedRelation(userId, to)) {
       socket.emit('call:response', { from: to, accepted: false }); // 给主叫一个"被拒"信号，避免界面一直转
       if (typeof ack === 'function') ack({ error: 'CALL_REJECTED' });
       return;

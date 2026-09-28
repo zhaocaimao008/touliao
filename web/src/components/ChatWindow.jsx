@@ -1308,6 +1308,16 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
     // 注册送达回调到 SocketContext，保存取消订阅函数
     const unsubDelivered = registerDelivered(onDelivered);
 
+    // 聊天对象/群成员改了昵称或头像：更新已显示消息的署名与头像；私聊标题在没有备注时跟着变
+    const onProfile = ({ userId: uid, username, avatar }) => {
+      setMessages(prev => (prev.some(m => m.sender_id === uid)
+        ? prev.map(m => (m.sender_id === uid ? { ...m, senderName: username, senderAvatar: avatar } : m))
+        : prev));
+      setConversation(c => (c?.type === 'private' && c.otherUser?.id === uid
+        ? { ...c, avatar, otherUser: { ...c.otherUser, username, avatar }, name: c.otherUser.remark ? c.name : username }
+        : c));
+    };
+    socket.on('user_profile_updated', onProfile);
     socket.on('new_message', onMsg);
     socket.on('new_message_batch', onMsgBatch);
     socket.on('new_message_notify', onNotify);
@@ -1370,7 +1380,8 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
       unsubDelivered?.(); // 取消订阅，防止已卸载的组件收到送达回执
       socket.off('disconnect', onDisconnect);
       socket.off('mentioned', onAtMention);
-      socket.off('new_message', onMsg);
+      socket.off('user_profile_updated', onProfile);
+    socket.off('new_message', onMsg);
       socket.off('new_message_batch', onMsgBatch);
       socket.off('new_message_notify', onNotify);
       socket.off('conversation_sync_available', onSyncAvailable);
@@ -1459,6 +1470,7 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
       // 命中限流时保持「发送中」：不标失败、不弹提示、不进 outbox —— 由 scheduleRateLimitedRetry
       // 按服务端给的 retryAfterMs 自动重发（clientMsgId 不变，后端幂等去重，不会产生重复消息）。
       onRateLimited: retryAfterMs => scheduleRateLimitedRetry(tempId, retryAfterMs),
+      onRejected: reason => { pendingMsgsRef.current.delete(tempId); showToast(reason, 'error'); },
     });
     if (timer) pendingMsgsRef.current.set(tempId, timer);
   }, [socket, conversation.id, user.id, outboxScope, scheduleRateLimitedRetry]);
@@ -2492,7 +2504,8 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
       const isMedia = MEDIA_TYPES.has(msg.type);
       const consecutive = !dividerInserted && prevSenderId === msg.sender_id
         && !isMedia && !prevIsMedia;
-      prevSenderId = msg.sender_id;
+      // 居中系统类消息（群提示/通话记录/拍一拍）不算某人的发言：之后同一人的消息要正常显示头像和名字
+      prevSenderId = (msg.type === 'system' || msg.type === 'call' || msg.type === 'nudge') ? null : msg.sender_id;
       prevIsMedia = isMedia;
 
       const isMine = msg.sender_id === user.id;

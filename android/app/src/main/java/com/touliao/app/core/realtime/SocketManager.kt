@@ -106,6 +106,11 @@ class SocketManager @Inject constructor(
     private val _unreadCleared = MutableSharedFlow<String>(extraBufferCapacity = 64)
     val unreadClearedEvents: SharedFlow<String> = _unreadCleared.asSharedFlow()
 
+    /** 好友/群成员/本人改了昵称或头像（user_profile_updated） */
+    data class ProfileUpdate(val userId: String, val username: String, val avatar: String)
+    private val _profileUpdated = MutableSharedFlow<ProfileUpdate>(extraBufferCapacity = 16)
+    val profileUpdatedEvents: SharedFlow<ProfileUpdate> = _profileUpdated.asSharedFlow()
+
     /** 新会话（如被拉入群聊）→ 提示列表刷新 */
     private val _newConversation = MutableSharedFlow<Unit>(extraBufferCapacity = 8)
     val newConversationEvents: SharedFlow<Unit> = _newConversation.asSharedFlow()
@@ -321,6 +326,11 @@ class SocketManager @Inject constructor(
                 ?.takeIf { it.isNotEmpty() }?.let(_unreadCleared::tryEmit)
         }
         s.on("new_conversation") { _newConversation.tryEmit(Unit) }
+        s.on("user_profile_updated") { args ->
+            val o = args.firstOrNull() as? JSONObject ?: return@on
+            val id = o.optString("userId").takeIf { it.isNotEmpty() } ?: return@on
+            _profileUpdated.tryEmit(ProfileUpdate(id, o.optString("username"), o.optString("avatar")))
+        }
         s.on("message_deleted") { args ->
             (args.firstOrNull() as? JSONObject)?.optString("msgId")?.takeIf { it.isNotEmpty() }?.let(_messageDeleted::tryEmit)
         }
@@ -629,7 +639,9 @@ class SocketManager @Inject constructor(
                             if (msg != null) cont.resume(Result.success(msg))
                             else cont.resume(Result.failure(IllegalStateException("响应解析失败")))
                         }
-                        else -> cont.resume(Result.failure(RuntimeException(resp.optString("error", "发送失败"))))
+                        // 限流是暂时的（可重发）；其余带 error 的失败是服务端明确拒收，重发也不会成功
+                        resp.optString("code") == "RATE_LIMITED" -> cont.resume(Result.failure(RuntimeException(resp.optString("error", "发送失败"))))
+                        else -> cont.resume(Result.failure(ServerRejectedException(resp.optString("error", "发送失败"))))
                     }
                 }
 
@@ -840,3 +852,6 @@ class SocketManager @Inject constructor(
         val AUTH_FAILURE_HINTS = listOf("未授权", "失效", "请重新登录", "账号已被封禁", "Token无效")
     }
 }
+
+/** 服务端明确拒收（ack.success=false 且非限流），message 为可直接展示给用户的原因 */
+class ServerRejectedException(message: String) : RuntimeException(message)

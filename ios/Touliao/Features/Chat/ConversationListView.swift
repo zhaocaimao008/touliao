@@ -350,6 +350,7 @@ struct ConversationRow: View {
         case "sticker": body = "[表情]"
         case "nudge": body = "[拍一拍]"
         case "call": body = conversation.lastMessage ?? "[通话]"   // content 即人话,直接显示
+        case "system": return conversation.lastMessage ?? ""   // 群系统提示：content 即人话，不加发送者前缀
         case "contact_card", "contact": body = "[名片]"
         case "merged": body = "[聊天记录]"   // F5 合并转发：列表预览用占位符，不露 JSON 原文
         default: body = conversation.lastMessage ?? ""

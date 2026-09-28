@@ -15,7 +15,10 @@ const SocketCoreContext   = createContext(null);
 const SocketStatusContext = createContext({ connected: false, reconnectCount: 0 });
 
 export const SocketProvider = ({ children }) => {
-  const { user } = useAuth();
+  const { user, updateUser } = useAuth();
+  // updateUser 每次渲染都是新函数：经 ref 读取，避免放进 socket effect 依赖导致重连
+  const updateUserRef = useRef(updateUser);
+  useEffect(() => { updateUserRef.current = updateUser; }, [updateUser]);
   const [socket, setSocket]           = useState(null);
   const [connected, setConnected]     = useState(false);
   const [reconnectCount, setReconnectCount] = useState(0);
@@ -98,6 +101,10 @@ export const SocketProvider = ({ children }) => {
     s.on('connect_error', (err) => {
       const msg = err?.message || '';
       if (/未授权|失效|重新登录|封禁|Token无效|用户不存在/.test(msg)) verifySession(msg);
+    });
+    // 本账号在其他设备改了昵称/头像：同步到这台设备（「我」页、发出的新消息署名）
+    s.on('user_profile_updated', (p) => {
+      if (p?.userId === userId) updateUserRef.current?.({ username: p.username, avatar: p.avatar });
     });
     s.on('sync:unread_cleared', (payload) => {
       unreadClearedListeners.current.forEach(fn => fn(payload));

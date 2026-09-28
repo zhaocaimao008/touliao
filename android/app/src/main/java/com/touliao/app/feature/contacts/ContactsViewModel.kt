@@ -48,6 +48,8 @@ class ContactsViewModel @Inject constructor(
     init {
         refresh()
         viewModelScope.launch { contactRepository.friendEvents.collect { refresh() } }
+        // 好友改了昵称/头像：刷新通讯录（备注优先级由服务端返回决定）
+        viewModelScope.launch { contactRepository.profileUpdatedEvents.collect { refresh() } }
         viewModelScope.launch {
             contactRepository.presenceEvents.collect { e ->
                 _uiState.update { s ->

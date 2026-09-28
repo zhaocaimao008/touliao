@@ -15,6 +15,7 @@ internal suspend fun sendOwnedText(
     send: suspend (TokenStore.Snapshot) -> Result<Message>,
     onSuccess: (Message) -> Unit,
     onFailure: () -> Unit,
+    onRejected: (String) -> Unit = { onFailure() },
 ) {
     if (message.sender_id != owner.accountId || !tokens.isCurrent(credential)) return
     val result = send(credential)
@@ -23,9 +24,15 @@ internal suspend fun sendOwnedText(
             if (real.sender_id != owner.accountId || real.conversation_id != message.conversation_id) return@onSuccess
             outbox.remove(message.conversation_id, message.id, owner)
             onSuccess(real)
-        }.onFailure {
-            outbox.upsert(message.conversation_id, message, owner)
-            onFailure()
+        }.onFailure { e ->
+            if (e is com.touliao.app.core.realtime.ServerRejectedException) {
+                // 服务端明确拒收：不进发件箱、不自动重发，把原因告诉用户
+                outbox.remove(message.conversation_id, message.id, owner)
+                onRejected(e.message.orEmpty())
+            } else {
+                outbox.upsert(message.conversation_id, message, owner)
+                onFailure()
+            }
         }
     }
 }
