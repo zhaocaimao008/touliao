@@ -5,9 +5,9 @@
 
     <!-- 启动屏：SplashScreen API，冷启动无白屏 -->
     <style name="Theme.Touliao.Splash" parent="Theme.SplashScreen">
-        <!-- 浅色窗口背景（与 TouliaoLightPalette.background 一致） -->
-        <item name="windowSplashScreenBackground">#F4F6FA</item>
-        <item name="windowSplashScreenAnimatedIcon">@mipmap/ic_launcher</item>
+        <!-- 品牌启动页：深紫黑背景 + 居中新图标（带少量金色光晕），浅色/深色模式一致 -->
+        <item name="windowSplashScreenBackground">#140A24</item>
+        <item name="windowSplashScreenAnimatedIcon">@drawable/splash_logo</item>
         <item name="windowSplashScreenAnimationDuration">300</item>
         <!-- 启动后切回主主题 -->
         <item name="postSplashScreenTheme">@style/Theme.Touliao</item>
