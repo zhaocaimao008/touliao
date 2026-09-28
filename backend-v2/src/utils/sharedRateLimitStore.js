@@ -9,8 +9,8 @@ function createSharedStores(url, prefix = 'touliao:rl:') {
   let connection;
   async function ready() {
     if (!client) {
-      client = createClient({ url, database: 3, disableOfflineQueue: true,
-        socket: { connectTimeout: 1500, reconnectStrategy: false } });
+      client = require('./redisClients').track(createClient({ url, database: 3, disableOfflineQueue: true,
+        socket: { connectTimeout: 1500, reconnectStrategy: false } }));
       client.on('error', () => {});
     }
     if (!client.isReady) {

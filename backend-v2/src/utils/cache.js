@@ -20,7 +20,7 @@ function init() {
     return Promise.resolve();
   }
 
-  client = redis.createClient({
+  client = require('./redisClients').track(redis.createClient({
     url: process.env.REDIS_URL,
     database: 0,
     socket: {
@@ -31,7 +31,7 @@ function init() {
         return 200;
       },
     },
-  });
+  }));
 
   // 吞掉错误事件，避免未捕获异常 & 日志刷屏
   client.on('error', () => { disabled = true; });
@@ -115,8 +115,16 @@ async function flush() {
   } catch { /* noop */ }
 }
 
+/** 关闭 Redis 连接（优雅退出 / 测试收尾）；之后所有操作 no-op。 */
+async function close() {
+  if (initPromise) await initPromise.catch(() => {});
+  disabled = true;
+  if (client?.isOpen) await client.quit().catch(() => client.disconnect?.());
+}
+
 module.exports = {
   init,
+  close,
   keys,
   get,
   set,

@@ -6,6 +6,9 @@
  */
 require('./testEnv');
 delete process.env.DISABLE_RATE_LIMIT;
+// 用进程内存储验证限流行为本身：共享 Redis 里的计数会跨运行残留（结果依赖外部状态），
+// 共享存储由 shared-rate-limit.test.js 单独覆盖
+delete process.env.REDIS_URL;
 const { request, app, makeUser } = require('./helpers');
 const legalConsent = require('./legal-consent.cjs');
 

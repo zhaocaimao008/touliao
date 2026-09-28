@@ -66,11 +66,11 @@ async function initRedis() {
     return;
   }
   try {
-    redisClient = redis.createClient({
+    redisClient = require('./redisClients').track(redis.createClient({
       url: process.env.REDIS_URL,
       database: 1,  // 使用 db 1，cache 用 db 0
       connectTimeout: 2000,
-    });
+    }));
 
     redisClient.on('error', err => {
       console.warn('[TokenBlacklist] Redis error, falling back to SQLite:', err.message);
@@ -187,6 +187,13 @@ async function clear() {
 }
 
 // 启动时初始化 Redis
-initRedis();
+const redisReady = initRedis();
 
-module.exports = { addToBlacklist, isBlacklisted, credentialKey, clear };
+/** 关闭 Redis 连接（优雅退出 / 测试收尾）。之后回落 SQLite，调用方无需关心。 */
+async function close() {
+  await redisReady.catch(() => {});
+  useRedis = false;
+  if (redisClient?.isOpen) await redisClient.quit().catch(() => redisClient.disconnect?.());
+}
+
+module.exports = { addToBlacklist, isBlacklisted, credentialKey, clear, close };
