@@ -1130,7 +1130,7 @@ function ServerSettings({ onBack }) {
     }
     setCodeResult({ ok: true, msg: entry.name ? t('profile.tenantCodeFound').replace('{name}', entry.name) : t('profile.serverConnectSuccess') });
     setInput(entry.api);
-    await changeServer(entry.api);
+    if (await changeServer(entry.api) === false) setCodeResult({ ok: false, msg: t('profile.serverConnectFail') });
     setResolving(false);
   };
 
@@ -1147,7 +1147,7 @@ function ServerSettings({ onBack }) {
     const url = input.trim().replace(/\/$/, '');
     if (!url.startsWith('http')) return;
     setSaving(true);
-    await changeServer(url);
+    if (await changeServer(url) === false) setTestResult({ ok: false, msg: t('profile.serverConnectFail') });
     setSaving(false);
   };
 

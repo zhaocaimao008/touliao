@@ -9,7 +9,7 @@ import { useNavigate, useLocation, Link } from 'react-router-dom';
 import axios from 'axios';
 import { useAuth } from '../contexts/AuthContext';
 import { useI18n } from '../contexts/I18nContext';
-import { testServerConnection, resolveTenantCode } from '../utils/config';
+import { testServerConnection, resolveTenantCode, saveManualServer } from '../utils/config';
 import { saveCred, hasCred, removeCred, lastRememberedPhone } from '../utils/rememberedCreds';
 import { showToast } from '../utils/toast';
 import AccountWindowButton from '../components/AccountWindowButton';
@@ -102,8 +102,12 @@ export default function Login() {
       setResolvingTenant(false);
       return;
     }
+    if (!await saveManualServer(entry.api)) {
+      setTenantResult({ ok: false, msg: t('auth.connectFail') });
+      setResolvingTenant(false);
+      return;
+    }
     setTenantResult({ ok: true, msg: entry.name ? t('profile.tenantCodeFound').replace('{name}', entry.name) : t('profile.serverConnectSuccess') });
-    localStorage.setItem('touliao_server_url', entry.api);
     axios.defaults.baseURL = entry.api;
     window.location.reload();
   };
@@ -117,10 +121,10 @@ export default function Login() {
     setServerBusy(false);
   };
 
-  const saveServer = () => {
+  const saveServer = async () => {
     const url = serverInput.trim().replace(/\/$/, '');
     if (!url.startsWith('http')) { setServerTest({ ok: false, msg: t('auth.serverProtocolHint') }); return; }
-    localStorage.setItem('touliao_server_url', url);
+    if (!await saveManualServer(url)) { setServerTest({ ok: false, msg: t('auth.connectFail') }); return; }
     axios.defaults.baseURL = url;
     window.location.reload();
   };

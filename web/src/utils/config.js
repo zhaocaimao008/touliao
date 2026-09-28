@@ -211,6 +211,36 @@ export function switchServer(newUrl) {
   } catch { return false; }
 }
 import { clientStorage as localStorage } from './clientStorage';
+
+export const MANUAL_SERVER_KEY = 'touliao_server_url';
+const originOf = (url) => { try { return new URL(url).origin; } catch { return ''; } };
+
+/**
+ * 保存手动服务器地址。桌面端须经主进程确认（仅 https，并同步放行 CSP），
+ * 主进程拒绝时不写本地——否则渲染层请求被 CSP 全部拦下，表现为一直“网络已断开”。
+ */
+export async function saveManualServer(url) {
+  if (window.__ELECTRON_CONFIG__) {
+    const ok = await window.electronAPI?.setServerUrl?.(url);
+    if (!ok) return false;
+  }
+  localStorage.setItem(MANUAL_SERVER_KEY, url);
+  return true;
+}
+
+/**
+ * 读取手动服务器地址。桌面端只接受主进程当前放行的后端：旧版本可能存下了 http/IP
+ * 等主进程从未放行的地址，这类地址直接清除，回退远程配置。
+ */
+export async function readManualServer() {
+  const url = localStorage.getItem(MANUAL_SERVER_KEY);
+  if (!url || !window.__ELECTRON_CONFIG__) return url;
+  const allowed = await window.electronAPI?.getServerUrl?.().catch(() => '') || window.__ELECTRON_CONFIG__.serverUrl;
+  if (originOf(url) && originOf(url) === originOf(allowed)) return url;
+  console.warn('[config] 手动服务器地址未被桌面端放行，已清除并回退默认:', url);
+  localStorage.removeItem(MANUAL_SERVER_KEY);
+  return null;
+}
 import axios from 'axios';
 
 /**
