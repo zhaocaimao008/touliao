@@ -5,7 +5,7 @@
 `.env` 一起丢失，新机必须逐个去各平台后台重办。为杜绝再发生，本机建立 **GPG-AES256 加密保险库**：
 推送与后端凭据全部进库，换服务器 = 解包即用，**不需要再登 Apple / 个推后台**。
 
-## 保险库位置（当前生产机 13.212.117.22）
+## 保险库位置（当前生产机 13.213.234.231）
 - 加密包：`/root/touliao-secrets-vault/touliao-secrets-<日期>.gpg`（每跑一次备份脚本生成新包）
 - 口令文件：`/root/touliao-secrets-vault/.passphrase`（root 600）
 - 备份脚本：`/root/touliao-secrets-vault/backup-vault.sh`

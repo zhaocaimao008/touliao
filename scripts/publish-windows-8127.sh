@@ -10,7 +10,7 @@ esac
 installer="touliao-$version-setup.exe"
 evidence=windows-publication-evidence
 mkdir -p "$evidence"
-test "${DEPLOY_HOST:?}" = 13.212.117.22
+test "${DEPLOY_HOST:?}" = 13.213.234.231
 test -n "${DEPLOY_USER:?}"
 test -n "${DEPLOY_SSH_KEY:?}"
 run_id="${GITHUB_RUN_ID:?}-${GITHUB_RUN_ATTEMPT:?}"
