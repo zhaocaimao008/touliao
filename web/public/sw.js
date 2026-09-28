@@ -1,7 +1,7 @@
 /* 投聊 Service Worker — 离线缓存 + Web Push 推送处理 */
 'use strict';
 
-const CACHE_NAME     = 'touliao-v2.0.21';
+const CACHE_NAME     = 'touliao-v2.0.22';  // 品牌图标更新：让预缓存的 /icon.png 等换新
 // 本应用管理的所有缓存名前缀；激活时只清理此前缀的旧版本，
 // 不误删 API 缓存（touliao-api-v1）或同源其他应用的缓存
 const OWN_CACHE_PREFIX = 'touliao-';
