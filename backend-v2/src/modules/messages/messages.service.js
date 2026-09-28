@@ -519,6 +519,8 @@ async function batchDelete(io, userId, { msgIds, conversationId }) {
 
 // ── 单条撤回 / 个人删除 / 彻底删除 ───────────────────────────────
 async function remove(io, userId, msgId, forEveryone, vanish, forMe) {
+  // 必须指明撤回方式；三者皆假时原先直接返回成功却什么都没做，客户端会误以为已撤回/删除
+  if (!forEveryone && !vanish && !forMe) throw badRequest('请指定删除方式（forEveryone / forMe / vanish）');
   const msg = db.prepare('SELECT * FROM messages WHERE id=?').get(msgId);
   if (!msg) throw notFound('消息不存在');
 

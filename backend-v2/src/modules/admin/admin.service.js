@@ -275,6 +275,11 @@ function deleteUser(io, id) {
         db.prepare('DELETE FROM conversations WHERE id=?').run(g.id);
       }
     }
+    // 记下该用户参与的私聊，供下方清理空会话（只清理与本用户相关的，见下）
+    const myPrivateConvs = db.prepare(`
+      SELECT cm.conversation_id AS id FROM conversation_members cm
+      JOIN conversations c ON c.id = cm.conversation_id AND c.type = 'private'
+      WHERE cm.user_id = ?`).all(id).map(r => r.id);
     db.prepare('DELETE FROM conversation_members WHERE user_id=?').run(id);
     db.prepare('DELETE FROM user_settings WHERE user_id=?').run(id);
     db.prepare('DELETE FROM user_sessions WHERE user_id=?').run(id);
@@ -315,11 +320,17 @@ function deleteUser(io, id) {
     db.prepare("DELETE FROM moment_notifications WHERE user_id=? OR actor_id=?").run(id, id);
     db.prepare('DELETE FROM moment_reports WHERE reporter_id=?').run(id);
     db.prepare('DELETE FROM moments WHERE user_id=?').run(id);
-    // 清理只剩 0 个成员的私聊会话
-    db.prepare(`
-      DELETE FROM conversations WHERE type='private'
-        AND id NOT IN (SELECT DISTINCT conversation_id FROM conversation_members)
-    `).run();
+    // 清理本用户参与、现已 0 成员且无任何引用数据的私聊会话。
+    // 原先是全库范围 DELETE 所有 0 成员私聊：库里只要有一个别处遗留的空会话还挂着消息
+    // （如对方自助注销后留下的消息），messages 等外键(NO ACTION)就让这条语句失败，
+    // 整个删除用户事务回滚 → 删除任何用户都 500。
+    const dropEmptyPrivate = db.prepare(`
+      DELETE FROM conversations WHERE id = ? AND type = 'private'
+        AND NOT EXISTS (SELECT 1 FROM conversation_members WHERE conversation_id = conversations.id)
+        AND NOT EXISTS (SELECT 1 FROM messages WHERE conversation_id = conversations.id)
+        AND NOT EXISTS (SELECT 1 FROM red_packets WHERE conversation_id = conversations.id)
+        AND NOT EXISTS (SELECT 1 FROM scheduled_messages WHERE conversation_id = conversations.id)`);
+    for (const convId of myPrivateConvs) dropEmptyPrivate.run(convId);
     db.prepare('DELETE FROM users WHERE id=?').run(id);
   })();
   invalidateUser(id); // 驱逐状态缓存

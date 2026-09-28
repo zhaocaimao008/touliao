@@ -429,12 +429,8 @@ app.use('/api/auth',          require('./modules/auth/auth.routes'));
 app.use('/api/users',         require('./modules/users/users.routes'));
 // 后台登录备用路径（绕过 CF WAF /api/admin/* 限流），复用 admin.routes 的防护中间件
 {
-  const rateLimit = require('express-rate-limit');
-  const adminLoginLimiter = rateLimit({
-    windowMs: 15 * 60 * 1000, max: 10,
-    message: { error: '登录尝试过于频繁，请稍后再试' },
-    standardHeaders: true, legacyHeaders: false,
-  });
+  // 与 /api/admin/login 共用同一组限流实例，两条路径合并计数
+  const { adminLoginLimiter, adminUsernameLimiter } = require('./modules/admin/loginLimiters');
   const normIp = ip => (ip || '').replace(/^::ffff:/, '');
   const ipGuard = (req, res, next) => {
     const wl = config.admin.ipWhitelist;
@@ -442,7 +438,7 @@ app.use('/api/users',         require('./modules/users/users.routes'));
     if (wl.includes(normIp(req.ip))) return next();
     return res.status(403).json({ error: '后台仅限白名单 IP 访问' });
   };
-  app.post('/api/vxin-admin-login', ipGuard, adminLoginLimiter, require('./modules/admin/admin.controller').login);
+  app.post('/api/vxin-admin-login', ipGuard, adminLoginLimiter, adminUsernameLimiter, require('./modules/admin/admin.controller').login);
 }
 app.use('/api/messages',      require('./modules/messages/messages.routes'));
 app.use('/api/moments',       require('./modules/moments/moments.routes'));

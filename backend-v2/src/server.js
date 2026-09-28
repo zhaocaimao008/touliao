@@ -209,6 +209,7 @@ async function startServer() {
       // 级别写进日志/Sentry（生产实测 57 条全产生在这个关停窗口里）。
       notificationQueue.stop();
       await redisCache.disconnect();
+      await Promise.all([require('./utils/tokenBlacklist').close(), require('./utils/cache').close(), require('./middleware/rateLimiters').close()]).catch(() => {});
       await tracing.shutdown();
     } catch {}
     server.close(() => process.exit(0));

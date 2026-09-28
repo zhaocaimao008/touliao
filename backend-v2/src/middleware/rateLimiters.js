@@ -225,4 +225,6 @@ if (process.env.DISABLE_RATE_LIMIT === '1') {
   const noop = (req, res, next) => next();
   for (const k of Object.keys(limiters)) limiters[k] = noop;
 }
+// 关闭共享限流存储的 Redis 连接（优雅退出 / 测试收尾）；未启用共享存储时为 no-op。不可枚举，不混入限流器列表
+Object.defineProperty(limiters, 'close', { value: async () => { await sharedStores?.close(); } });
 module.exports = limiters;

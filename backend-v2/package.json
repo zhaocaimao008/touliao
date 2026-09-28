@@ -7,10 +7,10 @@
     "start": "node src/server.js",
     "dev": "nodemon src/server.js",
     "test:e2e": "node test/e2e.js",
-    "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js --forceExit --runInBand --testPathIgnorePatterns /node_modules/ performance.test.js",
-    "test:perf": "node --experimental-vm-modules node_modules/jest/bin/jest.js --forceExit --runInBand performance.test.js",
+    "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js --runInBand --testPathIgnorePatterns /node_modules/ performance.test.js",
+    "test:perf": "node --experimental-vm-modules node_modules/jest/bin/jest.js --runInBand performance.test.js",
     "test:watch": "node --experimental-vm-modules node_modules/jest/bin/jest.js --watch",
-    "test:coverage": "node --experimental-vm-modules node_modules/jest/bin/jest.js --coverage --forceExit --runInBand --testPathIgnorePatterns /node_modules/ performance.test.js"
+    "test:coverage": "node --experimental-vm-modules node_modules/jest/bin/jest.js --coverage --runInBand --testPathIgnorePatterns /node_modules/ performance.test.js"
   },
   "jest": {
     "testEnvironment": "node",
@@ -20,7 +20,7 @@
     "setupFiles": [
       "<rootDir>/test/testEnv.js"
     ],
-    "setupFilesAfterEnv": ["<rootDir>/test/teardownWriter.js"],
+    "setupFilesAfterEnv": ["<rootDir>/test/teardownWriter.js", "<rootDir>/test/teardownRedis.js"],
     "globalSetup": "<rootDir>/test/globalSetup.js",
     "globalTeardown": "<rootDir>/test/globalTeardown.js",
     "collectCoverageFrom": [

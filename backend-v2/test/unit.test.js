@@ -9,9 +9,6 @@ const { addToBlacklist, isBlacklisted, clear: clearBlacklist } = require('../src
 const cache = require('../src/utils/cache');
 const { metrics } = require('../src/utils/monitoring');
 
-// 限流被 DISABLE_RATE_LIMIT 关闭时，跳过依赖 429 的用例
-const rlTest = process.env.DISABLE_RATE_LIMIT === '1' ? test.skip : test;
-
 let user;
 beforeAll(async () => { user = await makeUser({ username: 'unit_user' }); });
 
@@ -68,17 +65,7 @@ describe('Token 黑名单', () => {
   });
 });
 
-describe('限流', () => {
-  rlTest('连续登录失败 5 次后被限流 429', async () => {
-    let lastStatus;
-    for (let i = 0; i < 6; i++) {
-      const res = await request(app).post('/api/auth/login')
-        .send({ ...({ phone: user.phone, password: 'wrong-password-x' }), legalConsent: require('./legal-consent.cjs') });
-      lastStatus = res.status;
-    }
-    expect(lastStatus).toBe(429);
-  });
-});
+// 依赖 429 的限流用例在 rate-limit-enabled.test.js（本文件运行时限流是关闭的）
 
 describe('安全', () => {
   test('搜索注入串不致 500（未授权走 401）', async () => {
