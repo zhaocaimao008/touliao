@@ -188,7 +188,8 @@ module.exports = function registerFileHandler(io, socket) {
         const existing = checkDedup(userId, data.clientMsgId, data.conversationId);
         if (existing) { ack?.({ success: true, message: dedupPayload(existing) }); return; }
       }
-      ack?.({ success: false, error: '服务器内部错误，请重试' });
+      // 暂时性故障按可重发回执（见 message.js 同处说明）
+      ack?.({ success: false, error: '服务器繁忙，请稍后重试', code: 'RATE_LIMITED', retryAfterMs: 1000 });
     }
   });
 };

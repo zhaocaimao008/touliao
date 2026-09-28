@@ -239,8 +239,9 @@ module.exports = function setupRealtime(io, app) {
         }
         next();
       } catch {
-        // 鉴权检查自身异常时 fail-closed：拒绝事件（安全优先）
-        socket.disconnect(true);
+        // 鉴权检查自身异常（如写库繁忙导致查询抛错）时 fail-closed：拒绝本次事件（安全优先），
+        // 但不断开连接——服务端主动断开后 iOS 客户端不会自动重连，会一直停在「断开」直到重启 App。
+        // 凭据真失效的情况在上面各分支已明确断开；这里只是暂时查不了，下个事件会重新检查。
         next(new Error('鉴权检查失败'));
       }
     });
