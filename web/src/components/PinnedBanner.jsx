@@ -33,10 +33,10 @@ function PinnedBanner({ pinnedMessages, showPinnedDetail, onToggleDetail, onUnpi
                 <div className="wc-pinned-item-meta">{t('pinned.pinnedByTemplate').replace('{sender}', p.senderName).replace('{by}', p.pinnedByName)}</div>
                 <div className="wc-pinned-item-text">{p.type === 'image' ? t('chatlist.previewImage') : p.content}</div>
               </div>
-              <button className="wc-unpin-btn"
+              {onUnpin && (<button className="wc-unpin-btn"
                 onClick={e => { e.stopPropagation(); onUnpin(p.msgId); }}>
                 {t('chat.unpinMessage')}
-              </button>
+              </button>)}
             </div>
           ))}
         </div>

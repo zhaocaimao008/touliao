@@ -693,7 +693,7 @@ fun ChatScreen(
                             redPacket = viewModel.parseRedPacket(msg),
                             onOpenRedPacket = { viewModel.openRedPacket(msg) },
                             transfer = viewModel.parseTransfer(msg),
-                            canPin = viewModel.isGroup,
+                            canPin = viewModel.isGroup && state.canManageGroup, // 服务端只允许群主/管理员置顶
                             isPinned = viewModel.isPinned(msg.id),
                             onTogglePin = { if (viewModel.isPinned(msg.id)) viewModel.unpinMessage(msg.id) else viewModel.pinMessage(msg) },
                             canEdit = viewModel.canEdit(msg),
@@ -882,7 +882,7 @@ fun ChatScreen(
                                 Text(p.senderName.ifBlank { "成员" }, fontSize = com.touliao.app.ui.theme.VxinTextSize.sm, color = VxinTextSecondary)
                                 Text(pinnedPreview(p), maxLines = 2, overflow = TextOverflow.Ellipsis)
                             }
-                            TextButton(onClick = { viewModel.unpinMessage(p.msgId) }) { Text("取消", color = com.touliao.app.ui.theme.VxinError) }
+                            if (state.canManageGroup) TextButton(onClick = { viewModel.unpinMessage(p.msgId) }) { Text("取消", color = com.touliao.app.ui.theme.VxinError) }
                         }
                         HorizontalDivider(thickness = 0.5.dp, color = VxinHairline)
                     }
