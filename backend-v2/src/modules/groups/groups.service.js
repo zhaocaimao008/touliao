@@ -414,8 +414,32 @@ function listPinned(convId, userId) {
   `).all(convId);
 }
 
+// 会改变成员会话列表内容（群名/头像/成员/角色/是否在群）的操作：完成后失效操作前后全体成员的
+// 列表缓存（含被移出/退群/解散而不再是成员的人）。否则客户端收到 group_updated 等事件立刻重拉列表时，
+// 会拿到 2s 缓存里的旧群名、已退出的群，且此后不会再刷新。
+const _members = db.prepare('SELECT user_id FROM conversation_members WHERE conversation_id=?');
+function invalidatingLists(fn, convIdArg) {
+  return (...args) => {
+    const before = convIdArg != null && args[convIdArg] ? _members.all(args[convIdArg]).map(r => r.user_id) : [];
+    const done = (result) => {
+      const convId = convIdArg != null ? args[convIdArg] : result?.conversationId;
+      const ids = new Set(before);
+      if (convId) _members.all(convId).forEach(r => ids.add(r.user_id));
+      const { invalidateConvCacheForUser } = require('../conversations/conversations.service');
+      ids.forEach(invalidateConvCacheForUser);
+      return result;
+    };
+    const r = fn(...args);
+    return r && typeof r.then === 'function' ? r.then(done) : done(r);
+  };
+}
+
 module.exports = {
-  setNickname, createInviteLink, getQrCode, previewByToken, joinByToken,
-  updateInfo, setAvatar, invite, kick, leave, dissolve, info, manage, setRole, transferOwner,
+  setNickname: invalidatingLists(setNickname, 1), createInviteLink, getQrCode, previewByToken,
+  joinByToken: invalidatingLists(joinByToken, null),
+  updateInfo: invalidatingLists(updateInfo, 1), setAvatar: invalidatingLists(setAvatar, 1),
+  invite: invalidatingLists(invite, 1), kick: invalidatingLists(kick, 1), leave: invalidatingLists(leave, 1),
+  dissolve: invalidatingLists(dissolve, 1), info, manage: invalidatingLists(manage, 1),
+  setRole: invalidatingLists(setRole, 1), transferOwner: invalidatingLists(transferOwner, 1),
   pinMessage, unpinMessage, listPinned,
 };

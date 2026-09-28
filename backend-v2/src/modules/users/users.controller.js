@@ -15,6 +15,8 @@ function broadcastProfile(req, userId) {
   const rooms = new Set([`user_${userId}`]);
   readDb.prepare('SELECT user_id FROM contacts WHERE contact_id=?').all(userId).forEach(r => rooms.add(`user_${r.user_id}`));
   readDb.prepare('SELECT conversation_id FROM conversation_members WHERE user_id=?').all(userId).forEach(r => rooms.add(r.conversation_id));
+  // 对方收到后会立刻重拉会话列表/通讯录：先失效列表缓存，否则拿到的是 2s 缓存里的旧昵称/头像
+  require('../conversations/conversations.service').invalidateAllConvCaches();
   io.to([...rooms]).emit('user_profile_updated', { userId, username: u.username, avatar: u.avatar || '' });
 }
 
