@@ -66,7 +66,8 @@ const { _electron: electron } = require('playwright');
     if (process.platform === 'win32') {
       await page.waitForFunction(() => document.documentElement.classList.contains('windows-desktop'));
       assert.equal(await page.evaluate(() => window.__ELECTRON_CONFIG__.platform), 'win32');
-      assert.equal(await page.locator('.windows-account-entry button').count(), 1);
+      // 多开只靠再次双击图标（下面的并发普通启动覆盖），登录页不再有“新窗口登录”按钮。
+      assert.equal(await page.getByText('在新窗口登录其他账号').count(), 0);
       await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].setContentSize(900, 600));
       await page.waitForFunction(() => innerWidth === 900 && innerHeight === 600);
       await page.evaluate(() => document.fonts.ready);
