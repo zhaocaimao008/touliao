@@ -1,6 +1,6 @@
 {
   "name": "touliao-desktop",
-  "version": "8.1.40",
+  "version": "8.1.41",
   "description": "投聊 桌面客户端",
   "homepage": "https://touliao.cc",
   "author": {
@@ -55,7 +55,8 @@
       "shortcutName": "投聊",
       "runAfterFinish": true,
       "installerIcon": "assets/icon.ico",
-      "uninstallerIcon": "assets/icon.ico"
+      "uninstallerIcon": "assets/icon.ico",
+      "include": "installer/installer.nsh"
     },
     "mac": {
       "target": [
