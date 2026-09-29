@@ -18,7 +18,7 @@ struct ChatView: View {
     @Environment(\.dismiss) private var dismiss
     @FocusState private var messageFocused: Bool
     @ScaledMetric(relativeTo: .body) private var minimumInputWidth: CGFloat = 128
-    @State private var photoItem: PhotosPickerItem?
+    @State private var photoItems: [PhotosPickerItem] = []
     @State private var bgPhotoItem: PhotosPickerItem?
     @State private var stickerPhotoItem: PhotosPickerItem?
     @State private var videoItem: PhotosPickerItem?     // 2026-08-29 视频发送修复新增
@@ -170,7 +170,7 @@ struct ChatView: View {
         }
         .onChange(of: vm.closed) { closed in if closed { dismiss() } }
         .onDisappear { vm.onLeave() }
-        .onChange(of: photoItem) { item in handlePhoto(item) }
+        .onChange(of: photoItems) { items in handlePhotos(items) }
         .onChange(of: videoItem) { item in handleVideo(item) }
         .alert("视频导入失败", isPresented: Binding(get: { videoImportError != nil }, set: { if !$0 { videoImportError = nil } })) {
             Button("好", role: .cancel) {}
@@ -737,7 +737,8 @@ struct ChatView: View {
     private var functionPanel: some View {
         ScrollView {
         LazyVGrid(columns: [GridItem(.adaptive(minimum: 72), spacing: 12)], spacing: 16) {
-            PhotosPicker(selection: $photoItem, matching: .images) {
+            // 可多选（最多 9 张），按选择顺序逐张发送
+            PhotosPicker(selection: $photoItems, maxSelectionCount: 9, selectionBehavior: .ordered, matching: .images) {
                 funcItem(icon: "image", label: "图片")
             }
             .accessibilityIdentifier("chat-attach-image")
@@ -865,15 +866,20 @@ struct ChatView: View {
         else { Task { if await AudioRecorder.shared.requestPermission() { vm.startRecording() } } }
     }
 
-    private func handlePhoto(_ item: PhotosPickerItem?) {
-        guard let item else { return }
+    private func handlePhotos(_ items: [PhotosPickerItem]) {
+        guard !items.isEmpty else { return }
         Task {
-            defer { photoItem = nil }
-            guard let data = try? await item.loadTransferable(type: Data.self) else { return }
-            let image = UIImage(data: data)
-            let jpeg = UploadImage.jpeg(from: data, quality: 0.85) ?? data
-            let name = "image_\(Int(Date().timeIntervalSince1970)).jpg"
-            vm.upload(data: jpeg, fileName: name, mimeType: "image/jpeg", localType: "image", preview: image)
+            defer { photoItems = [] }
+            let stamp = Int(Date().timeIntervalSince1970)
+            var images: [ChatViewModel.PickedImage] = []
+            for (index, item) in items.enumerated() {
+                guard let data = try? await item.loadTransferable(type: Data.self) else { continue }
+                let jpeg = UploadImage.jpeg(from: data, quality: 0.85) ?? data
+                let name = items.count == 1 ? "image_\(stamp).jpg" : "image_\(stamp)_\(index + 1).jpg"
+                images.append(.init(data: jpeg, fileName: name, preview: UIImage(data: data)))
+            }
+            if images.count < items.count { vm.error = "有 \(items.count - images.count) 张图片无法读取，已跳过" }
+            vm.uploadImages(images)
         }
     }
 

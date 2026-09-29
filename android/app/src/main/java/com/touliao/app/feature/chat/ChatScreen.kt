@@ -178,8 +178,9 @@ fun ChatScreen(
         )
     }
 
-    val imagePicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
-        uri?.let { viewModel.uploadFromUri(it, previewLocal = true) }
+    // 可多选：按选择顺序逐张发送（ViewModel 内排队，最多 9 张）
+    val imagePicker = rememberLauncherForActivityResult(ActivityResultContracts.GetMultipleContents()) { uris ->
+        viewModel.uploadFromUris(uris, previewLocal = true)
     }
     val filePicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
         uri?.let { viewModel.uploadFromUri(it, previewLocal = false) }

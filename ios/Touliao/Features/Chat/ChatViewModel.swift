@@ -1216,30 +1216,53 @@ final class ChatViewModel: ObservableObject {
         runUpload(item)
     }
 
+    struct PickedImage {
+        let data: Data
+        let fileName: String
+        let preview: UIImage?
+    }
+
+    /// 一次选多张图：占位按选择顺序一次性列出，再逐张上传（上一张发出再发下一张），
+    /// 对方看到的顺序与选择顺序一致，也不会同时占满服务端每人 5 个的直传并发名额。
+    func uploadImages(_ images: [PickedImage]) {
+        let items = images.map {
+            PendingUpload(type: "image", name: $0.fileName, previewImage: $0.preview, data: $0.data, mimeType: "image/jpeg", duration: 0)
+        }
+        guard !items.isEmpty else { return }
+        pending.append(contentsOf: items)
+        Task { [weak self] in
+            for item in items {
+                guard let self else { return }
+                await self.performUpload(item)
+            }
+        }
+    }
+
     /// 执行/重试上传（失败后可重复调用）
     private func runUpload(_ item: PendingUpload) {
-        Task { [weak self] in
-            guard let self else { return }
-            do {
-                let msg: Message
-                if let fileURL = item.fileURL {
-                    msg = try await repo.uploadMediaFile(
-                        conversationId: conversationId, fileURL: fileURL, fileName: item.name, mimeType: item.mimeType,
-                        onProgress: { [weak self] frac in
-                            Task { @MainActor [weak self] in self?.updateProgress(item.id, frac) }
-                        }
-                    )
-                    PickedVideoCleanup.removeFile(fileURL)
-                } else {
-                    guard let data = item.data else { return }
-                    msg = try await repo.uploadMedia(conversationId: conversationId, data: data, fileName: item.name, mimeType: item.mimeType, duration: item.duration)
-                }
-                removePending(item.id)
-                messages = ChatMessageMerge.insertBySeq(messages, msg)
-            } catch {
-                markFailed(item.id)
-                self.error = (error as? LocalizedError)?.errorDescription ?? "上传失败"
+        Task { [weak self] in await self?.performUpload(item) }
+    }
+
+    private func performUpload(_ item: PendingUpload) async {
+        do {
+            let msg: Message
+            if let fileURL = item.fileURL {
+                msg = try await repo.uploadMediaFile(
+                    conversationId: conversationId, fileURL: fileURL, fileName: item.name, mimeType: item.mimeType,
+                    onProgress: { [weak self] frac in
+                        Task { @MainActor [weak self] in self?.updateProgress(item.id, frac) }
+                    }
+                )
+                PickedVideoCleanup.removeFile(fileURL)
+            } else {
+                guard let data = item.data else { return }
+                msg = try await repo.uploadMedia(conversationId: conversationId, data: data, fileName: item.name, mimeType: item.mimeType, duration: item.duration)
             }
+            removePending(item.id)
+            messages = ChatMessageMerge.insertBySeq(messages, msg)
+        } catch {
+            markFailed(item.id)
+            self.error = (error as? LocalizedError)?.errorDescription ?? "上传失败"
         }
     }
 
