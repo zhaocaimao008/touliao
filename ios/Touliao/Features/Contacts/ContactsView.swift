@@ -23,6 +23,7 @@ struct ContactsView: View {
     @State private var remarkText = ""
     @State private var deleteTarget: Contact?
     @State private var blockTarget: Contact?
+    @State private var reportTarget: SafetyTarget?
 
     var body: some View {
         List {
@@ -101,6 +102,7 @@ struct ContactsView: View {
         .listStyle(.plain)
             .scrollContentBackground(.hidden)
             .background(Color.vxinSurface)
+        .sheet(item: $reportTarget) { SafetyReportView(target: $0) }
         .alert("设置备注", isPresented: .constant(remarkTarget != nil)) {
             TextField("留空恢复默认昵称", text: $remarkText)
             Button("取消", role: .cancel) { remarkTarget = nil }
@@ -171,6 +173,7 @@ struct ContactsView: View {
         }
         .contextMenu {
             Button("设置备注") { remarkText = contact.remark ?? ""; remarkTarget = contact }
+            Button("举报用户") { reportTarget = SafetyTarget(type: "user", targetId: contact.id) }
             Button("加入黑名单", role: .destructive) { blockTarget = contact }
             Button("删除好友", role: .destructive) { deleteTarget = contact }
         }

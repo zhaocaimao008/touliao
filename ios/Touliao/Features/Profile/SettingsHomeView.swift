@@ -6,6 +6,7 @@ struct SettingsHomeView: View {
     @State private var clearing = false
     @State private var showClearConfirm = false
     @State private var showAbout = false
+    @State private var showSupport = false
 
     var body: some View {
         ScrollView {
@@ -27,6 +28,21 @@ struct SettingsHomeView: View {
                         TouliaoSettingRow(icon: "device", title: "登录设备管理")
                     }.buttonStyle(.plain)
                 }
+                // 帮助与安全：举报/客服工单（App Store 1.2 用户生成内容要求）+ 隐私政策/用户协议
+                // （直接打开官网页面，与 App Store Connect 填写的隐私政策网址同一份，避免两处文本不一致）
+                TouliaoSettingSection {
+                    Button { showSupport = true } label: {
+                        TouliaoSettingRow(icon: "help", title: "举报与客服")
+                    }.buttonStyle(.plain)
+                    TouliaoSettingDivider()
+                    Link(destination: URL(string: "https://touliao.cc/privacy.html")!) {
+                        TouliaoSettingRow(icon: "security", title: "隐私政策")
+                    }.buttonStyle(.plain)
+                    TouliaoSettingDivider()
+                    Link(destination: URL(string: "https://touliao.cc/terms.html")!) {
+                        TouliaoSettingRow(icon: "fileContent", title: "用户协议")
+                    }.buttonStyle(.plain)
+                }
                 TouliaoSettingSection {
                     Button { showClearConfirm = true } label: {
                         TouliaoSettingRow(icon: "delete", title: "清除缓存", trailing: clearing ? nil : formatBytes(cacheBytes), showsSpinner: clearing)
@@ -45,6 +61,7 @@ struct SettingsHomeView: View {
         .navigationBarTitleDisplayMode(.inline)
         .touliaoPage()
         .task { refreshCacheSize() }
+        .sheet(isPresented: $showSupport) { SafetyReportView(target: SafetyTarget(type: "support", targetId: "support")) }
         .alert("清除缓存", isPresented: $showClearConfirm) {
             Button("取消", role: .cancel) {}
             Button("清除", role: .destructive) { clearCache() }

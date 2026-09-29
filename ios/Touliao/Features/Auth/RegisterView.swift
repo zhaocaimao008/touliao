@@ -57,6 +57,7 @@ struct RegisterView: View {
             VxinGradientButton(title: "注册并登录", loading: vm.loading, enabled: vm.canRegister, action: vm.register)
             .padding(.top, 8)
             .accessibilityIdentifier("register-submit-btn")
+            AgreementNotice(action: "注册")
 
             Spacer()
         }

@@ -89,6 +89,7 @@ struct LoginView: View {
             VxinGradientButton(title: "登录", loading: vm.loading, enabled: vm.canLogin, action: vm.login)
             .padding(.top, 8)
             .accessibilityIdentifier("login-submit-btn")
+            AgreementNotice(action: "登录")
 
             ViewThatFits(in: .horizontal) {
             HStack {
