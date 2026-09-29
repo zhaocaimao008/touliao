@@ -112,7 +112,7 @@ async function addToBlacklist(token, expiresAt) {
     db.transaction(() => {
       const insert = db.prepare('INSERT OR REPLACE INTO token_blacklist (token, expires_at) VALUES (?, ?)');
       for (const key of keys) insert.run(key, expiresAt);
-    })();
+    }).immediate();
   } catch (err) {
     console.error('[TokenBlacklist] SQLite add error:', err.message);
     throw err; // Do not report successful revocation without its durable authority.

@@ -47,7 +47,7 @@ function upsertInviteToken(convId, createdBy) {
     db.prepare('DELETE FROM group_invite_tokens WHERE conversation_id=?').run(convId);
     db.prepare('INSERT INTO group_invite_tokens (token, conversation_id, created_by, expires_at) VALUES (?, ?, ?, ?)')
       .run(token, convId, createdBy, expiresAt);
-  })();
+  }).immediate();
   return { token, expiresAt };
 }
 
@@ -343,7 +343,7 @@ function transferOwner(io, convId, ownerId, newOwnerId) {
     db.prepare('UPDATE conversations SET owner_id=? WHERE id=?').run(newOwnerId, convId);
     db.prepare("UPDATE conversation_members SET role='owner' WHERE conversation_id=? AND user_id=?").run(convId, newOwnerId);
     db.prepare("UPDATE conversation_members SET role='admin' WHERE conversation_id=? AND user_id=?").run(convId, ownerId);
-  })();
+  }).immediate();
   invalidateConv(convId); // 两个人的角色都变了，isMember/memberRole 5s 缓存必须立即失效，否则新群主短时间内仍被当成普通成员拒绝管理操作
 
   if (io) {

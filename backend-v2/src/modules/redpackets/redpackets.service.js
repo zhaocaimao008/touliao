@@ -157,7 +157,7 @@ function reclaimExpired() {
           wallet.applyDeltaTx(p.sender_id, remaining, 'red_packet_refund', p.id, '红包过期退款');
           refunded += 1;
         }
-      })();
+      }).immediate();
     } catch (e) {
       console.error('[redpacket] reclaimExpired 失败:', p.id, e.message);
     }

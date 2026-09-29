@@ -202,7 +202,7 @@ function purgeConversation(id) {
     db.prepare('DELETE FROM group_invite_tokens WHERE conversation_id=?').run(id);
     db.prepare('DELETE FROM conversation_members WHERE conversation_id=?').run(id);
     db.prepare('DELETE FROM conversations WHERE id=?').run(id);
-  })();
+  }).immediate();
 }
 
 // 群昵称：群聊里消息署名优先显示发送者在本群设置的昵称（对齐微信）。在服务端统一替换，

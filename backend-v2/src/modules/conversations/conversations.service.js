@@ -61,7 +61,7 @@ function getOrCreatePrivate(myId, otherId, { internal = false, io = null } = {})
   }
   const id = uuidv4();
   try {
-    _createPrivate(myId, otherId, id);
+    _createPrivate.immediate(myId, otherId, id);
   } catch {
     // concurrent creation: return whichever row won
     const won = _findPrivate.get(myId, otherId);
@@ -88,7 +88,7 @@ function getOrCreateFileHelper(myId) {
   if (existing) return { conversationId: existing.id };
   const id = uuidv4();
   try {
-    _createFileHelper(myId, id);
+    _createFileHelper.immediate(myId, id);
   } catch {
     const won = _findFileHelper.get(myId);
     if (won) return { conversationId: won.id };
@@ -133,7 +133,7 @@ function createGroup(io, ownerId, { name, memberIds }) {
         .run(id, 'group', name, ownerId, groupNumber);
       db.prepare('INSERT INTO conversation_members (conversation_id,user_id,role) VALUES (?,?,?)').run(id, ownerId, 'owner');
       validMemberIds.forEach(uid => addMember.run(id, uid, 'member'));
-    })();
+    }).immediate();
   } catch (e) {
     if (e.code === 'SQLITE_CONSTRAINT_UNIQUE') throw badRequest('群号生成冲突，请重试');
     throw e;
@@ -709,7 +709,7 @@ function batchGetOrCreatePrivate(myId, userIds, { io = null } = {}) {
   needCreate.forEach(uid => {
     const id = uuidv4();
     try {
-      _createPrivate(myId, uid, id);
+      _createPrivate.immediate(myId, uid, id);
       results.push({ userId: uid, conversationId: id });
       if (io) { io.in(`user_${myId}`).socketsJoin(id); io.in(`user_${uid}`).socketsJoin(id); }
     } catch {

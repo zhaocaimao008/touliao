@@ -34,7 +34,7 @@ exports.uploadHandle = asyncHandler(async (req, res) => {
   db.transaction(() => {
     if (countOf(req.user.id) >= MAX_STICKERS) throw badRequest(`表情已达上限 ${MAX_STICKERS} 个`);
     db.prepare('INSERT INTO user_stickers (id,user_id,url) VALUES (?,?,?)').run(id, req.user.id, url);
-  })();
+  }).immediate();
   res.json({ id, url });
 });
 
