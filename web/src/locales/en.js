@@ -188,7 +188,7 @@ export default {
   'chat.uploadFailed': 'Upload failed',
   'chat.sendFailed': 'Send failed',
   'chat.folderNotSupported': 'Sending folders is not supported yet, please compress it first',
-  'chat.onlyOneFileAtATime': 'Only one file can be sent at a time, the first one has been selected',
+  'chat.tooManyFilesTemplate': 'Up to {max} files can be sent at once; the rest were skipped',
   'chat.voiceUploadName': 'Voice',
   'chat.voiceSendFailed': 'Failed to send voice message',
   'chat.micAccessDenied': 'Unable to access microphone',
