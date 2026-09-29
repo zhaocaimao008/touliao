@@ -717,6 +717,27 @@ function NotificationSettings({ onBack }) {
   const [ringtone, setRingtone]           = useState('classic');
   const [saving, setSaving]               = useState(false);
   const [loaded, setLoaded]               = useState(false);
+  // 浏览器通知（Web Push）：仅网页端；桌面端/原生壳走各自的通知通道
+  const webPushSupported = typeof Notification !== 'undefined' && 'serviceWorker' in navigator
+    && typeof PushManager !== 'undefined' && !window.__ELECTRON_CONFIG__ && !window.Capacitor?.isNativePlatform?.();
+  const [browserPerm, setBrowserPerm] = useState(() => (webPushSupported ? Notification.permission : 'unsupported'));
+  // 服务端未配置 Web Push 时不给入口：否则权限给了、订阅却永远建不成
+  useEffect(() => {
+    if (!webPushSupported) return;
+    axios.get('/api/notifications/vapid-public-key')
+      .then(r => { if (!r.data?.publicKey) setBrowserPerm('unsupported'); })
+      .catch(() => setBrowserPerm('unsupported'));
+  }, [webPushSupported]);
+  const enableBrowserPush = () => {
+    // Promise 执行器同步运行 → dispatchEvent 同步触发 Home 的监听，仍在点击手势内
+    new Promise(resolve => window.dispatchEvent(new CustomEvent('touliao:enable-push', { detail: { resolve } })))
+      .then(result => {
+        const next = typeof Notification !== 'undefined' ? Notification.permission : result;
+        setBrowserPerm(next);
+        if (next === 'granted') showToast(t('profile.browserNotifyEnabled'));
+      })
+      .catch(() => {});
+  };
 
   // 初始化：从后端读取用户设置
   useEffect(() => {
@@ -761,6 +782,14 @@ function NotificationSettings({ onBack }) {
       <SLabel>{t('profile.messageNotifications')}</SLabel>
       <div className="wc-notif-pad">
         <Card>
+          {browserPerm !== 'unsupported' && (
+            <CRow label={t('profile.browserNotify')}
+              desc={t(browserPerm === 'granted' ? 'profile.browserNotifyOnDesc'
+                : browserPerm === 'denied' ? 'profile.browserNotifyDeniedDesc' : 'profile.browserNotifyOffDesc')}
+              right={browserPerm === 'default'
+                ? <SecondaryButton data-testid="browser-notify-enable" onClick={enableBrowserPush}>{t('pushGuide.enable')}</SecondaryButton>
+                : <span className="profile-browser-notify-state">{t(browserPerm === 'granted' ? 'profile.browserNotifyOn' : 'profile.browserNotifyBlocked')}</span>} />
+          )}
           <CRow label={t('profile.lockScreenNotify')} desc={t('profile.lockScreenNotifyDesc')}
             right={<TouliaoSwitch value={messageNotify} onChange={v => { setMessageNotify(v); saveSettings('messageNotify', v); }} disabled={saving} />} />
           <CRow label={t('profile.detailPreview')} desc={t('profile.detailPreviewDesc')}
@@ -1382,10 +1411,13 @@ function DesktopSettings({ onBack }) {
 }
 
 /* ── 主页面 ── */
-export default function Profile({ isMobile = false }) {
+export default function Profile({ isMobile = false, onSubPageChange }) {
   const { t } = useI18n();
   const { user, updateUser, logout, accounts, login, switchAccount } = useAuth();
   const [subPage, setSubPage] = useState(null);
+  // 手机端子页面自带「返回」标题栏，告知 Home 收起「我」的大标题，避免两层标题叠在一起
+  useEffect(() => { onSubPageChange?.(subPage); }, [subPage, onSubPageChange]);
+  useEffect(() => () => onSubPageChange?.(null), [onSubPageChange]);
   const [showQR, setShowQR] = useState(false);
   const [updateKeyStatus, setUpdateKeyStatus] = useState(null);
 

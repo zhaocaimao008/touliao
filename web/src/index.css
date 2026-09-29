@@ -4778,6 +4778,7 @@ body.dark-mode .skeleton-box {
 .profile-appearance-label { font-size: var(--text-meta); }
 .profile-font-demo-text { font-size: var(--font-msg, 14px); }
 .profile-time-input { border: 1px solid var(--border-default); border-radius: var(--radius-sm); padding: 4px 8px; font-size: var(--text-base); background: var(--bg-input); color: var(--text-primary); }
+.profile-browser-notify-state { font-size: var(--text-sm); color: var(--text-secondary); white-space: nowrap; }
 .profile-hidden-input { display: none; }
 .profile-test-result { margin-top: 8px; font-size: var(--text-sm2); }
 .profile-shortcut-row-pad { padding-top: 0; }
