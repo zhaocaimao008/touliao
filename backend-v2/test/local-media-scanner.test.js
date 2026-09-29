@@ -79,3 +79,47 @@ test('HEVC-encoded HEIC (phone album default) gets an actionable format error, n
   await expect(scanner.assertAccepted(file, 'image')).rejects.toMatchObject({ status: 400, code: 'UNSUPPORTED_IMAGE_FORMAT' });
   expect(spawn).not.toHaveBeenCalled();
 });
+
+// 手动控制的 worker：调用 finish 才结束，用来模拟审核进行中占着并发名额。
+function heldWorker() {
+  let finish;
+  spawn.mockImplementationOnce(() => {
+    const child = new EventEmitter(); child.stdout = new PassThrough();
+    finish = () => { child.stdout.end(JSON.stringify(decision('approved'))); child.emit('close', 0); };
+    return child;
+  });
+  return () => finish();
+}
+const spawned = n => new Promise(resolve => {
+  const check = () => (spawn.mock.calls.length >= n ? resolve() : setTimeout(check, 5));
+  check();
+});
+
+test('over the concurrency limit, scans queue for a free slot instead of failing (multi-image send)', async () => {
+  const releaseA = heldWorker(), releaseB = heldWorker();
+  worker(decision('approved'));
+  const a = scanner.assertAccepted(image, 'image'), b = scanner.assertAccepted(image, 'image');
+  await spawned(2);
+  const c = scanner.assertAccepted(image, 'image');
+  await new Promise(r => setTimeout(r, 30));
+  expect(spawn).toHaveBeenCalledTimes(2); // 第三张在排队，没有并发第三个进程
+  releaseA();
+  await expect(c).resolves.toMatchObject({ status: 'approved' });
+  releaseB();
+  await expect(Promise.all([a, b])).resolves.toHaveLength(2);
+});
+
+test('a full queue or a queue wait timeout still fails fast as busy, and frees nothing it did not hold', async () => {
+  Object.assign(config.mediaModeration, { maxQueue: 1, queueTimeoutMs: 20 });
+  const releaseA = heldWorker(), releaseB = heldWorker();
+  const a = scanner.assertAccepted(image, 'image'), b = scanner.assertAccepted(image, 'image');
+  await spawned(2);
+  const queued = scanner.assertAccepted(image, 'image');
+  await expect(scanner.assertAccepted(image, 'image')).rejects.toMatchObject({ status: 503, code: 'MEDIA_MODERATION_BUSY' });
+  await expect(queued).rejects.toMatchObject({ status: 503, code: 'MEDIA_MODERATION_BUSY' });
+  releaseA(); releaseB();
+  await Promise.all([a, b]);
+  worker(decision('approved')); worker(decision('approved'));
+  await expect(Promise.all([scanner.assertAccepted(image, 'image'), scanner.assertAccepted(image, 'image')])).resolves.toHaveLength(2);
+  expect(spawn).toHaveBeenCalledTimes(4);
+});

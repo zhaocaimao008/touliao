@@ -8,6 +8,26 @@ const config = require('../../config');
 const { ApiError } = require('../../utils/http');
 
 let active = 0;
+// 超过并发上限时排队等空位，而不是立刻 503：一次选多张图发送时，第 3 张起原先会被
+// 直接拒绝（单张约 0.5s）。队列有上限和等待超时，过载时仍快速失败。
+const waiters = [];
+const busy = () => new ApiError(503, '媒体审核繁忙，请稍后重试', 'MEDIA_MODERATION_BUSY');
+function acquireSlot(c) {
+  if (active < c.maxConcurrent) { active++; return Promise.resolve(); }
+  if (waiters.length >= c.maxQueue) return Promise.reject(busy());
+  return new Promise((resolve, reject) => {
+    const waiter = { resolve, timer: setTimeout(() => {
+      waiters.splice(waiters.indexOf(waiter), 1);
+      reject(busy());
+    }, c.queueTimeoutMs) };
+    waiters.push(waiter);
+  });
+}
+// 空位直接移交给队首等待者，active 不变。
+function releaseSlot() {
+  const next = waiters.shift();
+  if (next) { clearTimeout(next.timer); next.resolve(); } else active--;
+}
 const worker = path.resolve(__dirname, '../../../scripts/media-moderation/scan.py');
 const unavailable = () => new ApiError(503, '图片/视频审核服务暂时不可用，请稍后重试', 'MEDIA_MODERATION_UNAVAILABLE');
 function assertConfigured() {
@@ -54,9 +74,8 @@ function runWorker(args) {
 async function scanFile(filePath, kind) {
   assertConfigured();
   const c = config.mediaModeration;
-  if (active >= c.maxConcurrent) throw new ApiError(503, '媒体审核繁忙，请稍后重试', 'MEDIA_MODERATION_BUSY');
   if (!['image', 'video'].includes(kind)) throw unavailable();
-  active++;
+  await acquireSlot(c);
   let temp;
   try {
     temp = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'touliao-media-scan-'));
@@ -83,7 +102,7 @@ async function scanFile(filePath, kind) {
     return await runWorker(['--kind', kind, '--input', path.resolve(filePath), '--work-dir', temp]);
   } finally {
     try { if (temp) await fs.promises.rm(temp, { recursive: true, force: true }); }
-    finally { active--; }
+    finally { releaseSlot(); }
   }
 }
 

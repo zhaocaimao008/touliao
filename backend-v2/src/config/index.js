@@ -18,6 +18,8 @@ const config = {
     python: process.env.MEDIA_MODERATION_PYTHON || '',
     timeoutMs: 60_000,
     maxConcurrent: 2,
+    maxQueue: 32,
+    queueTimeoutMs: 45_000,
     maxFrames: 32,
     minScore: 0.6,
   },
