@@ -17,17 +17,14 @@ export function Header() {
     >
       <Container className="flex h-16 items-center justify-between">
         <a href="#top" className="flex items-center gap-2.5 group">
-          <span
-            className="flex h-9 w-9 items-center justify-center text-sm font-bold transition-transform group-hover:scale-105"
-            style={{
-              background: 'linear-gradient(135deg, #A94E22 0%, #A94E22 100%)',
-              color: 'white',
-              borderRadius: '10px',
-              boxShadow: '0 2px 8px rgba(196, 97, 47, 0.2)'
-            }}
-          >
-            v
-          </span>
+          <img
+            src="/welcome/icon.png"
+            alt=""
+            width={36}
+            height={36}
+            className="h-9 w-9 transition-transform group-hover:scale-105"
+            style={{ borderRadius: '10px', boxShadow: '0 2px 8px rgba(196, 97, 47, 0.2)' }}
+          />
           <span
             className="font-medium tracking-tight"
             style={{

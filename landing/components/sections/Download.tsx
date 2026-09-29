@@ -11,7 +11,7 @@ export function Download() {
         title={download.heading}
         sub={download.sub}
       />
-      <div className="mx-auto mt-14 grid max-w-4xl gap-5 sm:grid-cols-3">
+      <div className="mx-auto mt-14 grid max-w-5xl gap-5 sm:grid-cols-2 lg:grid-cols-4">
         {download.platforms.map((p, i) => (
           <Reveal key={p.key} delay={i * 80}>
             <div

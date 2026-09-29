@@ -41,12 +41,12 @@ export const hero = {
   pill: '🔒 私有化部署 · 隐私优先',
   title: ['你的数据', '你做主'],
   subtitle:
-    '投聊 —— 私有化部署的私密通讯。聊天、朋友圈、收藏，三端实时同步，数据自主可控。',
+    '投聊 —— 私有化部署的私密通讯。聊天、朋友圈、收藏，多端实时同步，数据自主可控。',
   primary: { label: '立即下载', href: '#download' },
   secondary: { label: '网页版体验', href: site.links.webApp },
   trustBar: [
     { icon: '🔒', label: '全程加密传输' },
-    { icon: '📱', label: '三端一致' },
+    { icon: '📱', label: '多端一致' },
     { icon: '🏠', label: '私有化部署' },
   ],
 } as const;
@@ -62,8 +62,8 @@ export const valueProps = {
     },
     {
       icon: '🔄',
-      title: '三端一致',
-      desc: 'Web、Android、iOS 实时同步，换设备也能无缝衔接。',
+      title: '多端一致',
+      desc: 'Web、Android、iOS、Windows 实时同步，换设备也能无缝衔接。',
     },
     {
       icon: '🖼️',
