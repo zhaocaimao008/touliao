@@ -186,7 +186,7 @@ const translations = {
     'chat.uploadFailed': '上传失败',
     'chat.sendFailed': '发送失败',
     'chat.folderNotSupported': '暂不支持发送文件夹，请压缩后再拖入',
-    'chat.onlyOneFileAtATime': '一次只能发送一个文件，已选择第一个',
+    'chat.tooManyFilesTemplate': '一次最多发送 {max} 个文件，超出的未加入',
     'chat.voiceUploadName': '语音',
     'chat.voiceSendFailed': '语音发送失败',
     'chat.micAccessDenied': '无法访问麦克风',

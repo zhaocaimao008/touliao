@@ -41,6 +41,8 @@ const CHAT_ALLOWED_EXTS = new Set([
   'zip','rar','7z','gz','tar','bz2','xz','tgz',
 ]);
 const CHAT_ACCEPT_ATTR = [...CHAT_ALLOWED_EXTS].map(e => '.' + e).join(',');
+// 多选/拖入一次最多排队的文件数（与微信一次选图上限同量级，避免误拖整个目录几百个文件）
+const MAX_QUEUED_FILES = 20;
 // 媒体消息类型(图片/视频/文件/语音/名片/红包/表情)：flatItems 逐条判断是否参与"连续消息"压缩，
 // 原为循环体内每条消息都 new Set 一次，提到模块级避免重复分配。
 const MEDIA_TYPES = new Set(['image', 'video', 'file', 'voice', 'contact_card', 'red_packet', 'sticker', 'merged']);
@@ -2087,10 +2089,28 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
     await doUpload();
   }, [uploadToCloud, uploadLocal, uploadChunked, socket, conversation.id, replyTo, t, user.id, user.username, user.avatar]);
 
+  // 多文件发送队列：多选/拖入/粘贴的文件按顺序逐个上传发送（handleFileSelect 会 await 到
+  // 上传结束）；上传中再加入的文件排到队尾，而不是被「请等待上传完成」拒掉。
+  const fileQueueRef = useRef([]);
+  const drainingRef = useRef(false);
+  const enqueueFiles = useCallback(async (list) => {
+    const files = Array.from(list || []).filter(Boolean);
+    if (!files.length) return;
+    const room = MAX_QUEUED_FILES - fileQueueRef.current.length;
+    if (files.length > room) showToast(t('chat.tooManyFilesTemplate').replace(/\{max\}/g, MAX_QUEUED_FILES), 'info');
+    fileQueueRef.current.push(...files.slice(0, Math.max(0, room)));
+    if (drainingRef.current) return;
+    drainingRef.current = true;
+    try {
+      while (fileQueueRef.current.length) await handleFileSelect(fileQueueRef.current.shift());
+    } finally { drainingRef.current = false; }
+  }, [handleFileSelect, t]);
+  useEffect(() => () => { fileQueueRef.current = []; }, []);
+
   const handleFileUpload = (e) => {
-    const file = e.target.files[0];
+    const files = Array.from(e.target.files || []);
     e.target.value = '';
-    if (file) handleFileSelect(file);
+    enqueueFiles(files);
   };
 
   // 截图并发送到当前会话：截图按钮 + 全局快捷键(Ctrl+Alt+A)共用同一入口。
@@ -2100,8 +2120,8 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
     if (!base64) return;
     const blob = await (await fetch(base64)).blob();
     const file = new File([blob], `screenshot-${Date.now()}.png`, { type: 'image/png' });
-    handleFileSelect(file);
-  }, [handleFileSelect]);
+    enqueueFiles([file]);
+  }, [enqueueFiles]);
 
   // 全局快捷键触发的截图：只有聊天窗打开时才发送到当前会话（ChatWindow 挂载即代表有会话）。
   useEffect(() => {
@@ -2116,6 +2136,7 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
   const handlePaste = useCallback((e) => {
     const items = e.clipboardData?.items;
     if (!items) return;
+    const pasted = [];
     for (const it of items) {
       if (it.kind !== 'file') continue;         // 只处理文件项；文本走默认粘贴
       const blob = it.getAsFile();
@@ -2127,10 +2148,10 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
         const ext = (it.type.split('/')[1] || 'png').split('+')[0];
         file = new File([blob], `paste-${Date.now()}.${ext}`, { type: it.type });
       }
-      handleFileSelect(file);
-      return;                                     // 一次只发一个（handleFileSelect 也会挡并发）
+      pasted.push(file);
     }
-  }, [handleFileSelect]);
+    enqueueFiles(pasted);
+  }, [enqueueFiles]);
 
   // 发送表情包（后端创建 image 消息并广播，发送方经 socket 回显）
   const sendSticker = useCallback((stickerId) => {
@@ -2166,11 +2187,7 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
         return;
       }
     }
-    const files = e.dataTransfer.files;
-    const file = files[0];
-    if (!file) return;
-    if (files.length > 1) showToast(t('chat.onlyOneFileAtATime'), 'info');
-    handleFileSelect(file);
+    enqueueFiles(e.dataTransfer.files);
   };
 
   // Voice recording
@@ -2969,13 +2986,14 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
 
           <label data-tool="image" className="wc-tool-btn wc-tool-label" title={t('chat.image')} aria-label={t('chat.sendImage')}>
             <IcoImage />
-            <input type="file" data-testid="chat-attach-image" accept="image/jpeg,image/png,image/gif,image/webp" className="wc-hidden-input" onChange={handleFileUpload} />
+            <input type="file" multiple data-testid="chat-attach-image" accept="image/jpeg,image/png,image/gif,image/webp" className="wc-hidden-input" onChange={handleFileUpload} />
           </label>
 
           <label data-tool="file" className="wc-tool-btn wc-tool-label" title={t('chat.file')} aria-label={t('chat.sendFile')}>
             <IcoFile />
             <input
               type="file"
+              multiple
               data-testid="chat-attach-file"
               ref={fileInputRef}
               className="wc-hidden-input"

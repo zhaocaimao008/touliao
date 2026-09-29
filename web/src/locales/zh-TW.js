@@ -188,7 +188,7 @@ export default {
   'chat.uploadFailed': '上傳失敗',
   'chat.sendFailed': '傳送失敗',
   'chat.folderNotSupported': '暫不支援傳送資料夾，請壓縮後再拖入',
-  'chat.onlyOneFileAtATime': '一次只能傳送一個檔案，已選擇第一個',
+  'chat.tooManyFilesTemplate': '一次最多傳送 {max} 個檔案，超出的未加入',
   'chat.voiceUploadName': '語音',
   'chat.voiceSendFailed': '語音傳送失敗',
   'chat.micAccessDenied': '無法存取麥克風',
