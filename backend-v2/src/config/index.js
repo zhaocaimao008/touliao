@@ -19,6 +19,7 @@ const config = {
     timeoutMs: 60_000,
     maxConcurrent: 2,
     maxQueue: 32,
+    resident: true,         // 常驻审核进程（模型只加载一次）；false 时每次启动一个进程
     queueTimeoutMs: 45_000,
     maxFrames: 32,
     minScore: 0.6,

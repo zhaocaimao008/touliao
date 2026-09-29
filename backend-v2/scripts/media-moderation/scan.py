@@ -10,6 +10,7 @@ import json
 import math
 from pathlib import Path
 import subprocess
+import sys
 
 BLOCKED_CLASSES = frozenset({
     'FEMALE_BREAST_EXPOSED', 'FEMALE_GENITALIA_EXPOSED',
@@ -79,35 +80,66 @@ def detector():
     return result
 
 
+def scan(model, kind, filename, work_dir, threshold, max_frames):
+    if not 0 < threshold < 1 or not 1 <= max_frames <= 32:
+        raise ValueError('invalid screening configuration')
+    directory = Path(work_dir)
+    try:
+        frames = (video_frames(filename, directory, max_frames)
+                  if kind == 'video' else sorted(directory.glob('*.jpg')))
+        if not 1 <= len(frames) <= max_frames:
+            raise ValueError('invalid frame count')
+    except (ValueError, subprocess.CalledProcessError):
+        return {'status': 'invalid'}
+    for index, frame in enumerate(frames):
+        if is_blocked(model.detect(str(frame)), threshold):
+            return {'status': 'blocked', 'scope': 'nudity',
+                    'model': 'nudenet-320n-3.4.2', 'frames': index + 1}
+    return {'status': 'approved', 'scope': 'nudity',
+            'model': 'nudenet-320n-3.4.2', 'frames': len(frames)}
+
+
+def serve():
+    """常驻模式：模型只加载一次（约 0.33s），之后每行一个 JSON 请求、回一行 JSON 结果。
+
+    单张识别约 37ms；逐次启动时每张都要重新 import + 加载模型。任何未预期的异常只回
+    status=error（调用方按不可用处理，绝不放行），进程继续服务下一条。
+    """
+    model = detector()
+    print(json.dumps({'ready': True, 'model': 'nudenet-320n-3.4.2'}), flush=True)
+    for line in sys.stdin:
+        request_id = None
+        try:
+            request = json.loads(line)
+            request_id = request['id']
+            result = scan(model, request['kind'], request['input'], request['workDir'],
+                          float(request['threshold']), int(request['maxFrames']))
+        except Exception:
+            result = {'status': 'error'}
+        result['id'] = request_id
+        print(json.dumps(result), flush=True)
+
+
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--kind', choices=['image', 'video'], required=True)
-    parser.add_argument('--input', required=True)
-    parser.add_argument('--work-dir', required=True)
-    parser.add_argument('--threshold', type=float, required=True)
-    parser.add_argument('--max-frames', type=int, required=True)
+    parser.add_argument('--serve', action='store_true')
+    parser.add_argument('--kind', choices=['image', 'video'])
+    parser.add_argument('--input')
+    parser.add_argument('--work-dir')
+    parser.add_argument('--threshold', type=float)
+    parser.add_argument('--max-frames', type=int)
     args = parser.parse_args()
+    if args.serve:
+        serve()
+        return
+    if not (args.kind and args.input and args.work_dir and args.threshold is not None and args.max_frames):
+        parser.error('--kind, --input, --work-dir, --threshold and --max-frames are required')
     if not 0 < args.threshold < 1 or not 1 <= args.max_frames <= 32:
         raise ValueError('invalid screening configuration')
     # Load the actual model before emitting any decision. Missing dependencies,
     # corrupt weights, and inference errors exit nonzero and never approve media.
     model = detector()
-    directory = Path(args.work_dir)
-    try:
-        frames = (video_frames(args.input, directory, args.max_frames)
-                  if args.kind == 'video' else sorted(directory.glob('*.jpg')))
-        if not 1 <= len(frames) <= args.max_frames:
-            raise ValueError('invalid frame count')
-    except (ValueError, subprocess.CalledProcessError):
-        print(json.dumps({'status': 'invalid'}))
-        return
-    for index, frame in enumerate(frames):
-        if is_blocked(model.detect(str(frame)), args.threshold):
-            print(json.dumps({'status': 'blocked', 'scope': 'nudity',
-                              'model': 'nudenet-320n-3.4.2', 'frames': index + 1}))
-            return
-    print(json.dumps({'status': 'approved', 'scope': 'nudity',
-                      'model': 'nudenet-320n-3.4.2', 'frames': len(frames)}))
+    print(json.dumps(scan(model, args.kind, args.input, args.work_dir, args.threshold, args.max_frames)))
 
 
 if __name__ == '__main__':
