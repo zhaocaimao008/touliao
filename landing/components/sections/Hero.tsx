@@ -141,20 +141,7 @@ export function Hero() {
 
         <Reveal delay={200} className="flex justify-center lg:justify-end">
           <div className="relative">
-            {/* 真实产品截图框架 */}
-            <div
-              className="relative overflow-hidden"
-              style={{
-                width: '320px',
-                height: '640px',
-                borderRadius: '2.5rem',
-                background: 'white',
-                boxShadow: '0 20px 60px rgba(31, 36, 33, 0.12), 0 0 0 1px rgba(31, 36, 33, 0.04)',
-                border: '8px solid #1F2421'
-              }}
-            >
-              <PhoneMock />
-            </div>
+            <PhoneMock />
             {/* 装饰圆点 */}
             <div
               className="absolute -right-4 -top-4 h-24 w-24 rounded-full opacity-20"
