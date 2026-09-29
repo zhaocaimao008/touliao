@@ -393,7 +393,7 @@ async function changePhone(userId, { new_phone, password }) {
     throw badRequest('手机号格式不正确');
 
   // 校验密码
-  const bcrypt = require('bcryptjs');
+  const bcrypt = require('../../utils/passwordHash');
   const user = db.prepare('SELECT password, phone FROM users WHERE id=?').get(userId);
   if (!user) throw notFound('用户不存在');
   if (!await bcrypt.compare(password, user.password)) throw badRequest('密码错误');

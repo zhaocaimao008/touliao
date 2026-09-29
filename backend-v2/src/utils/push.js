@@ -73,18 +73,29 @@ function langOf(userId) {
   }
 }
 
+// 高频路径（群消息每个成员一次）的语句预编译复用：better-sqlite3 的 prepare 本身
+// 要解析 SQL，压测里逐次 prepare 占服务端 CPU 约 6%。
+let _stmts = null;
+function stmts() {
+  if (!_stmts) _stmts = {
+    webSubs: db.prepare('SELECT * FROM push_subscriptions WHERE user_id=?'),
+    deviceTokens: db.prepare('SELECT * FROM device_tokens WHERE user_id=?'),
+  };
+  return _stmts;
+}
+
 async function pushToUser(userId, payload) {
   // 调用方没显式给 lang 时按收件人解析一次，保证下面个推的兜底文案也是对的语言
   if (!payload.lang) payload = { ...payload, lang: langOf(userId) };
   const promises = [];
 
-  const webSubs = db.prepare('SELECT * FROM push_subscriptions WHERE user_id=?').all(userId);
+  const webSubs = stmts().webSubs.all(userId);
   // 一次查出该用户全部 device_tokens，按 platform 在内存里分组——此前这里分 4 次
   // （android/ios_apns/ios/getui）各查一遍同一张表，pushNewMessage 对群内每个非发送者
   // 成员都调一次 pushToUser，500 人群一条消息就是 2000 次同步 better-sqlite3 查询堵
   // 事件循环。三行外的 push_subscriptions 早就是单次查询，唯独 device_tokens 这 4 次
   // 一直没跟上，属同一处遗漏。
-  const deviceTokens = db.prepare('SELECT * FROM device_tokens WHERE user_id=?').all(userId);
+  const deviceTokens = stmts().deviceTokens.all(userId);
   const tokensOf = (platform) => deviceTokens.filter(r => r.platform === platform);
   for (const row of webSubs) {
     try {
@@ -227,9 +238,19 @@ async function pushNewMessage({ conversationId, senderId, senderName, content, t
   //   · App 在前台且在当前会话 → 客户端静默丢弃（避免打扰）
   //   · App 在后台/锁屏/被杀 → 系统或客户端本地通知栏展示
   // onlineUserIds 保留仅用于日志/未来精细化，不再用于过滤。
-  const targetUids = members
+  const memberUids = members
     .map(m => m.user_id)
     .filter(uid => uid !== senderId);
+  if (!memberUids.length) return;
+  // 只为有推送通道（设备令牌 / Web Push 订阅）的成员算设置和未读数——pushToUser 的
+  // 全部通道都来自这两张表，没有通道的成员算了也推不出去。压测：300 人全在线、群里
+  // 大多数成员没有推送通道时，这一步前的全量计算占服务端 CPU 约 35%。
+  const memberPh = memberUids.map(() => '?').join(',');
+  const withChannel = new Set(db.prepare(`
+    SELECT user_id FROM device_tokens WHERE user_id IN (${memberPh})
+    UNION SELECT user_id FROM push_subscriptions WHERE user_id IN (${memberPh})
+  `).pluck().all(...memberUids, ...memberUids));
+  const targetUids = memberUids.filter(uid => withChannel.has(uid));
   if (!targetUids.length) return;
 
   const ph = targetUids.map(() => '?').join(',');
@@ -256,15 +277,18 @@ async function pushNewMessage({ conversationId, senderId, senderName, content, t
   // 批量未读数（优化 N+1）：一次查询取回所有目标用户的未读数，替代循环内逐用户 COUNT。
   // 大群（500 人）一条消息原为 500 次同步 SQLite 查询阻塞事件循环，现为 1 次。
   // 语义对齐原实现：排除发送者本人、按各自 last_read_at（conversation_settings）过滤。
+  // 角标最多显示 99：每人最多数 100 行即可。不封顶时，没人读的群积累上千条未读，
+  // 每发一条就要为每个成员数一遍全部未读，成本随聊天记录线性增长（压测里是主要瓶颈）。
   const unreadRows = db.prepare(`
     SELECT cm.user_id AS uid,
-      (SELECT COUNT(*) FROM messages m
+      (SELECT COUNT(*) FROM (SELECT 1 FROM messages m
        WHERE m.conversation_id = cm.conversation_id
          AND m.deleted = 0
          AND m.sender_id != ?
          AND m.created_at > COALESCE(
            (SELECT cs.last_read_at FROM conversation_settings cs
             WHERE cs.user_id = cm.user_id AND cs.conversation_id = cm.conversation_id), 0)
+       LIMIT 100)
       ) AS cnt
     FROM conversation_members cm
     WHERE cm.conversation_id = ? AND cm.user_id IN (${ph})

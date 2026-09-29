@@ -1,6 +1,7 @@
 'use strict';
 const crypto = require('crypto');
 const bcrypt = require('bcryptjs');
+const passwordHash = require('../../utils/passwordHash');
 const { v4: uuidv4 } = require('uuid');
 const config = require('../../config');
 const { db } = require('../../db/connection');
@@ -64,7 +65,7 @@ async function createAdmin({ username, password, role }, createdBy) {
   if (config.admin.username && timingSafeEqual(username, config.admin.username))
     throw badRequest('该用户名已被占用');
   const id = uuidv4();
-  const hash = await bcrypt.hash(password, 12);
+  const hash = await passwordHash.hash(password, 12);
   try {
     db.prepare('INSERT INTO admin_users (id, username, password_hash, role, created_by) VALUES (?,?,?,?,?)')
       .run(id, username, hash, r, createdBy || null);
@@ -193,7 +194,7 @@ async function resetPassword(io, id, newPassword) {
     throw badRequest('新密码至少8位，且须包含字母和数字');
   const user = db.prepare('SELECT id FROM users WHERE id=?').get(id);
   if (!user) throw notFound('用户不存在');
-  const hash = await bcrypt.hash(newPassword, 12);
+  const hash = await passwordHash.hash(newPassword, 12);
   db.transaction(() => {
     db.prepare('UPDATE users SET password=?, password_changed_at=? WHERE id=?').run(hash, Math.floor(Date.now() / 1000), id);
     db.prepare('DELETE FROM device_accounts WHERE user_id=?').run(id);
