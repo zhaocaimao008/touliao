@@ -1,5 +1,5 @@
 'use strict';
-const bcrypt = require('bcryptjs');
+const bcrypt = require('../../utils/passwordHash'); // 工作线程计算，不占主线程
 const jwt = require('jsonwebtoken');
 const { v4: uuidv4 } = require('uuid');
 const config = require('../../config');

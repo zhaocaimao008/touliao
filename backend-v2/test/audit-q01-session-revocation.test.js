@@ -2,7 +2,8 @@
 // Catch reissuing authority from revoked sessions/wallets, including within one second.
 const http = require('http');
 const jwt = require('jsonwebtoken');
-const bcrypt = require('bcryptjs');
+// 业务代码的 bcrypt 计算走工作线程池（utils/passwordHash），竞态用例在这一层挂钩
+const passwordHash = require('../src/utils/passwordHash');
 const { Server } = require('socket.io');
 const { io: connectClient } = require('socket.io-client');
 const { app, request, makeUser } = require('./helpers');
@@ -247,8 +248,8 @@ function deferred() {
 test('old-password login cannot create a session after an administrator reset during bcrypt comparison', async () => {
   const account = await makeUser();
   const entered = deferred(), release = deferred();
-  const compare = bcrypt.compare;
-  jest.spyOn(bcrypt, 'compare').mockImplementationOnce(async (...args) => {
+  const compare = passwordHash.compare;
+  jest.spyOn(passwordHash, 'compare').mockImplementationOnce(async (...args) => {
     const matches = await compare(...args);
     entered.resolve();
     await release.promise;
@@ -267,19 +268,13 @@ test('a password change awaiting bcrypt cannot restore a session that was remove
   const current = await login(account, 'Windows');
   const other = await login(account);
   const entered = deferred(), release = deferred();
-  const hash = bcrypt.hash;
-  // bcryptjs's own compare() recomputes internally via hash(data, saltString, callback) —
-  // callback-style, second arg is the salt (a string). Only the deliberate call we want to
-  // delay, hash(newPassword, costFactor), passes a rounds NUMBER as the second arg; let the
-  // compare()-internal call straight through or it eats this mock and never actually blocks.
-  jest.spyOn(bcrypt, 'hash').mockImplementation((...args) => {
-    if (typeof args[1] !== 'number') return hash(...args);
-    return (async () => {
-      const value = await hash(...args);
-      entered.resolve();
-      await release.promise;
-      return value;
-    })();
+  const hash = passwordHash.hash;
+  // compare() 在工作线程里自行计算，不会经过这里；这里只拦改密时的 hash(newPassword, rounds)
+  jest.spyOn(passwordHash, 'hash').mockImplementationOnce(async (...args) => {
+    const value = await hash(...args);
+    entered.resolve();
+    await release.promise;
+    return value;
   });
   const pending = change(other, account).then(res => res);
   await entered.promise;
