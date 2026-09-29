@@ -4,6 +4,9 @@
 html.touliao-ui body .tl-field { width: 100%; min-width: 0; }
 html.touliao-ui body .tl-field .tl-field-control { display: flex; align-items: center; gap: var(--tl-space-2); width: 100%; box-sizing: border-box; }
 html.touliao-ui body .tl-field .auth-field-input { flex: 1; width: 100%; padding: var(--tl-space-2) 0; border: 0; outline: 0; box-shadow: none; background: transparent; color: var(--tl-text); font: inherit; line-height: var(--tl-leading-body); }
+/* type=search 的浏览器原生清除按钮与组件自带的清除按钮重复（输入后出现两个 ✕），隐藏原生的 */
+html.touliao-ui body .tl-field input[type="search"]::-webkit-search-cancel-button,
+html.touliao-ui body .tl-field input[type="search"]::-webkit-search-decoration { -webkit-appearance: none; appearance: none; display: none; }
 html.touliao-ui body .tl-field .auth-field-label { display: block; margin-bottom: var(--tl-space-2); font-size: var(--tl-type-caption-size); color: var(--tl-readable-muted); }
 html.touliao-ui body .tl-field .auth-pwd-toggle { display: inline-flex; align-items: center; justify-content: center; border: 0; background: transparent; color: var(--tl-readable-muted); cursor: pointer; padding: 0; flex-shrink: 0; }
 html.touliao-ui body .tl-field .auth-field-icon { display: inline-flex; color: var(--tl-readable-muted); flex-shrink: 0; }
