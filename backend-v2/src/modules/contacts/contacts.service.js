@@ -7,6 +7,7 @@ const { getOrCreatePrivate } = require('../conversations/conversations.service')
 const { pushToUser, langOf } = require('../../utils/push');
 const pushI18n = require('../../utils/pushI18n');
 const { invalidateBlocked } = require('../messages/shared');
+const moderation = require('../moderation/moderation.service');
 
 // ── 联系人 ──────────────────────────────────────────────────────
 function listContacts(userId) {
@@ -60,6 +61,8 @@ function sendFriendRequest(io, fromId, { toId, message }) {
   // 规范化 message：非字符串（如数字 123）在库内/推送处 trim 会抛错且请求已入库 → 统一转字符串再校验
   const safeMessage = typeof message === 'string' ? message.trim() : '';
   if (safeMessage.length > 100) throw badRequest('验证消息最长 100 个字符');
+  // 验证消息展示给对方，做违禁词检查
+  if (safeMessage) moderation.assertClean(safeMessage);
   if (toId === fromId) throw badRequest('不能添加自己');
   // 已封禁账号：与"不存在"同样处理。此前 banned 只拦被封者自己的 token，
   // 别人照样能给他发好友申请、加成好友——审核动作只做了一半。

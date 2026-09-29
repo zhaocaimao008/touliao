@@ -283,6 +283,10 @@ class CallManager @Inject constructor(
     private var factory: PeerConnectionFactory? = null
     private var peerConnection: PeerConnection? = null
     private var callTimeoutJob: Job? = null   // 主叫呼出超时:对方无应答/断线时自动收尾,防卡死"呼叫中"
+    // 被叫 accept() 后的对称看门狗——接听信令丢失/SDP协商失败会永久占用
+    // 麦克风/PeerConnection/前台服务,无自动恢复路径。与 callTimeoutJob 同款自守卫模式:
+    // 到点检查 stage 仍是 CONNECTING 才收尾,已接通/已挂断则自然 no-op,无需额外显式取消点。
+    private var connectingTimeoutJob: Job? = null
     // ICE restart 自愈(网络切换 Wi-Fi↔4G):disconnected 3s 防抖 → restartIce → 15s 窗口 → 最多 3 次 → 挂断。
     // 信令复用现有 call:offer/answer/ice(后端纯转发零改动),对端收到 offer 走现有应答逻辑。
     private var iceRestartDebounceJob: Job? = null   // disconnected 防抖(短时探测间隙自愈)
@@ -451,6 +455,16 @@ class CallManager @Inject constructor(
         if (s.stage != CallStage.INCOMING) return
         stopIncomingTone()
         _state.update { it.copy(stage = CallStage.CONNECTING) }
+        // 接听后等待协商(offer/answer/ICE)超时看门狗,与主叫 45s 呼出超时对称。
+        connectingTimeoutJob?.cancel()
+        connectingTimeoutJob = scope.launch {
+            delay(45_000)
+            val st = _state.value.stage
+            if (st == CallStage.CONNECTING) {
+                if (_state.value.peerId.isNotEmpty()) socketManager.emitCallEnd(_state.value.peerId, _state.value.callId)
+                cleanup(CallStage.ENDED)
+            }
+        }
         scope.launch {
             refreshIceServers()
             if (_state.value.stage == CallStage.ENDED) return@launch
@@ -981,6 +995,7 @@ class CallManager @Inject constructor(
         releaseTone()                                     // 停回铃/接通音并释放 ToneGenerator
         releaseAudioFocusAndRoute()                        // 恢复系统默认音频模式/释放焦点，防止占用
         callTimeoutJob?.cancel(); callTimeoutJob = null   // 接通/挂断/被拒 → 取消呼出超时
+        connectingTimeoutJob?.cancel(); connectingTimeoutJob = null   // 同上，取消接听协商超时
         iceRestartDebounceJob?.cancel(); iceRestartDebounceJob = null
         iceRestartRecoverJob?.cancel(); iceRestartRecoverJob = null
         CallForegroundService.stop(context)               // 停前台服务（未起过则 no-op）

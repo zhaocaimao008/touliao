@@ -68,6 +68,10 @@ final class CallManager: NSObject, ObservableObject {
 
     /// 主叫呼叫超时任务（未接听自动挂断）；接通/挂断时取消，避免泄漏。
     private var callTimeoutTask: Task<Void, Never>?
+    /// 被叫 accept() 后等待协商(connecting)阶段的看门狗——接听
+    /// 信令丢失或 SDP 协商失败会永久占用麦克风/PeerConnection，无自动恢复路径。
+    /// 与主叫侧对称，cancelCallTimeout() 统一取消这两个任务。
+    private var connectingTimeoutTask: Task<Void, Never>?
     /// 结束态延迟收起任务（ended 后延迟清空状态机）——新通话/再次结束时须取消旧的，
     /// 防上一通遗留的收起任务在新通话也恰好 ended 时提前清空结束画面（AUDIT P3）。
     private var endedDismissTask: Task<Void, Never>?
@@ -173,6 +177,23 @@ final class CallManager: NSObject, ObservableObject {
     private func cancelCallTimeout() {
         callTimeoutTask?.cancel()
         callTimeoutTask = nil
+        connectingTimeoutTask?.cancel()
+        connectingTimeoutTask = nil
+    }
+
+    /// 被叫 accept() 后等待协商超时：与主叫的 45s 未接超时对称，防止接听信令
+    /// 丢失/SDP 协商失败时永久卡在 .connecting、麦克风和 PeerConnection 无限期占用。
+    private func startConnectingTimeout() {
+        connectingTimeoutTask?.cancel()
+        connectingTimeoutTask = Task { @MainActor [weak self] in
+            guard let self else { return }
+            try? await Task.sleep(nanoseconds: self.callTimeoutSeconds * 1_000_000_000)
+            guard !Task.isCancelled else { return }
+            guard self.state.stage == .connecting else { return }   // 已接通/已结束则无需处理
+            if !self.state.peerId.isEmpty { self.socket.emitCallEnd(to: self.state.peerId, callId: self.state.callId) }
+            self.cleanup(.ended)
+            self.state.networkEnded = true   // 复用"网络已断开"文案：协商失败对用户是同一类感知
+        }
     }
 
     // MARK: - 对外动作
@@ -236,6 +257,7 @@ final class CallManager: NSObject, ObservableObject {
         else { return }
         clearIncomingCallNotifications(from: peerId)   // 接听后清掉该来电的通知，避免用户误触过期通知
         state.stage = .connecting
+        startConnectingTimeout()            // 协商超时看门狗，接通/挂断时随 cancelCallTimeout() 撤销
         Task { @MainActor in
             await refreshIceServers()
             guard callIdentityEpoch == identityEpoch,
