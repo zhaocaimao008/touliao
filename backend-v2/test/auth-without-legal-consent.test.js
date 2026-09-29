@@ -22,7 +22,8 @@ test('legacy clients sending stale or unaccepted consent are not rejected', asyn
   expect(login.status).toBe(200);
 });
 
-test('report endpoints are gone', async () => {
-  expect((await request(app).post('/api/reports').send({})).status).toBe(404);
-  expect((await request(app).get('/api/admin/safety-reports')).status).toBe(404);
+// 2026-09-29 为 App Store 1.2 恢复举报与客服：接口存在，但必须登录（后台接口须管理员登录）
+test('report endpoints are back and require authentication', async () => {
+  expect((await request(app).post('/api/reports').send({})).status).toBe(401);
+  expect((await request(app).get('/api/admin/safety-reports')).status).toBe(401);
 });

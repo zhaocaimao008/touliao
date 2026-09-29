@@ -42,7 +42,7 @@ function create(userId, body={}) {
     db.prepare('INSERT INTO safety_reports(id,reporter_id,target_type,target_id,snapshot,reason) VALUES (?,?,?,?,?,?)').run(id,userId,targetType,targetId,snapshot,reason.trim());
     db.prepare('INSERT INTO safety_report_events(report_id,status,note,actor) VALUES (?,?,?,?)').run(id,'pending','工单已提交',userId);
     return { id, status:'pending' };
-  })();
+  }).immediate();
 }
 function list(userId, query={}, admin=false) {
   const { limit, offset } = pagination({ limit: query.limit === undefined ? 30 : query.limit, offset: query.offset }, 100);
@@ -76,6 +76,6 @@ function resolve(id,{status,note}={},admin) {
     db.prepare("UPDATE safety_reports SET status=?,resolution=?,handled_by=?,updated_at=strftime('%s','now') WHERE id=?").run(status,note.trim(),admin,id);
     db.prepare('INSERT INTO safety_report_events(report_id,status,note,actor) VALUES (?,?,?,?)').run(id,status,note.trim(),admin);
     return detail(null,id,true);
-  })();
+  }).immediate();
 }
 module.exports = {create,list,detail,resolve};
