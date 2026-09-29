@@ -37,6 +37,18 @@ function assertConfigured() {
 
 // Run without a shell or inherited application credentials. Kill the process
 // group on timeout, including ffmpeg; the caller then removes its private temp dir.
+const WORKER_ENV = { PATH: '/usr/bin:/bin', LANG: 'C.UTF-8', PYTHONNOUSERSITE: '1', OMP_NUM_THREADS: '1', OPENBLAS_NUM_THREADS: '1' };
+const killGroup = child => { try { process.kill(process.platform === 'win32' ? child.pid : -child.pid, 'SIGKILL'); } catch { /* already exited */ } };
+// 结果必须是完整、自洽的裁决才采信；否则一律按不可用处理（绝不放行）
+function acceptResult(result) {
+  const c = config.mediaModeration;
+  if (result.status === 'invalid') throw new ApiError(400, '图片或视频损坏，或格式无法解析', 'INVALID_MEDIA');
+  if (!['approved', 'blocked'].includes(result.status) || result.scope !== 'nudity'
+    || result.model !== 'nudenet-320n-3.4.2' || !Number.isInteger(result.frames)
+    || result.frames < 1 || result.frames > c.maxFrames) throw unavailable();
+  return { status: result.status, scope: result.scope, model: result.model, frames: result.frames };
+}
+
 function runWorker(args) {
   const c = config.mediaModeration;
   return new Promise((resolve, reject) => {
@@ -44,11 +56,11 @@ function runWorker(args) {
     const child = spawn(c.python, [worker, ...args, '--threshold', String(c.minScore), '--max-frames', String(c.maxFrames)], {
       detached: process.platform !== 'win32',
       stdio: ['ignore', 'pipe', 'ignore'],
-      env: { PATH: '/usr/bin:/bin', LANG: 'C.UTF-8', PYTHONNOUSERSITE: '1', OMP_NUM_THREADS: '1', OPENBLAS_NUM_THREADS: '1' },
+      env: WORKER_ENV,
     });
     const stop = () => {
       failure = unavailable();
-      try { process.kill(process.platform === 'win32' ? child.pid : -child.pid, 'SIGKILL'); } catch { /* already exited */ }
+      killGroup(child);
     };
     const timer = setTimeout(stop, c.timeoutMs);
     child.stdout.on('data', chunk => {
@@ -59,17 +71,81 @@ function runWorker(args) {
     child.once('close', code => {
       clearTimeout(timer);
       if (failure || code !== 0) return reject(failure || unavailable());
-      try {
-        const result = JSON.parse(output);
-        if (result.status === 'invalid') throw new ApiError(400, '图片或视频损坏，或格式无法解析', 'INVALID_MEDIA');
-        if (!['approved', 'blocked'].includes(result.status) || result.scope !== 'nudity'
-          || result.model !== 'nudenet-320n-3.4.2' || !Number.isInteger(result.frames)
-          || result.frames < 1 || result.frames > c.maxFrames) throw unavailable();
-        resolve(result);
-      } catch (err) { reject(err instanceof ApiError ? err : unavailable()); }
+      try { resolve(acceptResult(JSON.parse(output))); } catch (err) { reject(err instanceof ApiError ? err : unavailable()); }
     });
   });
 }
+
+// ── 常驻审核进程 ────────────────────────────────────────────────
+// 逐次启动时每张图都要重新 import + 加载模型（约 0.33s），真正识别只要约 37ms。
+// 常驻进程只加载一次模型，之后每行一个请求。进程数 = maxConcurrent，每个同一时刻
+// 只处理一条（总并发已由 acquireSlot 限住）。任何超时、协议异常、崩溃都杀掉整个
+// 进程组、本次按不可用拒绝，下次请求时再拉起新进程。
+const residents = [];
+let residentSeq = 0;
+function spawnResident() {
+  const c = config.mediaModeration;
+  const child = spawn(c.python, [worker, '--serve'], {
+    detached: process.platform !== 'win32',
+    stdio: ['pipe', 'pipe', 'ignore'],
+    env: WORKER_ENV,
+  });
+  const r = { child, ready: false, dead: false, job: null, buf: '' };
+  let readyResolve, readyReject;
+  r.readyPromise = new Promise((resolve, reject) => { readyResolve = resolve; readyReject = reject; });
+  r.readyPromise.catch(() => {});
+  const fail = () => {
+    if (r.dead) return;
+    r.dead = true;
+    residents.splice(residents.indexOf(r), 1);
+    killGroup(child);
+    readyReject(unavailable());
+    if (r.job) { clearTimeout(r.job.timer); r.job.reject?.(unavailable()); r.job = null; }
+  };
+  r.fail = fail;
+  const startTimer = setTimeout(fail, c.timeoutMs);
+  child.stdout.on('data', chunk => {
+    r.buf += chunk.toString();
+    if (r.buf.length > 8192) return fail();
+    let nl;
+    while ((nl = r.buf.indexOf('\n')) >= 0) {
+      const line = r.buf.slice(0, nl); r.buf = r.buf.slice(nl + 1);
+      let msg;
+      try { msg = JSON.parse(line); } catch { return fail(); }
+      if (!r.ready) {
+        if (msg.ready !== true || msg.model !== 'nudenet-320n-3.4.2') return fail();
+        r.ready = true; clearTimeout(startTimer); readyResolve();
+      } else if (r.job && msg.id === r.job.id) {
+        const job = r.job; r.job = null; clearTimeout(job.timer);
+        try { job.resolve(acceptResult(msg)); } catch (err) {
+          job.reject(err instanceof ApiError ? err : unavailable());
+          // 除「文件损坏」外，任何不完整/异常的结论都不再信任这个进程：杀掉，下次重新拉起
+          if (!(err instanceof ApiError && err.status === 400)) return fail();
+        }
+      } else return fail();
+    }
+  });
+  child.stdin.on('error', fail);
+  child.once('error', fail);
+  child.once('close', () => { clearTimeout(startTimer); fail(); });
+  residents.push(r);
+  return r;
+}
+
+async function runResident(kind, filePath, workDir) {
+  const c = config.mediaModeration;
+  const r = residents.find(x => !x.dead && !x.job) || spawnResident();
+  r.job = { id: ++residentSeq }; // 先占住，等待就绪期间不被别的请求选中
+  try { await r.readyPromise; } catch { r.job = null; throw unavailable(); }
+  if (r.dead) throw unavailable();
+  return new Promise((resolve, reject) => {
+    Object.assign(r.job, { resolve, reject, timer: setTimeout(r.fail, c.timeoutMs) });
+    r.child.stdin.write(JSON.stringify({ id: r.job.id, kind, input: path.resolve(filePath), workDir,
+      threshold: c.minScore, maxFrames: c.maxFrames }) + '\n');
+  });
+}
+// 进程退出时带走常驻审核进程（含其 ffmpeg 子进程）
+process.once('exit', () => { for (const r of residents.slice()) killGroup(r.child); });
 
 async function scanFile(filePath, kind) {
   assertConfigured();
@@ -99,7 +175,9 @@ async function scanFile(filePath, kind) {
         throw new ApiError(400, '图片损坏、尺寸过大或格式无法解析', 'INVALID_MEDIA');
       }
     }
-    return await runWorker(['--kind', kind, '--input', path.resolve(filePath), '--work-dir', temp]);
+    return c.resident === false
+      ? await runWorker(['--kind', kind, '--input', path.resolve(filePath), '--work-dir', temp])
+      : await runResident(kind, filePath, temp);
   } finally {
     try { if (temp) await fs.promises.rm(temp, { recursive: true, force: true }); }
     finally { releaseSlot(); }

@@ -23,7 +23,8 @@ beforeAll(async () => {
   root = fs.mkdtempSync(path.join(os.tmpdir(), 'media-scanner-test-')); image = path.join(root, 'image.png');
   await sharp({ create: { width: 8, height: 8, channels: 3, background: '#fff' } }).png().toFile(image);
 });
-beforeEach(() => { spawn.mockReset(); Object.assign(config.mediaModeration, previous, { provider: 'local-nudenet', python: '/synthetic/python' }); });
+// 本文件覆盖单次启动模式（resident=false）；常驻模式见 local-media-scanner-resident.test.js
+beforeEach(() => { spawn.mockReset(); Object.assign(config.mediaModeration, previous, { provider: 'local-nudenet', python: '/synthetic/python', resident: false }); });
 afterAll(() => { Object.assign(config.mediaModeration, previous); fs.rmSync(root, { recursive: true, force: true }); });
 
 test('a valid decision is required before approval; worker gets no app credentials and temporary frames are removed', async () => {
