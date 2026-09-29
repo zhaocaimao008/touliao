@@ -30,7 +30,6 @@ const electronAPI = {
   maximize:         () => ipcRenderer.invoke('window:maximize'),
   close:            () => ipcRenderer.invoke('window:close'),
   isMaximized:      () => ipcRenderer.invoke('window:isMaximized'),
-  newAccountWindow: () => ipcRenderer.invoke('window:newAccount'),
   showSystemMenu:   () => ipcRenderer.invoke('window:showSystemMenu'),
 
   // 托盘行为：关闭时最小化到托盘 / 托盘闪烁开关（供设置页）

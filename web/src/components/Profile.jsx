@@ -1537,7 +1537,6 @@ export default function Profile({ isMobile = false }) {
         </>
       )}
 
-      <div className="wc-logout-div"><AccountWindowButton /></div>
       {/* ── 退出 ── */}
       <div className="wc-logout-div">
         <button className="wc-logout-btn" onClick={() => doLogout(logout)}>{t('settings.logout')}</button>
@@ -1560,4 +1559,3 @@ export default function Profile({ isMobile = false }) {
     </PageBg>
   );
 }
-import AccountWindowButton from './AccountWindowButton';

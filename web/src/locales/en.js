@@ -1147,7 +1147,6 @@ export default {
   'auth.androidVersion': 'Android',
   'auth.currentServerLabel': 'Current server: ',
   'auth.switchServer': 'Switch server',
-  'auth.openAccountWindow': 'Sign in to another account in a new window',
   'auth.serverAddressLabel': 'Server Address (IP or domain)',
   'auth.serverPlaceholder': 'https://example.com',
   'auth.testConnection': 'Test Connection',

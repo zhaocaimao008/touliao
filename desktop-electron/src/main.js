@@ -1207,10 +1207,6 @@ function setupIPC() {
   });
   // 返回当前 CSP 放行的后端地址；渲染层据此判断本地保存的手动地址是否可用。
   ipcMain.handle('config:getServerUrl', () => SERVER_URL);
-  ipcMain.handle('window:newAccount', (_e) => {
-    if (!isTrustedSender(_e)) return;
-    return openAccountWindow();
-  });
 
   // 快捷键设置：读取 / 修改 / 重置
   ipcMain.handle('shortcuts:getAll', (_e) => {

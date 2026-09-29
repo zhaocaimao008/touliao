@@ -380,8 +380,6 @@ html.windows-desktop body :is(.auth-account-name, .auth-accounts-title) { color:
 html.windows-desktop body :is(.auth-account-id, .auth-accounts-count, .auth-account-remove, .auth-captcha-loading) { color: var(--text-secondary); }
 html.windows-desktop body .auth-note { background: var(--color-primary-muted); color: var(--text-primary); border-color: var(--border-default); }
 html.windows-desktop body .auth-error { background: var(--color-danger-light); color: var(--color-danger); }
-html.windows-desktop body .windows-account-entry { text-align: center; margin-top: 14px; }
-html.windows-desktop body .auth-window-button { background: transparent; border-color: var(--border-default); color: var(--text-secondary); font-size: 12px; }
 
 /* The default login, including server/account actions, fits the 600px window. */
 @media (max-height: 700px) {
@@ -395,8 +393,6 @@ html.windows-desktop body .auth-window-button { background: transparent; border-
   html.windows-desktop body .auth-field { margin-bottom: 14px; }
   html.windows-desktop body .auth-field-label { margin-bottom: 6px; }
   html.windows-desktop body .auth-footer { margin-top: 14px; }
-  html.windows-desktop body .windows-account-entry { margin-top: 8px; }
-  html.windows-desktop body .windows-account-entry .auth-window-button { margin-top: 0; }
   html.windows-desktop body .auth-server { margin-top: 8px; }
 }
 
