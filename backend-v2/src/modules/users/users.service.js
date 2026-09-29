@@ -8,6 +8,7 @@ const { v4: uuidv4 } = require('uuid');
 const { collectionDedupKey } = require('../../utils/collections');
 const presence = require('../../realtime/presence');
 const pushI18n = require('../../utils/pushI18n');
+const moderation = require('../moderation/moderation.service');
 
 // 安全解析收藏 extra JSON：单条脏数据不应让整个收藏列表 500。
 function parseExtra(raw) {
@@ -191,6 +192,8 @@ async function updateProfile(userId, { username, bio }) {
   if (username) {
     if (typeof username !== 'string' || username.trim().length < 1 || username.trim().length > 30)
       throw badRequest('用户名长度为 1-30 字符');
+    // 用户名/简介展示在资料页，做违禁词检查
+    moderation.assertClean(username.trim());
     if (db.prepare('SELECT id FROM users WHERE username=? AND id!=?').get(username.trim(), userId))
       throw badRequest('用户名已被占用');
     try {
@@ -202,6 +205,7 @@ async function updateProfile(userId, { username, bio }) {
   }
   if (bio !== undefined) {
     const safeBio = typeof bio === 'string' ? bio.slice(0, 500) : '';
+    if (safeBio) moderation.assertClean(safeBio);
     db.prepare('UPDATE users SET bio=? WHERE id=?').run(safeBio, userId);
   }
   await cache.del(cache.keys.user(userId));

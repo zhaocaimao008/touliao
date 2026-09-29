@@ -6,6 +6,7 @@ const { db } = require('../../db/connection');
 const config = require('../../config');
 const { badRequest, forbidden, notFound } = require('../../utils/http');
 const { isMember, requireMember, memberRole, purgeConversation, invalidateConv } = require('../messages/shared');
+const moderation = require('../moderation/moderation.service');
 const { groupEvent } = require('./groupEvents');
 
 // 新成员入群：已读位置设到当前最后一条消息，入群前的历史不计入未读
@@ -161,6 +162,10 @@ function updateInfo(io, convId, userId, { name, announcement }) {
   const role = memberRole(convId, userId);
   if (!role) throw forbidden('不在群内');
   if (role === 'member') throw forbidden('仅群主和管理员可修改群信息');
+
+  // 群名/群公告会实时广播给全群，做违禁词检查；放在权限校验之后，避免被当作词库探测接口
+  if (name !== undefined) moderation.assertClean(name.trim());
+  if (announcement !== undefined) moderation.assertClean(announcement);
 
   if (name !== undefined) db.prepare('UPDATE conversations SET name=? WHERE id=?').run(name.trim(), convId);
   if (name !== undefined && name.trim() !== conv.name) groupEvent(io, convId, 'renamed', userId, [], { name: name.trim() });

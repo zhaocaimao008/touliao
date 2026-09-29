@@ -20,6 +20,7 @@ const { appendConversationEvent, emitSyncAvailable } = require('../messages/sync
 const config = require('../../config');
 const { buildMessage } = require('../messages/shared');
 const broadcaster = require('../../realtime/broadcaster');
+const moderation = require('../moderation/moderation.service');
 
 const AI_BOT_ID = (config.ai && config.ai.botId) || '';
 const HERMES_BOT_ID = (config.ai && config.ai.hermesBotId) || '';
@@ -352,7 +353,8 @@ async function doReply(io, convId, senderId, msg, bot, images = []) {
     }
 
     const aiResult = await askAI(bot, userContent, history);
-    const replyText = aiResult.content;
+    // AI 回复同样过违禁词检查；系统生成内容命中时退化为兜底回复，而不是让异步任务失败
+    const replyText = moderation.firstMatch(aiResult.content) ? '抱歉，这个问题我不方便回答。' : aiResult.content;
 
     // turn 完成
     await writeAsync(

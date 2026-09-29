@@ -102,6 +102,8 @@ function createGroup(io, ownerId, { name, memberIds }) {
   if (!name || !memberIds?.length) throw badRequest('参数缺失');
   if (typeof name !== 'string' || name.trim().length < 1 || name.trim().length > 50)
     throw badRequest('群名称 1-50 字符');
+  // 群名展示给全体成员，与改群名一致做违禁词检查
+  require('../moderation/moderation.service').assertClean(name.trim());
   if (memberIds.length > config.limits.maxGroupMembers)
     throw badRequest(`单次邀请成员数不能超过 ${config.limits.maxGroupMembers}`);
   // 过滤：只允许添加确实存在的联系人（防止注入不存在的 userId 产生幽灵成员）

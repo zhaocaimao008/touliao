@@ -7,6 +7,7 @@ const wallet = require('../wallet/wallet.service');
 const broadcaster = require('../../realtime/broadcaster');
 const { runFinancialOperation } = require('../wallet/financialIdempotency');
 const { appendConversationEventTx, emitSyncAvailable } = require('../messages/sync.service');
+const moderation = require('../moderation/moderation.service');
 
 // ── 发红包（扣款 + 建红包 + 发一条 red_packet 类型消息，单事务原子）──
 // ⚠ 与 claim 同理：扣余额是「读余额→判断够不够→扣→写」的读-判-写闭环，
@@ -34,6 +35,9 @@ async function send(io, userId, { conversationId, totalAmount, totalCount, greet
     const role = db.prepare('SELECT role FROM conversation_members WHERE conversation_id=? AND user_id=?').get(conversationId, userId)?.role;
     if (role === 'member') throw forbidden('全员禁言中，您没有发言权限');
   }
+
+  // 祝福语随消息展示给对方/全群，做违禁词检查（在扣款之前）
+  if (typeof greeting === 'string' && greeting.trim()) moderation.assertClean(greeting.trim());
 
   const packetId = uuidv4();
   const greet = (typeof greeting === 'string' && greeting.trim()) ? greeting.trim() : '恭喜发财，大吉大利';

@@ -6,6 +6,27 @@
 
 const { db } = require('../db/connection');
 
+// trigram 分词器要求查询至少 3 个字符才能组成 trigram；更短的查询（中文常见的 2 字词，
+// 如「你好」「图片」）MATCH 恒为空。短查询降级为 LIKE 子串匹配，范围与 FTS 索引一致（仅 text）。
+const FTS_MIN_LEN = 3;
+function matchSource(trimmed) {
+  if (trimmed.length < FTS_MIN_LEN) {
+    return {
+      short: true,
+      from: 'FROM messages m',
+      where: "m.type = 'text' AND m.content LIKE ? ESCAPE '\\'",
+      param: `%${trimmed.replace(/[\\%_]/g, c => '\\' + c)}%`,
+    };
+  }
+  // 整个查询串包在双引号中作短语搜索，避免 FTS5 运算符注入；内部 `"` 转义为 `""`
+  return {
+    short: false,
+    from: 'FROM messages_fts fts JOIN messages m ON m.id = fts.message_id',
+    where: 'fts.content MATCH ?',
+    param: `"${trimmed.replace(/"/g, '""')}"`,
+  };
+}
+
 /**
  * 初始化 FTS5 虚拟表（如表已存在则跳过）。
  * 实际表由 schema.js 中的迁移语句创建，schema 为：
@@ -95,11 +116,7 @@ function searchMessages(query, conversationId, userId, options = {}) {
     return [];
   }
 
-  // trigram 分词器对任意 Unicode（含中文）均有效；
-  // 将整个查询串包在双引号中作短语搜索，避免 FTS5 运算符注入。
-  // 双引号内部的 `"` 需转义为 `""（FTS5 规范）。
-  const ftsPhrase = `"${trimmed.replace(/"/g, '""')}"`;
-
+  const src = matchSource(trimmed);
   let sql = `
     SELECT
       m.id,
@@ -110,14 +127,13 @@ function searchMessages(query, conversationId, userId, options = {}) {
       m.created_at,
       u.username as senderName,
       u.avatar as senderAvatar,
-      rank
-    FROM messages_fts fts
-    JOIN messages m ON m.id = fts.message_id AND m.deleted = 0 AND m.burn_after = 0
+      ${src.short ? '0 AS rank' : 'rank'}
+    ${src.from}
     JOIN users u ON u.id = m.sender_id
-    WHERE fts.content MATCH ?
+    WHERE ${src.where} AND m.deleted = 0 AND m.burn_after = 0
   `;
 
-  const params = [ftsPhrase];
+  const params = [src.param];
 
   if (conversationId) {
     sql += ' AND m.conversation_id = ?';
@@ -136,8 +152,9 @@ function searchMessages(query, conversationId, userId, options = {}) {
     params.push(senderOnly);
   }
 
+  // FTS5 的 rank（bm25）越小越相关，升序才是最相关在前；短查询无 rank，按时间倒序
   sql += `
-    ORDER BY rank DESC
+    ORDER BY ${src.short ? 'm.created_at DESC' : 'rank'}
     LIMIT ? OFFSET ?
   `;
   params.push(limit, offset);
@@ -226,15 +243,14 @@ function countMessages(query, conversationId, senderOnly = null, userId = null) 
   const trimmed = (query || '').trim().substring(0, 100);
   if (!trimmed) return 0;
 
-  const ftsPhrase = `"${trimmed.replace(/"/g, '""')}"`;
+  const src = matchSource(trimmed);
   let sql = `
     SELECT COUNT(*) AS n
-    FROM messages_fts fts
-    JOIN messages m ON m.id = fts.message_id AND m.deleted = 0 AND m.burn_after = 0
-    WHERE fts.content MATCH ?
+    ${src.from}
+    WHERE ${src.where} AND m.deleted = 0 AND m.burn_after = 0
     AND m.conversation_id = ?
   `;
-  const params = [ftsPhrase, conversationId];
+  const params = [src.param, conversationId];
   if (userId) {
     // P1-06 统一水位线：total 与 rows 保持一致
     sql += ' AND m.rowid > COALESCE((SELECT cleared_rowid FROM conversation_clears WHERE user_id=? AND conversation_id=m.conversation_id), 0)';
@@ -269,15 +285,14 @@ function searchMessagesInConversations(query, conversationIds, userId = null, { 
   const trimmed = (query || '').trim().substring(0, 100);
   if (!trimmed) return { results: [], total: 0 };
 
-  const ftsPhrase = `"${trimmed.replace(/"/g, '""')}"`;
+  const src = matchSource(trimmed);
   // 为 IN 子句生成等数量的占位符
   const ph = conversationIds.map(() => '?').join(',');
 
   const baseWhere = `
-    FROM messages_fts fts
-    JOIN messages m ON m.id = fts.message_id AND m.deleted = 0 AND m.burn_after = 0
+    ${src.from}
     JOIN users u ON u.id = m.sender_id
-    WHERE fts.content MATCH ?
+    WHERE ${src.where} AND m.deleted = 0 AND m.burn_after = 0
     AND m.conversation_id IN (${ph})
   `;
   // P1-06 统一水位线：全局搜索也按 per-user cleared_rowid 过滤（参数在 IN 之前）
@@ -285,7 +300,7 @@ function searchMessagesInConversations(query, conversationIds, userId = null, { 
     ? `\n    AND m.rowid > COALESCE((SELECT cleared_rowid FROM conversation_clears WHERE user_id=? AND conversation_id=m.conversation_id), 0)
     AND NOT EXISTS (SELECT 1 FROM user_message_deletions d WHERE d.message_id=m.id AND d.user_id=?)`
     : '';
-  const baseParams = userId ? [ftsPhrase, ...conversationIds, userId, userId] : [ftsPhrase, ...conversationIds];
+  const baseParams = userId ? [src.param, ...conversationIds, userId, userId] : [src.param, ...conversationIds];
   const baseWhereFull = `${baseWhere}${watermarkClause}`;
 
   try {
