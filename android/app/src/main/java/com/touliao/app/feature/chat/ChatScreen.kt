@@ -32,6 +32,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -283,6 +284,18 @@ fun ChatScreen(
     LaunchedEffect(imeVisible) {
         if (imeVisible && totalCount > 0) listState.scrollToItem(lastListIndex)
     }
+    // 两个面板互斥：表情面板 / 功能(+)面板（状态提到这里，消息列表才能跟随）
+    var showEmojiPanel by remember { mutableStateOf(false) }
+    var showFuncPanel by remember { mutableStateOf(false) }
+    // 面板展开同键盘：底栏变高、列表视口变矮，此前最新几条会被面板挡住。
+    // 等两帧让视口按新高度完成布局，再贴底（先滚会被随后的视口收缩抵消）。
+    LaunchedEffect(showEmojiPanel, showFuncPanel) {
+        if ((showEmojiPanel || showFuncPanel) && totalCount > 0) {
+            withFrameNanos { }
+            withFrameNanos { }
+            listState.scrollToItem(lastListIndex)
+        }
+    }
 
     // 导出聊天记录：exportContent 非空时保存文件并 toast
     LaunchedEffect(state.exportContent) {
@@ -415,9 +428,6 @@ fun ChatScreen(
             )
         },
         bottomBar = {
-            // 两个面板互斥：表情面板 / 功能(+)面板
-            var showEmojiPanel by remember { mutableStateOf(false) }
-            var showFuncPanel by remember { mutableStateOf(false) }
             LaunchedEffect(showEmojiPanel) { if (showEmojiPanel) viewModel.loadStickers() }
             if (state.multiSelect) {
                 // 多选底栏：合并转发 / 删除选中 / 取消（对齐 web）
