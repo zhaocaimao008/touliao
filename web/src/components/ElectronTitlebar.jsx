@@ -1,5 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useI18n } from '../contexts/I18nContext';
+// 品牌图标光学尺寸版本（assets/brand/touliao/sizes），按屏幕缩放挑最接近的一张，
+// 避免浏览器把大图缩到 16px 糊掉；用 import 而非 /favicon 路径，桌面端是 file:// 加载。
+import brandIcon16 from '../assets/brand/touliao-16.png';
+import brandIcon24 from '../assets/brand/touliao-24.png';
+import brandIcon32 from '../assets/brand/touliao-32.png';
 
 // 品牌主色（极光靛）：标题栏左侧图标/文字点缀，与 Web 设计 token 对齐
 const BRAND = '#6D5AE6';
@@ -102,15 +107,16 @@ export default function ElectronTitlebar() {
         userSelect: 'none',
       }}
     >
-      {/* v3 极光设计：标题栏只保留一颗极光圆点品牌标识（克制），不再用 16px 图标方块 */}
       <span style={{
         display: 'flex', alignItems: 'center', gap: 8, paddingLeft: 12,
         WebkitAppRegion: 'drag',
       }}>
-        <span aria-hidden="true" style={{
-          width: 8, height: 8, borderRadius: '50%', flexShrink: 0,
-          background: 'linear-gradient(135deg, #6D5AE6, #5EEAD4)',
-        }} />
+        <img
+          src={brandIcon16}
+          srcSet={`${brandIcon16} 1x, ${brandIcon24} 1.5x, ${brandIcon32} 2x`}
+          width={16} height={16} alt="" aria-hidden="true" draggable={false}
+          style={{ flexShrink: 0, display: 'block' }}
+        />
         <span style={{
           fontSize: 'var(--text-sm)', letterSpacing: 0,
           color: 'var(--titlebar-title)',
