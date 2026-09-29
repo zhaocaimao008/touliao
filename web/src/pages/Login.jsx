@@ -12,9 +12,7 @@ import { useI18n } from '../contexts/I18nContext';
 import { testServerConnection, resolveTenantCode, saveManualServer } from '../utils/config';
 import { saveCred, hasCred, removeCred, lastRememberedPhone } from '../utils/rememberedCreds';
 import { showToast } from '../utils/toast';
-import AccountWindowButton from '../components/AccountWindowButton';
 import { safeReturnPath } from '../utils/returnPath';
-import { isWindowsDesktop } from '../utils/desktopPlatform';
 import { takeLogoutReason, GENERIC_LOGOUT_REASON } from '../utils/logoutReason';
 
 const isElectron = !!window.__ELECTRON_CONFIG__;
@@ -278,8 +276,6 @@ export default function Login() {
         <p className="auth-footer">
           {t('auth.noAccountYet')}<Link to="/register" className="auth-link">{t('auth.registerNew')}</Link>
         </p>
-        {/* 多开入口属于进阶功能：统一放在表单下方，不占品牌区的首屏焦点 */}
-        <div className={isWindowsDesktop() ? 'windows-account-entry' : 'auth-account-entry'}><AccountWindowButton /></div>
 
         {/* 下载客户端 — 仅网页端显示 */}
         {!isElectron && (

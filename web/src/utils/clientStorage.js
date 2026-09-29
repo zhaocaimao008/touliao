@@ -31,10 +31,3 @@ export const clientStorage = {
   key: index => storage().key(index),
   get length() { return storage().length; },
 };
-
-export function openAccountWindow() {
-  if (window.electronAPI?.newAccountWindow) return window.electronAPI.newAccountWindow();
-  const url = new URL('/login', window.location.origin);
-  url.searchParams.set('accountWindow', crypto.randomUUID());
-  window.open(url.href, '_blank', 'noopener,noreferrer');
-}

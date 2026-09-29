@@ -1166,7 +1166,6 @@ const translations = {
     'auth.androidVersion': 'Android 版',
     'auth.currentServerLabel': '当前服务器：',
     'auth.switchServer': '切换服务器',
-    'auth.openAccountWindow': '在新窗口登录其他账号',
     'auth.serverAddressLabel': '服务器地址（IP 或域名）',
     'auth.serverPlaceholder': 'https://example.com',
     'auth.testConnection': '测试连接',

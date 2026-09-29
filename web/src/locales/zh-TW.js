@@ -1146,7 +1146,6 @@ export default {
   'auth.androidVersion': 'Android 版',
   'auth.currentServerLabel': '目前伺服器：',
   'auth.switchServer': '切換伺服器',
-  'auth.openAccountWindow': '在新視窗登入其他帳號',
   'auth.serverAddressLabel': '伺服器位址（IP 或網域）',
   'auth.serverPlaceholder': 'https://example.com',
   'auth.testConnection': '測試連線',
