@@ -14,7 +14,7 @@ import { showToast, showConfirm } from '../utils/toast';
 import { firstLetter, comparePinyin } from '../utils/pinyin';
 import { formatLastOnline } from '../utils/time';
 import { useI18n } from '../contexts/I18nContext';
-import { IcoBack, IcoCheck, IcoContacts, IcoPersonAdd } from './Icons';
+import { IcoBack, IcoCheck, IcoPersonAdd } from './Icons';
 import { lazyWithRetry } from '../utils/lazyWithRetry';
 
 function formatRequestTime(timestamp, formatter) {
@@ -232,17 +232,17 @@ export default function ContactList({ onStartChat, searchQuery = '', addFriendRe
             {/* 功能入口：真实功能保持原有处理函数 */}
             <div className="tl-contact-shortcuts">
             <EntryRow
-              icon={<IcoPersonAdd tone="onDark" size="sm" />}
+              icon={<IcoPersonAdd size="sm" />}
               color="var(--icon-bg-newfriend)" label={t('contacts.newFriends')} badge={requests.length}
               onClick={() => setTab('requests')} testid="cl-new-friends-entry"
             />
             <EntryRow
-              icon={<IcoContacts tone="onDark" size="sm" />}
+              icon={<TouliaoIcon name="group" size="sm" />}
               color="var(--icon-bg-group)" label={t('contacts.groupChats')} badge={0}
               onClick={() => setTab('groups')}
             />
             <EntryRow
-              icon={<IcoPersonAdd tone="onDark" size="sm" />}
+              icon={<TouliaoIcon name="search" size="sm" />}
               color="var(--brand-500)" label={t('contacts.addFriend')} badge={0}
               onClick={() => setShowAddFriend(true)}
             />
