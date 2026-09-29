@@ -41,6 +41,7 @@ import javax.inject.Inject
 
 private const val HISTORY_PAGE = 50   // 与 MessageApi.history 默认 limit 一致
 private const val LOCATE_MAX_PAGES = 20 // 定位更早消息最多向前翻的页数（约 1000 条）
+private const val MAX_PICK_IMAGES = 9 // 聊天一次选图上限（与微信一致）
 
 /** 上传中的占位项（成功后被真实 Message 替换） */
 data class PendingUpload(
@@ -1341,6 +1342,36 @@ class ChatViewModel @Inject constructor(
         }
     }
 
+    /**
+     * 一次选多张图：按选择顺序逐张上传发送（上一张发出再发下一张），保证对方看到的顺序与
+     * 选择顺序一致，也不会同时占满服务端每人 5 个的直传并发名额。一次最多 [MAX_PICK_IMAGES] 张。
+     */
+    fun uploadFromUris(uris: List<Uri>, previewLocal: Boolean) {
+        if (uris.isEmpty()) return
+        if (uris.size == 1) return uploadFromUri(uris[0], previewLocal)
+        val picked = uris.take(MAX_PICK_IMAGES)
+        if (uris.size > MAX_PICK_IMAGES) {
+            _uiState.update { it.copy(error = "一次最多发送 $MAX_PICK_IMAGES 张，已发送前 $MAX_PICK_IMAGES 张") }
+        }
+        val replyId = _uiState.value.replyingTo?.id
+        viewModelScope.launch {
+            for (uri in picked) {
+                val prepared = withContext(Dispatchers.IO) { runCatching { mediaUploader.prepareFromUri(uri) }.getOrNull() }
+                if (prepared == null) {
+                    _uiState.update { it.copy(error = "无法读取所选文件") }
+                    continue
+                }
+                val pending = PendingUpload(
+                    tempId = UUID.randomUUID().toString(),
+                    type = prepared.localType,
+                    name = prepared.displayName,
+                    localUri = if (previewLocal) uri.toString() else null,
+                )
+                awaitUpload(pending) { chatRepository.uploadPrepared(conversationId, prepared, replyId) }
+            }
+        }
+    }
+
     fun startRecording() {
         if (_uiState.value.recording) return
         audioPlayer.stop()
@@ -1374,16 +1405,20 @@ class ChatViewModel @Inject constructor(
     }
 
     private fun runUpload(pending: PendingUpload, block: suspend () -> Message) {
+        viewModelScope.launch { awaitUpload(pending, block) }
+    }
+
+    /** 挂起直到这一个上传结束（成功或失败），供多图顺序发送逐张等待。 */
+    private suspend fun awaitUpload(pending: PendingUpload, block: suspend () -> Message) {
         // 记住重试动作，失败后可一键重传
         addPending(pending.copy(retry = block))
-        viewModelScope.launch {
-            runCatching { block() }
-                .onSuccess { msg -> removePending(pending.tempId); appendUnique(msg) }
-                .onFailure { e ->
-                    markPendingFailed(pending.tempId)
-                    _uiState.update { it.copy(error = e.toUserMessage("上传失败")) }
-                }
-        }
+        runCatching { block() }
+            .onSuccess { msg -> removePending(pending.tempId); appendUnique(msg) }
+            .onFailure { e ->
+                if (e is kotlinx.coroutines.CancellationException) throw e
+                markPendingFailed(pending.tempId)
+                _uiState.update { it.copy(error = e.toUserMessage("上传失败")) }
+            }
     }
 
     // ── 全屏截图直接发送（不经相册）──────────────────────
