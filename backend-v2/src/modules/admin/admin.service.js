@@ -198,7 +198,7 @@ async function resetPassword(io, id, newPassword) {
     db.prepare('UPDATE users SET password=?, password_changed_at=? WHERE id=?').run(hash, Math.floor(Date.now() / 1000), id);
     db.prepare('DELETE FROM device_accounts WHERE user_id=?').run(id);
     db.prepare('DELETE FROM auth_sessions WHERE user_id=?').run(id);
-  })();
+  }).immediate();
   invalidateUser(id); // 驱逐状态缓存，令旧 JWT 立即失效
   // 踢掉该用户所有会话并强制断开 socket，使旧 JWT 立即失效
   if (io) io.to(`user_${id}`).disconnectSockets(true);
@@ -332,7 +332,7 @@ function deleteUser(io, id) {
         AND NOT EXISTS (SELECT 1 FROM scheduled_messages WHERE conversation_id = conversations.id)`);
     for (const convId of myPrivateConvs) dropEmptyPrivate.run(convId);
     db.prepare('DELETE FROM users WHERE id=?').run(id);
-  })();
+  }).immediate();
   invalidateUser(id); // 驱逐状态缓存
   if (io) io.to(`user_${id}`).disconnectSockets(true);
 }

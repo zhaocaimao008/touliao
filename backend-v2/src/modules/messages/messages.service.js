@@ -215,7 +215,7 @@ function missed(io, userId, after) {
     const insertDelivery = db.prepare('INSERT OR IGNORE INTO message_deliveries (message_id, user_id) VALUES (?, ?)');
     db.transaction(() => {
       enriched.forEach(msg => { if (msg.sender_id !== userId) insertDelivery.run(msg.id, userId); });
-    })();
+    }).immediate();
 
     if (io) {
       const bySender = {};

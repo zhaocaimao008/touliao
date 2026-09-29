@@ -64,7 +64,7 @@ function initFTS5() {
           console.warn(`[FTS5] 索引失败 message_id=${msg.id}:`, err.message);
         }
       });
-    })();
+    }).immediate();
 
     console.log('[FTS5] 虚拟表初始化完成');
   } catch (err) {

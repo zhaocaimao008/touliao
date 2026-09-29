@@ -146,7 +146,7 @@ async function register({ username, phone, password, inviteCode }, req) {
     db.transaction(() => {
       db.prepare('INSERT INTO users (id,username,phone,password,wechat_id,invite_code,invited_by) VALUES (?,?,?,?,?,?,?)')
         .run(id, username, phone, hash, wechatId, myInviteCode, inviterId);
-    })();
+    }).immediate();
   } catch (e) {
     if (e.code === 'SQLITE_CONSTRAINT_UNIQUE') throw badRequest('用户名或手机号已存在');
     throw e;
@@ -181,7 +181,7 @@ async function login({ phone, password, captchaId, captchaText }, req) {
     if (current.banned) throw forbidden('账号已被封禁，请联系管理员');
     const jti = req ? upsertSession(user.id, req) : undefined;
     return { token: signToken(user, jti), user: serializeUser(user) };
-  })();
+  }).immediate();
 }
 
 function getMe(userId) {
@@ -231,7 +231,7 @@ function deleteAllOtherSessions(userId, currentSessionId) {
     db.prepare('DELETE FROM auth_sessions WHERE user_id=? AND id!=?').run(userId, currentSessionId || '');
     // Only legacy unbound JWTs use this watermark; retained bound sessions remain valid.
     db.prepare('UPDATE users SET password_changed_at=? WHERE id=?').run(now, userId);
-  })();
+  }).immediate();
   invalidateUser(userId); // 驱逐状态缓存，令被踢设备下次请求立即拦截
 }
 
@@ -261,7 +261,7 @@ async function deleteAccount(userId, password) {
   // 第一段：结算在途红包（独立事务，退款一旦发生即持久化，与后续拦截无关）
   db.transaction(() => {
     redpackets.settleUserActivePacketsTx(userId);
-  })();
+  }).immediate();
 
   // 第二段：余额拦截 + 软删 + 脏数据清理（独立事务；拦截 throw 只回滚本段，不影响上面已提交的退款）
   db.transaction(() => {

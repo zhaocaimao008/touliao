@@ -377,7 +377,7 @@ function purgeMoment(momentId) {
     db.prepare('DELETE FROM moment_notifications WHERE moment_id=?').run(momentId);
     db.prepare('DELETE FROM moment_reports WHERE moment_id=?').run(momentId);
     db.prepare('DELETE FROM moments WHERE id=?').run(momentId);
-  })();
+  }).immediate();
 
   // 异步清理本地存储图片（OSS 图片为外部 URL，跳过）
   const fs = require('fs');

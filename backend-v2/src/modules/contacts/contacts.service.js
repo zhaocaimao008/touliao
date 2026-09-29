@@ -43,7 +43,7 @@ function deleteContact(userId, contactId) {
       WHERE (friend_id=? AND label_id IN (SELECT id FROM friend_labels WHERE user_id=?))
          OR (friend_id=? AND label_id IN (SELECT id FROM friend_labels WHERE user_id=?))
     `).run(contactId, userId, userId, contactId);
-  })();
+  }).immediate();
 }
 
 function setRemark(userId, contactId, remark) {
@@ -94,7 +94,7 @@ function sendFriendRequest(io, fromId, { toId, message }) {
       add.run(uuidv4(), fromId, toId);
       add.run(uuidv4(), toId, fromId);
       clearDeletions(fromId, toId);
-    })();
+    }).immediate();
     const sender = db.prepare('SELECT id,username,avatar,wechat_id FROM users WHERE id=?').get(fromId);
     const target = db.prepare('SELECT id,username,avatar FROM users WHERE id=?').get(toId);
     const { conversationId } = getOrCreatePrivate(fromId, toId, { internal: true });
@@ -202,7 +202,7 @@ function handleRequest(io, userId, requestId, action) {
       add.run(uuidv4(), request.to_id, request.from_id);
       clearDeletions(request.from_id, request.to_id);
     }
-  })();
+  }).immediate();
   if (action === 'accepted') {
     const accepter = db.prepare('SELECT id,username,avatar FROM users WHERE id=?').get(userId);
     const requester = db.prepare('SELECT id,username,avatar FROM users WHERE id=?').get(request.from_id);
