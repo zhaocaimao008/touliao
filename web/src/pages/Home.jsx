@@ -553,6 +553,15 @@ export default function Home() {
   // 通知权限不再自动申请：permission==='default' 时由 PushPermissionGuide 出软引导，
   // 用户点「开启」（真实手势）才调 enablePush() 走系统权限框。详见 usePushNotification.js。
   const { permission: pushPermission, enablePush } = usePushNotification(user);
+  const [meSubPage, setMeSubPage] = useState(null);
+  // 设置页「浏览器通知」入口（引导条点过「暂不」后唯一的开启途径）：点击时同步派发
+  // touliao:enable-push，这里在同一调用栈里调 enablePush()（第一步就是 requestPermission），
+  // 保住 Safari 要求的用户手势。
+  useEffect(() => {
+    const onEnable = e => { e.detail?.resolve?.(enablePush()); };
+    window.addEventListener('touliao:enable-push', onEnable);
+    return () => window.removeEventListener('touliao:enable-push', onEnable);
+  }, [enablePush]);
 
   // 上报界面语言，供服务端渲染离线推送文案。
   // 推送是异步发出的，服务端那时没有请求上下文可协商语言，只能靠持久化的用户偏好
@@ -1089,7 +1098,7 @@ export default function Home() {
         return <PanelBoundary name={t('home.collectionsPanelName')}><Suspense fallback={<PanelSkeleton />}><Collections /></Suspense></PanelBoundary>;
       case 'profile':
       case 'me':
-        return <Profile isMobile={isMobile} />;
+        return <Profile isMobile={isMobile} onSubPageChange={setMeSubPage} />;
       default:
         return null;
     }
@@ -1275,7 +1284,7 @@ export default function Home() {
                     aria-label={t('common.search')} value={search} onClear={() => setSearch('')}
                     onChange={e => setSearch(e.target.value)} />
                 </>
-              ) : (
+              ) : (tab === 'me' && meSubPage) ? null : (
                 <div className="m-topbar">
                   {inDiscoverChild && (
                     <button type="button" className="m-topbar-back" onClick={() => handleTabChange('discover')} aria-label={t('common.back')}>
@@ -1285,8 +1294,12 @@ export default function Home() {
                   <span className="m-title">{mLabel(tab)}</span>
                 </div>
               )}
-              <CallSoundGuide />
-            <PushPermissionGuide permission={pushPermission} onEnable={enablePush} />
+              {!(tab === 'me' && meSubPage) && (
+                <>
+                  <CallSoundGuide />
+                  <PushPermissionGuide permission={pushPermission} onEnable={enablePush} />
+                </>
+              )}
               <div className="m-content">
                 {search.trim() ? (
                   <GlobalSearch query={search}
