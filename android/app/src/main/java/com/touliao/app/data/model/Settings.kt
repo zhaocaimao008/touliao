@@ -49,4 +49,6 @@ data class UpdateSettingsBody(
     val quietStart: String? = null,
     @kotlinx.serialization.SerialName("quiet_end")
     val quietEnd: String? = null,
+    // 设备时区（IANA，如 Asia/Shanghai），服务端按它判定勿扰时段
+    val timezone: String? = null,
 )

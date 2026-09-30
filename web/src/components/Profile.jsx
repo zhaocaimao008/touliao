@@ -762,7 +762,12 @@ function NotificationSettings({ onBack }) {
     setSaving(true);
     try {
       // 键名须与后端 normalizeSettings 的 camelCase 一致，否则被 undefined 忽略、存不进
-      await axios.put('/api/users/me/settings', { [key]: value });
+      const body = { [key]: value };
+      // 勿扰时段按用户所在时区判定，保存勿扰相关项时顺带上报时区
+      if (key.startsWith('quiet')) {
+        try { body.timezone = Intl.DateTimeFormat().resolvedOptions().timeZone; } catch { /* 旧浏览器拿不到时区：不上报，服务端按默认时区兜底 */ }
+      }
+      await axios.put('/api/users/me/settings', body);
       if (key === 'messageNotify') localStorage.setItem('wc_lock_screen', value ? '1' : '0');
       else if (key === 'detailPreview') localStorage.setItem('wc_notify_preview', value ? '1' : '0');
     } catch {

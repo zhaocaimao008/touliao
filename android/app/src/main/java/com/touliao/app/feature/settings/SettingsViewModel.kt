@@ -74,14 +74,14 @@ class SettingsViewModel @Inject constructor(
     fun setQuietEnabled(enabled: Boolean) =
         patch(
             { it.copy(quietEnabled = if (enabled) 1 else 0) },
-            UpdateSettingsBody(quietEnabled = if (enabled) 1 else 0),
+            UpdateSettingsBody(quietEnabled = if (enabled) 1 else 0, timezone = java.util.TimeZone.getDefault().id),
         )
 
     /** 保存勿扰时段时间（start/end 格式 HH:MM，支持跨夜如 23:00-07:00）。 */
     fun saveQuietTime(start: String, end: String) =
         patch(
             { it.copy(quietStart = start, quietEnd = end) },
-            UpdateSettingsBody(quietStart = start, quietEnd = end),
+            UpdateSettingsBody(quietStart = start, quietEnd = end, timezone = java.util.TimeZone.getDefault().id),
         )
 
     // 来电铃声：classic/dual/triple/soft，切换即写入 CallManager 生效

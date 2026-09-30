@@ -53,14 +53,17 @@ private struct UpdateQuietBody: Encodable {
     let quiet_enabled: Int?
     let quiet_start: String?
     let quiet_end: String?
+    /// 设备时区（IANA，如 Asia/Shanghai），服务端按它判定勿扰时段
+    let timezone: String = TimeZone.current.identifier
     enum CodingKeys: String, CodingKey {
-        case quiet_enabled, quiet_start, quiet_end
+        case quiet_enabled, quiet_start, quiet_end, timezone
     }
     func encode(to encoder: Encoder) throws {
         var c = encoder.container(keyedBy: CodingKeys.self)
         try c.encodeIfPresent(quiet_enabled, forKey: .quiet_enabled)
         try c.encodeIfPresent(quiet_start, forKey: .quiet_start)
         try c.encodeIfPresent(quiet_end, forKey: .quiet_end)
+        try c.encode(timezone, forKey: .timezone)
     }
 }
 

@@ -200,10 +200,24 @@ async function pushToUser(userId, payload) {
   }
 }
 
-// 勿扰时段判定：quietStart/quietEnd 为 "HH:MM"（服务器本地时区）。
+// 勿扰时段判定：quietStart/quietEnd 为 "HH:MM"，按 timeZone（IANA 名）的当地时间比较。
+// 不传 timeZone 时用进程本地时区（仅供测试/兼容）；推送调用方总会传用户时区或 DEFAULT_TIMEZONE。
 // 支持跨零点区间（如 23:00~07:00）：start<=end 为当日区间，start>end 为跨夜区间。
-// 时间格式非法时返回 false（不抑制推送，安全降级）。
-function isInQuietHours(quietStart, quietEnd, now = new Date()) {
+// 时间格式非法时返回 false（不抑制推送，安全降级）；时区非法时退回 DEFAULT_TIMEZONE。
+const DEFAULT_TIMEZONE = 'Asia/Shanghai';
+function minutesInZone(now, timeZone) {
+  if (!timeZone) return now.getHours() * 60 + now.getMinutes();
+  let parts;
+  try {
+    parts = new Intl.DateTimeFormat('en-US', { timeZone, hourCycle: 'h23', hour: '2-digit', minute: '2-digit' }).formatToParts(now);
+  } catch {
+    if (timeZone === DEFAULT_TIMEZONE) return now.getHours() * 60 + now.getMinutes();
+    return minutesInZone(now, DEFAULT_TIMEZONE);
+  }
+  const get = type => Number(parts.find(p => p.type === type)?.value);
+  return (get('hour') % 24) * 60 + get('minute');
+}
+function isInQuietHours(quietStart, quietEnd, now = new Date(), timeZone) {
   const parse = (s) => {
     if (typeof s !== 'string') return null;
     const m = /^(\d{1,2}):(\d{2})$/.exec(s.trim());
@@ -215,7 +229,7 @@ function isInQuietHours(quietStart, quietEnd, now = new Date()) {
   const start = parse(quietStart);
   const end = parse(quietEnd);
   if (start == null || end == null || start === end) return false;
-  const cur = now.getHours() * 60 + now.getMinutes();
+  const cur = minutesInZone(now, timeZone);
   return start < end
     ? (cur >= start && cur < end)          // 当日区间，如 09:00~12:00
     : (cur >= start || cur < end);          // 跨夜区间，如 23:00~07:00
@@ -265,14 +279,15 @@ async function pushNewMessage({ conversationId, senderId, senderName, content, t
       COALESCE(us.quiet_enabled, 0) AS quiet_enabled,
       COALESCE(us.quiet_start, '23:00') AS quiet_start,
       COALESCE(us.quiet_end, '07:00') AS quiet_end,
-      COALESCE(us.lang, 'zh-CN') AS lang
+      COALESCE(us.lang, 'zh-CN') AS lang,
+      us.timezone AS timezone
     FROM users u
     LEFT JOIN user_settings us ON us.user_id = u.id
     LEFT JOIN conversation_settings cs ON cs.user_id = u.id AND cs.conversation_id = ?
     WHERE u.id IN (${ph})
   `).all(conversationId, ...targetUids);
   const settingsMap = new Map(settingsRows.map(r => [r.user_id, r]));
-  const defaultSettings = { last_read_at: 0, muted: 0, message_notify: 1, detail_preview: 1, sound: 1, vibrate: 0, quiet_enabled: 0, quiet_start: '23:00', quiet_end: '07:00', lang: pushI18n.DEFAULT_LANG };
+  const defaultSettings = { last_read_at: 0, muted: 0, message_notify: 1, detail_preview: 1, sound: 1, vibrate: 0, quiet_enabled: 0, quiet_start: '23:00', quiet_end: '07:00', timezone: null, lang: pushI18n.DEFAULT_LANG };
 
   // 批量未读数（优化 N+1）：一次查询取回所有目标用户的未读数，替代循环内逐用户 COUNT。
   // 大群（500 人）一条消息原为 500 次同步 SQLite 查询阻塞事件循环，现为 1 次。
@@ -300,7 +315,7 @@ async function pushNewMessage({ conversationId, senderId, senderName, content, t
     if (!Number(settings.message_notify)) return null;   // 全局关闭新消息通知
     if (Number(settings.muted)) return null;             // 该会话已设免打扰 → 不推送
     // 勿扰时段检查：开启且当前时刻落在时段内 → 抑制推送（消息本身照常入库送达）
-    if (Number(settings.quiet_enabled) && isInQuietHours(settings.quiet_start, settings.quiet_end)) return null;
+    if (Number(settings.quiet_enabled) && isInQuietHours(settings.quiet_start, settings.quiet_end, new Date(), settings.timezone || DEFAULT_TIMEZONE)) return null;
     const unread = unreadMap.get(uid) || 1;
     const lang = pushI18n.normalizeLang(settings.lang);
     return pushToUser(uid, {
@@ -737,4 +752,4 @@ async function pushCallInvite({ toUserId, fromUserId, callerName, callType, call
   await Promise.allSettled(promises);
 }
 
-module.exports = { pushToUser, pushNewMessage, pushCallInvite, sendIosPush, isAllowedPushEndpoint, isInQuietHours, langOf };
+module.exports = { pushToUser, pushNewMessage, pushCallInvite, sendIosPush, isAllowedPushEndpoint, isInQuietHours, DEFAULT_TIMEZONE, langOf };

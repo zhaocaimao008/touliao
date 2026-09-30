@@ -174,7 +174,8 @@ struct ChatView: View {
             vm.userIsTyping()
         }
         .onChange(of: vm.closed) { closed in if closed { dismiss() } }
-        .onDisappear { vm.onLeave() }
+        .onAppear { VisibleConversation.shared.enter(vm.conversationId) }
+        .onDisappear { VisibleConversation.shared.leave(vm.conversationId); vm.onLeave() }
         .onChange(of: photoItems) { items in handlePhotos(items) }
         .onChange(of: videoItem) { item in handleVideo(item) }
         .alert("视频导入失败", isPresented: Binding(get: { videoImportError != nil }, set: { if !$0 { videoImportError = nil } })) {

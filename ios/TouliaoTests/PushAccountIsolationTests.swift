@@ -1,5 +1,6 @@
 import XCTest
 @testable import Touliao
+import UserNotifications
 
 private actor PushTestGate {
     private var waiting: CheckedContinuation<Void, Never>?
@@ -69,5 +70,13 @@ final class PushAccountIsolationTests: XCTestCase {
         XCTAssertFalse(PushRecipient.matches("A", currentUserId: "A", loggedIn: false))
         XCTAssertFalse(PushRecipient.matches(nil, currentUserId: "A", loggedIn: true))
         XCTAssertFalse(PushRecipient.matches("", currentUserId: "", loggedIn: true))
+    }
+
+    func testForegroundBannerSkipsOnlyVisibleConversationAndCalls() {
+        let msg: [AnyHashable: Any] = ["conversationId": "c1", "type": "message"]
+        XCTAssertEqual(PushRecipient.foregroundOptions(msg, visibleConversationId: nil), [.banner, .list, .sound])
+        XCTAssertEqual(PushRecipient.foregroundOptions(msg, visibleConversationId: "c2"), [.banner, .list, .sound])
+        XCTAssertEqual(PushRecipient.foregroundOptions(msg, visibleConversationId: "c1"), [.sound])
+        XCTAssertEqual(PushRecipient.foregroundOptions(["callId": "x", "from": "u"], visibleConversationId: nil), [.sound])
     }
 }
