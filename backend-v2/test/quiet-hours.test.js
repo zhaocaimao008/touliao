@@ -90,3 +90,52 @@ describe('勿扰时段 HTTP 接口', () => {
     expect(res.body.quietEnabled).toBe(false);
   });
 });
+
+describe('勿扰时段按用户时区判定', () => {
+  // 2024-01-01T01:30:00Z = 北京时间 09:30 = 纽约前一天 20:30
+  const now = new Date(Date.UTC(2024, 0, 1, 1, 30));
+  test('Asia/Shanghai 09:30 不在 23:00~07:00 内', () => {
+    expect(isInQuietHours('23:00', '07:00', now, 'Asia/Shanghai')).toBe(false);
+  });
+  test('Asia/Shanghai 09:30 在 09:00~12:00 内', () => {
+    expect(isInQuietHours('09:00', '12:00', now, 'Asia/Shanghai')).toBe(true);
+  });
+  test('America/New_York 20:30 在 20:00~07:00 内', () => {
+    expect(isInQuietHours('20:00', '07:00', now, 'America/New_York')).toBe(true);
+  });
+  test('非法时区退回 DEFAULT_TIMEZONE（Asia/Shanghai）', () => {
+    expect(isInQuietHours('09:00', '12:00', now, 'Not/AZone')).toBe(true);
+  });
+});
+
+describe('勿扰设置兼容 iOS/安卓的下划线字段并保存时区', () => {
+  let u;
+  beforeAll(async () => { u = await makeUser(); });
+
+  test('PUT quiet_enabled/quiet_start/quiet_end + timezone 落库', async () => {
+    const res = await request(app)
+      .put('/api/users/me/settings')
+      .set('Authorization', `Bearer ${u.token}`)
+      .send({ quiet_enabled: 1, quiet_start: '22:30', quiet_end: '06:45', timezone: 'Asia/Shanghai' });
+    expect(res.status).toBe(200);
+    expect(res.body.quietEnabled).toBe(true);
+    expect(res.body.quietStart).toBe('22:30');
+    expect(res.body.quietEnd).toBe('06:45');
+    expect(res.body.timezone).toBe('Asia/Shanghai');
+    // 已发版移动端按下划线字段读
+    expect(res.body.quiet_enabled).toBe(1);
+    expect(res.body.quiet_start).toBe('22:30');
+    expect(res.body.quiet_end).toBe('06:45');
+  });
+
+  test('quiet_enabled=0 关闭；非法时区忽略', async () => {
+    const res = await request(app)
+      .put('/api/users/me/settings')
+      .set('Authorization', `Bearer ${u.token}`)
+      .send({ quiet_enabled: 0, timezone: 'Mars/Base' });
+    expect(res.status).toBe(200);
+    expect(res.body.quietEnabled).toBe(false);
+    expect(res.body.quiet_enabled).toBe(0);
+    expect(res.body.timezone).toBe('Asia/Shanghai');
+  });
+});

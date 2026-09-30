@@ -22,7 +22,7 @@ const settingDefaults = {
   block_unknown_messages: 0, message_notify: 1, detail_preview: 1, sound: 1, vibrate: 0,
   chat_background: null, moments_visible_days: 0, no_direct_group_invite: 0,
   // 勿扰时段（夜间免打扰）：开关 + HH:MM 起止时间，命中时段抑制离线推送
-  quiet_enabled: 0, quiet_start: '23:00', quiet_end: '07:00',
+  quiet_enabled: 0, quiet_start: '23:00', quiet_end: '07:00', timezone: null,
   // 推送文案语言（客户端切换语言时上报）。服务端异步发推送时没有 Accept-Language
   // 可协商，只能靠这一列。见 utils/pushI18n.js。
   lang: pushI18n.DEFAULT_LANG,
@@ -36,6 +36,12 @@ function normalizeHHMM(v) {
   const h = Number(m[1]), min = Number(m[2]);
   if (h < 0 || h > 23 || min < 0 || min > 59) return null;
   return `${String(h).padStart(2, '0')}:${String(min).padStart(2, '0')}`;
+}
+// 校验 IANA 时区名（Intl 不认识的一律丢弃），合法返回规范写法，否则 null
+function normalizeTimeZone(v) {
+  if (typeof v !== 'string' || !v.trim() || v.length > 64) return null;
+  try { return new Intl.DateTimeFormat('en-US', { timeZone: v.trim() }).resolvedOptions().timeZone; }
+  catch { return null; }
 }
 const toBool = v => !!Number(v);
 const toIntBool = v => (v ? 1 : 0);
@@ -61,6 +67,11 @@ function serializeSettings(row) {
     quietEnabled: toBool(s.quiet_enabled),
     quietStart: normalizeHHMM(s.quiet_start) || '23:00',
     quietEnd: normalizeHHMM(s.quiet_end) || '07:00',
+    timezone: s.timezone || '',
+    // iOS/安卓已发版本按下划线字段读勿扰设置（quiet_enabled 为 0/1 整数），一并返回以兼容
+    quiet_enabled: toIntBool(toBool(s.quiet_enabled)),
+    quiet_start: normalizeHHMM(s.quiet_start) || '23:00',
+    quiet_end: normalizeHHMM(s.quiet_end) || '07:00',
     ringtone: RINGTONE_OPTIONS.includes(s.ringtone) ? s.ringtone : 'classic',
     lang: pushI18n.normalizeLang(s.lang),
   };
@@ -86,8 +97,16 @@ function normalizeSettings(body) {
     const d = Number(body.momentsVisibleDays);
     patch.moments_visible_days = MOMENTS_DAY_OPTIONS.includes(d) ? d : 0;
   }
-  // 勿扰时段：布尔开关 + HH:MM 格式时间
-  if (body.quietEnabled !== undefined) patch.quiet_enabled = toIntBool(body.quietEnabled);
+  // 勿扰时段：布尔开关 + HH:MM 格式时间。iOS/安卓已发版本提交的是下划线字段
+  // （quiet_enabled/quiet_start/quiet_end），此前被整体忽略、设置从未落库，这里兼容两种写法。
+  for (const [snake, camel] of [['quiet_enabled', 'quietEnabled'], ['quiet_start', 'quietStart'], ['quiet_end', 'quietEnd']]) {
+    if (body[camel] === undefined && body[snake] !== undefined) body = { ...body, [camel]: body[snake] };
+  }
+  if (body.timezone !== undefined) {
+    const tz = normalizeTimeZone(body.timezone);
+    if (tz) patch.timezone = tz;
+  }
+  if (body.quietEnabled !== undefined) patch.quiet_enabled = toIntBool(toBool(body.quietEnabled));
   if (body.quietStart !== undefined) {
     const v = normalizeHHMM(body.quietStart);
     if (v !== null) patch.quiet_start = v;

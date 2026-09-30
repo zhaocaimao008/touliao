@@ -706,6 +706,10 @@ function applySchema(db) {
       created_at INTEGER NOT NULL DEFAULT (strftime('%s','now')),
       PRIMARY KEY (user_id, contact_id)
     )`,
+    // 勿扰时段按用户时区判定（IANA 名，如 Asia/Shanghai）。客户端保存勿扰设置时上报；
+    // NULL = 未上报，推送侧按 DEFAULT_TIMEZONE 兜底。此前按服务器 UTC 计算，中国用户
+    // 设 23:00~07:00 实际拦的是北京时间 07:00~15:00。
+    "ALTER TABLE user_settings ADD COLUMN timezone TEXT DEFAULT NULL",
   ];
 
   // ── 迁移执行：版本追踪 + 错误分级 ────────────────────────────────
