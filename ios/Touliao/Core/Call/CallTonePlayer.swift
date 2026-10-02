@@ -9,23 +9,15 @@ final class CallTonePlayer {
     private var connectedPlayer: AVAudioPlayer?
     private let sampleRate = 16000.0
 
-    /// 配置音频会话为 playAndRecord(通话模式):忽略静音键——回铃音无声根因之一
-    /// (AVAudioPlayer 默认会话尊重静音键)。与 CallManager.configureAudioSession
-    /// 参数一致,重复调用幂等。
-    private func ensureAudioSession() {
-        let session = AVAudioSession.sharedInstance()
-        do {
-            try session.setCategory(.playAndRecord, mode: .voiceChat, options: [.duckOthers])
-            try session.setActive(true)
-        } catch {
-            print("[CallTone] 音频会话配置失败(回铃音可能无声): \(error.localizedDescription)")
-        }
-    }
+    // 2026-10-02：不再自行用裸 AVAudioSession setCategory(.duckOthers)/setActive——那会绕过
+    // RTCAudioSession 改掉 WebRTC 持有的会话（options 被换成 duckOthers、丢掉 allowBluetooth，
+    // 激活计数也对不上）。CallManager 在 playRingback 前已经通过 RTCAudioSession 配好并激活了
+    // .playAndRecord + .voiceChat + .allowBluetooth 会话，这里直接沿用：playAndRecord 本身忽略
+    // 静音键（回铃音无声的老问题不会回来），路由也与通话一致（听筒/扬声器/蓝牙）。
 
     /// 主叫呼出→接通前：循环回铃音（1s 双音「嘟」+ 2s 静默，无限循环）。
     func playRingback() {
         stop()
-        ensureAudioSession()
         let tone = pcmTone(freqs: [440, 480], seconds: 1.0, amplitude: 0.25)
         let silence = pcmSilence(seconds: 2.0)
         let wav = wavData(pcm: tone + silence)

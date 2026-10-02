@@ -5,12 +5,14 @@ import WebRTC
 /// 全局群通话浮层 + 来电邀请横幅：常驻挂载于 RootView。
 struct GroupCallHostView: View {
     @ObservedObject private var manager = GroupCallManager.shared
+    /// 1v1 与群通话互斥：1v1 通话中不展示群邀请横幅（无法加入）
+    @ObservedObject private var callManager = CallManager.shared
 
     var body: some View {
         ZStack {
             if manager.state.stage != .idle {
                 GroupCallView(manager: manager).transition(.opacity)
-            } else if let inv = manager.pendingInvite {
+            } else if let inv = manager.pendingInvite, !callManager.isBusy {
                 VStack {
                     inviteBanner(inv)
                     Spacer()
@@ -128,6 +130,8 @@ private struct GroupCallView: View {
                     }
                 }
             }
+            // 2026-10-02：扬声器/听筒切换（与 1v1 通话界面同款按钮）
+            circleButton(state.speakerOn ? "听筒" : "扬声器", TouliaoMedia.control) { manager.toggleSpeaker() }
             if state.isVideo {
                 circleButton("翻转", TouliaoMedia.control) { manager.switchCamera() }
             }
