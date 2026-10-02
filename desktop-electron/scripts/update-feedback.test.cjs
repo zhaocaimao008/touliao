@@ -29,7 +29,7 @@ function harness(profile = 1, { pins = [] } = {}) {
     ipcMain: { handle: (name, fn) => handlers.set(name, fn) },
     log: { info() {}, error() {} }, isTrustedSender: () => true,
     verifyUpdateSignature: async () => binding, isQuitting: false,
-    updateReady: false, updateInstallRequested: false,
+    updateReady: false, updateInstallRequested: false, inCall: false,
   });
   // Execute the real registration functions, without starting Electron or unrelated app services.
   for (const name of ['setupAutoUpdater', 'setupIPC']) {
@@ -68,6 +68,12 @@ test('non-primary account receives an installation refusal instead of silence', 
   const h = harness(2); await downloaded(h);
   await assert.rejects(h.handlers.get('update:install')({}), /账号窗口 1/);
   assert.equal(h.counts().installs, 0);
+});
+test('installation is refused during a call and the app keeps running', async () => {
+  const h = harness(); await downloaded(h);
+  h.context.inCall = true;
+  await assert.rejects(h.handlers.get('update:install')({}), /通话中/);
+  assert.equal(h.counts().installs, 0); assert.equal(h.context.isQuitting, false);
 });
 test('installer errors restore normal app quit behavior and repeated clicks do not start twice', async () => {
   const h = harness(); await downloaded(h);
