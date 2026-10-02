@@ -148,7 +148,7 @@ function installHarness(platform='win32') {
  fs.writeFileSync(filename,bytes);
  const ctx={process:{platform,resourcesPath:'C:/fixture/resources',env:{SystemRoot:'C:/Windows'}},path, updateTrust:trust,
    updatePolicy:policy, trustedUpdate:trust.bindManifest(input()), downloadedInstaller:filename, PROFILE:1, installingUpdate:false,
-   updateReady:true, updateInstallRequested:false, autoUpdater:{quitAndInstall:()=>updaterInstalls++},
+   updateReady:true, updateInstallRequested:false, inCall:false, autoUpdater:{quitAndInstall:()=>updaterInstalls++},
    strictUpdateMode:()=>{ try { trust.publishers(ctx.updatePolicy); return true; } catch { return false; } },
    isTrustedSender:e=>e.trusted, isQuitting:false, app:{quit:()=>quits++},
    mainWindow:{webContents:{send:(...args)=>events.push(args)}},ipcMain:{handle:(name,handler)=>handlers[name]=handler},
