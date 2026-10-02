@@ -107,6 +107,8 @@ fun CallHost(
     val activity = callScreenContext as? android.app.Activity
     var showPermDeniedDialog by remember { mutableStateOf(false) }
     val permLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { res ->
+        // 授权后补起通话前台服务（RECORD_AUDIO 未授权时 CallManager 建流阶段会跳过）+ 刷新蓝牙可用性
+        viewModel.onPermissionsResult()
         // 此前结果被完全忽略——被拒绝后通话界面照常呈现，用户只会看到"听不到对方声音/
         // 对方看不到自己"却毫无线索。这不拦断通话流程（对方可能仍在等接听），只提示原因。
         if (!res.values.all { it }) {

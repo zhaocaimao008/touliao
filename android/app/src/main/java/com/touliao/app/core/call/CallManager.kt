@@ -77,6 +77,7 @@ class CallManager @Inject constructor(
     private val turnApi: com.touliao.app.data.api.TurnApi,
     private val userApi: com.touliao.app.data.api.UserApi,
     private val notificationHelper: com.touliao.app.core.push.NotificationHelper,
+    private val audioRouter: CallAudioRouter,
     @AppScope private val scope: CoroutineScope,
 ) {
     val eglBase: EglBase = EglBase.create()
@@ -88,225 +89,67 @@ class CallManager @Inject constructor(
         }
     }
 
-    // ── 音频路由(2026-08-29语音通话审计新增)：此前无 AudioManager 相关代码，通话音频
-    // 路由/焦点完全交给系统默认行为——没有扬声器切换、没有主动抢音频焦点、系统来电/
-    // 其他App抢焦点时也没有回调处理。这里补上最小可用实现：MODE_IN_COMMUNICATION +
-    // 请求音频焦点 + 扬声器开关；音频焦点丢失(如系统来电)时自动静音麦克风，
-    // 恢复焦点后恢复原有静音状态，避免"接了系统电话，投聊还在发送声音"。
+    // ── 音频路由(2026-08-29语音通话审计新增；2026-10-02 抽到 [CallAudioRouter] 与群通话共用)：
+    // MODE_IN_COMMUNICATION + 通话焦点 + 听筒/扬声器/蓝牙路由都在 router 里；这里只处理焦点
+    // 事件对本通话的影响：系统电话抢焦点时静音麦克风、GAIN 后恢复；停/补播循环提示音。
     private val audioManager: android.media.AudioManager =
         context.getSystemService(Context.AUDIO_SERVICE) as android.media.AudioManager
     private var micEnabledBeforeFocusLoss = true
     // 仅系统电话抢焦点时才代为静音麦克风；记下是否由我们静音，GAIN 时只恢复自己改过的状态。
-    private var mutedForSystemCall = false
-    private var focusReacquireJob: Job? = null
-    private val audioFocusListener = android.media.AudioManager.OnAudioFocusChangeListener { change ->
-        when (change) {
-            android.media.AudioManager.AUDIOFOCUS_LOSS,
-            android.media.AudioManager.AUDIOFOCUS_LOSS_TRANSIENT -> {
-                // B-5：停铃声/回铃等循环提示音，GAIN 后按阶段补播
-                pauseTonesForFocusLoss()
-                if (isSystemCallActive()) {
-                    // 系统电话：静音麦克风，避免"接了系统电话，投聊还在发送声音"
-                    if (!mutedForSystemCall) micEnabledBeforeFocusLoss = _state.value.micEnabled
-                    mutedForSystemCall = true
-                    localAudioTrack?.setEnabled(false)
-                    _state.update { it.copy(micEnabled = false) }
-                } else {
-                    // 其他 App 出声（语音消息/视频/提示音）：通话照常收发，不再静音麦克风——
-                    // 旧逻辑在此静音，永久 LOSS 不会再回 GAIN，麦克风一直关着，对端听起来就是"断了"。
-                    scheduleFocusReacquire()
-                }
+    @Volatile private var mutedForSystemCall = false
+    private val audioListener = object : CallAudioRouter.Listener {
+        override fun onRouteChanged(speakerOn: Boolean, bluetoothOn: Boolean, bluetoothAvailable: Boolean) {
+            _state.update {
+                if (it.stage == CallStage.IDLE || it.stage == CallStage.ENDED) it
+                else it.copy(speakerOn = speakerOn, bluetoothOn = bluetoothOn, bluetoothAvailable = bluetoothAvailable)
             }
-            android.media.AudioManager.AUDIOFOCUS_LOSS_TRANSIENT_CAN_DUCK -> {
-                // B-5：短时压低音量（导航播报/提示音）——通话流不受影响，显式忽略
+        }
+        override fun onSystemCallInterrupted() {
+            // 系统电话：静音麦克风，避免"接了系统电话，投聊还在发送声音"
+            if (!mutedForSystemCall) micEnabledBeforeFocusLoss = _state.value.micEnabled
+            mutedForSystemCall = true
+            localAudioTrack?.setEnabled(false)
+            _state.update { it.copy(micEnabled = false) }
+        }
+        override fun onFocusLost() {
+            // B-5：停回铃等循环提示音，恢复后按阶段补播
+            pauseTonesForFocusLoss()
+        }
+        override fun onFocusRegained() {
+            if (mutedForSystemCall) {
+                mutedForSystemCall = false
+                localAudioTrack?.setEnabled(micEnabledBeforeFocusLoss)
+                _state.update { it.copy(micEnabled = micEnabledBeforeFocusLoss) }
             }
-            android.media.AudioManager.AUDIOFOCUS_GAIN -> {
-                focusReacquireJob?.cancel(); focusReacquireJob = null
-                if (mutedForSystemCall) {
-                    mutedForSystemCall = false
-                    localAudioTrack?.setEnabled(micEnabledBeforeFocusLoss)
-                    _state.update { it.copy(micEnabled = micEnabledBeforeFocusLoss) }
-                }
-                resumeTonesAfterFocusGain()
-            }
-            else -> {}
+            resumeTonesAfterFocusGain()
         }
     }
 
-    /** 系统电话（运营商通话）进行中/响铃：全局音频模式会切到 IN_CALL/RINGTONE，读取无需权限。 */
-    private fun isSystemCallActive(): Boolean {
-        val mode = runCatching { audioManager.mode }.getOrDefault(android.media.AudioManager.MODE_NORMAL)
-        return mode == android.media.AudioManager.MODE_IN_CALL || mode == android.media.AudioManager.MODE_RINGTONE
-    }
-
-    /** 焦点被其他 App 拿走后：1s 后重新切回通话模式并申请焦点（对方 App 播放结束或被系统压低），
-     *  直到系统电话出现或通话结束为止；重复调用只保留一个任务。 */
-    private fun scheduleFocusReacquire() {
-        if (focusReacquireJob?.isActive == true) return
-        focusReacquireJob = scope.launch {
-            delay(FOCUS_REACQUIRE_DELAY_MS)
-            val stage = _state.value.stage
-            if (stage == CallStage.IDLE || stage == CallStage.ENDED || isSystemCallActive()) return@launch
-            audioManager.mode = android.media.AudioManager.MODE_IN_COMMUNICATION
-            @Suppress("DEPRECATION")
-            runCatching {
-                audioManager.requestAudioFocus(
-                    audioFocusListener,
-                    android.media.AudioManager.STREAM_VOICE_CALL,
-                    android.media.AudioManager.AUDIOFOCUS_GAIN_TRANSIENT,
-                )
-            }
-        }
-    }
-
-    /** B-5：焦点被抢时停循环提示音（来电铃/回铃）。接通提示音是一次性 200ms，不专门处理。 */
+    /** B-5：焦点被抢时停循环回铃（来电铃声走铃声流、不持有通话焦点，不在此处理）。 */
     private fun pauseTonesForFocusLoss() {
-        stopIncomingTone()   // 取消铃声循环 + stopTone（顺带停掉回铃长音）
+        if (_state.value.stage == CallStage.OUTGOING) runCatching { toneGen?.stopTone() }
     }
 
-    /** B-5：焦点恢复后按通话阶段补播对应提示音（来电铃/回铃）。 */
+    /** B-5：焦点恢复后按通话阶段补播回铃。 */
     private fun resumeTonesAfterFocusGain() {
-        when (_state.value.stage) {
-            CallStage.INCOMING -> playIncomingTone()
-            CallStage.OUTGOING -> playRingbackTone()
-            else -> {}
-        }
+        if (_state.value.stage == CallStage.OUTGOING) playRingbackTone()
     }
 
-    // 蓝牙SCO(2026-08-29语音通话审计补充)：此前扬声器切换只处理了听筒/扬声器二选一，
-    // 完全没碰蓝牙——已配对耳机连接时无法路由通话音频到蓝牙，也没有断开自动回退。
-    // 需要 BLUETOOTH_CONNECT 运行时权限(API 31+)；未授权时不崩，只是蓝牙按钮不可用/不显示，
-    // 由调用方(CallScreen)据 state.bluetoothAvailable 决定是否展示入口。
-    private var bluetoothScoReceiverRegistered = false
-    private val bluetoothScoReceiver = object : android.content.BroadcastReceiver() {
-        override fun onReceive(ctx: Context, intent: android.content.Intent) {
-            val scoState = intent.getIntExtra(
-                android.media.AudioManager.EXTRA_SCO_AUDIO_STATE,
-                android.media.AudioManager.SCO_AUDIO_STATE_ERROR,
-            )
-            when (scoState) {
-                android.media.AudioManager.SCO_AUDIO_STATE_CONNECTED -> {
-                    // B-5：SCO 真正建立后才切路由——音频改走蓝牙耳机（提示音随 SCO 流）
-                    audioManager.isBluetoothScoOn = true
-                    audioManager.isSpeakerphoneOn = false
-                    _state.update { it.copy(bluetoothOn = true, speakerOn = false) }
-                }
-                android.media.AudioManager.SCO_AUDIO_STATE_DISCONNECTED -> {
-                    // B-5：SCO 意外断开（耳机摘下/关机）→ 回退听筒。仅在状态仍标记蓝牙路由时
-                    // 处理：toggleSpeaker/toggleBluetooth 主动关 SCO 触发的 DISCONNECTED 不能
-                    // 覆盖用户刚切的扬声器（那两处已先把 state.bluetoothOn 置 false）。
-                    if (_state.value.bluetoothOn) {
-                        audioManager.isBluetoothScoOn = false
-                        audioManager.isSpeakerphoneOn = false
-                        _state.update { it.copy(bluetoothOn = false, speakerOn = false) }
-                    }
-                }
-                else -> {}   // CONNECTING/ERROR：等终态，不动乐观标记
-            }
-        }
-    }
-
-    private fun hasBluetoothPermission(): Boolean {
-        if (android.os.Build.VERSION.SDK_INT < android.os.Build.VERSION_CODES.S) return true
-        return androidx.core.content.ContextCompat.checkSelfPermission(
-            context, android.Manifest.permission.BLUETOOTH_CONNECT,
-        ) == android.content.pm.PackageManager.PERMISSION_GRANTED
-    }
-
-    /** 是否检测到已连接的蓝牙音频设备(耳机/车载等，SCO可路由的类型)。无权限时保守返回false。 */
-    private fun hasBluetoothHeadset(): Boolean {
-        if (!hasBluetoothPermission()) return false
-        return runCatching {
-            audioManager.getDevices(android.media.AudioManager.GET_DEVICES_OUTPUTS).any {
-                it.type == android.media.AudioDeviceInfo.TYPE_BLUETOOTH_SCO ||
-                    it.type == android.media.AudioDeviceInfo.TYPE_BLUETOOTH_A2DP
-            }
-        }.getOrDefault(false)
-    }
-
+    /** 进入通话音频（幂等：已持有时不重置用户已选的扬声器/蓝牙）。 */
     private fun acquireAudioFocusAndRoute() {
-        audioManager.mode = android.media.AudioManager.MODE_IN_COMMUNICATION
-        @Suppress("DEPRECATION")
-        audioManager.requestAudioFocus(
-            audioFocusListener,
-            android.media.AudioManager.STREAM_VOICE_CALL,
-            android.media.AudioManager.AUDIOFOCUS_GAIN_TRANSIENT,
-        )
-        if (hasBluetoothPermission() && !bluetoothScoReceiverRegistered) {
-            // B-5：防重复注册——playIncomingTone/acquireAudioFocusAndRoute/GAIN 恢复多处都会走到这
-            runCatching {
-                context.registerReceiver(
-                    bluetoothScoReceiver,
-                    android.content.IntentFilter(android.media.AudioManager.ACTION_SCO_AUDIO_STATE_UPDATED),
-                )
-                bluetoothScoReceiverRegistered = true
-            }
-        }
-        val btAvailable = hasBluetoothHeadset()
-        // 有已连接蓝牙耳机时默认优先走蓝牙(更符合"戴着耳机打电话"的预期)，
-        // 否则维持原逻辑：语音通话默认听筒，视频通话默认扬声器。
-        val defaultSpeaker = !btAvailable && _state.value.isVideo
-        if (btAvailable) {
-            // B-5：只发起 SCO，不立即 isBluetoothScoOn=true 抢路由——等 receiver 收到
-            // SCO_AUDIO_STATE_CONNECTED 再真正切蓝牙，避免 SCO 未就绪期间音频走错设备。
-            @Suppress("DEPRECATION")
-            runCatching { audioManager.startBluetoothSco() }
-                .onFailure { e -> Log.w(TAG, "启动蓝牙 SCO 失败: ${e.message}") }
-        } else {
-            audioManager.isSpeakerphoneOn = defaultSpeaker
-        }
-        // bluetoothOn 只在 receiver 收到 SCO_AUDIO_STATE_CONNECTED 后置 true（B-5）——
-        // 先置 false：SCO 未就绪/启动失败(被 runCatching 吞)期间 UI 不得谎称"已路由蓝牙"，
-        // 否则用户看到蓝牙已启用但声音还在听筒/扬声器（AUDIT P3）。bluetoothAvailable 仅表示
-        // "有已连接耳机可切"，不代表已路由。
-        _state.update { it.copy(speakerOn = defaultSpeaker, bluetoothAvailable = btAvailable, bluetoothOn = false) }
+        audioRouter.acquire(audioListener, _state.value.isVideo)
     }
 
     private fun releaseAudioFocusAndRoute() {
-        focusReacquireJob?.cancel(); focusReacquireJob = null
         mutedForSystemCall = false
-        @Suppress("DEPRECATION")
-        runCatching { audioManager.abandonAudioFocus(audioFocusListener) }
-                .onFailure { e -> Log.w(TAG, "释放音频焦点失败: ${e.message}") }
-        if (bluetoothScoReceiverRegistered) {
-            runCatching { context.unregisterReceiver(bluetoothScoReceiver) }
-            bluetoothScoReceiverRegistered = false
-        }
-        @Suppress("DEPRECATION")
-        runCatching { audioManager.stopBluetoothSco() }
-                .onFailure { e -> Log.w(TAG, "停止蓝牙 SCO 失败: ${e.message}") }
-        audioManager.isBluetoothScoOn = false
-        audioManager.isSpeakerphoneOn = false
-        audioManager.mode = android.media.AudioManager.MODE_NORMAL
+        audioRouter.release(audioListener)
     }
 
     /** 切换扬声器/听筒(与蓝牙互斥：开扬声器会先关蓝牙路由)。 */
-    fun toggleSpeaker() {
-        val enabled = !_state.value.speakerOn
-        if (enabled && _state.value.bluetoothOn) {
-            @Suppress("DEPRECATION")
-            runCatching { audioManager.stopBluetoothSco() }
-            audioManager.isBluetoothScoOn = false
-        }
-        audioManager.isSpeakerphoneOn = enabled
-        _state.update { it.copy(speakerOn = enabled, bluetoothOn = if (enabled) false else it.bluetoothOn) }
-    }
+    fun toggleSpeaker() = audioRouter.toggleSpeaker()
 
     /** 切换蓝牙路由(与扬声器互斥)。仅在 state.bluetoothAvailable 时应被UI调用。 */
-    fun toggleBluetooth() {
-        val enabled = !_state.value.bluetoothOn
-        if (enabled) {
-            // B-5：只发起 SCO，实际路由等 receiver 收到 CONNECTED 后再切（见 bluetoothScoReceiver）
-            @Suppress("DEPRECATION")
-            runCatching { audioManager.startBluetoothSco() }
-            audioManager.isSpeakerphoneOn = false
-        } else {
-            @Suppress("DEPRECATION")
-            runCatching { audioManager.stopBluetoothSco() }
-            audioManager.isBluetoothScoOn = false
-        }
-        _state.update { it.copy(bluetoothOn = enabled, speakerOn = if (enabled) false else it.speakerOn) }
-    }
+    fun toggleBluetooth() = audioRouter.toggleBluetooth()
 
     private var factory: PeerConnectionFactory? = null
     private var peerConnection: PeerConnection? = null
@@ -315,6 +158,15 @@ class CallManager @Inject constructor(
     // 麦克风/PeerConnection/前台服务,无自动恢复路径。与 callTimeoutJob 同款自守卫模式:
     // 到点检查 stage 仍是 CONNECTING 才收尾,已接通/已挂断则自然 no-op,无需额外显式取消点。
     private var connectingTimeoutJob: Job? = null
+    // 来电看门狗：进入 INCOMING 后 60s 未接听/未收到 call:end（主叫断网、服务端超时事件丢失）
+    // 自动收起来电界面并停铃，防止一直响。同款自守卫：到点仍是同一通 INCOMING 才收尾。
+    private var incomingTimeoutJob: Job? = null
+    // 前台服务是否已起：需本地媒体已建立 + RECORD_AUDIO 已授权（Android 14 未授权起 microphone
+    // 类型 FGS 会抛 SecurityException）。未授权时等 CallScreen 授权回调里 ensureForegroundService()。
+    @Volatile private var localMediaReady = false
+    @Volatile private var foregroundStarted = false
+    // 完美协商：polite 一方回滚了自己的 offer 去应答对方，应答完成后需把自己的变更（如切视频）重新 offer
+    @Volatile private var renegotiateAfterRollback = false
     // ICE restart 自愈(网络切换 Wi-Fi↔4G):disconnected 3s 防抖 → restartIce → 15s 窗口 → 最多 3 次 → 挂断。
     // 信令复用现有 call:offer/answer/ice(后端纯转发零改动),对端收到 offer 走现有应答逻辑。
     private var iceRestartDebounceJob: Job? = null   // disconnected 防抖(短时探测间隙自愈)
@@ -431,9 +283,11 @@ class CallManager @Inject constructor(
             if (video && !localVideoOk) {
                 Log.w(TAG, "视频采集不可用,本端降级为纯音频发起")
                 _state.update { it.copy(isVideo = false) }
+                audioRouter.setVideo(false)
             }
-            // 本地媒体已开始采集（麦克风/摄像头）→ 起前台服务保活（此刻 App 在前台、权限已授予，满足 FGS 合规）
-            CallForegroundService.start(context, _state.value.isVideo)
+            // 本地媒体已开始采集（麦克风/摄像头）→ 起前台服务保活（RECORD_AUDIO 未授权时等授权回调再起）
+            localMediaReady = true
+            ensureForegroundService()
             val name = sessionManager.currentUser?.username.orEmpty()
             // ack 携带服务端生成的 callId + resumeToken；期间可能已挂断/重拨/被覆盖，仅在仍是同一通呼出时才回填（attempt 序号 + peer + stage 三重校验）
             val requestAck = socketManager.emitCallRequest(peerId, if (_state.value.isVideo) "video" else "audio", name)
@@ -482,7 +336,11 @@ class CallManager @Inject constructor(
         val s = _state.value
         if (s.stage != CallStage.INCOMING) return
         stopIncomingTone()
+        incomingTimeoutJob?.cancel(); incomingTimeoutJob = null
         _state.update { it.copy(stage = CallStage.CONNECTING) }
+        // 响铃阶段不碰通话模式/焦点（铃声走铃声流）；接听这一刻才切通话路由。
+        // 之后 createLocalTracks 里的 acquire 是幂等的，不会把用户此间切的扬声器重置。
+        acquireAudioFocusAndRoute()
         // 接听后等待协商(offer/answer/ICE)超时看门狗,与主叫 45s 呼出超时对称。
         connectingTimeoutJob?.cancel()
         connectingTimeoutJob = scope.launch {
@@ -504,9 +362,11 @@ class CallManager @Inject constructor(
             if (s.isVideo && !localVideoOk) {
                 Log.w(TAG, "视频采集不可用,接听降级为纯音频")
                 _state.update { it.copy(isVideo = false) }
+                audioRouter.setVideo(false)
             }
-            // 本地媒体已开始采集 → 起前台服务保活（接听时 App 在前台、权限已授予）
-            CallForegroundService.start(context, _state.value.isVideo)
+            // 本地媒体已开始采集 → 起前台服务保活（RECORD_AUDIO 未授权时等授权回调再起）
+            localMediaReady = true
+            ensureForegroundService()
             // accept 是被叫真正首次绑定 Socket 的时刻，只有这里能拿到 resumeToken（Q06 全修）
             socketManager.emitCallResponse(s.peerId, true, s.callId, onAck = { token -> participatingResumeToken = token })
             participatingCallId = s.callId
@@ -528,11 +388,36 @@ class CallManager @Inject constructor(
         cleanup(CallStage.ENDED)
     }
 
+    /** CallScreen 权限申请回调：补起前台服务 + 重新探测蓝牙耳机（BLUETOOTH_CONNECT 刚授予）。 */
+    fun onPermissionsResult() {
+        ensureForegroundService()
+        audioRouter.refreshDevices()
+    }
+
+    /**
+     * 起通话保活前台服务（幂等）：本地媒体已建立 + RECORD_AUDIO 已授权才起。
+     * 建流时与 CallScreen 权限授权回调里各调一次——谁后到谁真正启动。
+     */
+    fun ensureForegroundService() {
+        val st = _state.value.stage
+        if (st == CallStage.IDLE || st == CallStage.ENDED || st == CallStage.INCOMING) return
+        if (!localMediaReady || foregroundStarted) return
+        if (!CallForegroundService.hasRecordAudioPermission(context)) {
+            Log.w(TAG, "RECORD_AUDIO 未授权，暂不启动通话前台服务")
+            return
+        }
+        foregroundStarted = true
+        CallForegroundService.start(context, _state.value.isVideo)
+    }
+
     // ── ICE restart 自愈(网络切换) ─────────────────────────────
     // disconnected 3s 防抖 → restartIce() → 15s 恢复窗口 → 未恢复重试,最多 3 次 → 挂断。
     // 信令复用现有 call:offer/answer/ice;对端收到重协商 offer 走现有应答逻辑,后端零改动。
+    // 四端统一协议（2026-10-02）：只有主叫(isCaller，impolite)发起 restart offer；被叫只应答，
+    // 长时间断开时按同等窗口（防抖 + 15s×3）兜底挂断——避免双方同时 restart 撞车(glare)。
     private fun tryIceRestart() {
         val pc = peerConnection ?: return
+        if (!_state.value.isCaller) return
         if (iceRestartCount >= ICE_RESTART_MAX) { endCallByNetwork(); return }
         iceRestartCount++
         pc.restartIce()
@@ -544,6 +429,19 @@ class CallManager @Inject constructor(
             if (st == PeerConnection.IceConnectionState.DISCONNECTED ||
                 st == PeerConnection.IceConnectionState.FAILED
             ) tryIceRestart()
+            else iceRestartRecoverJob = null
+        }
+    }
+
+    /** 被叫：不主动 restart，等主叫的 restart offer；整段窗口后仍未恢复则挂断。 */
+    private fun startCalleeRecoverWatchdog() {
+        if (iceRestartRecoverJob?.isActive == true) return
+        iceRestartRecoverJob = scope.launch {
+            delay(ICE_RESTART_DEBOUNCE_MS + ICE_RESTART_WINDOW_MS * ICE_RESTART_MAX)
+            val st = peerConnection?.iceConnectionState()
+            if (st == PeerConnection.IceConnectionState.DISCONNECTED ||
+                st == PeerConnection.IceConnectionState.FAILED
+            ) endCallByNetwork()
             else iceRestartRecoverJob = null
         }
     }
@@ -602,14 +500,29 @@ class CallManager @Inject constructor(
                 st  // 正在通话/展示其他来电 → 不覆盖
             }
         }
-        // 从空闲新进入 INCOMING 才播铃（重复推送/升级 callId 不重播）
-        if (wasIdle) playIncomingTone()
+        // 从空闲新进入 INCOMING 才播铃+起看门狗（重复推送/升级 callId 不重播）
+        if (wasIdle) onEnterIncoming()
         else {
             // B-3：正在通话/已有来电 UI（不覆盖）时收到 FCM 来电推送 → 同样回忙线拒接，
             // 与 socket 通路 call:incoming 的 busy 语义一致；同一通的重复推送不算（只升级了 callId）
             val s = _state.value
             val sameIncoming = s.stage == CallStage.INCOMING && s.peerId == from
             if (!sameIncoming) socketManager.emitCallResponse(from, false, callId, busy = true)
+        }
+    }
+
+    /** 新进入 INCOMING：播来电铃声 + 起 60s 未接听看门狗。 */
+    private fun onEnterIncoming() {
+        playIncomingTone()
+        val attempt = callAttempt   // cleanup 会自增：期间结束过再进新来电，旧看门狗不得误杀
+        incomingTimeoutJob?.cancel()
+        incomingTimeoutJob = scope.launch {
+            delay(INCOMING_TIMEOUT_MS)
+            if (attempt == callAttempt && _state.value.stage == CallStage.INCOMING) {
+                Log.w(TAG, "来电 ${INCOMING_TIMEOUT_MS / 1000}s 未接听，自动收起")
+                notificationHelper.cancelCallNotification()
+                cleanup(CallStage.ENDED)
+            }
         }
     }
 
@@ -622,6 +535,15 @@ class CallManager @Inject constructor(
                     CallSignalMatcher.canResume(s.callId, participatingCallId)
                 ) {
                     socketManager.emitCallResume(s.callId, participatingResumeToken)
+                    // 断线期间发出的 offer（restart/切视频）可能丢了：仍停在 HAVE_LOCAL_OFFER 则重发当前本地 offer
+                    val pc = peerConnection
+                    val local = pc?.let { runCatching { it.localDescription }.getOrNull() }
+                    if (pc != null && local != null && local.type == SessionDescription.Type.OFFER &&
+                        runCatching { pc.signalingState() }.getOrNull() == PeerConnection.SignalingState.HAVE_LOCAL_OFFER
+                    ) {
+                        Log.i(TAG, "信令重连：重发未应答的本地 offer")
+                        socketManager.emitCallOffer(s.peerId, local.description, s.callId)
+                    }
                 }
             }
         }
@@ -657,7 +579,7 @@ class CallManager @Inject constructor(
                 _state.value = CallState(
                     CallStage.INCOMING, e.from, e.callerName, isVideo = e.type == "video", isCaller = false, callId = e.callId,
                 )
-                playIncomingTone()
+                onEnterIncoming()
                 // 2026-08-30 修复：此前这里只更新内存状态，没有弹系统通知——只有 FCM 推送
                 // （TouliaoMessagingService.onMessageReceived）才会调 showCallNotification()。
                 // 但后端只在 presence 判定被叫离线（socket 未连）时才发 FCM 推送；Android 后台
@@ -700,12 +622,31 @@ class CallManager @Inject constructor(
                 val s = _state.value
                 if (!CallSignalMatcher.matches(s.callId, e.callId, s.peerId, e.from)) return@collect
                 val pc = peerConnection ?: return@collect
-                pc.setRemoteDescription(object : SimpleSdpObserver() {
-                    override fun onSetSuccess() {
-                        drainIce()   // 锁内置位 remoteDescSet 并排空缓存的候选
-                        createAnswerAndSend()
-                    }
-                }, SessionDescription(SessionDescription.Type.OFFER, e.sdp))
+                // 完美协商（四端统一）：主叫=impolite，被叫=polite。双方同时发 offer(撞车)时
+                // impolite 忽略对方 offer（对方会回滚并应答我方）；polite 先回滚自己的 offer 再应答。
+                val collision = runCatching { pc.signalingState() }.getOrNull() == PeerConnection.SignalingState.HAVE_LOCAL_OFFER
+                val polite = !s.isCaller
+                if (collision && !polite) {
+                    Log.i(TAG, "offer 撞车：impolite 忽略对方 offer")
+                    return@collect
+                }
+                val applyOffer = {
+                    pc.setRemoteDescription(object : SimpleSdpObserver() {
+                        override fun onSetSuccess() {
+                            drainIce()   // 锁内置位 remoteDescSet 并排空缓存的候选
+                            createAnswerAndSend()
+                        }
+                    }, SessionDescription(SessionDescription.Type.OFFER, e.sdp))
+                }
+                if (collision) {
+                    Log.i(TAG, "offer 撞车：polite 回滚本地 offer 后应答")
+                    renegotiateAfterRollback = true
+                    pc.setLocalDescription(object : SimpleSdpObserver() {
+                        override fun onSetSuccess() { applyOffer() }
+                    }, SessionDescription(SessionDescription.Type.ROLLBACK, ""))
+                } else {
+                    applyOffer()
+                }
             }
         }
         scope.launch {
@@ -713,6 +654,11 @@ class CallManager @Inject constructor(
                 val s = _state.value
                 if (!CallSignalMatcher.matches(s.callId, e.callId, s.peerId, e.from)) return@collect
                 val pc = peerConnection ?: return@collect
+                // 不在等应答（撞车后本端已回滚/重复 answer）→ 直接忽略，set 也只会失败
+                if (runCatching { pc.signalingState() }.getOrNull() != PeerConnection.SignalingState.HAVE_LOCAL_OFFER) {
+                    Log.i(TAG, "忽略非 HAVE_LOCAL_OFFER 状态下的 answer")
+                    return@collect
+                }
                 pc.setRemoteDescription(object : SimpleSdpObserver() {
                     override fun onSetSuccess() { drainIce() }   // 锁内置位 remoteDescSet 并排空
                 }, SessionDescription(SessionDescription.Type.ANSWER, e.sdp))
@@ -725,6 +671,7 @@ class CallManager @Inject constructor(
                 if (!CallSignalMatcher.matches(s.callId, e.callId, s.peerId, e.from)) return@collect
                 if (s.stage == CallStage.CONNECTED || s.stage == CallStage.CONNECTING) {
                     _state.update { it.copy(isVideo = e.type == "video") }
+                    audioRouter.setVideo(e.type == "video")
                 }
             }
         }
@@ -786,8 +733,12 @@ class CallManager @Inject constructor(
             override fun onCreateSuccess(desc: SessionDescription) {
                 // A-2：弱网调优 + H264 优先（setLocalDescription 前改本端 sdp）
                 val tuned = SessionDescription(desc.type, tuneSdpForCall(desc.description))
-                pc.setLocalDescription(SimpleSdpObserver(), tuned)
-                socketManager.emitCallOffer(_state.value.peerId, tuned.description, _state.value.callId)
+                // 本地 offer 生效（进入 HAVE_LOCAL_OFFER）后再发：撞车判断/重连重发都以 signalingState 为准
+                pc.setLocalDescription(object : SimpleSdpObserver() {
+                    override fun onSetSuccess() {
+                        socketManager.emitCallOffer(_state.value.peerId, tuned.description, _state.value.callId)
+                    }
+                }, tuned)
             }
         }, mediaConstraints())
     }
@@ -798,8 +749,16 @@ class CallManager @Inject constructor(
             override fun onCreateSuccess(desc: SessionDescription) {
                 // A-2：弱网调优 + H264 优先（setLocalDescription 前改本端 sdp）
                 val tuned = SessionDescription(desc.type, tuneSdpForCall(desc.description))
-                pc.setLocalDescription(SimpleSdpObserver(), tuned)
-                socketManager.emitCallAnswer(_state.value.peerId, tuned.description, _state.value.callId)
+                pc.setLocalDescription(object : SimpleSdpObserver() {
+                    override fun onSetSuccess() {
+                        socketManager.emitCallAnswer(_state.value.peerId, tuned.description, _state.value.callId)
+                        // polite 回滚过自己的 offer：应答完成回到 stable 后，把自己的变更重新 offer 一次
+                        if (renegotiateAfterRollback) {
+                            renegotiateAfterRollback = false
+                            scope.launch { createOfferAndSend() }
+                        }
+                    }
+                }, tuned)
             }
         }, mediaConstraints())
     }
@@ -845,7 +804,8 @@ class CallManager @Inject constructor(
                         // N1：接通/恢复即对视频 sender 施加发送码率上限(2.5Mbps)，防止全端无约束导致模糊。
                         peerConnection?.let { capVideoBitrate(it) }
                     }
-                    PeerConnection.IceConnectionState.DISCONNECTED -> {
+                    PeerConnection.IceConnectionState.DISCONNECTED -> scope.launch {
+                        if (!_state.value.isCaller) { startCalleeRecoverWatchdog(); return@launch }
                         // 短时探测间隙(<3s 通常自愈,锁屏/后台):防抖后再重启,避免无谓重协商
                         iceRestartDebounceJob?.cancel()
                         iceRestartDebounceJob = scope.launch {
@@ -853,7 +813,9 @@ class CallManager @Inject constructor(
                             tryIceRestart()
                         }
                     }
-                    PeerConnection.IceConnectionState.FAILED -> {
+                    PeerConnection.IceConnectionState.FAILED -> scope.launch {
+                        // 必须异步：此回调在 WebRTC 信令线程，同步 cleanup 里 pc.close()/dispose() 会死锁/崩溃
+                        if (!_state.value.isCaller) { startCalleeRecoverWatchdog(); return@launch }
                         // 首次 failed:给一次 restart 机会(可能临时网络黑洞);已重启过且非窗口期 → 挂断
                         if (iceRestartCount == 0 && iceRestartRecoverJob == null) tryIceRestart()
                         else if (iceRestartRecoverJob == null) endCallByNetwork()
@@ -887,7 +849,7 @@ class CallManager @Inject constructor(
     private fun createLocalTracks(video: Boolean) {
         val f = factory ?: return
         val pc = peerConnection ?: return
-        acquireAudioFocusAndRoute()
+        acquireAudioFocusAndRoute()   // 幂等：startCall/accept 已获取时不重置路由
         localVideoOk = false
         // 音频
         audioSource = f.createAudioSource(MediaConstraints())
@@ -1007,6 +969,7 @@ class CallManager @Inject constructor(
                 createOfferAndSend()   // 重协商（含 SDP 弱网调优）
                 socketManager.emitCallSwitchType(s.peerId, if (nextVideo) "video" else "audio", s.callId)
                 _state.update { it.copy(isVideo = nextVideo) }
+                audioRouter.setVideo(nextVideo)
             } catch (e: Exception) {
                 Log.w(TAG, "切换通话类型失败: ${e.message}")
             }
@@ -1023,10 +986,16 @@ class CallManager @Inject constructor(
         releaseTone()                                     // 停回铃/接通音并释放 ToneGenerator
         releaseAudioFocusAndRoute()                        // 恢复系统默认音频模式/释放焦点，防止占用
         callTimeoutJob?.cancel(); callTimeoutJob = null   // 接通/挂断/被拒 → 取消呼出超时
+        incomingTimeoutJob?.cancel(); incomingTimeoutJob = null   // 取消来电未接听看门狗
         connectingTimeoutJob?.cancel(); connectingTimeoutJob = null   // 同上，取消接听协商超时
         iceRestartDebounceJob?.cancel(); iceRestartDebounceJob = null
         iceRestartRecoverJob?.cancel(); iceRestartRecoverJob = null
-        CallForegroundService.stop(context)               // 停前台服务（未起过则 no-op）
+        localMediaReady = false
+        renegotiateAfterRollback = false
+        if (foregroundStarted) {
+            foregroundStarted = false
+            CallForegroundService.stop(context)           // 停前台服务
+        }
         runCatching { videoCapturer?.stopCapture() }
         runCatching { videoCapturer?.dispose() }
         videoCapturer = null
@@ -1114,15 +1083,29 @@ class CallManager @Inject constructor(
         else     -> listOf(android.media.ToneGenerator.TONE_SUP_RINGTONE to 1200L)
     }
 
-    /** 来电循环铃声（进入 INCOMING 时调用；幂等）。 */
+    // 来电铃声走铃声流（STREAM_RING）独立的 ToneGenerator：2026-10-02 前与回铃共用 STREAM_VOICE_CALL，
+    // 响铃阶段还会切 MODE_IN_COMMUNICATION + 抢通话焦点——结果语音来电铃声从听筒出（贴耳才听得见），
+    // 静音/振动模式下照样响，还会打断正在播放的音乐。现在响铃阶段不碰通话模式/焦点，接听后再切通话路由。
+    @Volatile
+    private var ringToneGen: android.media.ToneGenerator? = null
+    private var vibrating = false
+
+    /** 来电循环铃声（进入 INCOMING 时调用；幂等）。遵从系统静音/振动模式。 */
     @Synchronized
     private fun playIncomingTone() {
         stopIncomingTone()
-        // 主叫侧回铃音在此前就有同样的坑（见 :303-305 注释）：部分 ROM 上 ToneGenerator
-        // （STREAM_VOICE_CALL）不先拿音频焦点 + 切 MODE_IN_COMMUNICATION 就完全不出声。
-        // 被叫侧来电铃声此前一直缺这一步，属同一根因、之前只是没被发现。
-        acquireAudioFocusAndRoute()
-        val gen = ensureToneGen() ?: return
+        val ringerMode = runCatching { audioManager.ringerMode }.getOrDefault(android.media.AudioManager.RINGER_MODE_NORMAL)
+        if (ringerMode == android.media.AudioManager.RINGER_MODE_SILENT) return
+        startRingVibration()
+        if (ringerMode == android.media.AudioManager.RINGER_MODE_VIBRATE) return
+        if (ringToneGen == null) {
+            ringToneGen = runCatching {
+                android.media.ToneGenerator(android.media.AudioManager.STREAM_RING, 80)
+            }.onFailure { e ->
+                android.util.Log.w(TAG, "铃声 ToneGenerator 创建失败: ${e.message}")
+            }.getOrNull()
+        }
+        val gen = ringToneGen ?: return
         val preset = incomingTonePreset(incomingRingtone)
         incomingToneJob = scope.launch {
             while (isActive) {
@@ -1137,21 +1120,54 @@ class CallManager @Inject constructor(
         }
     }
 
-    /** 停止来电铃声（接听/拒接/清理时调用；幂等）。 */
+    /** 停止来电铃声与振动（接听/拒接/清理时调用；幂等）。 */
     @Synchronized
     private fun stopIncomingTone() {
         incomingToneJob?.cancel(); incomingToneJob = null
-        runCatching { toneGen?.stopTone() }
+        runCatching { ringToneGen?.stopTone() }
+        runCatching { ringToneGen?.release() }
+        ringToneGen = null
+        stopRingVibration()
+    }
+
+    private fun vibrator(): android.os.Vibrator? =
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
+            (context.getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as? android.os.VibratorManager)?.defaultVibrator
+        } else {
+            @Suppress("DEPRECATION")
+            context.getSystemService(Context.VIBRATOR_SERVICE) as? android.os.Vibrator
+        }
+
+    /** 来电振动（响铃/振动模式下；静音模式不振）。节奏 1s 振 / 1s 停，循环。 */
+    private fun startRingVibration() {
+        val v = vibrator() ?: return
+        if (!v.hasVibrator()) return
+        val pattern = longArrayOf(0L, 1000L, 1000L)
+        runCatching {
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+                v.vibrate(android.os.VibrationEffect.createWaveform(pattern, 0))
+            } else {
+                @Suppress("DEPRECATION")
+                v.vibrate(pattern, 0)
+            }
+            vibrating = true
+        }.onFailure { e -> android.util.Log.w(TAG, "来电振动失败: ${e.message}") }
+    }
+
+    private fun stopRingVibration() {
+        if (!vibrating) return
+        vibrating = false
+        runCatching { vibrator()?.cancel() }
     }
 
     private companion object {
         const val STREAM_ID = "stream0"
-        const val FOCUS_REACQUIRE_DELAY_MS = 1_000L
         const val TAG = "CallManager"
         // ICE restart 参数(与四端统一):防抖 3s / 恢复窗口 15s / 最大 3 次
         const val ICE_RESTART_DEBOUNCE_MS = 3000L
         const val ICE_RESTART_WINDOW_MS = 15000L
         const val ICE_RESTART_MAX = 3
+        const val INCOMING_TIMEOUT_MS = 60_000L   // 来电未接听看门狗
     }
 }
 

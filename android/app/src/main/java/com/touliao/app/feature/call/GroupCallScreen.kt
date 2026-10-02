@@ -66,11 +66,17 @@ fun GroupCallHost(viewModel: GroupCallViewModel = hiltViewModel()) {
     if (state.stage != GroupCallStage.IDLE) {
         com.touliao.app.ui.components.DarkMediaSystemBars()
         val perms = remember(state.isVideo) {
-            if (state.isVideo) arrayOf(Manifest.permission.RECORD_AUDIO, Manifest.permission.CAMERA)
+            val base = if (state.isVideo) arrayOf(Manifest.permission.RECORD_AUDIO, Manifest.permission.CAMERA)
             else arrayOf(Manifest.permission.RECORD_AUDIO)
+            // 蓝牙耳机音频路由需要 BLUETOOTH_CONNECT(Android 12+)，同 1v1 CallScreen
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
+                base + Manifest.permission.BLUETOOTH_CONNECT
+            } else base
         }
         val groupCallContext = androidx.compose.ui.platform.LocalContext.current
         val permLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { res ->
+            // 授权后补起通话前台服务（RECORD_AUDIO 未授权时建流阶段会跳过）+ 刷新蓝牙可用性
+            viewModel.onPermissionsResult()
             if (!res.values.all { it }) {
                 com.touliao.app.ui.components.TouliaoFeedback.show(groupCallContext, "缺少麦克风/摄像头权限，通话可能无法正常进行", com.touliao.app.ui.components.FeedbackKind.ERROR)
             }
@@ -113,6 +119,10 @@ fun GroupCallHost(viewModel: GroupCallViewModel = hiltViewModel()) {
             ) {
                 androidx.compose.foundation.layout.FlowRow(Modifier.fillMaxWidth(), maxItemsInEachRow = 3, horizontalArrangement = Arrangement.spacedBy(16.dp, Alignment.CenterHorizontally), verticalArrangement = Arrangement.spacedBy(16.dp)) {
                     RoundButton(if (state.micEnabled) "麦克风开" else "麦克风关", com.touliao.app.ui.theme.TouliaoDarkPalette.surfaceSecondary) { viewModel.toggleMic() }
+                    RoundButton(if (state.speakerOn) "扬声器开" else "扬声器关", com.touliao.app.ui.theme.TouliaoDarkPalette.surfaceSecondary) { viewModel.toggleSpeaker() }
+                    if (state.bluetoothAvailable) {
+                        RoundButton(if (state.bluetoothOn) "蓝牙开" else "蓝牙关", com.touliao.app.ui.theme.TouliaoDarkPalette.surfaceSecondary) { viewModel.toggleBluetooth() }
+                    }
                     RoundButton("挂断", CallRed) { viewModel.hangup() }
                     if (state.isVideo) {
                         RoundButton(if (state.cameraEnabled) "摄像头开" else "摄像头关", com.touliao.app.ui.theme.TouliaoDarkPalette.surfaceSecondary) { viewModel.toggleCamera() }

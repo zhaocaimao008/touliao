@@ -19,7 +19,9 @@ import com.touliao.app.core.push.NotificationHelper
  * 使进程在熄屏 / Doze 下不被系统回收导致通话中断。
  *
  * - foregroundServiceType：microphone（视频通话再叠加 camera），与 WebRTC 采集对齐（合规要求）。
- * - 生命周期：CallManager 在 startCall/accept 建流处 [start]，cleanup 处 [stop]。
+ * - 生命周期：CallManager / GroupCallManager 建流且 RECORD_AUDIO 已授权后 [start]，cleanup 处 [stop]。
+ * - startForeground 失败（权限缺失/后台限制）必须 stopSelf()：startForegroundService 发出后服务若既
+ *   不进前台也不停止，系统到时抛 ForegroundServiceDidNotStartInTimeException 直接崩进程。
  * - 不承载信令 / 媒体本身，仅承载前台态；无需 bind。
  */
 class CallForegroundService : Service() {
@@ -52,15 +54,19 @@ class CallForegroundService : Service() {
             .build()
 
         // API 34+(U) 必须显式传 foregroundServiceType；用 ServiceCompat 兼容旧版本。
+        // camera 类型只在已授权 CAMERA 时叠加（Android 14 未授权叠加会抛 SecurityException）
         val type = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             var t = ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE
-            if (video) t = t or ServiceInfo.FOREGROUND_SERVICE_TYPE_CAMERA
+            if (video && hasPermission(this, android.Manifest.permission.CAMERA)) t = t or ServiceInfo.FOREGROUND_SERVICE_TYPE_CAMERA
             t
         } else {
             0
         }
         runCatching {
             ServiceCompat.startForeground(this, NOTIFICATION_ID, notification, type)
+        }.onFailure { e ->
+            android.util.Log.w("CallForegroundService", "startForeground 失败，停止服务: ${e.message}")
+            stopSelf()
         }
     }
 
@@ -68,8 +74,16 @@ class CallForegroundService : Service() {
         private const val NOTIFICATION_ID = 424243   // 与来电通知(424242)分开
         private const val EXTRA_VIDEO = "video"
 
-        /** 通话建立本地媒体后调用（此刻 App 在前台、RECORD_AUDIO 已授予，满足 microphone FGS 合规）。 */
+        private fun hasPermission(context: Context, permission: String): Boolean =
+            ContextCompat.checkSelfPermission(context, permission) == android.content.pm.PackageManager.PERMISSION_GRANTED
+
+        /** microphone 类型 FGS 的前提：RECORD_AUDIO 已授权。 */
+        fun hasRecordAudioPermission(context: Context): Boolean =
+            hasPermission(context, android.Manifest.permission.RECORD_AUDIO)
+
+        /** 通话建立本地媒体且 RECORD_AUDIO 已授权后调用（未授权直接跳过，由调用方授权后再调）。 */
         fun start(context: Context, video: Boolean) {
+            if (!hasRecordAudioPermission(context)) return
             val intent = Intent(context, CallForegroundService::class.java).putExtra(EXTRA_VIDEO, video)
             runCatching { ContextCompat.startForegroundService(context, intent) }
         }
