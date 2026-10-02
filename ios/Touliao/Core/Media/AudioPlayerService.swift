@@ -19,6 +19,8 @@ final class AudioPlayerService {
         do {
         let url = try await MediaUrlResolver.ticket(urlString)
         try Task.checkCancellation()
+        // await 取票期间可能已来电/接通：改类别前再查一次，通话中放弃播放，绝不把通话会话抢成 .playback
+        if Self.isCallAudioActive { return }
         try? AVAudioSession.sharedInstance().setCategory(.playback)
         try? AVAudioSession.sharedInstance().setActive(true)
         let item = AVPlayerItem(url: url)

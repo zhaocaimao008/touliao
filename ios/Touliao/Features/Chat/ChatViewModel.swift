@@ -908,6 +908,11 @@ final class ChatViewModel: ObservableObject {
     /// 发起通话；无法确定对方（如无消息）返回 false
     func startCall(video: Bool, callerName: String) -> Bool {
         guard let peer = peerId() else { return false }
+        // 1v1 与群通话互斥
+        if GroupCallManager.shared.isBusy {
+            error = "正在群通话中，请先挂断再发起通话"
+            return false
+        }
         CallManager.shared.startCall(peerId: peer, peerName: title, video: video, callerName: callerName)
         return true
     }
@@ -915,6 +920,11 @@ final class ChatViewModel: ObservableObject {
     /// 发起群通话（mesh）。仅群聊有效。
     func startGroupCall(video: Bool) {
         guard isGroup else { return }
+        // 1v1 与群通话互斥
+        if CallManager.shared.isBusy {
+            error = "正在通话中，请先挂断再发起群通话"
+            return
+        }
         GroupCallManager.shared.start(conversationId: conversationId, video: video)
     }
 

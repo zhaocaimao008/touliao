@@ -2,6 +2,7 @@ import Foundation
 import Combine
 import AVFoundation
 import WebRTC
+import UIKit
 
 enum GroupCallStage { case idle, connecting, connected, ended }
 
@@ -22,6 +23,7 @@ struct GroupCallState {
     var participants: [String] = []   // 远端成员 id（不含自己）
     var micEnabled: Bool = true
     var cameraEnabled: Bool = true
+    var speakerOn: Bool = false       // 2026-10-02：扬声器/听筒切换；群视频默认扬声器
     var connectedAt: Date?            // 接通时刻，用于计算群通话时长(mm:ss)
 }
 
@@ -49,6 +51,8 @@ final class GroupCallManager: NSObject, ObservableObject {
         var iceRestartCount = 0
         var iceRestartDebounceTask: Task<Void, Never>?
         var iceRestartRecoverTask: Task<Void, Never>?
+        /// 完美协商：本端(polite)回滚了自己的 offer 去应答对方，应答完成后须补发本端 offer
+        var pendingRenegotiation = false
         init(pc: RTCPeerConnection, delegate: GCPeerDelegate) { self.pc = pc; self.delegate = delegate }
 
         func cancelIceRestart() {
@@ -73,6 +77,13 @@ final class GroupCallManager: NSObject, ObservableObject {
     private var connectTimeoutTask: Task<Void, Never>?
     private let connectTimeoutSeconds: UInt64 = 45
 
+    /// 本类是否经 configureAudioSession 成功 setActive(true)；deactivate 只在为 true 时停用（激活计数平衡）
+    private var didActivateSession = false
+    /// 后台被打断时争取执行时间；打断结束/回前台/挂断时结束
+    private let interruptionBgTask = CallBackgroundTask(name: "touliao.groupcall.interruption")
+    /// connecting 阶段后台保活；服务端确认(started/peers)或挂断时结束
+    private let connectingBgTask = CallBackgroundTask(name: "touliao.groupcall.connecting")
+
     private override init() {
         RTCInitializeSSL()
         factory = RTCPeerConnectionFactory(
@@ -81,6 +92,12 @@ final class GroupCallManager: NSObject, ObservableObject {
         )
         super.init()
         observeSignaling()
+        observeAudioInterruptions()
+        // 距离传感器/防锁屏随群通话状态自动开关，结束时复原
+        $state
+            .receive(on: DispatchQueue.main)
+            .sink { _ in CallAudioSupport.refreshDeviceGuards() }
+            .store(in: &cancellables)
     }
 
     // ICE restart 参数(与四端统一):防抖 3s / 恢复窗口 15s / 最大 3 次
@@ -89,6 +106,14 @@ final class GroupCallManager: NSObject, ObservableObject {
     private let ICE_RESTART_MAX = 3
 
     func activate() {}
+
+    /// 群通话进行中（连接中/通话中）。供 1v1 互斥判断。
+    var isBusy: Bool { state.stage == .connecting || state.stage == .connected }
+
+    /// 本地媒体已建立且处于通话流程中
+    private var hasActiveMedia: Bool {
+        localAudioTrack != nil && (state.stage == .connecting || state.stage == .connected)
+    }
 
     // MARK: - 音频会话（WebRTC）
     /// 建流前配置 RTCAudioSession 为通话模式(.playAndRecord/.voiceChat)。
@@ -103,19 +128,71 @@ final class GroupCallManager: NSObject, ObservableObject {
                 with: [.allowBluetooth]
             )
             try session.setMode(AVAudioSession.Mode.voiceChat)
-            try session.setActive(true)
+            if !didActivateSession {
+                try session.setActive(true)
+                didActivateSession = true
+            }
+            // 群视频默认扬声器（多人看屏场景），群语音默认听筒（与 1v1 一致）
+            if state.isVideo { do { try session.overrideOutputAudioPort(.speaker) } catch { print("[GroupCall] 扬声器路由失败: \(error.localizedDescription)") } }
         } catch {
             // 配置失败不阻断通话；WebRTC 兜底默认会话
+            print("[GroupCall] 配置通话音频会话失败: \(error.localizedDescription)")
         }
+        session.unlockForConfiguration()
+        state.speakerOn = state.isVideo
+    }
+
+    /// 通话结束释放音频会话，交还系统。只有本类激活过才停用（与 configureAudioSession 成对）。
+    private func deactivateAudioSession() {
+        state.speakerOn = false
+        guard didActivateSession else { return }
+        didActivateSession = false
+        let session = RTCAudioSession.sharedInstance()
+        session.lockForConfiguration()
+        do { try session.overrideOutputAudioPort(.none) } catch { print("[GroupCall] 恢复默认路由失败: \(error.localizedDescription)") }
+        do { try session.setActive(false) } catch { print("[GroupCall] 会话停用失败: \(error.localizedDescription)") }
         session.unlockForConfiguration()
     }
 
-    /// 通话结束释放音频会话，交还系统。
-    private func deactivateAudioSession() {
-        let session = RTCAudioSession.sharedInstance()
-        session.lockForConfiguration()
-        do { try session.setActive(false) } catch { print("[GroupCall] 会话停用失败: \(error.localizedDescription)") }
-        session.unlockForConfiguration()
+    /// 打断处理（与 CallManager 同策略，2026-10-02 新增——此前群通话完全没有打断处理）：
+    /// 打断结束/媒体服务重置/回前台时只恢复会话参数与扬声器路由，不 setActive（WebRTC 自身负责恢复音频单元）；
+    /// 后台被打断时申请 background task；路由变化冲掉扬声器 override 时补回。
+    private func observeAudioInterruptions() {
+        let center = NotificationCenter.default
+        center.addObserver(forName: AVAudioSession.interruptionNotification, object: nil, queue: .main) { [weak self] note in
+            guard let self,
+                  let raw = note.userInfo?[AVAudioSessionInterruptionTypeKey] as? UInt,
+                  let type = AVAudioSession.InterruptionType(rawValue: raw) else { return }
+            switch type {
+            case .began:
+                if self.hasActiveMedia, UIApplication.shared.applicationState != .active {
+                    self.interruptionBgTask.begin()
+                }
+            case .ended:
+                self.restoreAudioSessionIfInCall()
+                self.interruptionBgTask.end()
+            @unknown default:
+                break
+            }
+        }
+        center.addObserver(forName: AVAudioSession.mediaServicesWereResetNotification, object: nil, queue: .main) { [weak self] _ in
+            self?.restoreAudioSessionIfInCall()
+        }
+        center.addObserver(forName: UIApplication.didBecomeActiveNotification, object: nil, queue: .main) { [weak self] _ in
+            guard let self else { return }
+            self.restoreAudioSessionIfInCall()
+            self.interruptionBgTask.end()
+        }
+        center.addObserver(forName: AVAudioSession.routeChangeNotification, object: nil, queue: .main) { [weak self] note in
+            guard let self, self.hasActiveMedia, self.state.speakerOn,
+                  CallAudioSupport.shouldReapplySpeaker(note) else { return }
+            CallAudioSupport.forceSpeaker(tag: "[GroupCall]")
+        }
+    }
+
+    private func restoreAudioSessionIfInCall() {
+        guard hasActiveMedia else { return }
+        CallAudioSupport.restoreCallConfiguration(speakerOn: state.speakerOn, tag: "[GroupCall]")
     }
 
     // MARK: - 连接超时
@@ -152,11 +229,14 @@ final class GroupCallManager: NSObject, ObservableObject {
     // MARK: - 对外动作
     func start(conversationId: String, video: Bool) {
         guard state.stage == .idle || state.stage == .ended else { return }
+        // 1v1 与群通话互斥：1v1 通话中不发起（入口 ChatViewModel 已拦截并提示）
+        guard !CallManager.shared.isBusy else { print("[GroupCall] 1v1 通话中，拒绝发起群通话"); return }
         let identityEpoch = KeychainStore.shared.snapshot().identityEpoch
         callIdentityEpoch = identityEpoch
         pendingInvite = nil
         state = GroupCallState(stage: .connecting, conversationId: conversationId, isVideo: video)
         startConnectTimeout()                   // 连接超时自动结束
+        connectingBgTask.begin()                // 连接阶段后台保活（服务端确认/挂断时结束）
         Task { @MainActor in
             await refreshIceServers()
             guard callIdentityEpoch == identityEpoch,
@@ -171,11 +251,14 @@ final class GroupCallManager: NSObject, ObservableObject {
 
     func join(callId: String, conversationId: String, video: Bool) {
         guard state.stage == .idle || state.stage == .ended else { return }
+        // 1v1 与群通话互斥：1v1 通话中不加入（邀请横幅在 1v1 通话中已隐藏）
+        guard !CallManager.shared.isBusy else { print("[GroupCall] 1v1 通话中，拒绝加入群通话"); return }
         let identityEpoch = KeychainStore.shared.snapshot().identityEpoch
         callIdentityEpoch = identityEpoch
         pendingInvite = nil
         state = GroupCallState(stage: .connecting, callId: callId, conversationId: conversationId, isVideo: video)
         startConnectTimeout()                   // 连接超时自动结束
+        connectingBgTask.begin()                // 连接阶段后台保活（服务端确认/挂断时结束）
         Task { @MainActor in
             await refreshIceServers()
             guard callIdentityEpoch == identityEpoch,
@@ -207,6 +290,15 @@ final class GroupCallManager: NSObject, ObservableObject {
         let on = !state.cameraEnabled
         localVideoTrack?.isEnabled = on
         state.cameraEnabled = on
+    }
+    /// 切换扬声器/听筒（2026-10-02 新增，同 CallManager.toggleSpeaker 走 RTCAudioSession 锁）。
+    func toggleSpeaker() {
+        let enabled = !state.speakerOn
+        let session = RTCAudioSession.sharedInstance()
+        session.lockForConfiguration()
+        do { try session.overrideOutputAudioPort(enabled ? .speaker : .none) } catch { print("[GroupCall] 切换输出路由失败: \(error.localizedDescription)") }
+        session.unlockForConfiguration()
+        state.speakerOn = enabled
     }
     /// B-1（2026-09-05）：语音加入者升级视频（镜像 Web GroupCallModal.upgradeToVideo）。
     /// 补视频轨（已存在则复用，建轨/采集与 1v1 CallManager.toggleVideo 同款）后对每条已建立
@@ -255,6 +347,12 @@ final class GroupCallManager: NSObject, ObservableObject {
                       )
                 else { return }
                 self.socket.emitGroupCallResume(callId: self.state.callId, resumeToken: self.participatingResumeToken)
+                // 断线期间发出的 offer 可能丢失：resume 之后，仍停在 have-local-offer 的 peer 重发本端 offer
+                for (pid, entry) in self.peers where entry.pc.signalingState == .haveLocalOffer {
+                    guard let local = entry.pc.localDescription else { continue }
+                    print("[GroupCall] 信令重连后向 \(pid) 重发本端 offer")
+                    self.socket.emitGroupCallOffer(callId: self.state.callId, to: pid, sdp: local.sdp)
+                }
             }
             .store(in: &cancellables)
 
@@ -274,6 +372,7 @@ final class GroupCallManager: NSObject, ObservableObject {
             self.participatingIdentityEpoch = identityEpoch
             self.participatingResumeToken = resumeToken
             self.cancelConnectTimeout()         // 服务端已确认，撤销连接超时
+            self.connectingBgTask.end()
             if self.state.connectedAt == nil { self.state.connectedAt = Date() }
             self.state.stage = .connected; self.state.callId = callId
         }.store(in: &cancellables)
@@ -288,6 +387,7 @@ final class GroupCallManager: NSObject, ObservableObject {
             self.participatingIdentityEpoch = identityEpoch
             self.participatingResumeToken = resumeToken
             self.cancelConnectTimeout()         // 服务端已确认，撤销连接超时
+            self.connectingBgTask.end()
             if self.state.connectedAt == nil { self.state.connectedAt = Date() }
             self.state.stage = .connected; self.state.callId = callId
             peers.forEach { _ = self.peerFor($0) }   // answerer：预建 PC 等 offer
@@ -303,35 +403,35 @@ final class GroupCallManager: NSObject, ObservableObject {
         socket.gcOffer.receive(on: DispatchQueue.main).sink { [weak self] (callId, from, sdp) in
             guard let self, callId == self.state.callId, let entry = self.peerFor(from) else { return }
             self.state.participants = Array(self.peers.keys)
-            entry.pc.setRemoteDescription(RTCSessionDescription(type: .offer, sdp: sdp)) { [weak self] err in
-                guard let self, err == nil else { return }
-                entry.remoteDescSet = true; self.drainIce(from)
-                entry.pc.answer(for: self.mediaConstraints()) { [weak self] desc, err in
-                    guard let self, let desc, err == nil else { return }
-                    // A-2：弱网调优 + H264 优先（setLocalDescription 前改本端 sdp）
-                    let tuned = RTCSessionDescription(type: desc.type, sdp: tuneSdpForCall(desc.sdp))
-                    entry.pc.setLocalDescription(tuned) { _ in }
-                    self.socket.emitGroupCallAnswer(callId: self.state.callId, to: from, sdp: tuned.sdp)
+            self.handleRemoteOffer(sdp: sdp, from: from, entry: entry)
+        }.store(in: &cancellables)
+
+        socket.gcAnswer.receive(on: DispatchQueue.main).sink { [weak self] (callId, from, sdp) in
+            // callId 校验（同 offer 路径）：旧通话/串话的迟到信令直接丢弃
+            guard let self, callId == self.state.callId, let entry = self.peers[from] else { return }
+            // 只有本端发出 offer 等应答时才接受；撞车回滚/重复到达的迟到 answer 忽略（不移除 peer）
+            guard entry.pc.signalingState == .haveLocalOffer else {
+                print("[GroupCall] 非 have-local-offer 状态收到 \(from) 的 answer，忽略")
+                return
+            }
+            entry.pc.setRemoteDescription(RTCSessionDescription(type: .answer, sdp: sdp)) { [weak self] err in
+                if let err { print("[GroupCall] 设置 \(from) 的远端 answer 失败: \(err.localizedDescription)"); return }
+                DispatchQueue.main.async {
+                    guard let self, self.peers[from] === entry else { return }
+                    entry.remoteDescSet = true; self.drainIce(from)
                 }
             }
         }.store(in: &cancellables)
 
-        socket.gcAnswer.receive(on: DispatchQueue.main).sink { [weak self] (_, from, sdp) in
-            guard let self, let entry = self.peers[from] else { return }
-            entry.pc.setRemoteDescription(RTCSessionDescription(type: .answer, sdp: sdp)) { [weak self] err in
-                guard let self, err == nil else { return }
-                entry.remoteDescSet = true; self.drainIce(from)
-            }
-        }.store(in: &cancellables)
-
-        socket.gcIce.receive(on: DispatchQueue.main).sink { [weak self] (_, from, candidate, sdpMid, idx) in
-            guard let self, let entry = self.peers[from] else { return }
+        socket.gcIce.receive(on: DispatchQueue.main).sink { [weak self] (callId, from, candidate, sdpMid, idx) in
+            guard let self, callId == self.state.callId, let entry = self.peers[from] else { return }
             let cand = RTCIceCandidate(sdp: candidate, sdpMLineIndex: idx, sdpMid: sdpMid)
             if entry.remoteDescSet { entry.pc.add(cand) } else { entry.pendingIce.append(cand) }
         }.store(in: &cancellables)
 
-        socket.gcPeerLeft.receive(on: DispatchQueue.main).sink { [weak self] (_, userId) in
-            self?.removePeer(userId)
+        socket.gcPeerLeft.receive(on: DispatchQueue.main).sink { [weak self] (callId, userId) in
+            guard let self, callId == self.state.callId else { return }
+            self.removePeer(userId)
         }.store(in: &cancellables)
 
         socket.gcError.receive(on: DispatchQueue.main).sink { [weak self] _ in
@@ -359,8 +459,69 @@ final class GroupCallManager: NSObject, ObservableObject {
         entry.pc.offer(for: mediaConstraints()) { [weak self] desc, err in
             guard let self, let desc, err == nil else { return }
             let tuned = RTCSessionDescription(type: desc.type, sdp: tuneSdpForCall(desc.sdp))
-            entry.pc.setLocalDescription(tuned) { _ in }
+            entry.pc.setLocalDescription(tuned) { err in
+                if let err { print("[GroupCall] 设置对 \(peerId) 的本端 offer 失败: \(err.localizedDescription)") }
+            }
             self.socket.emitGroupCallOffer(callId: self.state.callId, to: peerId, sdp: tuned.sdp)
+        }
+    }
+
+    /// 完美协商（四端统一）：每个 peer 按 userId 字符串比较，较小的一方 impolite（且负责 ICE restart），
+    /// 较大的一方 polite。取不到本端 id 时按空串处理（视为 impolite），不影响首次协商（首次 offer 固定由既有成员发出）。
+    private func isImpolite(toward peerId: String) -> Bool {
+        let me = AccountStore.shared.activeId() ?? ""
+        return me < peerId
+    }
+
+    /// 收到 offer 时本端正处于 have-local-offer（双方同时重协商撞车，如双方同时升级视频/restart）：
+    /// polite 先 rollback 本端 offer 再应答（应答完补发本端 offer）；impolite 忽略该 offer。
+    private func handleRemoteOffer(sdp: String, from: String, entry: PeerEntry) {
+        let desc = RTCSessionDescription(type: .offer, sdp: sdp)
+        guard entry.pc.signalingState == .haveLocalOffer else {
+            applyRemoteOffer(desc, from: from, entry: entry)
+            return
+        }
+        guard !isImpolite(toward: from) else {
+            print("[GroupCall] 与 \(from) offer 撞车：本端 impolite，忽略对方 offer")
+            return
+        }
+        print("[GroupCall] 与 \(from) offer 撞车：本端 polite，回滚本端 offer 后应答")
+        entry.pendingRenegotiation = true
+        entry.pc.setLocalDescription(RTCSessionDescription(type: .rollback, sdp: "")) { [weak self] err in
+            DispatchQueue.main.async {
+                guard let self, self.peers[from] === entry else { return }
+                if let err {
+                    print("[GroupCall] 回滚对 \(from) 的本端 offer 失败: \(err.localizedDescription)")
+                    entry.pendingRenegotiation = false
+                    return
+                }
+                self.applyRemoteOffer(desc, from: from, entry: entry)
+            }
+        }
+    }
+
+    private func applyRemoteOffer(_ desc: RTCSessionDescription, from: String, entry: PeerEntry) {
+        entry.pc.setRemoteDescription(desc) { [weak self] err in
+            if let err { print("[GroupCall] 设置 \(from) 的远端 offer 失败: \(err.localizedDescription)"); return }
+            DispatchQueue.main.async {
+                guard let self, self.peers[from] === entry else { return }
+                entry.remoteDescSet = true; self.drainIce(from)
+                entry.pc.answer(for: self.mediaConstraints()) { [weak self] desc, err in
+                    guard let self, let desc, err == nil else { return }
+                    // A-2：弱网调优 + H264 优先（setLocalDescription 前改本端 sdp）
+                    let tuned = RTCSessionDescription(type: desc.type, sdp: tuneSdpForCall(desc.sdp))
+                    entry.pc.setLocalDescription(tuned) { [weak self] err in
+                        if let err { print("[GroupCall] 设置对 \(from) 的本端 answer 失败: \(err.localizedDescription)") }
+                        DispatchQueue.main.async {
+                            // 撞车回滚后应答完成 → 补发本端被回滚掉的重协商 offer
+                            guard let self, err == nil, self.peers[from] === entry, entry.pendingRenegotiation else { return }
+                            entry.pendingRenegotiation = false
+                            self.sendOffer(to: from, entry: entry)
+                        }
+                    }
+                    self.socket.emitGroupCallAnswer(callId: self.state.callId, to: from, sdp: tuned.sdp)
+                }
+            }
         }
     }
 
@@ -390,6 +551,11 @@ final class GroupCallManager: NSObject, ObservableObject {
             case .disconnected:
                 // 短时探测间隙:3s 防抖后再重启,避免无谓重协商
                 guard let entry = self.peers[peerId] else { return }
+                // 四端统一：只有 impolite 一方(userId 较小)发起 restart；polite 一方只应答，开看门狗兜底
+                guard self.isImpolite(toward: peerId) else {
+                    self.startPeerRecoverWatchdog(peerId, entry: entry)
+                    return
+                }
                 entry.iceRestartDebounceTask?.cancel(); entry.iceRestartDebounceTask = nil
                 entry.iceRestartRecoverTask?.cancel(); entry.iceRestartRecoverTask = nil
                 entry.iceRestartDebounceTask = Task { @MainActor [weak self, weak entry] in
@@ -400,7 +566,9 @@ final class GroupCallManager: NSObject, ObservableObject {
             case .failed:
                 // 首次 failed:给一次 restart 机会;已重启过且非窗口期 → 移除
                 guard let entry = self.peers[peerId] else { return }
-                if entry.iceRestartCount == 0 && entry.iceRestartRecoverTask == nil {
+                if !self.isImpolite(toward: peerId) {
+                    self.startPeerRecoverWatchdog(peerId, entry: entry)   // polite 不 restart
+                } else if entry.iceRestartCount == 0 && entry.iceRestartRecoverTask == nil {
                     self.tryPeerRestart(peerId, entry: entry)
                 } else if entry.iceRestartRecoverTask == nil {
                     self.removePeer(peerId)
@@ -433,6 +601,22 @@ final class GroupCallManager: NSObject, ObservableObject {
                 self.tryPeerRestart(peerId, entry: entry)
             } else {
                 entry.iceRestartRecoverTask = nil
+            }
+        }
+    }
+
+    /// polite 一方的恢复看门狗：不主动 restart，等对端(impolite)的 restart offer；
+    /// 窗口 = 对端用满全部重试的最坏时长 + 2s 余量，到期仍 disconnected/failed → 移除该 peer。
+    private func startPeerRecoverWatchdog(_ peerId: String, entry: PeerEntry) {
+        guard entry.iceRestartRecoverTask == nil else { return }
+        let total = ICE_RESTART_DEBOUNCE_MS + ICE_RESTART_WINDOW_MS * UInt64(ICE_RESTART_MAX) + 2_000_000_000
+        entry.iceRestartRecoverTask = Task { @MainActor [weak self, weak entry] in
+            try? await Task.sleep(nanoseconds: total)
+            guard let self, let entry, !Task.isCancelled else { return }
+            entry.iceRestartRecoverTask = nil
+            let st = entry.pc.iceConnectionState
+            if (st == .disconnected || st == .failed), self.peers[peerId] === entry {
+                self.removePeer(peerId)
             }
         }
     }
@@ -549,6 +733,8 @@ final class GroupCallManager: NSObject, ObservableObject {
         participatingIdentityEpoch = nil
         participatingResumeToken = nil
         cancelConnectTimeout()              // 取消连接超时，避免泄漏
+        interruptionBgTask.end()            // 结束后台保活任务
+        connectingBgTask.end()
         peers.values.forEach { $0.cancelIceRestart() }
         peers.values.forEach { $0.pc.close() }
         peers.removeAll()
