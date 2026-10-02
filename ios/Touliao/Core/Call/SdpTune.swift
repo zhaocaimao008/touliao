@@ -78,3 +78,9 @@ func preferH264VideoCodec(_ sdp: String) -> String {
 func tuneSdpForCall(_ sdp: String) -> String {
     preferH264VideoCodec(tuneSdpForWeakNetwork(sdp))
 }
+
+/// 通话 WebRTC 实验开关（CallManager/GroupCallManager 创建 factory 前共用）。
+/// Opus RED（RFC 2198 冗余包）：每个包附带上一帧，连续丢包时比单靠 FEC 更能避免弱网下的
+/// 电流音/机器音。原生 libwebrtc 默认关闭，Chrome 已默认开启；双方都支持才会协商使用，
+/// 与旧版客户端互通时自动回落为普通 Opus。
+let callFieldTrials: [String: String] = ["WebRTC-Audio-Red-For-Opus": "Enabled"]

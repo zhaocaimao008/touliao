@@ -85,6 +85,7 @@ final class GroupCallManager: NSObject, ObservableObject {
     private let connectingBgTask = CallBackgroundTask(name: "touliao.groupcall.connecting")
 
     private override init() {
+        RTCInitFieldTrialDictionary(callFieldTrials)   // 须在创建 factory 之前
         RTCInitializeSSL()
         factory = RTCPeerConnectionFactory(
             encoderFactory: RTCDefaultVideoEncoderFactory(),

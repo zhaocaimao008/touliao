@@ -166,7 +166,7 @@ class GroupCallManager @Inject constructor(
     private fun ensureFactory() {
         if (factory != null) return
         PeerConnectionFactory.initialize(
-            PeerConnectionFactory.InitializationOptions.builder(context).createInitializationOptions()
+            PeerConnectionFactory.InitializationOptions.builder(context).setFieldTrials(CALL_FIELD_TRIALS).createInitializationOptions()
         )
         factory = PeerConnectionFactory.builder()
             .setVideoEncoderFactory(DefaultVideoEncoderFactory(eglBase.eglBaseContext, true, true))
