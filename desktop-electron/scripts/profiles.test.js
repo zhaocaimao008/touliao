@@ -2,7 +2,7 @@
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const path = require('node:path');
-const { MAX_PROFILES, profileFromArgs, profilePath, claimProfile } = require('../src/lib/profiles');
+const { MAX_PROFILES, NEW_WINDOW_FLAG, launchMode, profileFromArgs, profilePath, claimProfile } = require('../src/lib/profiles');
 
 test('the primary window preserves the existing data directory', () => {
   assert.equal(profileFromArgs(['app.exe']), 1);
@@ -41,11 +41,27 @@ function fixture(occupied = new Set()) {
   };
 }
 
-test('each ordinary launch claims a different native lock, beyond five windows', () => {
+test('launch modes distinguish shortcut, tray new-window and explicit profile launches', () => {
+  assert.equal(launchMode(['app.exe']), 'default');
+  assert.equal(launchMode(['app.exe', NEW_WINDOW_FLAG]), 'new-window');
+  assert.equal(launchMode(['app.exe', '--profile=3']), 'explicit');
+  assert.equal(launchMode(['app.exe', NEW_WINDOW_FLAG, '--profile=3']), 'explicit');
+});
+
+test('an ordinary shortcut launch only claims window 1 and otherwise wakes it', () => {
+  const f = fixture(new Set([profilePath('/data', 1)]));
+  assert.equal(claimProfile(f.app, '/data', ['app.exe'], f.filesystem), null);
+  // automaticWindow=false：账号 1 的 second-instance 据此唤起窗口，而不是新开账号 2
+  assert.deepEqual(f.attempts, [{ directory: profilePath('/data', 1), automaticWindow: false }]);
+  const free = fixture();
+  assert.equal(claimProfile(free.app, '/data', ['app.exe'], free.filesystem), 1);
+});
+
+test('each tray new-window launch claims a different native lock, beyond five windows', () => {
   const occupied = new Set();
   for (let expected = 1; expected <= 6; expected++) {
     const f = fixture(occupied);
-    assert.equal(claimProfile(f.app, '/data', ['app.exe'], f.filesystem), expected);
+    assert.equal(claimProfile(f.app, '/data', ['app.exe', NEW_WINDOW_FLAG], f.filesystem), expected);
     assert.equal(f.paths.userData, profilePath('/data', expected));
     assert.equal(f.paths.sessionData, f.paths.userData);
     assert.ok(f.attempts.every(attempt => attempt.automaticWindow));
@@ -54,7 +70,7 @@ test('each ordinary launch claims a different native lock, beyond five windows',
 
 test('a released profile is reused without deleting its persistent data', () => {
   const f = fixture(new Set([profilePath('/data', 1), profilePath('/data', 3)]));
-  assert.equal(claimProfile(f.app, '/data', ['app.exe'], f.filesystem), 2);
+  assert.equal(claimProfile(f.app, '/data', ['app.exe', NEW_WINDOW_FLAG], f.filesystem), 2);
 });
 
 test('an explicit occupied profile only notifies its owner, never allocates another', () => {
@@ -65,7 +81,7 @@ test('an explicit occupied profile only notifies its owner, never allocates anot
 
 test('allocation has a bounded failure path when every profile is occupied', () => {
   const f = fixture(new Set(Array.from({ length: MAX_PROFILES }, (_, i) => profilePath('/data', i + 1))));
-  assert.equal(claimProfile(f.app, '/data', ['app.exe'], f.filesystem), null);
+  assert.equal(claimProfile(f.app, '/data', ['app.exe', NEW_WINDOW_FLAG], f.filesystem), null);
   assert.equal(f.attempts.length, MAX_PROFILES);
 });
 

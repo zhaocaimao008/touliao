@@ -966,7 +966,13 @@ export default function Home() {
           try { window.electronAPI?.focusForCall?.(); } catch { /* 非桌面端忽略 */ }
         }
         const callerName = caller?.name || t('home.defaultFriendName');
-        showNotification(callerName, type === 'video' ? t('home.videoCallInvite') : t('home.voiceCallInvite'), caller?.avatar);
+        const callBody = type === 'video' ? t('home.videoCallInvite') : t('home.voiceCallInvite');
+        // 桌面端走主进程原生通知：点击能还原/聚焦窗口（HTML5 Notification 在窗口隐藏到托盘时点了无反应）
+        if (window.__ELECTRON_CONFIG__ && window.electronAPI?.showNotification) {
+          Promise.resolve(window.electronAPI.showNotification({ title: callerName, body: callBody })).catch(() => {});
+        } else {
+          showNotification(callerName, callBody, caller?.avatar);
+        }
         // 标题/favicon 闪烁——仅 Web/桌面端启用：
         // 原生移动端（Capacitor）有原生推送铃声+提醒，且 WebView 无浏览器标签栏，视觉提醒无意义。
         // （来电铃声由 CallModal 内部 startIncomingTone 播放，此处不重复。）

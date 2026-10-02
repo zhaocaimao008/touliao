@@ -23,10 +23,11 @@ const { _electron: electron } = require('playwright');
   const nativeUpdateFeedback = process.platform === 'win32' && Boolean(process.env.TOULIAO_PACKAGED_APP);
   const updateEvidence = path.resolve(root, '../artifacts/windows-update-feedback');
   fs.mkdirSync(updateEvidence, { recursive: true });
-  const launch = async () => {
+  // extra：托盘「新开账号窗口」等价的 --new-account-window；普通启动（不带）只认领账号窗口 1。
+  const launch = async (extra = []) => {
     const app = await electron.launch({
       executablePath: process.env.TOULIAO_ELECTRON,
-      args: [...(process.env.TOULIAO_PACKAGED_APP ? [] : [appDir]), ...(process.platform === 'linux' ? ['--no-sandbox'] : [])], env,
+      args: [...(process.env.TOULIAO_PACKAGED_APP ? [] : [appDir]), ...(process.platform === 'linux' ? ['--no-sandbox'] : []), ...extra], env,
     });
     apps.push(app);
     // 未登录的新 profile 查 /auth/me、/auth/refresh 必然 401：在本地直接应答同样的 401，
@@ -66,7 +67,7 @@ const { _electron: electron } = require('playwright');
     if (process.platform === 'win32') {
       await page.waitForFunction(() => document.documentElement.classList.contains('windows-desktop'));
       assert.equal(await page.evaluate(() => window.__ELECTRON_CONFIG__.platform), 'win32');
-      // 多开只靠再次双击图标（下面的并发普通启动覆盖），登录页不再有“新窗口登录”按钮。
+      // 多开只走托盘「新开账号窗口」（下面的并发 --new-account-window 启动覆盖），登录页不再有“新窗口登录”按钮。
       assert.equal(await page.getByText('在新窗口登录其他账号').count(), 0);
       await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].setContentSize(900, 600));
       await page.waitForFunction(() => innerWidth === 900 && innerHeight === 600);
@@ -100,11 +101,12 @@ const { _electron: electron } = require('playwright');
     }
     await one.page.evaluate(() => localStorage.setItem('smoke_account', '1'));
     await one.app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].hide());
-    // Concurrent ordinary launches exercise the same no-profile path as desktop shortcuts.
-    const raced = await Promise.allSettled([launch(), launch()]);
+    // Concurrent tray new-window launches exercise the same allocation path as the tray menu.
+    const newWindow = ['--new-account-window'];
+    const raced = await Promise.allSettled([launch(newWindow), launch(newWindow)]);
     for (const result of raced) if (result.status === 'rejected') throw result.reason;
     const windows = [one, ...raced.map(result => result.value)];
-    for (let i = 4; i <= 6; i++) windows.push(await launch());
+    for (let i = 4; i <= 6; i++) windows.push(await launch(newWindow));
     const paths = windows.map(window => window.state.userData);
     assert.deepEqual([...paths].sort(), [one.state.userData, ...[2, 3, 4, 5, 6].map(profile =>
       path.join(one.state.userData, 'profiles', String(profile)))].sort());

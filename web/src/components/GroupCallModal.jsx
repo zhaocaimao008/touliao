@@ -7,10 +7,18 @@ import Avatar from './Avatar';
 import { showToast } from '../utils/toast';
 import { installPrewarm, startRingback as toneRingback, stopTone, playConnectedTone } from '../utils/callTones';
 import { tuneSdpForWeakNetwork } from '../utils/sdpTune';
-import { videoConstraints, capVideoBitrate, preferH264 } from '../utils/callMedia';
+import { videoConstraints, capVideoBitrate, preferH264, AUDIO_CONSTRAINTS, shouldReacquireMic, replaceMicTrack } from '../utils/callMedia';
 import { useI18n } from '../contexts/I18nContext';
 import { matchesGroupStartAttempt } from '../utils/callSignaling';
-import { stopStream } from '../utils/callLifecycle';
+import { stopStream, acquireCallMedia } from '../utils/callLifecycle';
+import {
+  isGroupPeerImpolite,
+  prepareForRemoteOffer,
+  shouldApplyAnswer,
+  shouldResendLocalOffer,
+  isSignalingOnline,
+} from '../utils/callNegotiation';
+import { setDesktopCallActive } from '../utils/desktopCallState';
 import './GroupCallModal.css';
 import useCallAudioOutput from '../hooks/useCallAudioOutput';
 import useCallAudioLevels from '../hooks/useCallAudioLevels';
@@ -66,7 +74,7 @@ function useResponsiveGrid(tileCount) {
 
 // ── Hook: Focus Trap（弹窗内 Tab 循环） ──────────────────────
 // ── Hook: WebRTC 群通话信令与连接管理 ──────────────────────────
-function useGroupCallWebRTC({ socket, user: _user, session, nameOf: _nameOf, onClose }) {
+function useGroupCallWebRTC({ socket, user, session, nameOf: _nameOf, onClose }) {
   const { t } = useI18n();
   const { mode, conversationId, type } = session;
   const isVideo = type === 'video';
@@ -113,6 +121,16 @@ function useGroupCallWebRTC({ socket, user: _user, session, nameOf: _nameOf, onC
   const ICE_RESTART_DEBOUNCE_MS = 3000;
   const ICE_RESTART_WINDOW_MS   = 15000;
   const ICE_RESTART_MAX         = 3;
+  const ICE_WATCHDOG_GRACE_MS   = 2000;   // polite 方兜底计时 = 3s + 15s×3 + 2s(四端一致)
+  // 四端统一重协商协议（utils/callNegotiation.js）：每个 peer 按 userId 字符串比较，
+  // 较小者 impolite 且独占 ICE restart；较大者 polite，撞车时回滚本地 offer 先应答。
+  const selfIdRef = useRef(user?.id);
+  useEffect(() => { selfIdRef.current = user?.id; }, [user?.id]);
+  const isImpoliteTo = useCallback(peerId => isGroupPeerImpolite(selfIdRef.current, peerId), []);
+  // 信令断线期间不发 offer/ICE：socket.io 会把离线 emit 缓冲到重连后、resume 之前冲出去，
+  // 被服务端以"未绑定 Socket"丢弃。改为 resume 确认后统一重发 localDescription。
+  const signalingReadyRef = useRef(true);
+  const canSignal = useCallback(() => signalingReadyRef.current && isSignalingOnline(socket), [socket]);
 
   const syncPeerStatus = useCallback(() => {
     if (closedRef.current) return;
@@ -181,8 +199,14 @@ function useGroupCallWebRTC({ socket, user: _user, session, nameOf: _nameOf, onC
     pcsRef.current.set(peerId, pc);
     syncPeerStatus();
     localStreamRef.current?.getTracks().forEach(t => pc.addTrack(t, localStreamRef.current));
+    // 视频群通话但本端摄像头不可用（已回退纯语音）：补 video recvonly，否则由我方发起的
+    // offer 里没有视频 m-line，对方画面收不到
+    if (isVideo && !localStreamRef.current?.getVideoTracks().length && pc.addTransceiver) {
+      try { pc.addTransceiver('video', { direction: 'recvonly' }); } catch { /* 不支持即按语音 */ }
+    }
     pc.onicecandidate = ({ candidate }) => {
-      if (candidate) socket?.emit('group_call:ice', { callId: callIdRef.current, to: peerId, candidate });
+      // 断线期间的候选不发（会被服务端丢弃）；重连后重发的 localDescription 已含已收集候选
+      if (candidate && canSignal()) socket?.emit('group_call:ice', { callId: callIdRef.current, to: peerId, candidate });
     };
     pc.ontrack = (e) => {
       if (closedRef.current || pcsRef.current.get(peerId) !== pc) return;
@@ -193,6 +217,9 @@ function useGroupCallWebRTC({ socket, user: _user, session, nameOf: _nameOf, onC
     };
     // ICE restart 状态机(与 1:1 同策略):disconnected 3s 防抖 → restartIce → 15s 窗口
     // → 最多 3 次 → removePeer。信令复用 group_call:offer/answer/ice,后端零改动。
+    // 2026-10 四端统一协议:只有 impolite 端(userId 较小者)发起 restart;polite 端只应答,
+    // 断开后起兜底计时(3s + 15s×3 + 2s),到时仍未恢复才 removePeer。
+    const ownsRestart = isImpoliteTo(peerId);
     const tryPeerRestart = async () => {
       if (closedRef.current || pcsRef.current.get(peerId) !== pc) return;
       const count = peerRestartCountRef.current.get(peerId) || 0;
@@ -201,12 +228,15 @@ function useGroupCallWebRTC({ socket, user: _user, session, nameOf: _nameOf, onC
       pc.restartIce();
       // restartIce() 只打标记，必须实际重协商 offer 对方才会重新打通（对齐 1:1/iOS/Android 修复）
       try {
-        const offer = await pc.createOffer();
-        if (closedRef.current || pcsRef.current.get(peerId) !== pc) return;
-        const tunedOffer = tuneSdpForWeakNetwork(offer.sdp);
-        await pc.setLocalDescription(new RTCSessionDescription({ type: offer.type, sdp: tunedOffer }));
-        if (closedRef.current || pcsRef.current.get(peerId) !== pc) return;
-        socket?.emit('group_call:offer', { callId: callIdRef.current, to: peerId, offer: { type: offer.type, sdp: tunedOffer } });
+        if (pc.signalingState === 'stable') {
+          const offer = await pc.createOffer();
+          if (closedRef.current || pcsRef.current.get(peerId) !== pc) return;
+          const tunedOffer = tuneSdpForWeakNetwork(offer.sdp);
+          await pc.setLocalDescription(new RTCSessionDescription({ type: offer.type, sdp: tunedOffer }));
+          if (closedRef.current || pcsRef.current.get(peerId) !== pc) return;
+          if (canSignal()) socket?.emit('group_call:offer', { callId: callIdRef.current, to: peerId, offer: { type: offer.type, sdp: tunedOffer } });
+        }
+        // 非 stable(上一个 offer 仍在等应答):不叠加,等窗口到期重判
       } catch (err) {
         console.error('[groupCall] ICE restart 重协商失败:', err);
       }
@@ -214,11 +244,25 @@ function useGroupCallWebRTC({ socket, user: _user, session, nameOf: _nameOf, onC
       const timers = peerRestartTimersRef.current.get(peerId) || {};
       clearTimeout(timers.recover);
       timers.recover = setTimeout(() => {
+        const t = peerRestartTimersRef.current.get(peerId);
+        if (t) t.recover = null;
         const cur = pcsRef.current.get(peerId);
         const st = cur?.connectionState;
         if (st === 'disconnected' || st === 'failed') tryPeerRestart();
         else peerRestartTimersRef.current.delete(peerId);
       }, ICE_RESTART_WINDOW_MS);
+      peerRestartTimersRef.current.set(peerId, timers);
+    };
+    const armPoliteWatchdog = () => {
+      const timers = peerRestartTimersRef.current.get(peerId) || {};
+      if (timers.recover) return;
+      timers.recover = setTimeout(() => {
+        const t = peerRestartTimersRef.current.get(peerId);
+        if (t) t.recover = null;
+        if (closedRef.current || pcsRef.current.get(peerId) !== pc) return;
+        const st = pc.connectionState;
+        if (st === 'disconnected' || st === 'failed') removePeer(peerId);
+      }, ICE_RESTART_DEBOUNCE_MS + ICE_RESTART_WINDOW_MS * ICE_RESTART_MAX + ICE_WATCHDOG_GRACE_MS);
       peerRestartTimersRef.current.set(peerId, timers);
     };
     pc.onconnectionstatechange = () => {
@@ -232,15 +276,18 @@ function useGroupCallWebRTC({ socket, user: _user, session, nameOf: _nameOf, onC
         peerRestartCountRef.current.delete(peerId);
         reapplyCaps();   // A-3：本 pc 刚转 connected，按最新人数对全部已连接 pc（含本条）重放码率/降档
       } else if (s === 'disconnected') {
+        if (!ownsRestart) { armPoliteWatchdog(); return; }
         // 短时探测间隙:防抖后再重启,避免无谓重协商
         const timers = peerRestartTimersRef.current.get(peerId) || {};
         clearTimeout(timers.debounce);
         timers.debounce = setTimeout(() => {
-          clearTimeout(peerRestartTimersRef.current.get(peerId)?.recover);
+          const t = peerRestartTimersRef.current.get(peerId);
+          if (t) { clearTimeout(t.recover); t.recover = null; }
           tryPeerRestart();
         }, ICE_RESTART_DEBOUNCE_MS);
         peerRestartTimersRef.current.set(peerId, timers);
       } else if (s === 'failed') {
+        if (!ownsRestart) { armPoliteWatchdog(); return; }
         const timers = peerRestartTimersRef.current.get(peerId);
         const count = peerRestartCountRef.current.get(peerId) || 0;
         if (count === 0 && !timers?.recover) tryPeerRestart();   // 首次 failed:给一次 restart 机会
@@ -251,7 +298,7 @@ function useGroupCallWebRTC({ socket, user: _user, session, nameOf: _nameOf, onC
       }
     };
     return pc;
-  }, [socket, removePeer, reapplyCaps, syncPeerStatus]);
+  }, [socket, isVideo, removePeer, reapplyCaps, syncPeerStatus, isImpoliteTo, canSignal]);
 
   // 对单个 peer 建 offer 并发送（含 H264 偏好 + 弱网调优）。onPeerJoined（新成员入会）
   // 与 B-1 语音→视频升级的逐 peer 重协商共用；mesh 无集中媒体单元，每 peer 独立一份
@@ -267,8 +314,9 @@ function useGroupCallWebRTC({ socket, user: _user, session, nameOf: _nameOf, onC
     const tunedOffer = tuneSdpForWeakNetwork(offer.sdp);
     await pc.setLocalDescription(new RTCSessionDescription({ type: offer.type, sdp: tunedOffer }));
     if (closedRef.current || pcsRef.current.get(peerId) !== pc) return;
-    socket?.emit('group_call:offer', { callId: callIdRef.current, to: peerId, offer: { type: offer.type, sdp: tunedOffer } });
-  }, [socket]);
+    // 断线期间只 setLocal 不发，resume 确认后统一重发（见 resumeParticipatingCall）
+    if (canSignal()) socket?.emit('group_call:offer', { callId: callIdRef.current, to: peerId, offer: { type: offer.type, sdp: tunedOffer } });
+  }, [socket, canSignal]);
 
   const cleanup = useCallback(() => {
     if (closedRef.current) return;
@@ -289,13 +337,44 @@ function useGroupCallWebRTC({ socket, user: _user, session, nameOf: _nameOf, onC
 
   useEffect(() => {
     if (!socket) return;
+    let fallbackTimer = null;
+    // resume 确认后：恢复发信令，并对仍在等应答的 peer 重发当前 localDescription（含断线期间
+    // 的 ICE restart offer 与已收集候选）。
+    const resendPendingOffers = () => {
+      clearTimeout(fallbackTimer);
+      if (closedRef.current || signalingReadyRef.current) return;
+      signalingReadyRef.current = true;
+      pcsRef.current.forEach((pc, peerId) => {
+        if (!shouldResendLocalOffer(pc)) return;
+        const { type, sdp } = pc.localDescription;
+        socket.emit('group_call:offer', { callId: callIdRef.current, to: peerId, offer: { type, sdp } });
+      });
+    };
+    const onDisconnect = () => {
+      clearTimeout(fallbackTimer);
+      if (participatingRef.current) signalingReadyRef.current = false;
+    };
     const resumeParticipatingCall = () => {
       if (participatingRef.current && callIdRef.current && !closedRef.current) {
-        socket.emit('group_call:resume', { callId: callIdRef.current, resumeToken: resumeTokenRef.current });
+        signalingReadyRef.current = false;
+        socket.emit('group_call:resume', { callId: callIdRef.current, resumeToken: resumeTokenRef.current }, (ack) => {
+          if (ack?.ok === false) return;   // 恢复失败：服务端另发 group_call:error/ended 收尾
+          resendPendingOffers();
+        });
+        // 兼容未回 ack 的旧服务端：resume 与后续信令同一连接按序处理，稍候即视为已恢复
+        clearTimeout(fallbackTimer);
+        fallbackTimer = setTimeout(resendPendingOffers, 1500);
+      } else {
+        signalingReadyRef.current = true;
       }
     };
     socket.on('connect', resumeParticipatingCall);
-    return () => socket.off('connect', resumeParticipatingCall);
+    socket.on('disconnect', onDisconnect);
+    return () => {
+      clearTimeout(fallbackTimer);
+      socket.off('connect', resumeParticipatingCall);
+      socket.off('disconnect', onDisconnect);
+    };
   }, [socket]);
 
   const hangup = useCallback(() => {
@@ -317,6 +396,77 @@ function useGroupCallWebRTC({ socket, user: _user, session, nameOf: _nameOf, onC
     localStreamRef.current?.getVideoTracks().forEach(t => { t.enabled = !off; });
     return off;
   }, [cameraOff]);
+
+  // 设备热插拔（2026-10，与 1v1 同策略）：本地音轨 onended（麦克风被拔）或 devicechange
+  // （默认输入设备改变）→ 用当前默认麦克风重新采集，对每条 pc 的音频 sender 做 replaceTrack
+  // （无需重协商）；静音状态继承。localStream 换成新流对象，音量电平/自身画面随之更新。
+  const mutedRef = useRef(muted);
+  useEffect(() => { mutedRef.current = muted; }, [muted]);
+  const callLive = !!localStream && !['preparing', 'media-error', 'ended'].includes(status);
+  useEffect(() => {
+    if (!callLive) return;
+    const md = navigator.mediaDevices;
+    if (!md?.getUserMedia) return;
+    let disposed = false;
+    let busy = false;
+    let debounce = null;
+    let watched = null;
+    const reacquire = async (force) => {
+      const stream = localStreamRef.current;
+      const oldTrack = stream?.getAudioTracks()[0];
+      if (disposed || busy || closedRef.current || !stream || !oldTrack) return;
+      busy = true;
+      try {
+        if (!force) {
+          const devices = await md.enumerateDevices();
+          if (disposed || !shouldReacquireMic({ track: oldTrack, devices })) return;
+        }
+        const senders = [];
+        pcsRef.current.forEach(pc => pc.getSenders().forEach(sender => {
+          if (sender.track === oldTrack || sender.track?.kind === 'audio') senders.push(sender);
+        }));
+        const track = await replaceMicTrack({ getUserMedia: c => md.getUserMedia(c), senders, enabled: !mutedRef.current });
+        if (disposed || closedRef.current) { track.stop(); return; }
+        try { oldTrack.stop(); } catch { /* 已停止 */ }
+        const next = new MediaStream([track, ...stream.getVideoTracks()]);
+        localStreamRef.current = next;
+        setLocalStream(next);
+        watch(track);
+      } catch (err) {
+        if (disposed || closedRef.current) return;
+        console.warn('[groupCall] 重新获取麦克风失败:', err);
+        if (oldTrack.readyState !== 'live') showToast(t('call.micReacquireFailed'), 'error');
+      } finally {
+        busy = false;
+      }
+    };
+    const schedule = (force) => {
+      clearTimeout(debounce);
+      debounce = setTimeout(() => reacquire(force), force ? 0 : 500);   // devicechange 常成串触发
+    };
+    const onEnded = () => schedule(true);
+    const onDeviceChange = () => schedule(false);
+    function watch(track) {
+      watched?.removeEventListener?.('ended', onEnded);
+      watched = track || null;
+      watched?.addEventListener?.('ended', onEnded);
+    }
+    watch(localStreamRef.current?.getAudioTracks()[0]);
+    md.addEventListener?.('devicechange', onDeviceChange);
+    return () => {
+      disposed = true;
+      clearTimeout(debounce);
+      watched?.removeEventListener?.('ended', onEnded);
+      md.removeEventListener?.('devicechange', onDeviceChange);
+    };
+  }, [callLive, t]);
+
+  // 桌面端：通话中状态同步给 Electron 主进程（关窗确认 / 拒装更新 / 防睡眠），非桌面端无操作
+  const desktopCallKey = useId();
+  useEffect(() => {
+    setDesktopCallActive(desktopCallKey, ['joining', 'waiting', 'connecting', 'reconnecting', 'connected'].includes(status));
+  }, [status, desktopCallKey]);
+  useEffect(() => () => setDesktopCallActive(desktopCallKey, false), [desktopCallKey]);
 
   // B-1：语音加入者升级视频——gUM 取视频轨并入 localStream（此后新 peer 的 createPC
   // 会自动 addTrack），再对 pcsRef 里每条已建立 pc addTrack 并逐个独立重协商（mesh 每
@@ -367,9 +517,16 @@ function useGroupCallWebRTC({ socket, user: _user, session, nameOf: _nameOf, onC
     setMediaError(false);
     let stream;
     try {
-      stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: videoConstraints(isVideo) });
+      // 视频群通话摄像头失败 → 回退只取音频，按纯语音入会并提示（acquireCallMedia）
+      const acquired = await acquireCallMedia({
+        constraints: { audio: AUDIO_CONSTRAINTS, video: videoConstraints(isVideo) },
+        getUserMedia: value => navigator.mediaDevices.getUserMedia(value),
+        isCurrent: () => !closedRef.current,
+      });
+      stream = acquired.stream;
       if (closedRef.current) { stopStream(stream); return; }
-      if (!stream.getAudioTracks().some(track => track.readyState === 'live')) throw new Error('No microphone track');
+      if (!stream || acquired.error === 'microphone' || !stream.getAudioTracks().some(track => track.readyState === 'live')) throw new Error('No microphone track');
+      if (acquired.error === 'camera') showToast(t('call.cameraFallbackVoice'), 'info');
       localStreamRef.current = stream;
       setLocalStream(stream);
       selfHasVideoRef.current = stream.getVideoTracks().length > 0;
@@ -442,6 +599,10 @@ function useGroupCallWebRTC({ socket, user: _user, session, nameOf: _nameOf, onC
       const current = () => !closedRef.current && pcsRef.current.get(from) === pc;
       if (!pc) return;
       try {
+        // 完美协商：本地 offer 在途撞车时，polite（userId 较大者）回滚后应答，impolite 忽略
+        const action = await prepareForRemoteOffer(pc, !isImpoliteTo(from));
+        if (!action) { console.warn('[groupCall] glare: impolite 端忽略竞争 offer', from); return; }
+        if (!current()) return;
         await pc.setRemoteDescription(new RTCSessionDescription(offer));
         if (!current()) return;
         remoteSetRef.current.add(from); drainIce(from);
@@ -453,6 +614,8 @@ function useGroupCallWebRTC({ socket, user: _user, session, nameOf: _nameOf, onC
         await pc.setLocalDescription(new RTCSessionDescription({ type: answer.type, sdp: tunedAnswer }));
         if (!current()) return;
         socket.emit('group_call:answer', { callId: callIdRef.current, to: from, answer: { type: answer.type, sdp: tunedAnswer } });
+        // polite 回滚掉的本地重协商（如升级视频补轨）在应答后补发
+        if (action === 'rollback' && current()) await sendOfferToPeer(from);
       } catch (error) {
         if (current()) { console.warn('[groupCall] 接收 offer 失败:', error); removePeer(from); }
       }
@@ -461,13 +624,19 @@ function useGroupCallWebRTC({ socket, user: _user, session, nameOf: _nameOf, onC
       if (closedRef.current || cid !== callIdRef.current) return;
       const pc = pcsRef.current.get(from);
       if (!pc) return;
+      // 非 have-local-offer 下的 answer = 迟到/重复应答（撞车回滚、重连重发 offer 后的双应答），
+      // 直接忽略，不能 removePeer 把正常通话的成员踢掉
+      if (!shouldApplyAnswer(pc.signalingState)) {
+        console.warn('[groupCall] 忽略异常 answer（signalingState=%s）', pc.signalingState);
+        return;
+      }
       try {
         await pc.setRemoteDescription(new RTCSessionDescription(answer));
         if (closedRef.current || pcsRef.current.get(from) !== pc) return;
         remoteSetRef.current.add(from); drainIce(from);
       } catch (error) {
         if (!closedRef.current && pcsRef.current.get(from) === pc) {
-          console.warn('[groupCall] 接收 answer 失败:', error); removePeer(from);
+          console.warn('[groupCall] 接收 answer 失败（忽略，等待下一轮协商）:', error);
         }
       }
     };
@@ -528,7 +697,7 @@ function useGroupCallWebRTC({ socket, user: _user, session, nameOf: _nameOf, onC
       socket.off('group_call:error', onError);
       socket.off('group_call:ended', onEnded);
     };
-  }, [socket, createPC, drainIce, removePeer, hangup, sendOfferToPeer, syncPeerStatus, t]);
+  }, [socket, createPC, drainIce, removePeer, hangup, sendOfferToPeer, syncPeerStatus, isImpoliteTo, t]);
 
   return {
     callId, muted, cameraOff, selfHasVideo, remoteVideo, remoteStreams, localStream, status,

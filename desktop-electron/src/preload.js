@@ -81,6 +81,10 @@ const electronAPI = {
   // 系统信息
   getPlatform:      ()    => ipcRenderer.invoke('system:getPlatform'),
 
+  // 通话状态：渲染层（CallModal/GroupCallModal 经 utils/desktopCallState）在通话开始/结束时
+  // 同步给主进程——关窗/托盘退出前确认、通话中拒绝安装更新、通话期间阻止系统休眠。
+  setInCall:        (inCall) => ipcRenderer.invoke('call:setInCall', !!inCall),
+
   // 更新：用户确认后调用安装 / 手动触发检查 / 查询更新公钥启动自检结果（供关于页展示）
   installUpdate:    ()    => ipcRenderer.invoke('update:install'),
   checkUpdate:      ()    => ipcRenderer.invoke('update:check'),

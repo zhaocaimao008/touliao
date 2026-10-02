@@ -329,12 +329,14 @@ describe('private call signaling contract', () => {
     const alice = createSocket('alice-restart', 'web-restart', io);
     registerCallHandler(io, alice, registry);
 
-    alice.handlers['call:resume']({ callId: 'lost-during-restart' });
+    const resumeAck = jest.fn();
+    alice.handlers['call:resume']({ callId: 'lost-during-restart' }, resumeAck);
 
     expect(alice.last('call:end').payload).toEqual({
       reason: 'server_restarted',
       callId: 'lost-during-restart',
     });
+    expect(resumeAck).toHaveBeenCalledWith({ ok: false });
   });
 
   test('call:resume rebinds the participant and cancels disconnect cleanup', () => {
@@ -351,7 +353,10 @@ describe('private call signaling contract', () => {
     const reconnected = createSocket('alice-resume', 'web-after', io);
     registerCallHandler(io, reconnected, registry);
     // Q06 全修：resume 必须带上 call:request ack 里签发的 resumeToken。
-    reconnected.handlers['call:resume']({ callId, resumeToken });
+    // 可选 ack（四端重协商协议）：确认重新绑定后客户端才重发在途 offer
+    const resumeAck = jest.fn();
+    reconnected.handlers['call:resume']({ callId, resumeToken }, resumeAck);
+    expect(resumeAck).toHaveBeenCalledWith({ ok: true });
     jest.advanceTimersByTime(15_000);
 
     expect(registry.get(callId).participants.get('alice-resume').socketIds)

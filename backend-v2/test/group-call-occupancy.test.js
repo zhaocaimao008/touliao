@@ -358,7 +358,10 @@ describe('group call occupancy contract', () => {
     const bobReconnected = createSocket('bob', 'bob-web-2', io);
     registerGroupCallHandler(io, bobReconnected, registry);
     // Q06 全修：resume 必须带上加入时签发的 resumeToken，光凭 callId+userId 不再够。
-    bobReconnected.handlers['group_call:resume']({ callId, resumeToken });
+    // 可选 ack（四端重协商协议）：确认重新绑定后客户端才重发在途 offer
+    const resumeAck = jest.fn();
+    bobReconnected.handlers['group_call:resume']({ callId, resumeToken }, resumeAck);
+    expect(resumeAck).toHaveBeenCalledWith({ ok: true });
 
     jest.advanceTimersByTime(15_000);
 
@@ -396,8 +399,10 @@ describe('group call occupancy contract', () => {
 
     const bystanderResume = createSocket('bob', 'bob-bystander-resume', io);
     registerGroupCallHandler(io, bystanderResume, registry);
-    bystanderResume.handlers['group_call:resume']({ callId });
+    const bystanderAck = jest.fn();
+    bystanderResume.handlers['group_call:resume']({ callId }, bystanderAck);
     expect(bystanderResume.last('group_call:error').payload.reason).toBe('not_found');
+    expect(bystanderAck).toHaveBeenCalledWith({ ok: false });
     expect(registry.get(callId).participants.get('bob').socketIds.size).toBe(0);
 
     jest.advanceTimersByTime(15_000);
