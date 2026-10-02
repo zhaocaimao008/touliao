@@ -124,6 +124,7 @@ final class CallManager: NSObject, ObservableObject {
 
     private override init() {
         iceServers = fallbackIceServers
+        RTCInitFieldTrialDictionary(callFieldTrials)   // 须在创建 factory 之前
         RTCInitializeSSL()
         factory = RTCPeerConnectionFactory(
             encoderFactory: RTCDefaultVideoEncoderFactory(),

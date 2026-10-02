@@ -70,3 +70,11 @@ fun preferH264VideoCodec(sdp: String): String {
 
 /** CallManager/GroupCallManager 共用的 sdp 调优入口：弱网 Opus 调优 + H264 优先（A-2）。 */
 fun tuneSdpForCall(sdp: String): String = preferH264VideoCodec(tuneSdpForWeakNetwork(sdp))
+
+/**
+ * 通话 WebRTC 实验开关（CallManager/GroupCallManager 初始化 factory 时共用）。
+ * Opus RED（RFC 2198 冗余包）：每个包附带上一帧，连续丢包时比单靠 FEC 更能避免弱网下的
+ * 电流音/机器音。原生 libwebrtc 默认关闭，Chrome 已默认开启；双方都支持才会协商使用，
+ * 与旧版客户端互通时自动回落为普通 Opus。
+ */
+const val CALL_FIELD_TRIALS = "WebRTC-Audio-Red-For-Opus/Enabled/"
