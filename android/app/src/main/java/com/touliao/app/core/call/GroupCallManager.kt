@@ -121,6 +121,7 @@ class GroupCallManager @Inject constructor(
             PeerConnectionFactory.InitializationOptions.builder(context).createInitializationOptions()
         )
         factory = PeerConnectionFactory.builder()
+            .setAudioDeviceModule(createCallAudioDeviceModule(context))
             .setVideoEncoderFactory(DefaultVideoEncoderFactory(eglBase.eglBaseContext, true, true))
             .setVideoDecoderFactory(DefaultVideoDecoderFactory(eglBase.eglBaseContext))
             .createPeerConnectionFactory()
