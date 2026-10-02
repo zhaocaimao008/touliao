@@ -483,23 +483,27 @@ function registerCallHandler(io, socket, registry) {
     }
   });
 
-  socket.on('call:resume', (payload) => {
+  // 可选 ack（2026-10 四端重协商协议）：客户端重连后等 resume 确认这条新 Socket 已重新绑定，
+  // 再重发在途 offer。旧客户端不传 ack 回调则跳过，无兼容风险。
+  socket.on('call:resume', (payload, ack) => {
+    const reply = typeof ack === 'function' ? ack : () => {};
     const p = guardPayload(socket, 'call:resume', payload);
-    if (!p) return;
+    if (!p) return reply({ ok: false });
     const callId = guardId(socket, 'call:resume', 'callId', p.callId);
-    if (!callId) return;
+    if (!callId) return reply({ ok: false });
     const session = registry.get(callId);
     if (!session) {
       socket.emit('call:end', { reason: 'server_restarted', callId });
-      return;
+      return reply({ ok: false });
     }
     if (session.kind !== 'private') {
       socket.emit('call:error', { code: 'CALL_ID_MISMATCH', event: 'call:resume', callId });
-      return;
+      return reply({ ok: false });
     }
     const resumeToken = typeof p.resumeToken === 'string' && p.resumeToken.length <= 64 ? p.resumeToken : undefined; // 防超大负载做无谓字符串比较,resumeToken 是 UUID(36字符),合法值恒 <=64
     const resumed = registry.resume(callId, userId, socket.id, resumeToken);
     if (!resumed.ok) reportResolutionError('call:resume', resumed);
+    reply({ ok: !!resumed.ok });
   });
 
   // 只解绑当前参与 Socket；最后一条参与连接断开后由 registry 启动重连宽限。

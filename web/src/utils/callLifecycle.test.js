@@ -19,7 +19,9 @@ function peerConnection() {
   return {
     closed: false,
     senders: [],
+    transceivers: [],
     addTrack(track, stream) { this.senders.push({ track, stream }); },
+    addTransceiver(kind, init) { this.transceivers.push({ kind, ...init }); },
     close() { this.closed = true; },
   };
 }
@@ -98,22 +100,66 @@ describe('initializeCallMedia', () => {
 
     expect(pc).toBe(harness.published.pc);
     expect(harness.published.stream).toBe(emptyStream);
-    expect(harness.published.mediaError).toBe(true);
+    expect(harness.published.mediaError).toBe('microphone');
     expect(harness.pcCreations()).toBe(1);
   });
 
+  it('adds recvonly transceivers when the caller has no microphone/camera, so the peer is still heard and seen', async () => {
+    const harness = setup({
+      getUserMedia: async () => { throw new Error('permission denied'); },
+    });
+
+    const pc = await initializeCallMedia(harness.options);
+
+    expect(pc.transceivers).toEqual([
+      { kind: 'audio', direction: 'recvonly' },
+      { kind: 'video', direction: 'recvonly' },
+    ]);
+  });
+
+  it('falls back to audio-only when the camera fails in a video call', async () => {
+    const audioOnly = streamWithTracks(['audio']);
+    const requests = [];
+    const harness = setup({
+      getUserMedia: async (constraints) => {
+        requests.push(constraints);
+        if (constraints.video) throw new Error('camera busy');
+        return audioOnly;
+      },
+    });
+
+    const pc = await initializeCallMedia(harness.options);
+
+    expect(requests).toEqual([{ audio: true, video: true }, { audio: true, video: false }]);
+    expect(harness.published.stream).toBe(audioOnly);
+    expect(harness.published.mediaError).toBe('camera');
+    expect(pc.senders.map(sender => sender.track.kind)).toEqual(['audio']);
+    expect(pc.transceivers).toEqual([{ kind: 'video', direction: 'recvonly' }]);
+  });
+
+  it('does not add a video recvonly transceiver to a voice call', async () => {
+    const harness = setup({
+      constraints: { audio: true, video: false },
+      getUserMedia: async () => streamWithTracks(['audio']),
+    });
+
+    const pc = await initializeCallMedia(harness.options);
+
+    expect(harness.published.mediaError).toBe(false);
+    expect(pc.transceivers).toEqual([]);
+  });
   it('closes a peer connection when cancellation occurs during codec preparation', async () => {
     const preparing = deferred();
+    const prepStarted = deferred();
     const stream = streamWithTracks();
     const pc = peerConnection();
     const harness = setup({
       getUserMedia: async () => stream,
       createPeerConnection: () => pc,
-      preparePeerConnection: () => preparing.promise,
+      preparePeerConnection: () => { prepStarted.resolve(); return preparing.promise; },
     });
     const initializing = initializeCallMedia(harness.options);
-    await Promise.resolve();
-    await Promise.resolve();
+    await prepStarted.promise;
 
     harness.cancel();
     preparing.resolve();
@@ -124,6 +170,38 @@ describe('initializeCallMedia', () => {
     expect(harness.published.stream).toBeNull();
     expect(harness.published.pc).toBeNull();
   });
+});
+
+describe('acquireCallMedia', () => {
+  it('does not retry audio-only for a voice call', async () => {
+    let calls = 0;
+    const result = await callLifecycle.acquireCallMedia({
+      constraints: { audio: true, video: false },
+      getUserMedia: async () => { calls += 1; throw new Error('denied'); },
+    });
+    expect(result).toEqual({ stream: null, error: 'microphone' });
+    expect(calls).toBe(1);
+  });
+
+  it('reports a microphone error when both attempts fail', async () => {
+    const result = await callLifecycle.acquireCallMedia({
+      constraints: { audio: true, video: true },
+      getUserMedia: async () => { throw new Error('denied'); },
+    });
+    expect(result).toEqual({ stream: null, error: 'microphone' });
+  });
+
+  it('skips the audio-only retry once the call is no longer current', async () => {
+    let calls = 0;
+    const result = await callLifecycle.acquireCallMedia({
+      constraints: { audio: true, video: true },
+      getUserMedia: async () => { calls += 1; throw new Error('denied'); },
+      isCurrent: () => false,
+    });
+    expect(result.stream).toBeNull();
+    expect(calls).toBe(1);
+  });
+
 });
 
 describe('call media handoff guards', () => {

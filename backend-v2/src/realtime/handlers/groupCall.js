@@ -227,23 +227,28 @@ module.exports = function registerGroupCallHandler(io, socket, registry) {
     removeMember(io, registry, callId, userId); // 主动 leave：立即释放，不走宽限
   });
 
-  socket.on('group_call:resume', (payload) => {
+  // 可选 ack（2026-10 四端重协商协议）：客户端断线期间不发信令，等 resume 的 ack 确认这条
+  // 新 Socket 已重新绑定后才重发 offer（否则 fwd 的 isBoundParticipantSocket 会丢弃）。
+  // 旧客户端不传 ack 回调则跳过，无兼容风险。
+  socket.on('group_call:resume', (payload, ack) => {
+    const reply = typeof ack === 'function' ? ack : () => {};
     const p = guardPayload(socket, 'group_call:resume', payload);
-    if (!p) return;
+    if (!p) return reply({ ok: false });
     const callId = guardId(socket, 'group_call:resume', 'callId', p.callId);
-    if (!callId) return;
+    if (!callId) return reply({ ok: false });
     const session = registry.get(callId);
     if (!session) {
       socket.emit('group_call:ended', { callId, reason: 'server_restarted' });
-      return;
+      return reply({ ok: false });
     }
     if (session.kind !== 'group') {
       socket.emit('group_call:error', { reason: 'not_found', callId });
-      return;
+      return reply({ ok: false });
     }
     const resumeToken = typeof p.resumeToken === 'string' && p.resumeToken.length <= 64 ? p.resumeToken : undefined; // 防超大负载做无谓字符串比较,resumeToken 是 UUID(36字符),合法值恒 <=64
     const resumed = registry.resume(callId, userId, socket.id, resumeToken);
     if (!resumed.ok) socket.emit('group_call:error', { reason: reasonForCode(resumed.code), callId });
+    reply({ ok: !!resumed.ok });
   });
 
   // 断线：只解绑当前这一条 Socket；该用户在这通群通话里的最后一条参与 Socket 断开后，

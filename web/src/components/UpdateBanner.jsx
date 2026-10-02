@@ -1,6 +1,7 @@
 import TouliaoIcon from '../ui-kit/Icon';
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useI18n } from '../contexts/I18nContext';
+import { DESKTOP_CALL_EVENT, isDesktopCallActive } from '../utils/desktopCallState';
 
 /**
  * Windows/桌面端更新条。
@@ -14,6 +15,13 @@ export default function UpdateBanner() {
   const [progress, setProgress] = useState(0);
   const [errMsg, setErrMsg] = useState('');
   const installRequested = useRef(false);
+  // 通话中不允许安装（重启会直接挂断通话；主进程 update:install 也会拒绝）：按钮置灰并提示
+  const [inCall, setInCall] = useState(isDesktopCallActive);
+  useEffect(() => {
+    const onCallState = (e) => setInCall(!!e.detail);
+    window.addEventListener(DESKTOP_CALL_EVENT, onCallState);
+    return () => window.removeEventListener(DESKTOP_CALL_EVENT, onCallState);
+  }, []);
 
   useEffect(() => {
     if (!window.__ELECTRON_CONFIG__) return;
@@ -57,7 +65,7 @@ export default function UpdateBanner() {
   }, [t]);
 
   const handleInstall = useCallback(async () => {
-    if (installRequested.current) return;
+    if (installRequested.current || isDesktopCallActive()) return;
     installRequested.current = true;
     setState('installing');
     setErrMsg('');
@@ -133,8 +141,9 @@ export default function UpdateBanner() {
       {state === 'ready' && (
         <>
           <span className="wc-update-icon"><TouliaoIcon name="check" size="sm" /></span>
-          <span className="wc-update-text">{t('update.readyToInstall')}</span>
-          <button className="wc-update-install-btn" onClick={handleInstall}>{t('update.restartAndInstall')}</button>
+          <span className="wc-update-text">{inCall ? t('update.installAfterCall') : t('update.readyToInstall')}</span>
+          <button className="wc-update-install-btn" onClick={handleInstall} disabled={inCall}
+            title={inCall ? t('update.installAfterCall') : undefined}>{t('update.restartAndInstall')}</button>
           <button className="wc-update-dismiss" onClick={handleDismiss} aria-label={t('update.later')}>{t('update.later')}</button>
         </>
       )}

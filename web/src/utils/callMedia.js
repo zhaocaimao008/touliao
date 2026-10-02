@@ -45,3 +45,36 @@ export async function capVideoBitrate(pc, maxBps = 2_500_000, degrade = false) {
     });
   } catch { /* 浏览器不支持即忽略 */ }
 }
+
+// 音频采集约束（2026-10）：显式写出回声消除/降噪/自动增益。浏览器默认即为 true，这里只是
+// 把默认语义写死，避免个别内核/驱动默认值不同导致外放回声；1v1、群通话、热插拔重取共用。
+export const AUDIO_CONSTRAINTS = Object.freeze({ echoCancellation: true, noiseSuppression: true, autoGainControl: true });
+
+// 设备热插拔（devicechange）时是否需要重取麦克风：
+//  · 当前音轨已结束（设备被拔掉）→ 重取；
+//  · 当前音轨的设备已不在输入列表里 → 重取；
+//  · 系统「默认」输入设备换了（default 条目的 groupId 与当前音轨不同，如插上耳机）→ 重取；
+//  · 已没有任何输入设备 → 不重取（必然失败，交给 onended 提示）。
+export function shouldReacquireMic({ track, devices }) {
+  const inputs = (devices || []).filter(d => d.kind === 'audioinput');
+  if (!inputs.length) return false;
+  if (!track || track.readyState !== 'live') return true;
+  const settings = track.getSettings?.() || {};
+  if (settings.deviceId && !inputs.some(d => d.deviceId === settings.deviceId)) return true;
+  const def = inputs.find(d => d.deviceId === 'default');
+  return !!(def && def.groupId && settings.groupId && def.groupId !== settings.groupId);
+}
+
+// 用当前默认麦克风重新采集，并对所有音频 sender 做 replaceTrack（无需重协商）。
+// enabled 继承静音状态。失败抛错（由调用方提示），成功返回新音轨。
+export async function replaceMicTrack({ getUserMedia, senders, enabled }) {
+  const stream = await getUserMedia({ audio: AUDIO_CONSTRAINTS, video: false });
+  const track = stream.getAudioTracks()[0];
+  if (!track) {
+    stream.getTracks().forEach(t => t.stop());
+    throw new Error('No microphone track');
+  }
+  track.enabled = enabled;
+  await Promise.all(senders.map(sender => sender.replaceTrack(track)));
+  return track;
+}

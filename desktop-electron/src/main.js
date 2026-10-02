@@ -1,11 +1,12 @@
 'use strict';
 
 const { app, BrowserWindow, Tray, Menu, nativeImage, ipcMain, dialog,
-        globalShortcut, screen, Notification, shell, session, clipboard, powerMonitor, nativeTheme } = require('electron');
+        globalShortcut, screen, Notification, shell, session, clipboard, powerMonitor, nativeTheme,
+        powerSaveBlocker } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const { spawn } = require('child_process');
-const { MAX_PROFILES, profilePath, claimProfile } = require('./lib/profiles');
+const { MAX_PROFILES, NEW_WINDOW_FLAG, launchMode, profilePath, claimProfile } = require('./lib/profiles');
 const PROFILE_ROOT = app.getPath('userData');
 let PROFILE;
 try {
@@ -15,11 +16,15 @@ try {
   app.exit(1);
 }
 if (PROFILE === null) {
-  if (!process.argv.some(arg => arg.startsWith('--profile='))) {
+  // default/explicit：目标账号窗口已在运行，其 second-instance 已负责唤起窗口，这里静默退出。
+  if (launchMode(process.argv) === 'new-window') {
     dialog.showErrorBox('无法新开账号窗口', `已达到 ${MAX_PROFILES} 个账号窗口，请先退出不再使用的窗口。`);
   }
   app.exit(0);
 }
+// Windows 通知/任务栏分组身份：须与 electron-builder 的 appId（package.json build.appId /
+// electron-builder.yml，安装器据此写快捷方式 AUMID）一致，否则原生通知不显示或点击无法回到本应用。
+if (process.platform === 'win32') app.setAppUserModelId('com.touliao.desktop');
 const crypto = require('crypto');
 const https = require('https');
 const { autoUpdater } = require('electron-updater');
@@ -144,6 +149,12 @@ let _trayBaseIcon = null;    // 托盘正常态图标缓存（闪烁时还原用
 let _trayFlashTimer = null;  // 托盘闪烁定时器句柄
 let _rebuildTrayMenu = null; // 托盘菜单重建函数（语言切换时调用）
 let isQuitting = false;
+let appStarted = false;       // whenReady 里首个窗口已建好：此前 second-instance 等入口不得抢先 createWindow
+// 通话状态（渲染层经 call:setInCall 同步）：关窗/托盘退出确认、通话中拒装更新、防睡眠
+let inCall = false;
+let callSleepBlockerId = null;
+let closeConfirmed = false;   // 用户已确认「结束通话并关闭」，本次关闭不再拦截
+let closeConfirmPending = false;
 let updateReady = false;
 let updateInstallRequested = false;
 
@@ -440,6 +451,46 @@ function sanitizeBounds(raw) {
   return out;
 }
 
+// ── 通话状态 / 防睡眠 ──────────────────────────────────────
+// 接通后阻止系统挂起（prevent-app-suspension：允许息屏，不允许睡眠断网），挂断即释放。
+function setInCallState(value) {
+  inCall = !!value;
+  if (inCall && callSleepBlockerId === null) {
+    try { callSleepBlockerId = powerSaveBlocker.start('prevent-app-suspension'); }
+    catch (e) { log.warn('powerSaveBlocker 启动失败:', e.message); }
+  } else if (!inCall && callSleepBlockerId !== null) {
+    try { if (powerSaveBlocker.isStarted(callSleepBlockerId)) powerSaveBlocker.stop(callSleepBlockerId); }
+    catch { /* noop */ }
+    callSleepBlockerId = null;
+  }
+  if (!inCall) closeConfirmed = false;
+}
+
+// 唤起主窗口：窗口已被销毁（非托盘模式关窗后仍有托盘/第二实例入口）时重建，而不是对 null 调 show 无反应。
+function showMainWindow() {
+  if (!appStarted) return;
+  if (!mainWindow || mainWindow.isDestroyed()) { createWindow(); return; }
+  if (mainWindow.isMinimized()) mainWindow.restore();
+  mainWindow.show();
+  mainWindow.focus();
+}
+
+// 通话中关闭窗口/退出前确认。返回 Promise<boolean>：true=继续关闭/退出。
+function confirmEndCall(quitting) {
+  if (!inCall) return Promise.resolve(true);
+  showMainWindow();   // 窗口藏在托盘时先显示，否则对话框挂在隐藏窗口上看不见
+  return dialog.showMessageBox(mainWindow, {
+    type: 'warning',
+    buttons: ['取消', quitting ? '结束通话并退出' : '结束通话并关闭'],
+    defaultId: 0,
+    cancelId: 0,
+    noLink: true,
+    title: '投聊',
+    message: '正在通话中',
+    detail: quitting ? '退出投聊会挂断当前通话，确定退出吗？' : '关闭窗口会退出投聊并挂断当前通话，确定关闭吗？',
+  }).then(({ response }) => response === 1).catch(() => false);
+}
+
 // ── 主窗口 ─────────────────────────────────────────────────
 function createWindow() {
   const bounds = sanitizeBounds(store.get('windowBounds'));
@@ -505,7 +556,10 @@ function createWindow() {
       else { isQuitting = true; app.quit(); }
     }).catch(() => {});
   });
+  // 渲染进程整页重载/崩溃后通话状态随之失效：主进程侧复位，防睡眠锁不残留
+  mainWindow.webContents.on('did-navigate', () => setInCallState(false));
   mainWindow.webContents.on('render-process-gone', (_e, details) => {
+    setInCallState(false);
     log.error('渲染进程退出:', details?.reason);
     if (details?.reason === 'clean-exit' || !mainWindow) return;
     // 崩溃恢复前用原生通知提示：此前是静默重载，用户正在输入的草稿丢了都不知道为什么。
@@ -560,10 +614,26 @@ function createWindow() {
           });
         } catch (err) { log.warn('托盘气泡显示失败:', err.message); }
       }
+      return;
+    }
+    // 真正关闭窗口（非托盘模式 / 退出流程）且通话中：先确认，取消则保留窗口与通话。
+    if (inCall && !closeConfirmed) {
+      e.preventDefault();
+      const quitting = isQuitting;
+      isQuitting = false;   // 拦截 close 会取消本次 app.quit()；确认后再重新发起
+      if (closeConfirmPending) return;
+      closeConfirmPending = true;
+      confirmEndCall(quitting).then((ok) => {
+        closeConfirmPending = false;
+        if (!ok) return;
+        closeConfirmed = true;
+        if (quitting) { isQuitting = true; app.quit(); }
+        else mainWindow?.close();
+      });
     }
   });
 
-  mainWindow.on('closed', () => { mainWindow = null; });
+  mainWindow.on('closed', () => { mainWindow = null; setInCallState(false); });
 
   // 导航/弹窗/webview 的加固已在 setupSecurity() 中按应用级统一处理
 
@@ -817,9 +887,10 @@ function trayText(key) {
 }
 function openAccountWindow(profile) {
   if (profile !== undefined) profilePath(PROFILE_ROOT, profile);
+  // 不带 --profile 的普通启动现在只会唤起账号窗口 1；新开账号必须显式带分配标记。
   const args = [
     ...(app.isPackaged ? [] : [app.getAppPath()]),
-    ...(profile === undefined ? [] : [`--profile=${profile}`]),
+    ...(profile === undefined ? [NEW_WINDOW_FLAG] : [`--profile=${profile}`]),
   ];
   const env = { ...process.env };
   delete env.ELECTRON_RUN_AS_NODE;
@@ -858,7 +929,7 @@ function createTray() {
   const buildTrayMenu = () => Menu.buildFromTemplate([
     {
       label: trayText('open'),
-      click: () => { mainWindow?.show(); mainWindow?.focus(); },
+      click: () => showMainWindow(),
     },
     {
       label: trayText('newWindow'),
@@ -868,7 +939,7 @@ function createTray() {
       label: trayText('checkUpdate'),
       enabled: PROFILE === 1,
       click: () => {
-        mainWindow?.show(); mainWindow?.focus();
+        showMainWindow();
         mainWindow?.webContents.send('update:checking');
         const timeout = setTimeout(() => {
           mainWindow?.webContents.send('update:error', '检查超时，请稍后重试');
@@ -895,6 +966,7 @@ function createTray() {
     { type: 'separator' },
     {
       label: trayText('quit'),
+      // 通话中的确认由主窗口 close 拦截统一处理（confirmEndCall），这里只发起退出
       click: () => { isQuitting = true; app.quit(); },
     },
   ]);
@@ -905,8 +977,8 @@ function createTray() {
   tray.on('menu-will-show', () => {
     try { tray.setContextMenu(buildTrayMenu()); } catch (e) { log.warn('托盘菜单重建失败:', e.message); }
   });
-  tray.on('double-click', () => { mainWindow?.show(); mainWindow?.focus(); });
-  tray.on('click', () => { mainWindow?.show(); mainWindow?.focus(); });  // 单击也打开（Windows 习惯）
+  tray.on('double-click', () => showMainWindow());
+  tray.on('click', () => showMainWindow());  // 单击也打开（Windows 习惯）；窗口已销毁则重建
 }
 
 // ── 托盘图标闪烁（关到托盘时提示未读，不弹窗口，符合微信/QQ 习惯）──────
@@ -1042,12 +1114,8 @@ function setupIPC() {
     if (!title) return;
     try {
       const notif = new Notification({ title, body });
-      notif.on('click', () => {
-        if (!mainWindow || mainWindow.isDestroyed()) return;
-        if (mainWindow.isMinimized()) mainWindow.restore();   // 最小化时 show() 不会还原,需显式 restore
-        mainWindow.show();
-        mainWindow.focus();
-      });
+      // 最小化时 show() 不会还原,需显式 restore（showMainWindow 内处理）
+      notif.on('click', () => showMainWindow());
       notif.show();
     } catch (e) {
       log.warn('通知失败:', e.message);
@@ -1245,6 +1313,13 @@ function setupIPC() {
   // 系统信息
   ipcMain.handle('system:getPlatform', () => process.platform);
 
+  // 通话状态：渲染层通话开始/结束时同步（utils/desktopCallState.js）
+  ipcMain.handle('call:setInCall', (_e, value) => {
+    if (!isTrustedSender(_e)) return false;
+    setInCallState(!!value);
+    return true;
+  });
+
   // 更新：用户在 UI 确认后主动触发安装
   ipcMain.handle('update:install', async (_e) => {
     if (!isTrustedSender(_e)) return;
@@ -1254,6 +1329,8 @@ function setupIPC() {
       return;
     }
     if (!updateReady || !downloadedInstaller) throw new Error('更新尚未下载完成，请先检查更新。');
+    // 安装会立即退出重启，通话中拒绝（渲染层横幅也已置灰），避免一键挂断正在进行的通话
+    if (inCall) throw new Error('通话中，通话结束后再安装。');
     if (installingUpdate || updateInstallRequested) return;
     if (!strictUpdateMode()) {
       // 签名模式（未配置发布者证书指纹）：安装包已在 update-downloaded 与验签清单逐字节绑定。
@@ -1349,14 +1426,11 @@ function setupPowerMonitor() {
 // ── 应用生命周期 ───────────────────────────────────────────
 // Each userData directory owns one instance lock and its own Chromium session.
 if (app.hasSingleInstanceLock()) {
-  app.on('second-instance', (_event, args, _cwd, data) => {
-    // Default desktop launches allocate their own profile; probes must not steal focus.
-    if (data?.automaticWindow || !args.some(arg => arg.startsWith('--profile='))) return;
-    if (mainWindow) {
-      if (mainWindow.isMinimized()) mainWindow.restore();
-      mainWindow.show();
-      mainWindow.focus();
-    }
+  app.on('second-instance', (_event, _args, _cwd, data) => {
+    // 托盘「新开账号窗口」的分配探测（automaticWindow）不抢焦点；其余（双击桌面图标的默认启动、
+    // 显式 --profile=N）都是要找回这个账号窗口：唤起（窗口已销毁则重建）。
+    if (data?.automaticWindow) return;
+    showMainWindow();
   });
 
   // 强制所有渲染进程启用沙箱（即使将来新增窗口忘记设置）
@@ -1406,6 +1480,7 @@ app.whenReady().then(async () => {
     setupIPC();
     log.info('[Startup] Creating main window');
     createWindow();
+    appStarted = true;
     log.info('[Startup] Creating tray');
     createTray();
     log.info('[Startup] Registering integrations');
@@ -1414,10 +1489,7 @@ app.whenReady().then(async () => {
     setupPowerMonitor();
     setupNativeTheme();
 
-    app.on('activate', () => {
-      if (mainWindow === null) createWindow();
-      else mainWindow.show();
-    });
+    app.on('activate', () => showMainWindow());
   });
 }
 
@@ -1426,5 +1498,10 @@ app.on('before-quit', () => { isQuitting = true; });
 app.on('will-quit', () => { globalShortcut.unregisterAll(); });
 
 app.on('window-all-closed', () => {
-  // 托盘模式：不退出
+  // 托盘模式下关窗只是隐藏，正常走不到这里。能走到这里说明窗口真的关了（关闭到托盘已关闭 /
+  // 托盘创建失败 / 退出流程中）：非 mac 必须退出，否则进程无窗口无入口地残留（僵尸进程，
+  // 且占着单实例锁，再双击图标也打不开）。托盘仍在且为托盘模式时保留，由托盘入口重建窗口。
+  if (process.platform === 'darwin') return;
+  if (tray && store.get('minimizeToTray') && !isQuitting) return;
+  app.quit();
 });

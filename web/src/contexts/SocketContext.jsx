@@ -126,8 +126,11 @@ export const SocketProvider = ({ children }) => {
     const onOffline = () => { if (s.connected) s.disconnect(); };
     // Electron 专属：主进程 powerMonitor 监听到系统休眠唤醒后转发的事件（见 preload.js）。
     // 没有它的话，休眠唤醒后要等 socket.io pingTimeout(20秒) 超时才会判定断线开始重连；
-    // 唤醒瞬间主动 connect() 能把这个滞后降到几乎瞬间（AUDIT.md 十二节🟡）。
-    const onElectronResume = () => { if (!s.connected) s.connect(); };
+    // 唤醒瞬间主动重连能把这个滞后降到几乎瞬间（AUDIT.md 十二节🟡）。
+    // 2026-10：无条件 disconnect()+connect()——休眠后底层 TCP 往往已死但 s.connected 仍为
+    // true（心跳尚未超时），旧写法 `if (!s.connected)` 恰好跳过重连。重连后通话侧由 'connect'
+    // 回调发 resume 并重发在途 offer（四端统一重协商协议）。
+    const onElectronResume = () => { s.disconnect(); s.connect(); };
     const onCredentialsUpdated = () => {
       const token = isBearerClient() ? localStorage.getItem('touliao_electron_token') : null;
       s.auth = { platform: isDesktop ? 'desktop' : 'web', isolated: isIsolatedWindow(), ...(token ? { token } : {}) };
