@@ -29,6 +29,8 @@ final class AudioRecorder {
 
     func start() -> Bool {
         cancel()
+        // 通话中录语音消息会把会话改成 .default 模式、结束时再停用会话，通话音频随之中断。
+        if AudioPlayerService.isCallAudioActive { return false }
         let session = AVAudioSession.sharedInstance()
         do {
             try session.setCategory(.playAndRecord, mode: .default)
@@ -65,7 +67,7 @@ final class AudioRecorder {
         recorder?.stop()
         recorder = nil
         startedAt = nil
-        try? AVAudioSession.sharedInstance().setActive(false)
+        if !AudioPlayerService.isCallAudioActive { try? AVAudioSession.sharedInstance().setActive(false) }
         return currentURL
     }
 

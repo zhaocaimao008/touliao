@@ -96,33 +96,66 @@ class CallManager @Inject constructor(
     private val audioManager: android.media.AudioManager =
         context.getSystemService(Context.AUDIO_SERVICE) as android.media.AudioManager
     private var micEnabledBeforeFocusLoss = true
+    // 仅系统电话抢焦点时才代为静音麦克风；记下是否由我们静音，GAIN 时只恢复自己改过的状态。
+    private var mutedForSystemCall = false
+    private var focusReacquireJob: Job? = null
     private val audioFocusListener = android.media.AudioManager.OnAudioFocusChangeListener { change ->
         when (change) {
-            android.media.AudioManager.AUDIOFOCUS_LOSS -> {
-                micEnabledBeforeFocusLoss = _state.value.micEnabled
-                localAudioTrack?.setEnabled(false)
-                _state.update { it.copy(micEnabled = false) }
-                // B-5：焦点被长期抢占（其他应用取得焦点）——停提示音 + toast 提示，不自动挂断；
-                // 焦点回收（GAIN）后恢复麦克风与对应阶段提示音。
-                pauseTonesForFocusLoss()
-                showInterruptedToast()
-            }
+            android.media.AudioManager.AUDIOFOCUS_LOSS,
             android.media.AudioManager.AUDIOFOCUS_LOSS_TRANSIENT -> {
-                micEnabledBeforeFocusLoss = _state.value.micEnabled
-                localAudioTrack?.setEnabled(false)
-                _state.update { it.copy(micEnabled = false) }
-                // B-5：短时抢占（系统来电/通知）→ 暂停铃声/回铃等循环提示音，GAIN 后按阶段补播
+                // B-5：停铃声/回铃等循环提示音，GAIN 后按阶段补播
                 pauseTonesForFocusLoss()
+                if (isSystemCallActive()) {
+                    // 系统电话：静音麦克风，避免"接了系统电话，投聊还在发送声音"
+                    if (!mutedForSystemCall) micEnabledBeforeFocusLoss = _state.value.micEnabled
+                    mutedForSystemCall = true
+                    localAudioTrack?.setEnabled(false)
+                    _state.update { it.copy(micEnabled = false) }
+                } else {
+                    // 其他 App 出声（语音消息/视频/提示音）：通话照常收发，不再静音麦克风——
+                    // 旧逻辑在此静音，永久 LOSS 不会再回 GAIN，麦克风一直关着，对端听起来就是"断了"。
+                    scheduleFocusReacquire()
+                }
             }
             android.media.AudioManager.AUDIOFOCUS_LOSS_TRANSIENT_CAN_DUCK -> {
                 // B-5：短时压低音量（导航播报/提示音）——通话流不受影响，显式忽略
             }
             android.media.AudioManager.AUDIOFOCUS_GAIN -> {
-                localAudioTrack?.setEnabled(micEnabledBeforeFocusLoss)
-                _state.update { it.copy(micEnabled = micEnabledBeforeFocusLoss) }
+                focusReacquireJob?.cancel(); focusReacquireJob = null
+                if (mutedForSystemCall) {
+                    mutedForSystemCall = false
+                    localAudioTrack?.setEnabled(micEnabledBeforeFocusLoss)
+                    _state.update { it.copy(micEnabled = micEnabledBeforeFocusLoss) }
+                }
                 resumeTonesAfterFocusGain()
             }
             else -> {}
+        }
+    }
+
+    /** 系统电话（运营商通话）进行中/响铃：全局音频模式会切到 IN_CALL/RINGTONE，读取无需权限。 */
+    private fun isSystemCallActive(): Boolean {
+        val mode = runCatching { audioManager.mode }.getOrDefault(android.media.AudioManager.MODE_NORMAL)
+        return mode == android.media.AudioManager.MODE_IN_CALL || mode == android.media.AudioManager.MODE_RINGTONE
+    }
+
+    /** 焦点被其他 App 拿走后：1s 后重新切回通话模式并申请焦点（对方 App 播放结束或被系统压低），
+     *  直到系统电话出现或通话结束为止；重复调用只保留一个任务。 */
+    private fun scheduleFocusReacquire() {
+        if (focusReacquireJob?.isActive == true) return
+        focusReacquireJob = scope.launch {
+            delay(FOCUS_REACQUIRE_DELAY_MS)
+            val stage = _state.value.stage
+            if (stage == CallStage.IDLE || stage == CallStage.ENDED || isSystemCallActive()) return@launch
+            audioManager.mode = android.media.AudioManager.MODE_IN_COMMUNICATION
+            @Suppress("DEPRECATION")
+            runCatching {
+                audioManager.requestAudioFocus(
+                    audioFocusListener,
+                    android.media.AudioManager.STREAM_VOICE_CALL,
+                    android.media.AudioManager.AUDIOFOCUS_GAIN_TRANSIENT,
+                )
+            }
         }
     }
 
@@ -137,13 +170,6 @@ class CallManager @Inject constructor(
             CallStage.INCOMING -> playIncomingTone()
             CallStage.OUTGOING -> playRingbackTone()
             else -> {}
-        }
-    }
-
-    /** B-5：焦点被长期抢占时提示（仅 toast，不断话）。焦点回调在主线程，Toast 直接弹。 */
-    private fun showInterruptedToast() {
-        android.os.Handler(android.os.Looper.getMainLooper()).post {
-            android.widget.Toast.makeText(context, "通话被其他应用打断", android.widget.Toast.LENGTH_SHORT).show()
         }
     }
 
@@ -237,6 +263,8 @@ class CallManager @Inject constructor(
     }
 
     private fun releaseAudioFocusAndRoute() {
+        focusReacquireJob?.cancel(); focusReacquireJob = null
+        mutedForSystemCall = false
         @Suppress("DEPRECATION")
         runCatching { audioManager.abandonAudioFocus(audioFocusListener) }
                 .onFailure { e -> Log.w(TAG, "释放音频焦点失败: ${e.message}") }
@@ -1118,6 +1146,7 @@ class CallManager @Inject constructor(
 
     private companion object {
         const val STREAM_ID = "stream0"
+        const val FOCUS_REACQUIRE_DELAY_MS = 1_000L
         const val TAG = "CallManager"
         // ICE restart 参数(与四端统一):防抖 3s / 恢复窗口 15s / 最大 3 次
         const val ICE_RESTART_DEBOUNCE_MS = 3000L

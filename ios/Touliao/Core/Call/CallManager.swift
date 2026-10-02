@@ -119,6 +119,7 @@ final class CallManager: NSObject, ObservableObject {
         )
         super.init()
         observeSignaling()
+        observeAudioInterruptions()
     }
 
     /// 应用启动后调用一次，确保单例创建并开始监听来电
@@ -146,6 +147,36 @@ final class CallManager: NSObject, ObservableObject {
         }
         session.unlockForConfiguration()
         state.speakerOn = state.isVideo
+    }
+
+    /// 其他 App 播放声音（语音消息/视频）、闹钟、Siri 会打断通话音频会话；打断结束后系统不会
+    /// 自动恢复，旧逻辑没有处理 → 通话还在但双方都听不到，表现为"一有别的声音通话就断"。
+    /// 这里在打断结束/媒体服务重置时重新激活通话会话并恢复扬声器路由。
+    private func observeAudioInterruptions() {
+        let center = NotificationCenter.default
+        center.addObserver(forName: AVAudioSession.interruptionNotification, object: nil, queue: .main) { [weak self] note in
+            guard let raw = note.userInfo?[AVAudioSessionInterruptionTypeKey] as? UInt,
+                  AVAudioSession.InterruptionType(rawValue: raw) == .ended else { return }
+            self?.reactivateAudioSessionIfInCall()
+        }
+        center.addObserver(forName: AVAudioSession.mediaServicesWereResetNotification, object: nil, queue: .main) { [weak self] _ in
+            self?.reactivateAudioSessionIfInCall()
+        }
+    }
+
+    private func reactivateAudioSessionIfInCall() {
+        guard pc != nil, [.outgoing, .incoming, .connecting, .connected].contains(state.stage) else { return }
+        let session = RTCAudioSession.sharedInstance()
+        session.lockForConfiguration()
+        do {
+            try session.setCategory(AVAudioSession.Category.playAndRecord, with: [.allowBluetooth])
+            try session.setMode(AVAudioSession.Mode.voiceChat)
+            try session.setActive(true)
+            try session.overrideOutputAudioPort(state.speakerOn ? .speaker : .none)
+        } catch {
+            print("[Call] 打断后恢复音频会话失败: \(error.localizedDescription)")
+        }
+        session.unlockForConfiguration()
     }
 
     /// 通话结束释放音频会话，交还系统（便于语音消息/系统音恢复常规路由）。
