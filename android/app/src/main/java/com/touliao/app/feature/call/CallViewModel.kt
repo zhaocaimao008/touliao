@@ -56,6 +56,8 @@ class CallViewModel @Inject constructor(
     fun toggleMic() = callManager.toggleMic()
     fun toggleSpeaker() = callManager.toggleSpeaker()
     fun toggleBluetooth() = callManager.toggleBluetooth()
+    /** 权限申请结果回调：授权后补起通话前台服务（未授权时建流阶段会跳过）。 */
+    fun onPermissionsResult() = callManager.onPermissionsResult()
     fun toggleCamera() = callManager.toggleCamera()
     fun switchCamera() = callManager.switchCamera()
     fun consumeEnded() = callManager.consumeEnded()

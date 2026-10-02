@@ -30,5 +30,9 @@ class GroupCallViewModel @Inject constructor(
     fun toggleMic() = groupCallManager.toggleMic()
     fun toggleCamera() = groupCallManager.toggleCamera()
     fun switchCamera() = groupCallManager.switchCamera()
+    fun toggleSpeaker() = groupCallManager.toggleSpeaker()
+    fun toggleBluetooth() = groupCallManager.toggleBluetooth()
+    /** 权限申请结果回调：授权后补起通话前台服务 + 刷新蓝牙可用性。 */
+    fun onPermissionsResult() = groupCallManager.onPermissionsResult()
     fun consumeEnded() = groupCallManager.consumeEnded()
 }
