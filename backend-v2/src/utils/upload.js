@@ -41,6 +41,8 @@ const ALLOWED_CHAT_EXTS = new Set([
   'pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'txt', 'csv', 'tsv', 'md', 'markdown', 'rtf', 'srt', 'vtt', 'epub',
   // 压缩包
   'zip', 'rar', '7z', 'gz', 'tar', 'bz2', 'xz', 'tgz',
+  // 行业软件文件（通达信公式导出 .tn6；无可执行能力，按普通附件以 octet-stream 下发）
+  'tn6',
 ]);
 
 // 魔数识别出的「可执行/危险」真实类型：即便伪装成常见扩展名也拒收。

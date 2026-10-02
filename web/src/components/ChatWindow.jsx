@@ -39,6 +39,8 @@ const CHAT_ALLOWED_EXTS = new Set([
   'pdf','doc','docx','xls','xlsx','ppt','pptx','txt','csv','tsv','md','markdown','rtf','srt','vtt','epub',
   // 压缩包
   'zip','rar','7z','gz','tar','bz2','xz','tgz',
+  // 行业软件文件（通达信公式导出）
+  'tn6',
 ]);
 const CHAT_ACCEPT_ATTR = [...CHAT_ALLOWED_EXTS].map(e => '.' + e).join(',');
 // 多选/拖入一次最多排队的文件数（与微信一次选图上限同量级，避免误拖整个目录几百个文件）
