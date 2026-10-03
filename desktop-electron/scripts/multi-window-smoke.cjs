@@ -150,9 +150,26 @@ const { _electron: electron } = require('playwright');
         url: 'https://touliao.cc', name: 'touliao-smoke-auth',
       })), []);
     } else {
-      assert.equal(await reopened.page.evaluate(() => localStorage.getItem('smoke_account')), '2');
+      assert.equal(await reopened.page.evaluate(() => localStorage.getItem('smoke_account')), null);
     }
     assert.equal(await one.page.evaluate(() => localStorage.getItem('smoke_account')), '1');
+    if (process.platform === 'win32') {
+      // The primary slot can become free while secondary windows stay open. A new
+      // shortcut launch is a fresh account window even when it claims slot 1.
+      await one.page.evaluate(() => localStorage.setItem('touliao_electron_token', 'stale-main-token'));
+      await one.app.evaluate(({ session }) => session.defaultSession.cookies.set({
+        url: 'https://touliao.cc', name: 'touliao-smoke-main-auth', value: 'stale',
+      }));
+      await one.app.close();
+      apps.splice(apps.indexOf(one.app), 1);
+      const reusedMain = await launch();
+      assert.equal(reusedMain.state.userData, one.state.userData);
+      assert.equal(await reusedMain.page.evaluate(() => localStorage.getItem('smoke_account')), null);
+      assert.equal(await reusedMain.page.evaluate(() => localStorage.getItem('touliao_electron_token')), null);
+      assert.deepEqual(await reusedMain.app.evaluate(({ session }) => session.defaultSession.cookies.get({
+        url: 'https://touliao.cc', name: 'touliao-smoke-main-auth',
+      })), []);
+    }
     if (nativeUpdateFeedback) fs.writeFileSync(path.join(updateEvidence, 'report.json'), JSON.stringify({
       sha: process.env.GITHUB_SHA || null, runtime: one.state, nativeHost: process.platform,
       installedApp: Boolean(process.env.TOULIAO_PACKAGED_APP), passed: true,
