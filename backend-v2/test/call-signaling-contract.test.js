@@ -339,6 +339,25 @@ describe('private call signaling contract', () => {
     expect(resumeAck).toHaveBeenCalledWith({ ok: false });
   });
 
+  test('a rejected private resume ends only that socket and keeps the real participant bound', () => {
+    const io = createIoHarness();
+    const registry = createRegistry();
+    registry.createPrivate({ callId: 'private-resume-denied', callerId: 'alice', calleeId: 'bob', socketId: 'alice-original' });
+    const otherDevice = createSocket('alice', 'alice-other-device', io);
+    registerCallHandler(io, otherDevice, registry);
+    const ack = jest.fn();
+
+    otherDevice.handlers['call:resume']({ callId: 'private-resume-denied', resumeToken: 'wrong-token' }, ack);
+
+    expect(ack).toHaveBeenCalledWith({ ok: false });
+    expect(otherDevice.last('call:end').payload).toEqual({
+      from: 'bob', reason: 'stale', callId: 'private-resume-denied',
+    });
+    expect(io.events('call:end')).toHaveLength(0);
+    expect(registry.get('private-resume-denied').participants.get('alice').socketIds)
+      .toEqual(new Set(['alice-original']));
+  });
+
   test('call:resume rebinds the participant and cancels disconnect cleanup', () => {
     const io = createIoHarness();
     const registry = createRegistry();

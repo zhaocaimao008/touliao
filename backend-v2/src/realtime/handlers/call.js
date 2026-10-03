@@ -502,7 +502,13 @@ function registerCallHandler(io, socket, registry) {
     }
     const resumeToken = typeof p.resumeToken === 'string' && p.resumeToken.length <= 64 ? p.resumeToken : undefined; // 防超大负载做无谓字符串比较,resumeToken 是 UUID(36字符),合法值恒 <=64
     const resumed = registry.resume(callId, userId, socket.id, resumeToken);
-    if (!resumed.ok) reportResolutionError('call:resume', resumed);
+    if (!resumed.ok) {
+      reportResolutionError('call:resume', resumed);
+      // 原生端不等 resume ack，也不消费 call:error；给本连接补发带对端身份的终止事件，
+      // 使四端已有的 from + callId 校验都能收起无法恢复的通话。绝不广播影响真正参与的设备。
+      const peerId = [...session.participants.keys()].find(id => id !== userId);
+      if (peerId) socket.emit('call:end', { from: peerId, reason: 'stale', callId });
+    }
     reply({ ok: !!resumed.ok });
   });
 

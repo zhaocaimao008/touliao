@@ -23,7 +23,7 @@ const { _electron: electron } = require('playwright');
   const nativeUpdateFeedback = process.platform === 'win32' && Boolean(process.env.TOULIAO_PACKAGED_APP);
   const updateEvidence = path.resolve(root, '../artifacts/windows-update-feedback');
   fs.mkdirSync(updateEvidence, { recursive: true });
-  // extra：托盘「新开账号窗口」等价的 --new-account-window；普通启动（不带）只认领账号窗口 1。
+  // extra：托盘「新开账号窗口」等价的 --new-account-window；Windows 普通启动也自动分配。
   const launch = async (extra = []) => {
     const app = await electron.launch({
       executablePath: process.env.TOULIAO_ELECTRON,
@@ -67,7 +67,7 @@ const { _electron: electron } = require('playwright');
     if (process.platform === 'win32') {
       await page.waitForFunction(() => document.documentElement.classList.contains('windows-desktop'));
       assert.equal(await page.evaluate(() => window.__ELECTRON_CONFIG__.platform), 'win32');
-      // 多开只走托盘「新开账号窗口」（下面的并发 --new-account-window 启动覆盖），登录页不再有“新窗口登录”按钮。
+      // 登录页没有“新窗口登录”按钮；桌面图标和托盘均可多开。
       assert.equal(await page.getByText('在新窗口登录其他账号').count(), 0);
       await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].setContentSize(900, 600));
       await page.waitForFunction(() => innerWidth === 900 && innerHeight === 600);
@@ -133,9 +133,9 @@ const { _electron: electron } = require('playwright');
     await two.page.screenshot({ path: path.join(temp, 'login-window-2.png') });
     await two.app.close();
     apps.splice(apps.indexOf(two.app), 1);
-    // 普通启动只认领账号窗口 1（已运行则唤起后退出）；重开空出的账号 2 走托盘「新开账号窗口」，
-    // 它从 1 往后取第一个空闲 profile，应拿回账号 2 且数据保留。
-    const reopened = await launch(['--new-account-window']);
+    // Windows 用普通启动重开空出的账号 2；其他平台仍用托盘分配标记。
+    // 两者都从 1 往后取第一个空闲 profile，且保留账号 2 的数据。
+    const reopened = await launch(process.platform === 'win32' ? [] : newWindow);
     assert.equal(reopened.state.userData, two.state.userData);
     assert.equal(await reopened.page.evaluate(() => localStorage.getItem('smoke_account')), '2');
     assert.equal(await one.page.evaluate(() => localStorage.getItem('smoke_account')), '1');

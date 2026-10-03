@@ -20,6 +20,7 @@ import {
   statusAfterAnswer,
 } from '../utils/callNegotiation';
 import { setDesktopCallActive } from '../utils/desktopCallState';
+import { createCallResumeGate } from '../utils/callResumeGate';
 import { useI18n } from '../contexts/I18nContext';
 import {
   currentCallMedia,
@@ -202,47 +203,6 @@ export default function CallModal({ socket, call, onClose, onReplyMessage }) {
   // 之前冲出去，被服务端以"未绑定 Socket"丢弃）；重连后等 call:resume 确认再恢复。
   const signalingReadyRef = useRef(true);
   const canSignal = useCallback(() => signalingReadyRef.current && isSignalingOnline(socket), [socket]);
-  useEffect(() => {
-    if (!socket) return;
-    let fallbackTimer = null;
-    // resume 完成后：恢复发信令；本端 offer 仍在等应答（ICE restart / 切视频）则重发当前
-    // localDescription（四端统一协议，含断线期间已收集的候选）。
-    const onResumed = () => {
-      clearTimeout(fallbackTimer);
-      if (closedRef.current || signalingReadyRef.current) return;
-      signalingReadyRef.current = true;
-      const pc = pcRef.current;
-      if (shouldResendLocalOffer(pc)) {
-        const { type: offerType, sdp } = pc.localDescription;
-        socket.emit('call:offer', withCallId({ to: remoteId, offer: { type: offerType, sdp } }, callId));
-      }
-    };
-    const onDisconnect = () => {
-      clearTimeout(fallbackTimer);
-      if (participatingRef.current) signalingReadyRef.current = false;
-    };
-    const resumeParticipatingCall = () => {
-      if (!closedRef.current && participatingRef.current && callId) {
-        signalingReadyRef.current = false;
-        socket.emit('call:resume', { callId, resumeToken: resumeTokenRef.current }, (ack) => {
-          if (ack?.ok === false) return;   // 恢复失败：服务端另发 call:end/call:error 收尾
-          onResumed();
-        });
-        // 兼容未回 ack 的旧服务端：resume 与后续信令同一连接按序处理，稍候即视为已恢复
-        clearTimeout(fallbackTimer);
-        fallbackTimer = setTimeout(onResumed, 1500);
-      } else {
-        signalingReadyRef.current = true;
-      }
-    };
-    socket.on('connect', resumeParticipatingCall);
-    socket.on('disconnect', onDisconnect);
-    return () => {
-      clearTimeout(fallbackTimer);
-      socket.off('connect', resumeParticipatingCall);
-      socket.off('disconnect', onDisconnect);
-    };
-  }, [socket, callId, remoteId]);
 
   // AUDIT 2026-09-07 加固：
   // aliveRef=组件存活标记：getUserMedia/TURN/建 PC 等异步副作用在卸载后返回时必须中止，
@@ -411,13 +371,49 @@ export default function CallModal({ socket, call, onClose, onReplyMessage }) {
 
   const endCall = useCallback((notify, reason = '') => {
     // 幂等：挂断/超时/网络错误多次触发（双击挂断、ICE 状态机与手动挂断竞态）只收尾一次
-    if (statusRef.current === 'ended') return;
+    if (closedRef.current || statusRef.current === 'ended') return;
     if (notify) socket?.emit('call:end', withCallId({ to: remoteId, reason }, callId));
     cleanup();
     if (reason) setEndReason(reason);
     setStatus('ended');
     endCallTimeoutRef.current = setTimeout(onClose, 1800);
   }, [socket, remoteId, callId, cleanup, onClose]);
+
+  useEffect(() => {
+    if (!socket) return;
+    // 恢复成功后才重发断线期间留下的 offer；旧连接的迟到回执不得恢复新连接的信令。
+    const onResumed = () => {
+      if (closedRef.current || signalingReadyRef.current) return;
+      signalingReadyRef.current = true;
+      const pc = pcRef.current;
+      if (shouldResendLocalOffer(pc)) {
+        const { type: offerType, sdp } = pc.localDescription;
+        socket.emit('call:offer', withCallId({ to: remoteId, offer: { type: offerType, sdp } }, callId));
+      }
+    };
+    const gate = createCallResumeGate({ onReady: onResumed, onRejected: () => endCall(false, 'network') });
+    const onDisconnect = () => {
+      gate.stop();
+      if (participatingRef.current) signalingReadyRef.current = false;
+    };
+    const resumeParticipatingCall = () => {
+      if (!closedRef.current && participatingRef.current && callId) {
+        signalingReadyRef.current = false;
+        socket.emit('call:resume', { callId, resumeToken: resumeTokenRef.current }, gate.begin());
+        // 兼容未回 ack 的旧服务端：resume 与后续信令同一连接按序处理，稍候即视为已恢复。
+      } else {
+        gate.stop();
+        signalingReadyRef.current = true;
+      }
+    };
+    socket.on('connect', resumeParticipatingCall);
+    socket.on('disconnect', onDisconnect);
+    return () => {
+      gate.stop();
+      socket.off('connect', resumeParticipatingCall);
+      socket.off('disconnect', onDisconnect);
+    };
+  }, [socket, callId, remoteId, endCall]);
 
   const initPC = useCallback(async () => {
     const generation = mediaGenerationRef.current;
