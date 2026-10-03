@@ -2,7 +2,7 @@
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const path = require('node:path');
-const { MAX_PROFILES, NEW_WINDOW_FLAG, launchMode, profileFromArgs, profilePath, claimProfile, loginItemSettings } = require('../src/lib/profiles');
+const { MAX_PROFILES, NEW_WINDOW_FLAG, launchMode, profileFromArgs, profilePath, claimProfile, loginItemSettings, shouldClearNewWindowLogin } = require('../src/lib/profiles');
 
 test('the primary window preserves the existing data directory', () => {
   assert.equal(profileFromArgs(['app.exe']), 1);
@@ -69,6 +69,14 @@ test('Windows login startup is pinned to profile 1', () => {
   assert.deepEqual(loginItemSettings(true, 'win32'), { openAtLogin: true, args: ['--profile=1'] });
   assert.deepEqual(loginItemSettings(false, 'win32'), { openAtLogin: false, args: ['--profile=1'] });
   assert.deepEqual(loginItemSettings(true, 'linux'), { openAtLogin: true });
+});
+
+test('automatic Windows secondary windows start without a previous account login', () => {
+  assert.equal(shouldClearNewWindowLogin(2, ['app.exe'], 'win32'), true);
+  assert.equal(shouldClearNewWindowLogin(3, ['app.exe', NEW_WINDOW_FLAG], 'win32'), true);
+  assert.equal(shouldClearNewWindowLogin(1, ['app.exe'], 'win32'), false);
+  assert.equal(shouldClearNewWindowLogin(2, ['app.exe', '--profile=2'], 'win32'), false);
+  assert.equal(shouldClearNewWindowLogin(2, ['app.exe', NEW_WINDOW_FLAG], 'linux'), false);
 });
 
 test('each tray new-window launch claims a different native lock, beyond five windows', () => {

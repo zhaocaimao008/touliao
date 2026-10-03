@@ -59,4 +59,10 @@ function loginItemSettings(openAtLogin, platform = process.platform) {
     : { openAtLogin };
 }
 
-module.exports = { MAX_PROFILES, NEW_WINDOW_FLAG, launchMode, profileFromArgs, profilePath, claimProfile, loginItemSettings };
+// Windows 的自动多开可能复用已关闭窗口的目录；“新开”必须先清除该目录的旧账号身份。
+// 显式 --profile=N 是恢复指定账号窗口，主窗口 1 也保留原有登录态。
+function shouldClearNewWindowLogin(profile, args, platform = process.platform) {
+  return platform === 'win32' && profile > 1 && launchMode(args) !== 'explicit';
+}
+
+module.exports = { MAX_PROFILES, NEW_WINDOW_FLAG, launchMode, profileFromArgs, profilePath, claimProfile, loginItemSettings, shouldClearNewWindowLogin };

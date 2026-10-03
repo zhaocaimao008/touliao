@@ -131,13 +131,27 @@ const { _electron: electron } = require('playwright');
     assert.match(secondaryInstall, /账号窗口 1/, 'secondary install is explicitly refused');
     }
     await two.page.screenshot({ path: path.join(temp, 'login-window-2.png') });
+    await two.page.evaluate(() => localStorage.setItem('touliao_electron_token', 'stale-test-token'));
+    if (process.platform === 'win32') {
+      await two.app.evaluate(({ session }) => session.defaultSession.cookies.set({
+        url: 'https://touliao.cc', name: 'touliao-smoke-auth', value: 'stale',
+      }));
+    }
     await two.app.close();
     apps.splice(apps.indexOf(two.app), 1);
     // Windows 用普通启动重开空出的账号 2；其他平台仍用托盘分配标记。
-    // 两者都从 1 往后取第一个空闲 profile，且保留账号 2 的数据。
+    // 两者都从 1 往后取第一个空闲 profile；Windows 普通新开必须清掉旧账号身份。
     const reopened = await launch(process.platform === 'win32' ? [] : newWindow);
     assert.equal(reopened.state.userData, two.state.userData);
-    assert.equal(await reopened.page.evaluate(() => localStorage.getItem('smoke_account')), '2');
+    if (process.platform === 'win32') {
+      assert.equal(await reopened.page.evaluate(() => localStorage.getItem('smoke_account')), null);
+      assert.equal(await reopened.page.evaluate(() => localStorage.getItem('touliao_electron_token')), null);
+      assert.deepEqual(await reopened.app.evaluate(({ session }) => session.defaultSession.cookies.get({
+        url: 'https://touliao.cc', name: 'touliao-smoke-auth',
+      })), []);
+    } else {
+      assert.equal(await reopened.page.evaluate(() => localStorage.getItem('smoke_account')), '2');
+    }
     assert.equal(await one.page.evaluate(() => localStorage.getItem('smoke_account')), '1');
     if (nativeUpdateFeedback) fs.writeFileSync(path.join(updateEvidence, 'report.json'), JSON.stringify({
       sha: process.env.GITHUB_SHA || null, runtime: one.state, nativeHost: process.platform,
@@ -147,7 +161,7 @@ const { _electron: electron } = require('playwright');
       actualUpgradeInstalled: false,
     }, null, 2));
     console.log(JSON.stringify({ automaticWindows: 6, concurrentLaunches: true, existingWindowNotShown: true,
-      isolated: true, profilePersists: true, logoLoaded: true, runtime: one.state,
+      isolated: true, reusedProfileStartsFresh: process.platform === 'win32', logoLoaded: true, runtime: one.state,
       paths, screenshot: path.join(temp, 'login-window-2.png') }));
   } finally {
     for (const app of apps.reverse()) await app.close();

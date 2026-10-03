@@ -6,7 +6,7 @@ const { app, BrowserWindow, Tray, Menu, nativeImage, ipcMain, dialog,
 const path = require('path');
 const fs = require('fs');
 const { spawn } = require('child_process');
-const { MAX_PROFILES, NEW_WINDOW_FLAG, launchMode, profilePath, claimProfile, loginItemSettings } = require('./lib/profiles');
+const { MAX_PROFILES, NEW_WINDOW_FLAG, launchMode, profilePath, claimProfile, loginItemSettings, shouldClearNewWindowLogin } = require('./lib/profiles');
 const PROFILE_ROOT = app.getPath('userData');
 let PROFILE;
 try {
@@ -1465,6 +1465,21 @@ async function clearRenderCaches() {
 app.whenReady().then(async () => {
     if (PROFILE === 1 && store.get('autoLaunch')) {
       app.setLoginItemSettings(loginItemSettings(true));
+    }
+
+    if (shouldClearNewWindowLogin(PROFILE, process.argv)) {
+      // 每个 profile 有独立 sessionData。先清旧账号的令牌、Cookie 和离线数据，
+      // 再加载网页；否则复用已关闭的空闲账号窗口会自动登录上次的账号。
+      try {
+        await session.defaultSession.clearStorageData({
+          storages: ['cookies', 'localstorage', 'indexdb', 'serviceworkers', 'cachestorage'],
+        });
+      } catch (error) {
+        log.error('无法清除新账号窗口的旧登录状态:', error);
+        dialog.showErrorBox('无法新开账号窗口', '旧账号登录状态清理失败，请重试。');
+        app.quit();
+        return;
+      }
     }
 
     // 先据远程 config.json 解析后端地址，再建窗口/装 CSP，使 connect-src 跟随远程配置
