@@ -240,8 +240,6 @@ async function send(io, convId, userId, { content, type, reply_to_id, clientMsgI
   const maxLen = safeType === 'merged' ? config.limits.maxMergedLength : MAX;
   if (!content || typeof content !== 'string') throw badRequest('消息内容格式错误');
   if (content.length > maxLen) throw badRequest(`消息内容不能超过 ${maxLen} 个字符`);
-  if (safeType === 'merged') require('./burn.service').assertMergedForwardAllowed(content);
-  moderation.assertClean(content);
   const member = db.prepare('SELECT role FROM conversation_members WHERE conversation_id=? AND user_id=?').get(convId, userId);
   if (!member) throw forbidden('无权发送');
   if (clientMsgId !== undefined && (typeof clientMsgId !== 'string' || !/^[A-Za-z0-9_-]{1,100}$/.test(clientMsgId))) {
@@ -255,6 +253,8 @@ async function send(io, convId, userId, { content, type, reply_to_id, clientMsgI
     }
     return buildMessage(existing.id);
   }
+  if (safeType === 'merged') require('./burn.service').assertMergedForwardAllowed(content);
+  moderation.assertClean(content);
   const conv = db.prepare('SELECT mute_all, type FROM conversations WHERE id=?').get(convId);
   // 私聊守卫：黑名单 + 屏蔽陌生人合并校验（复用已取的 conv，省去重复 conversations 查询）
   const guardReason = privateSendGuard(convId, userId, conv);
