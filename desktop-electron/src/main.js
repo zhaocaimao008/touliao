@@ -6,7 +6,7 @@ const { app, BrowserWindow, Tray, Menu, nativeImage, ipcMain, dialog,
 const path = require('path');
 const fs = require('fs');
 const { spawn } = require('child_process');
-const { MAX_PROFILES, NEW_WINDOW_FLAG, launchMode, profilePath, claimProfile } = require('./lib/profiles');
+const { MAX_PROFILES, NEW_WINDOW_FLAG, launchMode, profilePath, claimProfile, loginItemSettings, shouldClearNewWindowLogin } = require('./lib/profiles');
 const PROFILE_ROOT = app.getPath('userData');
 let PROFILE;
 try {
@@ -16,8 +16,8 @@ try {
   app.exit(1);
 }
 if (PROFILE === null) {
-  // default/explicit：目标账号窗口已在运行，其 second-instance 已负责唤起窗口，这里静默退出。
-  if (launchMode(process.argv) === 'new-window') {
+  // 自动分配耗尽才报错；显式指定的账号窗口已运行时由其实例唤起。
+  if (launchMode(process.argv) === 'new-window' || (launchMode(process.argv) === 'default' && process.platform === 'win32')) {
     dialog.showErrorBox('无法新开账号窗口', `已达到 ${MAX_PROFILES} 个账号窗口，请先退出不再使用的窗口。`);
   }
   app.exit(0);
@@ -887,7 +887,7 @@ function trayText(key) {
 }
 function openAccountWindow(profile) {
   if (profile !== undefined) profilePath(PROFILE_ROOT, profile);
-  // 不带 --profile 的普通启动现在只会唤起账号窗口 1；新开账号必须显式带分配标记。
+  // 托盘新开账号窗口在所有平台均带分配标记。
   const args = [
     ...(app.isPackaged ? [] : [app.getAppPath()]),
     ...(profile === undefined ? [NEW_WINDOW_FLAG] : [`--profile=${profile}`]),
@@ -960,7 +960,7 @@ function createTray() {
       checked: store.get('autoLaunch'),
       click: (item) => {
         store.set('autoLaunch', item.checked);
-        app.setLoginItemSettings({ openAtLogin: item.checked });
+        app.setLoginItemSettings(loginItemSettings(item.checked));
       },
     },
     { type: 'separator' },
@@ -1427,8 +1427,7 @@ function setupPowerMonitor() {
 // Each userData directory owns one instance lock and its own Chromium session.
 if (app.hasSingleInstanceLock()) {
   app.on('second-instance', (_event, _args, _cwd, data) => {
-    // 托盘「新开账号窗口」的分配探测（automaticWindow）不抢焦点；其余（双击桌面图标的默认启动、
-    // 显式 --profile=N）都是要找回这个账号窗口：唤起（窗口已销毁则重建）。
+    // 自动分配时的锁探测不抢焦点；显式 --profile=N 唤起已运行的账号窗口。
     if (data?.automaticWindow) return;
     showMainWindow();
   });
@@ -1465,7 +1464,22 @@ async function clearRenderCaches() {
 
 app.whenReady().then(async () => {
     if (PROFILE === 1 && store.get('autoLaunch')) {
-      app.setLoginItemSettings({ openAtLogin: true });
+      app.setLoginItemSettings(loginItemSettings(true));
+    }
+
+    if (shouldClearNewWindowLogin(PROFILE, process.argv)) {
+      // 每个 profile 有独立 sessionData。先清旧账号的令牌、Cookie 和离线数据，
+      // 再加载网页；否则复用已关闭的空闲账号窗口会自动登录上次的账号。
+      try {
+        await session.defaultSession.clearStorageData({
+          storages: ['cookies', 'localstorage', 'indexdb', 'serviceworkers', 'cachestorage'],
+        });
+      } catch (error) {
+        log.error('无法清除新账号窗口的旧登录状态:', error);
+        dialog.showErrorBox('无法新开账号窗口', '旧账号登录状态清理失败，请重试。');
+        app.quit();
+        return;
+      }
     }
 
     // 先据远程 config.json 解析后端地址，再建窗口/装 CSP，使 connect-src 跟随远程配置

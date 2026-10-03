@@ -16,27 +16,21 @@ if ($shortcutInfo.Arguments -match '--profile') { throw 'Shortcut pins a single 
 $launchTarget = $shortcut.path
 $apps = @()
 try {
-  # 普通双击图标：第一次启动账号窗口 1；再次双击只唤起已运行的账号窗口 1（第二个进程自行退出），
-  # 不再新开账号 2——多开只走托盘「新开账号窗口」（--new-account-window，由 multi-window-smoke 覆盖）。
-  $first = Start-Process -FilePath $launchTarget -PassThru
-  $apps += $first
-  $deadline = (Get-Date).AddSeconds(40)
-  do { Start-Sleep -Seconds 1; $first.Refresh() } while ($first.MainWindowHandle -eq 0 -and !$first.HasExited -and (Get-Date) -lt $deadline)
-  if ($first.HasExited) { throw "Shortcut launch exited early: $($first.Id), code=$($first.ExitCode)" }
-  if ($first.MainWindowHandle -eq 0) { throw 'First shortcut launch has no native window' }
-  if ($first.MainModule.FileName -ne $Exe) { throw 'Desktop shortcut launched an unexpected executable' }
-  for ($i = 0; $i -lt 3; $i++) {
-    $again = Start-Process -FilePath $launchTarget -PassThru
-    $apps += $again
-    if (!$again.WaitForExit(30000)) { throw "Repeated shortcut launch did not hand off to window 1: $($again.Id)" }
-    if ($again.ExitCode -ne 0) { throw "Repeated shortcut launch failed: code=$($again.ExitCode)" }
+  # 从已安装的桌面快捷方式连续启动四次，每次都应保留一个独立的原生账号窗口。
+  for ($i = 1; $i -le 4; $i++) {
+    $app = Start-Process -FilePath $launchTarget -PassThru
+    $apps += $app
+    $deadline = (Get-Date).AddSeconds(40)
+    do { Start-Sleep -Seconds 1; $app.Refresh() } while ($app.MainWindowHandle -eq 0 -and !$app.HasExited -and (Get-Date) -lt $deadline)
+    if ($app.HasExited) { throw "Shortcut launch $i exited early: $($app.Id), code=$($app.ExitCode)" }
+    if ($app.MainWindowHandle -eq 0) { throw "Shortcut launch $i has no native window" }
+    if ($app.MainModule.FileName -ne $Exe) { throw "Desktop shortcut launched an unexpected executable: $($app.MainModule.FileName)" }
   }
   Start-Sleep -Seconds 5
-  $first.Refresh()
-  if ($first.HasExited) { throw 'Native shortcut window did not remain alive' }
+  foreach ($app in $apps) { $app.Refresh(); if ($app.HasExited) { throw "Native shortcut window exited: $($app.Id)" } }
   $windows = @(Get-Process touliao -ErrorAction SilentlyContinue | Where-Object { $_.Path -eq $Exe -and $_.MainWindowHandle -ne 0 })
-  if ($windows.Count -ne 1) { throw "Expected 1 native window after repeated shortcut launches, got $($windows.Count)" }
-  @{ ordinaryDesktopShortcutLaunches=4; nativeWindows=1; repeatedLaunchFocusesExisting=$true; noDebuggingFlags=$true; stable=$true } | ConvertTo-Json -Compress
+  if ($windows.Count -ne 4) { throw "Expected 4 native windows after repeated shortcut launches, got $($windows.Count)" }
+  @{ ordinaryDesktopShortcutLaunches=4; nativeWindows=4; separateProcesses=$true; noDebuggingFlags=$true; stable=$true } | ConvertTo-Json -Compress
 } finally {
   foreach ($app in $apps) { if (!$app.HasExited) { Stop-Process -Id $app.Id -Force -ErrorAction SilentlyContinue } }
 }

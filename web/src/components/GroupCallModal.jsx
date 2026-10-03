@@ -19,6 +19,7 @@ import {
   isSignalingOnline,
 } from '../utils/callNegotiation';
 import { setDesktopCallActive } from '../utils/desktopCallState';
+import { createCallResumeGate } from '../utils/callResumeGate';
 import './GroupCallModal.css';
 import useCallAudioOutput from '../hooks/useCallAudioOutput';
 import useCallAudioLevels from '../hooks/useCallAudioLevels';
@@ -335,13 +336,17 @@ function useGroupCallWebRTC({ socket, user, session, nameOf: _nameOf, onClose })
     upgradeStreamRef.current = null;
   }, [socket]);
 
+  const hangup = useCallback(() => {
+    if (closedRef.current) return;
+    cleanup();
+    setStatus('ended');
+    onCloseRef.current?.();
+  }, [cleanup]);
+
   useEffect(() => {
     if (!socket) return;
-    let fallbackTimer = null;
-    // resume 确认后：恢复发信令，并对仍在等应答的 peer 重发当前 localDescription（含断线期间
-    // 的 ICE restart offer 与已收集候选）。
+    // 恢复成功后才重发各 peer 的 offer；旧连接的迟到回执不得恢复新连接的信令。
     const resendPendingOffers = () => {
-      clearTimeout(fallbackTimer);
       if (closedRef.current || signalingReadyRef.current) return;
       signalingReadyRef.current = true;
       pcsRef.current.forEach((pc, peerId) => {
@@ -350,39 +355,29 @@ function useGroupCallWebRTC({ socket, user, session, nameOf: _nameOf, onClose })
         socket.emit('group_call:offer', { callId: callIdRef.current, to: peerId, offer: { type, sdp } });
       });
     };
+    const gate = createCallResumeGate({ onReady: resendPendingOffers, onRejected: hangup });
     const onDisconnect = () => {
-      clearTimeout(fallbackTimer);
+      gate.stop();
       if (participatingRef.current) signalingReadyRef.current = false;
     };
     const resumeParticipatingCall = () => {
       if (participatingRef.current && callIdRef.current && !closedRef.current) {
         signalingReadyRef.current = false;
-        socket.emit('group_call:resume', { callId: callIdRef.current, resumeToken: resumeTokenRef.current }, (ack) => {
-          if (ack?.ok === false) return;   // 恢复失败：服务端另发 group_call:error/ended 收尾
-          resendPendingOffers();
-        });
-        // 兼容未回 ack 的旧服务端：resume 与后续信令同一连接按序处理，稍候即视为已恢复
-        clearTimeout(fallbackTimer);
-        fallbackTimer = setTimeout(resendPendingOffers, 1500);
+        socket.emit('group_call:resume', { callId: callIdRef.current, resumeToken: resumeTokenRef.current }, gate.begin());
+        // 兼容未回 ack 的旧服务端：resume 与后续信令同一连接按序处理，稍候即视为已恢复。
       } else {
+        gate.stop();
         signalingReadyRef.current = true;
       }
     };
     socket.on('connect', resumeParticipatingCall);
     socket.on('disconnect', onDisconnect);
     return () => {
-      clearTimeout(fallbackTimer);
+      gate.stop();
       socket.off('connect', resumeParticipatingCall);
       socket.off('disconnect', onDisconnect);
     };
-  }, [socket]);
-
-  const hangup = useCallback(() => {
-    if (closedRef.current) return;
-    cleanup();
-    setStatus('ended');
-    onCloseRef.current?.();
-  }, [cleanup]);
+  }, [socket, hangup]);
 
   const toggleMute = useCallback(() => {
     if (closedRef.current || !localStreamRef.current?.getAudioTracks().some(t => t.readyState === 'live')) return;

@@ -402,8 +402,10 @@ describe('group call occupancy contract', () => {
     const bystanderAck = jest.fn();
     bystanderResume.handlers['group_call:resume']({ callId }, bystanderAck);
     expect(bystanderResume.last('group_call:error').payload.reason).toBe('not_found');
+    expect(bystanderResume.last('group_call:ended').payload).toEqual({ callId, reason: 'not_found' });
     expect(bystanderAck).toHaveBeenCalledWith({ ok: false });
     expect(registry.get(callId).participants.get('bob').socketIds.size).toBe(0);
+    expect(io.events('group_call:ended')).toHaveLength(0); // 真正参与的设备没有收到结束广播
 
     jest.advanceTimersByTime(15_000);
     expect(io.last('group_call:peer_left').payload).toEqual({ callId, userId: 'bob' }); // 宽限如期到期，没有被假恢复取消

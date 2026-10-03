@@ -247,7 +247,12 @@ module.exports = function registerGroupCallHandler(io, socket, registry) {
     }
     const resumeToken = typeof p.resumeToken === 'string' && p.resumeToken.length <= 64 ? p.resumeToken : undefined; // 防超大负载做无谓字符串比较,resumeToken 是 UUID(36字符),合法值恒 <=64
     const resumed = registry.resume(callId, userId, socket.id, resumeToken);
-    if (!resumed.ok) socket.emit('group_call:error', { reason: reasonForCode(resumed.code), callId });
+    if (!resumed.ok) {
+      socket.emit('group_call:error', { reason: reasonForCode(resumed.code), callId });
+      // 已接通的 Android/iOS 群通话忽略普通 error；只对请求恢复的连接发终止事件，
+      // 保留真正参与者的房间与媒体，不让拒绝恢复的客户端继续显示假在线。
+      socket.emit('group_call:ended', { callId, reason: 'not_found' });
+    }
     reply({ ok: !!resumed.ok });
   });
 
