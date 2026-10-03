@@ -19,6 +19,7 @@ export default function ForwardModal({ message, messages, sourceConversationName
   const primaryMsg = msgList[0] || null;
   const trapRef = useFocusTrap();
   const mergedRequestIds = useRef(new Map());
+  const mergedSucceededTargets = useRef(new Set());
   const [tab, setTab] = useState('friends');
   const [friends, setFriends] = useState([]);
   const [groups, setGroups] = useState([]);
@@ -157,6 +158,9 @@ export default function ForwardModal({ message, messages, sourceConversationName
         }));
         const successCount = sends.filter(item => item.status === 'fulfilled').length;
         const failedCount = sends.length - successCount;
+        targets.forEach((conversationId, index) => {
+          if (sends[index].status === 'fulfilled') mergedSucceededTargets.current.add(conversationId);
+        });
         if (failedCount > 0) {
           setSelected(new Set(targets.filter((_, index) => sends[index].status === 'rejected')));
           showToast(t('fwd.forwardFailed'), 'error');
@@ -165,7 +169,7 @@ export default function ForwardModal({ message, messages, sourceConversationName
         }
         setResult({
           status: failedCount === 0 ? 'success' : successCount > 0 ? 'partial_success' : 'failed',
-          success_count: successCount,
+          success_count: mergedSucceededTargets.current.size,
           failed_count: failedCount,
           forwardMode: 'merged',
         });
