@@ -82,10 +82,17 @@ final class WalletRepository {
 
     /// 好友转账 amount 金币（1-20000）到 toUserId，note 为备注（可选，≤50 字）。
     /// 成功后返回最新余额及 transfer 类型消息（转账即到账）。
-    func transfer(toUserId: String, amount: Int, note: String = "") async throws -> TransferResponse {
-        try await api.send(
+    func transfer(toUserId: String, amount: Int, note: String = "", owner: KeychainStore.Snapshot) async throws -> TransferResponse {
+        guard KeychainStore.shared.isCurrent(owner) else { throw CancellationError() }
+        let body = TransferBody(to_user_id: toUserId, amount: amount, note: note)
+        let payload = try JSONEncoder().encode(body)
+        let scope = RequestKeys.accountScope()
+        let key = RequestKeys.shared.key(scope: scope, operation: "transfer", payload: payload)
+        let result: TransferResponse = try await api.send(
             "api/wallet/transfer", method: "POST",
-            body: TransferBody(to_user_id: toUserId, amount: amount, note: note)
+            body: body, owner: owner, headers: ["Idempotency-Key": key]
         )
+        RequestKeys.shared.complete(scope: scope, operation: "transfer", payload: payload, key: key)
+        return result
     }
 }

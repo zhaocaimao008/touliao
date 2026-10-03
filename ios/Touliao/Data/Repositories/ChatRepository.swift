@@ -190,8 +190,14 @@ final class ChatRepository: HistoryPageSource {
     /// 发送合并转发消息（F5）：POST /api/messages/:convId，type=merged，content 为 {title,items} JSON
     /// （服务端透传不解析；对齐 Web ForwardModal 合并转发路径）。服务端会同时经 Socket 广播。
     @discardableResult
-    func sendMergedForward(conversationId: String, json content: String) async throws -> Message {
-        try await api.send("api/messages/\(conversationId)", method: "POST", body: SendTypedBody(type: "merged", content: content))
+    func sendMergedForward(conversationId: String, json content: String, owner: KeychainStore.Snapshot) async throws -> Message {
+        guard KeychainStore.shared.isCurrent(owner) else { throw CancellationError() }
+        let payload = Data("\(conversationId)\u{0}\(content)".utf8)
+        let scope = RequestKeys.accountScope()
+        let key = RequestKeys.shared.key(scope: scope, operation: "merged", payload: payload)
+        let result: Message = try await api.send("api/messages/\(conversationId)", method: "POST", body: SendTypedBody(type: "merged", content: content, clientMsgId: key), owner: owner)
+        RequestKeys.shared.complete(scope: scope, operation: "merged", payload: payload, key: key)
+        return result
     }
 
     func clearMessages(_ conversationId: String) async throws {
@@ -305,7 +311,7 @@ private struct PinMessageBody: Encodable { let msgId: String }
 private struct PinConvBody: Encodable { let pinned: Int }
 private struct MuteConvBody: Encodable { let muted: Int }
 private struct ArchiveConvBody: Encodable { let archived: Bool }
-private struct SendTypedBody: Encodable { let type: String; let content: String }
+private struct SendTypedBody: Encodable { let type: String; let content: String; let clientMsgId: String }
 private struct ReadStatesResponse: Decodable { let readStates: [String: [String]] }
 private struct BurnAfterBody: Encodable { let seconds: Int }
 private struct FileHelperResponse: Decodable { let conversationId: String }

@@ -303,12 +303,13 @@ class ChatViewModel @Inject constructor(
         if (msg.type == "red_packet") runCatching { json.decodeFromString<RedPacketContent>(msg.content) }.getOrNull() else null
 
     fun sendRedPacket(totalAmount: Int, totalCount: Int, greeting: String) {
+        val owner = captureAttempt() ?: return
         if (_uiState.value.sendingRedPacket) return   // 资金操作：进行中禁止重复触发，防快速双击重复扣币
         _uiState.update { it.copy(sendingRedPacket = true) }
         viewModelScope.launch {
-            runCatching { redPacketRepository.send(conversationId, totalAmount, totalCount, greeting.trim()) }
-                .onSuccess { resp -> resp.message?.let { appendUnique(it) } } // 通常 socket 也会广播，appendUnique 去重
-                .onFailure { e -> _uiState.update { it.copy(error = e.toUserMessage("发送红包失败")) } }
+            runCatching { redPacketRepository.send(conversationId, totalAmount, totalCount, greeting.trim(), owner) }
+                .onSuccess { resp -> if (currentAttempt(owner)) resp.message?.let { appendUnique(it) } }
+                .onFailure { e -> if (currentAttempt(owner)) _uiState.update { it.copy(error = e.toUserMessage("发送红包失败")) } }
             _uiState.update { it.copy(sendingRedPacket = false) }
         }
     }
@@ -351,15 +352,16 @@ class ChatViewModel @Inject constructor(
 
     /** 向 toUserId 转账 amount 金币，note 为备注（≤50 字）。成功后消息列表追加 transfer 气泡。 */
     fun sendTransfer(toUserId: String, amount: Int, note: String) {
+        val owner = captureAttempt() ?: return
         if (_uiState.value.sendingTransfer) return   // 资金操作：进行中禁止重复触发，防快速双击重复扣币
         _uiState.update { it.copy(sendingTransfer = true) }
         viewModelScope.launch {
-            runCatching { walletRepository.transfer(toUserId, amount, note.trim()) }
+            runCatching { walletRepository.transfer(toUserId, amount, note.trim(), owner) }
                 .onSuccess { resp ->
                     // 服务端通常经 socket 广播 transfer 消息；appendUnique 去重
-                    resp.message?.let { appendUnique(it) }
+                    if (currentAttempt(owner)) resp.message?.let { appendUnique(it) }
                 }
-                .onFailure { e -> _uiState.update { it.copy(error = e.toUserMessage("转账失败")) } }
+                .onFailure { e -> if (currentAttempt(owner)) _uiState.update { it.copy(error = e.toUserMessage("转账失败")) } }
             _uiState.update { it.copy(sendingTransfer = false) }
         }
     }
@@ -844,6 +846,7 @@ class ChatViewModel @Inject constructor(
      * 超出 30 条截取前 30（对齐 Web buildMergedPayload）。
      */
     fun forwardMergedSelected(conversationIds: List<String>) {
+        val owner = captureAttempt() ?: return
         if (conversationIds.isEmpty()) return
         val s = _uiState.value
         if (!s.multiSelect || s.selectedIds.isEmpty()) return
@@ -860,7 +863,7 @@ class ChatViewModel @Inject constructor(
         val mergedTitle = if (title.isNotBlank()) "${title}的聊天记录" else "${payload.items.size}条聊天记录"
         val contentJson = payload.copy(title = mergedTitle).encodeToJson()
         viewModelScope.launch {
-            val results = conversationIds.map { cid -> runCatching { chatRepository.sendMerged(cid, contentJson) } }
+            val results = conversationIds.map { cid -> runCatching { chatRepository.sendMerged(cid, contentJson, owner) } }
             val ok = results.count { it.isSuccess }
             val fail = results.size - ok
             val message = when {
@@ -868,6 +871,7 @@ class ChatViewModel @Inject constructor(
                 ok > 0 -> "部分成功：已转发 $ok 个、失败 $fail 个"
                 else -> results.firstNotNullOfOrNull { r -> r.exceptionOrNull() }?.toUserMessage("合并转发失败") ?: "合并转发失败"
             }
+            if (!currentAttempt(owner)) return@launch
             _uiState.update { it.copy(multiSelect = false, selectedIds = emptySet(), error = message) }
         }
     }

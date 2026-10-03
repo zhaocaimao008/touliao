@@ -6,14 +6,17 @@ import com.touliao.app.data.model.SendRedPacketBody
 import com.touliao.app.data.model.SendRedPacketResponse
 import retrofit2.http.Body
 import retrofit2.http.GET
+import retrofit2.http.Header
 import retrofit2.http.POST
 import retrofit2.http.Path
+import retrofit2.http.Tag
+import com.touliao.app.core.storage.TokenStore
 
 interface RedPacketApi {
 
     /** 发红包（服务端建红包 + 发 red_packet 消息并广播） */
     @POST("api/redpackets/send")
-    suspend fun send(@Body body: SendRedPacketBody): SendRedPacketResponse
+    suspend fun send(@Body body: SendRedPacketBody, @Header("Idempotency-Key") key: String, @Tag owner: TokenStore.Snapshot): SendRedPacketResponse
 
     /** 红包详情（含领取记录） */
     @GET("api/redpackets/{packetId}")

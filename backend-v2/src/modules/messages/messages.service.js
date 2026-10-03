@@ -233,7 +233,7 @@ function missed(io, userId, after) {
 }
 
 // ── HTTP 发送（fallback）────────────────────────────────────────
-async function send(io, convId, userId, { content, type, reply_to_id }) {
+async function send(io, convId, userId, { content, type, reply_to_id, clientMsgId }) {
   // merged：保留快照协议，但服务端拒绝引用阅后即焚源消息。
   const ALLOWED_HTTP_TYPES = new Set(['text', 'contact_card', 'merged']);
   const safeType = ALLOWED_HTTP_TYPES.has(type) ? type : 'text';
@@ -244,6 +244,17 @@ async function send(io, convId, userId, { content, type, reply_to_id }) {
   moderation.assertClean(content);
   const member = db.prepare('SELECT role FROM conversation_members WHERE conversation_id=? AND user_id=?').get(convId, userId);
   if (!member) throw forbidden('无权发送');
+  if (clientMsgId !== undefined && (typeof clientMsgId !== 'string' || !/^[A-Za-z0-9_-]{1,100}$/.test(clientMsgId))) {
+    throw badRequest('客户端消息 ID 格式错误');
+  }
+  const previous = () => clientMsgId && db.prepare('SELECT * FROM messages WHERE sender_id=? AND client_msg_id=?').get(userId, clientMsgId);
+  const existing = previous();
+  if (existing) {
+    if (existing.conversation_id !== convId || existing.type !== safeType || existing.content !== content || (existing.reply_to_id || null) !== (reply_to_id || null)) {
+      throw badRequest('客户端消息 ID 已用于其他消息');
+    }
+    return buildMessage(existing.id);
+  }
   const conv = db.prepare('SELECT mute_all, type FROM conversations WHERE id=?').get(convId);
   // 私聊守卫：黑名单 + 屏蔽陌生人合并校验（复用已取的 conv，省去重复 conversations 查询）
   const guardReason = privateSendGuard(convId, userId, conv);
@@ -255,13 +266,25 @@ async function send(io, convId, userId, { content, type, reply_to_id }) {
   }
   const id = uuidv4();
   // P0-1：改走 worker 异步写，主线程不再同步抢 WAL 写锁；await 保证落库后再 buildMessage 读回
-  const sequenced = await appendConversationEvent({
+  let sequenced;
+  try { sequenced = await appendConversationEvent({
     conversationId: convId, eventType: 'message_created', messageId: id, actorId: userId,
     ops: [{
-      sql: 'INSERT INTO messages (id,conversation_id,sender_id,type,content,reply_to_id,server_sequence) VALUES (?,?,?,?,?,?,?)',
-      params: [id, convId, userId, safeType, content, reply_to_id || null, SEQUENCE_PARAM],
+      sql: 'INSERT INTO messages (id,conversation_id,sender_id,type,content,reply_to_id,client_msg_id,server_sequence) VALUES (?,?,?,?,?,?,?,?)',
+      params: [id, convId, userId, safeType, content, reply_to_id || null, clientMsgId || null, SEQUENCE_PARAM],
     }],
-  });
+  }); } catch (error) {
+    if (clientMsgId && /UNIQUE constraint failed: messages\.sender_id, messages\.client_msg_id/.test(error?.message || '')) {
+      const raced = previous();
+      if (raced) {
+        if (raced.conversation_id !== convId || raced.type !== safeType || raced.content !== content || (raced.reply_to_id || null) !== (reply_to_id || null)) {
+          throw badRequest('客户端消息 ID 已用于其他消息');
+        }
+        return buildMessage(raced.id);
+      }
+    }
+    throw error;
+  }
 
   // #4 尾延迟：缓存失效是非关键写，改后台异步执行，不阻塞响应
   cache.delPattern(`search:*${userId}*`).catch(() => {});

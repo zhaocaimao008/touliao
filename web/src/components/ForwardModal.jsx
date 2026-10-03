@@ -1,6 +1,6 @@
 import { normalizeForwardResult } from '../utils/forwardResult';
 import TouliaoIcon from '../ui-kit/Icon';
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import axios from 'axios';
 import Avatar from './Avatar';
 import { GroupAvatar } from './GroupAvatar';
@@ -9,6 +9,8 @@ import useFocusTrap from '../hooks/useFocusTrap';
 import { useI18n } from '../contexts/I18nContext';
 import './ForwardModal.css';
 import { buildMergedPayload } from '../utils/mergedForward';
+import { captureSession } from '../utils/sessionContext';
+import { newRequestKey } from '../utils/financialRequest';
 
 export default function ForwardModal({ message, messages, sourceConversationName, onClose }) {
   const { t } = useI18n();
@@ -16,6 +18,7 @@ export default function ForwardModal({ message, messages, sourceConversationName
   const msgList = Array.isArray(messages) && messages.length ? messages : (message ? [message] : []);
   const primaryMsg = msgList[0] || null;
   const trapRef = useFocusTrap();
+  const mergedRequestIds = useRef(new Map());
   const [tab, setTab] = useState('friends');
   const [friends, setFriends] = useState([]);
   const [groups, setGroups] = useState([]);
@@ -142,13 +145,24 @@ export default function ForwardModal({ message, messages, sourceConversationName
             seconds: t('fwd.seconds'),
           },
         });
-        const sends = await Promise.allSettled([...selected].map(conversationId =>
-          axios.post(`/api/messages/${encodeURIComponent(conversationId)}`, {
-            type: 'merged', content: JSON.stringify(merged),
-          })
-        ));
+        const content = JSON.stringify(merged);
+        const scope = captureSession();
+        const targets = [...selected];
+        const sends = await Promise.allSettled(targets.map(conversationId => {
+          const fingerprint = JSON.stringify([scope.server, scope.accountId, scope.ownerMarker, conversationId, content]);
+          if (!mergedRequestIds.current.has(fingerprint)) mergedRequestIds.current.set(fingerprint, newRequestKey());
+          return axios.post(`/api/messages/${encodeURIComponent(conversationId)}`, {
+            type: 'merged', content, clientMsgId: mergedRequestIds.current.get(fingerprint),
+          }, { skipRetry: true, _sessionContext: scope });
+        }));
         const successCount = sends.filter(item => item.status === 'fulfilled').length;
         const failedCount = sends.length - successCount;
+        if (failedCount > 0) {
+          setSelected(new Set(targets.filter((_, index) => sends[index].status === 'rejected')));
+          showToast(t('fwd.forwardFailed'), 'error');
+          setSending(false);
+          return;
+        }
         setResult({
           status: failedCount === 0 ? 'success' : successCount > 0 ? 'partial_success' : 'failed',
           success_count: successCount,

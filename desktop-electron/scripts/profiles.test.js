@@ -2,7 +2,7 @@
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const path = require('node:path');
-const { MAX_PROFILES, NEW_WINDOW_FLAG, launchMode, profileFromArgs, profilePath, claimProfile, loginItemSettings, shouldClearNewWindowLogin } = require('../src/lib/profiles');
+const { MAX_PROFILES, NEW_WINDOW_FLAG, launchMode, profileFromArgs, profilePath, claimProfile, loginItemSettings, shouldClearNewWindowLogin, markRunningProfile, unmarkRunningProfile, hasOtherRunningProfile } = require('../src/lib/profiles');
 
 test('the primary window preserves the existing data directory', () => {
   assert.equal(profileFromArgs(['app.exe']), 1);
@@ -75,8 +75,26 @@ test('automatic Windows secondary windows start without a previous account login
   assert.equal(shouldClearNewWindowLogin(2, ['app.exe'], 'win32'), true);
   assert.equal(shouldClearNewWindowLogin(3, ['app.exe', NEW_WINDOW_FLAG], 'win32'), true);
   assert.equal(shouldClearNewWindowLogin(1, ['app.exe'], 'win32'), false);
+  assert.equal(shouldClearNewWindowLogin(1, ['app.exe'], 'win32', true), true);
+  assert.equal(shouldClearNewWindowLogin(1, ['app.exe', NEW_WINDOW_FLAG], 'linux'), true);
   assert.equal(shouldClearNewWindowLogin(2, ['app.exe', '--profile=2'], 'win32'), false);
-  assert.equal(shouldClearNewWindowLogin(2, ['app.exe', NEW_WINDOW_FLAG], 'linux'), false);
+  assert.equal(shouldClearNewWindowLogin(2, ['app.exe', NEW_WINDOW_FLAG], 'linux'), true);
+});
+
+test('running profile markers distinguish live secondary windows from old directories', () => {
+  const files = new Map();
+  const filesystem = {
+    writeFileSync(file, content) { files.set(file, content); },
+    readFileSync(file) { if (!files.has(file)) throw Object.assign(new Error('missing'), { code: 'ENOENT' }); return files.get(file); },
+    unlinkSync(file) { files.delete(file); },
+  };
+  markRunningProfile('/data', 2, filesystem, 123);
+  assert.equal(hasOtherRunningProfile('/data', 1, filesystem, pid => pid === 123), true);
+  assert.equal(hasOtherRunningProfile('/data', 1, filesystem, () => false), false);
+  unmarkRunningProfile('/data', 2, filesystem, 999);
+  assert.equal(hasOtherRunningProfile('/data', 1, filesystem, pid => pid === 123), true);
+  unmarkRunningProfile('/data', 2, filesystem, 123);
+  assert.equal(hasOtherRunningProfile('/data', 1, filesystem, () => true), false);
 });
 
 test('each tray new-window launch claims a different native lock, beyond five windows', () => {

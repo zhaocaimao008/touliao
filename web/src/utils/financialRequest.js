@@ -1,6 +1,6 @@
 import { captureSession } from './sessionContext';
 
-function newKey() {
+export function newRequestKey() {
   if (typeof globalThis.crypto?.randomUUID === 'function') return globalThis.crypto.randomUUID();
   // getRandomValues is also available in older WebViews and insecure contexts.
   const bytes = globalThis.crypto.getRandomValues(new Uint8Array(16));
@@ -14,7 +14,7 @@ export function createFinancialRequest() {
   return payload => {
     const scope = captureSession();
     const fingerprint = JSON.stringify([scope.server, scope.accountId, scope.ownerMarker, payload]);
-    if (!keys.has(fingerprint)) keys.set(fingerprint, newKey());
+    if (!keys.has(fingerprint)) keys.set(fingerprint, newRequestKey());
     return { skipRetry: true, _sessionContext: scope, headers: { 'Idempotency-Key': keys.get(fingerprint) } };
   };
 }
