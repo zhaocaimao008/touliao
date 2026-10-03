@@ -32,6 +32,9 @@ process.env.DISABLE_CSRF      = '1';
 process.env.DISABLE_RATE_LIMIT = '1';
 process.env.INVITE_CODE       = process.env.TEST_INVITE_CODE || '123456';
 process.env.ENABLE_FAKE_RECHARGE = 'true';
+// Local production .env must not activate the scanner in tests that exercise its unavailable path.
+process.env.MEDIA_MODERATION_PROVIDER = '';
+process.env.MEDIA_MODERATION_PYTHON = '';
 process.env.JWT_SECRET        = process.env.JWT_SECRET || 'test_jwt_secret_at_least_32_chars_long__x';
 process.env.ADMIN_JWT_SECRET  = process.env.ADMIN_JWT_SECRET || 'test_admin_jwt_secret_at_least_32_chars_x';
 process.env.ADMIN_USERNAME    = process.env.ADMIN_USERNAME || 'test_admin';

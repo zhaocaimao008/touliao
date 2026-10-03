@@ -103,6 +103,7 @@ final class SocketService {
 
     // ── WebRTC 通话信令 ──
     let callIncoming = PassthroughSubject<(from: String, type: String, callerName: String, callId: String), Never>()
+    let callOutgoing = PassthroughSubject<(to: String, callId: String), Never>()
     let callResponse = PassthroughSubject<(from: String, accepted: Bool, callId: String), Never>()
     let callOffer = PassthroughSubject<(from: String, sdp: String, callId: String), Never>()
     let callAnswer = PassthroughSubject<(from: String, sdp: String, callId: String), Never>()
@@ -354,6 +355,11 @@ final class SocketService {
             let name = (d["caller"] as? [String: Any])?["name"] as? String ?? ""
             let callId = d["callId"] as? String ?? ""
             self?.callIncoming.send((from, type, name, callId))
+        }
+        sock.on("call:outgoing") { [weak self] data, _ in
+            guard let d = data.first as? [String: Any], let to = d["to"] as? String, !to.isEmpty,
+                  let callId = d["callId"] as? String, !callId.isEmpty else { return }
+            self?.callOutgoing.send((to, callId))
         }
         sock.on("call:response") { [weak self] data, _ in
             guard let d = data.first as? [String: Any], let from = d["from"] as? String, !from.isEmpty else { return }

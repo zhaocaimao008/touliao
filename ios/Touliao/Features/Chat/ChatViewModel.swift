@@ -583,6 +583,7 @@ final class ChatViewModel: ObservableObject {
     /// 逐条走 /forward(msgIds:)（服务端逐条复制）；合并对每个目标 POST type=merged。
     func forwardSelected(_ msgs: [Message], conversationIds: [String], merged: Bool) {
         guard !msgs.isEmpty, !conversationIds.isEmpty else { return }
+        guard let owner = captureAttempt() else { return }
         Task {
             do {
                 if merged {
@@ -592,12 +593,13 @@ final class ChatViewModel: ObservableObject {
                     var failed = 0
                     var firstFailure: String?
                     for convId in conversationIds {
-                        do { _ = try await repo.sendMergedForward(conversationId: convId, json: json); ok += 1 }
+                        do { _ = try await repo.sendMergedForward(conversationId: convId, json: json, owner: owner); ok += 1 }
                         catch {
                             failed += 1
                             if firstFailure == nil { firstFailure = (error as? LocalizedError)?.errorDescription ?? "转发失败" }
                         }
                     }
+                    guard currentAttempt(owner) else { return }
                     error = failed == 0 ? "已合并转发" : "部分结果：成功 \(ok) 项，失败 \(failed) 项。\(firstFailure ?? "")"
                 } else {
                     error = try await repo.forwardMessages(msgIds: msgs.map { $0.id }, conversationIds: conversationIds).summary
@@ -757,6 +759,7 @@ final class ChatViewModel: ObservableObject {
     }
 
     func sendRedPacket(totalAmount: Int, totalCount: Int, greeting: String) {
+        guard let owner = captureAttempt() else { return }
         guard !sendingRedPacket else { return }   // 资金操作：进行中禁止重复触发，防快速双击重复扣币
         sendingRedPacket = true
         Task {
@@ -764,12 +767,13 @@ final class ChatViewModel: ObservableObject {
             do {
                 let resp = try await RedPacketRepository.shared.send(
                     conversationId: conversationId, totalAmount: totalAmount, totalCount: totalCount,
-                    greeting: greeting.trimmingCharacters(in: .whitespaces)
+                    greeting: greeting.trimmingCharacters(in: .whitespaces), owner: owner
                 )
+                guard currentAttempt(owner) else { return }
                 if let msg = resp.message { messages = ChatMessageMerge.insertBySeq(messages, msg) }   // socket 通常也会广播，insertBySeq 去重
                 Haptics.notify(.success)   // 发红包成功的满足感反馈
             } catch {
-                self.error = (error as? LocalizedError)?.errorDescription ?? "发送红包失败"
+                if currentAttempt(owner) { self.error = (error as? LocalizedError)?.errorDescription ?? "发送红包失败" }
                 Haptics.notify(.error)
             }
         }
@@ -817,18 +821,20 @@ final class ChatViewModel: ObservableObject {
 
     /// 向对方转账 amount 金币（1~20000），note 为备注（≤50 字）。成功后消息列表追加 transfer 气泡。
     func sendTransfer(toUserId: String, amount: Int, note: String) {
+        guard let owner = captureAttempt() else { return }
         guard !sendingTransfer else { return }   // 资金操作：进行中禁止重复触发，防快速双击重复扣币
         sendingTransfer = true
         Task {
             defer { sendingTransfer = false }
             do {
                 let resp = try await WalletRepository.shared.transfer(
-                    toUserId: toUserId, amount: amount, note: note.trimmingCharacters(in: .whitespaces)
+                    toUserId: toUserId, amount: amount, note: note.trimmingCharacters(in: .whitespaces), owner: owner
                 )
+                guard currentAttempt(owner) else { return }
                 if let msg = resp.message { messages = ChatMessageMerge.insertBySeq(messages, msg) }   // socket 通常也会广播，insertBySeq 去重
                 Haptics.notify(.success)   // 转账成功反馈
             } catch {
-                self.error = (error as? LocalizedError)?.errorDescription ?? "转账失败"
+                if currentAttempt(owner) { self.error = (error as? LocalizedError)?.errorDescription ?? "转账失败" }
                 Haptics.notify(.error)
             }
         }

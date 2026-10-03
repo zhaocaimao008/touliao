@@ -58,6 +58,7 @@ final class CallManager: NSObject, ObservableObject {
     private var pendingIce: [RTCIceCandidate] = []
     private var remoteDescSet = false
     private var callIdentityEpoch: UInt64?
+    private var otherDeviceCall = OtherDeviceCallState()
     private var participatingCallId = ""
     private var participatingIdentityEpoch: UInt64?
     // Q06 全修：resume 必须证明持有它，光凭 callId+userId 不再够（同账号旁观设备不能在
@@ -144,7 +145,10 @@ final class CallManager: NSObject, ObservableObject {
     func activate() {}
 
     /// 1v1 通话占线中（来电/呼出/连接/通话中）。供群通话互斥判断。
-    var isBusy: Bool { state.stage != .idle && state.stage != .ended }
+    var isBusy: Bool {
+        (state.stage != .idle && state.stage != .ended)
+            || otherDeviceCall.isBusy(identityEpoch: KeychainStore.shared.snapshot().identityEpoch)
+    }
 
     /// 媒体已建立（有 PeerConnection 且处于通话流程中）
     private var hasActiveMedia: Bool {
@@ -276,7 +280,7 @@ final class CallManager: NSObject, ObservableObject {
 
     // MARK: - 对外动作
     func startCall(peerId: String, peerName: String, video: Bool, callerName: String) {
-        guard state.stage == .idle || state.stage == .ended else { return }
+        guard !isBusy else { return }
         // 1v1 与群通话互斥：群通话进行中不发起（入口 ChatViewModel 会先拦截并提示）
         guard !GroupCallManager.shared.isBusy else { print("[Call] 群通话进行中，拒绝发起 1v1 呼叫"); return }
         let identityEpoch = KeychainStore.shared.snapshot().identityEpoch
@@ -478,9 +482,13 @@ final class CallManager: NSObject, ObservableObject {
             }
             .store(in: &cancellables)
 
+        socket.callOutgoing.receive(on: DispatchQueue.main).sink { [weak self] (_, callId) in
+            self?.otherDeviceCall.began(callId: callId, identityEpoch: KeychainStore.shared.snapshot().identityEpoch)
+        }.store(in: &cancellables)
+
         socket.callIncoming.receive(on: DispatchQueue.main).sink { [weak self] (from, type, name, callId) in
             guard let self else { return }
-            if (self.state.stage != .idle && self.state.stage != .ended) || GroupCallManager.shared.isBusy {
+            if self.isBusy || GroupCallManager.shared.isBusy {
                 // 群通话进行中同样按忙线回绝（1v1 与群互斥）
                 // B-3：忙线拒接带 busy=true（对齐 Web Home.jsx 语义，后端 call.js 原样转发），
                 // 主叫可区分"对方忙线中"与普通拒接；已有来电/通话 UI 保持不覆盖
@@ -556,6 +564,7 @@ final class CallManager: NSObject, ObservableObject {
 
         socket.callEnd.receive(on: DispatchQueue.main).sink { [weak self] (from, callId, reason) in
             guard let self else { return }
+            self.otherDeviceCall.ended(callId: callId)
             // 紧急修复（2026-09-03）：同账号多端在线时，我方在另一台设备上接听/拒绝了这通来电，
             // 后端会用 reason=answered_elsewhere/rejected_elsewhere 通知本设备收起来电界面——
             // 但这条通知的 from 字段是"我自己的 userId"（哪台设备做的动作），不是对方的 peerId，

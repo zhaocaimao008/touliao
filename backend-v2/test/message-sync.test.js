@@ -115,6 +115,24 @@ describe('统一消息同步游标', () => {
     expect(JSON.stringify(response.body)).not.toContain('after edit');
   });
 
+  test('HTTP merged retry and concurrent duplicate return one message and one event', async () => {
+    const key = `merged-${Date.now()}`;
+    const content = JSON.stringify({ title: 'history', items: [] });
+    const post = (id = convId, body = { type: 'merged', content, clientMsgId: key }) => request(app)
+      .post(`/api/messages/${id}`)
+      .set('Authorization', `Bearer ${a.token}`)
+      .send(body);
+    const before = db.prepare('SELECT COUNT(*) AS n FROM messages WHERE conversation_id=?').get(convId).n;
+    const [one, two] = await Promise.all([post(), post()]);
+    expect(one.status).toBe(200);
+    expect(two.status).toBe(200);
+    expect(two.body.id).toBe(one.body.id);
+    expect((await post()).body.id).toBe(one.body.id);
+    expect(db.prepare('SELECT COUNT(*) AS n FROM messages WHERE conversation_id=?').get(convId).n).toBe(before + 1);
+    expect(db.prepare('SELECT COUNT(*) AS n FROM conversation_events WHERE message_id=?').get(one.body.id).n).toBe(1);
+    expect((await post(convId, { type: 'merged', content: '{}', clientMsgId: key })).status).toBe(400);
+  });
+
   // Q04 双向清空回归：clearConversation 现在真的清空内容(deleted=2)，对全体成员生效，
   // 不再是仅隐藏操作者视图的 per-user watermark。停留在旧 cursor 的离线设备（无论是
   // 清空发起者自己的其他设备，还是对方的设备）补拉时，绝不能把清空前的原文同步回来。

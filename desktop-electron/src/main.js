@@ -6,7 +6,7 @@ const { app, BrowserWindow, Tray, Menu, nativeImage, ipcMain, dialog,
 const path = require('path');
 const fs = require('fs');
 const { spawn } = require('child_process');
-const { MAX_PROFILES, NEW_WINDOW_FLAG, launchMode, profilePath, claimProfile, loginItemSettings, shouldClearNewWindowLogin } = require('./lib/profiles');
+const { MAX_PROFILES, NEW_WINDOW_FLAG, launchMode, profilePath, claimProfile, loginItemSettings, shouldClearNewWindowLogin, markRunningProfile, unmarkRunningProfile, hasOtherRunningProfile } = require('./lib/profiles');
 const PROFILE_ROOT = app.getPath('userData');
 let PROFILE;
 try {
@@ -22,6 +22,9 @@ if (PROFILE === null) {
   }
   app.exit(0);
 }
+const OTHER_PROFILE_RUNNING = hasOtherRunningProfile(PROFILE_ROOT, PROFILE);
+markRunningProfile(PROFILE_ROOT, PROFILE);
+app.on('will-quit', () => unmarkRunningProfile(PROFILE_ROOT, PROFILE));
 // Windows 通知/任务栏分组身份：须与 electron-builder 的 appId（package.json build.appId /
 // electron-builder.yml，安装器据此写快捷方式 AUMID）一致，否则原生通知不显示或点击无法回到本应用。
 if (process.platform === 'win32') app.setAppUserModelId('com.touliao.desktop');
@@ -1467,7 +1470,7 @@ app.whenReady().then(async () => {
       app.setLoginItemSettings(loginItemSettings(true));
     }
 
-    if (shouldClearNewWindowLogin(PROFILE, process.argv)) {
+    if (shouldClearNewWindowLogin(PROFILE, process.argv, process.platform, OTHER_PROFILE_RUNNING)) {
       // 每个 profile 有独立 sessionData。先清旧账号的令牌、Cookie 和离线数据，
       // 再加载网页；否则复用已关闭的空闲账号窗口会自动登录上次的账号。
       try {

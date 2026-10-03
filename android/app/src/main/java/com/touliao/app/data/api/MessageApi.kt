@@ -28,6 +28,7 @@ import retrofit2.http.PUT
 import retrofit2.http.Part
 import retrofit2.http.Path
 import retrofit2.http.Query
+import retrofit2.http.Tag
 import retrofit2.http.Streaming
 
 interface MessageApi {
@@ -143,6 +144,7 @@ interface MessageApi {
     suspend fun sendHttp(
         @Path("conversationId") conversationId: String,
         @Body body: com.touliao.app.data.model.SendMessageBody,
+        @Tag owner: com.touliao.app.core.storage.TokenStore.Snapshot,
     ): Message
 
     /** 会话置顶（pinned: 1/0） */

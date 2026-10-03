@@ -6,8 +6,11 @@ import com.touliao.app.data.model.WalletBalance
 import com.touliao.app.data.model.WalletTransaction
 import retrofit2.http.Body
 import retrofit2.http.GET
+import retrofit2.http.Header
 import retrofit2.http.POST
 import retrofit2.http.Query
+import retrofit2.http.Tag
+import com.touliao.app.core.storage.TokenStore
 
 /** 钱包（余额 / 流水 / 好友转账；充值已下线）。 */
 interface WalletApi {
@@ -22,5 +25,5 @@ interface WalletApi {
 
     /** 好友转账：amount 1-20000 金币，成功后返回最新余额及 transfer 类型消息。 */
     @POST("api/wallet/transfer")
-    suspend fun transfer(@Body body: TransferRequest): TransferResponse
+    suspend fun transfer(@Body body: TransferRequest, @Header("Idempotency-Key") key: String, @Tag owner: TokenStore.Snapshot): TransferResponse
 }

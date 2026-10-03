@@ -1,6 +1,9 @@
 package com.touliao.app.data.repository
 
 import com.touliao.app.core.realtime.ReactionEvent
+import com.touliao.app.core.network.RequestKeys
+import com.touliao.app.core.storage.AccountStore
+import com.touliao.app.core.storage.TokenStore
 import com.touliao.app.core.realtime.ReadEvent
 import com.touliao.app.core.realtime.RedPacketClaimedEvent
 import com.touliao.app.core.realtime.NewMessageNotifyEvent
@@ -30,6 +33,9 @@ class ChatRepository @Inject constructor(
     private val api: MessageApi,
     private val chunkUploader: ChunkUploader,
     private val socketManager: SocketManager,
+    private val accountStore: AccountStore,
+    private val tokenStore: TokenStore,
+    private val requestKeys: RequestKeys,
 ) : HistoryPageSource {
     private val historyPageSource = ApiHistoryPageSource(api)
     /** 实时连接状态（供 UI 显示「连接中/已连接」） */
@@ -194,8 +200,15 @@ class ChatRepository @Inject constructor(
         api.forward(com.touliao.app.data.model.ForwardBody(msgId, conversationIds))
 
     /** 合并转发（F4a）：向单个目标发一条 type=merged、content=JSON 的消息 */
-    suspend fun sendMerged(conversationId: String, contentJson: String) =
-        api.sendHttp(conversationId, com.touliao.app.data.model.SendMessageBody(content = contentJson, type = "merged"))
+    suspend fun sendMerged(conversationId: String, contentJson: String, owner: TokenStore.Snapshot = tokenStore.snapshot()): Message {
+        if (!tokenStore.isCurrent(owner)) throw java.io.IOException("Account changed before forward")
+        val scope = "${owner.origin}:${accountStore.activeId()}:${owner.identityEpoch}"
+        val payload = "$conversationId\u0000$contentJson"
+        val key = requestKeys.key(scope, "merged", payload)
+        val result = api.sendHttp(conversationId, com.touliao.app.data.model.SendMessageBody(content = contentJson, type = "merged", clientMsgId = key), owner)
+        requestKeys.complete(scope, "merged", payload, key)
+        return result
+    }
 
     suspend fun collectMessage(msgId: String) = api.collectMessage(msgId)
 

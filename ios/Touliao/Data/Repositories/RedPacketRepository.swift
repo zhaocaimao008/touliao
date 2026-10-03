@@ -14,11 +14,18 @@ final class RedPacketRepository {
     private let api = APIClient.shared
 
     /// 发红包（服务端建红包 + 发 red_packet 消息并广播）
-    func send(conversationId: String, totalAmount: Int, totalCount: Int, greeting: String) async throws -> SendRedPacketResponse {
-        try await api.send(
+    func send(conversationId: String, totalAmount: Int, totalCount: Int, greeting: String, owner: KeychainStore.Snapshot) async throws -> SendRedPacketResponse {
+        guard KeychainStore.shared.isCurrent(owner) else { throw CancellationError() }
+        let body = SendRedPacketBody(conversationId: conversationId, totalAmount: totalAmount, totalCount: totalCount, greeting: greeting)
+        let payload = try JSONEncoder().encode(body)
+        let scope = RequestKeys.accountScope()
+        let key = RequestKeys.shared.key(scope: scope, operation: "redpacket", payload: payload)
+        let result: SendRedPacketResponse = try await api.send(
             "api/redpackets/send", method: "POST",
-            body: SendRedPacketBody(conversationId: conversationId, totalAmount: totalAmount, totalCount: totalCount, greeting: greeting)
+            body: body, owner: owner, headers: ["Idempotency-Key": key]
         )
+        RequestKeys.shared.complete(scope: scope, operation: "redpacket", payload: payload, key: key)
+        return result
     }
 
     func detail(_ packetId: String) async throws -> RedPacketDetail {

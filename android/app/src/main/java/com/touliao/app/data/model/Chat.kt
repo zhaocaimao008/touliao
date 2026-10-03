@@ -186,6 +186,7 @@ data class SendMessageBody(
     val content: String,
     val type: String = "text",
     @kotlinx.serialization.SerialName("reply_to_id") val replyToId: String? = null,
+    val clientMsgId: String? = null,
 )
 
 @Serializable

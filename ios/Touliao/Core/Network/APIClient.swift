@@ -65,11 +65,13 @@ final class APIClient {
         method: String = "GET",
         body: Encodable? = nil,
         authorized: Bool = true,
-        owner: KeychainStore.Snapshot? = nil
+        owner: KeychainStore.Snapshot? = nil,
+        headers: [String: String] = [:]
     ) async throws -> T {
         let credential = owner ?? credentials.snapshot()
         if owner != nil && !credentials.isCurrent(credential) { throw CancellationError() }
         var request = try makeRequest(path: path, method: method, authorized: authorized, credential: credential)
+        for (name, value) in headers { request.setValue(value, forHTTPHeaderField: name) }
         if owner != nil { request.timeoutInterval = 15 }
         if let body {
             request.setValue("application/json", forHTTPHeaderField: "Content-Type")
