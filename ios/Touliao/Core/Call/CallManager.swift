@@ -58,8 +58,7 @@ final class CallManager: NSObject, ObservableObject {
     private var pendingIce: [RTCIceCandidate] = []
     private var remoteDescSet = false
     private var callIdentityEpoch: UInt64?
-    private var busyElsewhereCallId = ""
-    private var busyElsewhereIdentityEpoch: UInt64?
+    private var otherDeviceCall = OtherDeviceCallState()
     private var participatingCallId = ""
     private var participatingIdentityEpoch: UInt64?
     // Q06 全修：resume 必须证明持有它，光凭 callId+userId 不再够（同账号旁观设备不能在
@@ -148,7 +147,7 @@ final class CallManager: NSObject, ObservableObject {
     /// 1v1 通话占线中（来电/呼出/连接/通话中）。供群通话互斥判断。
     var isBusy: Bool {
         (state.stage != .idle && state.stage != .ended)
-            || (!busyElsewhereCallId.isEmpty && busyElsewhereIdentityEpoch == KeychainStore.shared.snapshot().identityEpoch)
+            || otherDeviceCall.isBusy(identityEpoch: KeychainStore.shared.snapshot().identityEpoch)
     }
 
     /// 媒体已建立（有 PeerConnection 且处于通话流程中）
@@ -484,8 +483,7 @@ final class CallManager: NSObject, ObservableObject {
             .store(in: &cancellables)
 
         socket.callOutgoing.receive(on: DispatchQueue.main).sink { [weak self] (_, callId) in
-            self?.busyElsewhereCallId = callId
-            self?.busyElsewhereIdentityEpoch = KeychainStore.shared.snapshot().identityEpoch
+            self?.otherDeviceCall.began(callId: callId, identityEpoch: KeychainStore.shared.snapshot().identityEpoch)
         }.store(in: &cancellables)
 
         socket.callIncoming.receive(on: DispatchQueue.main).sink { [weak self] (from, type, name, callId) in
@@ -566,10 +564,7 @@ final class CallManager: NSObject, ObservableObject {
 
         socket.callEnd.receive(on: DispatchQueue.main).sink { [weak self] (from, callId, reason) in
             guard let self else { return }
-            if callId == self.busyElsewhereCallId {
-                self.busyElsewhereCallId = ""
-                self.busyElsewhereIdentityEpoch = nil
-            }
+            self.otherDeviceCall.ended(callId: callId)
             // 紧急修复（2026-09-03）：同账号多端在线时，我方在另一台设备上接听/拒绝了这通来电，
             // 后端会用 reason=answered_elsewhere/rejected_elsewhere 通知本设备收起来电界面——
             // 但这条通知的 from 字段是"我自己的 userId"（哪台设备做的动作），不是对方的 peerId，
