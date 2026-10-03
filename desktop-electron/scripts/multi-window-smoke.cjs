@@ -133,7 +133,9 @@ const { _electron: electron } = require('playwright');
     await two.page.screenshot({ path: path.join(temp, 'login-window-2.png') });
     await two.app.close();
     apps.splice(apps.indexOf(two.app), 1);
-    const reopened = await launch();
+    // 普通启动只认领账号窗口 1（已运行则唤起后退出）；重开空出的账号 2 走托盘「新开账号窗口」，
+    // 它从 1 往后取第一个空闲 profile，应拿回账号 2 且数据保留。
+    const reopened = await launch(['--new-account-window']);
     assert.equal(reopened.state.userData, two.state.userData);
     assert.equal(await reopened.page.evaluate(() => localStorage.getItem('smoke_account')), '2');
     assert.equal(await one.page.evaluate(() => localStorage.getItem('smoke_account')), '1');
