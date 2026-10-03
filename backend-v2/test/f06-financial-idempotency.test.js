@@ -21,8 +21,17 @@ afterEach(() => {
   for (const child of children) if (child.exitCode === null && child.signalCode === null) child.kill('SIGKILL');
   children.clear();
 });
-const counts = () => Object.fromEntries(['messages', 'red_packets', 'wallet_transactions', 'conversation_events']
-  .map(table => [table, db.prepare(`SELECT COUNT(*) AS n FROM ${table}`).get().n]));
+// 只统计本用例涉及的会话/用户：测试库为全套共享，其他套件残留的后台任务偶尔会往别的会话写
+// conversation_events，按全表计数会让本用例偶发 +1（与幂等逻辑无关）。
+const counts = () => {
+  const n = (sql, ...args) => db.prepare(sql).get(...args).n;
+  return {
+    messages: n('SELECT COUNT(*) AS n FROM messages WHERE conversation_id = ?', conv),
+    red_packets: n('SELECT COUNT(*) AS n FROM red_packets WHERE sender_id = ?', a.userId),
+    wallet_transactions: n('SELECT COUNT(*) AS n FROM wallet_transactions WHERE user_id IN (?, ?)', a.userId, b.userId),
+    conversation_events: n('SELECT COUNT(*) AS n FROM conversation_events WHERE conversation_id = ?', conv),
+  };
+};
 function expectSingleEffect(before, kind) {
   expect(counts()).toEqual({ messages: before.messages + 1, conversation_events: before.conversation_events + 1,
     wallet_transactions: before.wallet_transactions + (kind === 'transfer' ? 2 : 1),
