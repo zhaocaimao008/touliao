@@ -45,7 +45,7 @@ function hasOtherRunningProfile(root, current, filesystem = fs, isAlive = pid =>
     if (profile === current) continue;
     try {
       const pid = Number(filesystem.readFileSync(path.join(profilePath(root, profile), RUNNING_MARKER), 'utf8').trim());
-      if (Number.isSafeInteger(pid) && pid > 0 && isAlive(pid)) return true;
+      if (Number.isSafeInteger(pid) && pid > 0 && pid !== process.pid && isAlive(pid)) return true;
     } catch (error) {
       if (error.code !== 'ENOENT') throw error;
     }

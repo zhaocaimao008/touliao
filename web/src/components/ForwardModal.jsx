@@ -149,7 +149,7 @@ export default function ForwardModal({ message, messages, sourceConversationName
         const scope = captureSession();
         const targets = [...selected];
         const sends = await Promise.allSettled(targets.map(conversationId => {
-          const fingerprint = JSON.stringify([scope.server, scope.accountId, scope.ownerMarker, conversationId, content]);
+          const fingerprint = JSON.stringify([scope.server, scope.accountId, scope.generation, scope.ownerMarker, conversationId, content]);
           if (!mergedRequestIds.current.has(fingerprint)) mergedRequestIds.current.set(fingerprint, newRequestKey());
           return axios.post(`/api/messages/${encodeURIComponent(conversationId)}`, {
             type: 'merged', content, clientMsgId: mergedRequestIds.current.get(fingerprint),

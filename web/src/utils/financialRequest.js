@@ -13,7 +13,7 @@ export function createFinancialRequest() {
   const keys = new Map();
   return payload => {
     const scope = captureSession();
-    const fingerprint = JSON.stringify([scope.server, scope.accountId, scope.ownerMarker, payload]);
+    const fingerprint = JSON.stringify([scope.server, scope.accountId, scope.generation, scope.ownerMarker, payload]);
     if (!keys.has(fingerprint)) keys.set(fingerprint, newRequestKey());
     return { skipRetry: true, _sessionContext: scope, headers: { 'Idempotency-Key': keys.get(fingerprint) } };
   };
