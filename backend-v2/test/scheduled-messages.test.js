@@ -35,6 +35,18 @@ describe('消息定时发送', () => {
     expect(res.body.scheduled.content).toBe('一小时后的问候');
   });
 
+  test('定时文字消息接受 30000 字并拒绝 30001 字', async () => {
+    const send = content => request(app)
+      .post('/api/messages/schedule')
+      .set('Authorization', `Bearer ${u1.token}`)
+      .send({ conversation_id: convId, content, type: 'text', send_at: now() + 3600 });
+    const ok = await send('中'.repeat(30000));
+    expect(ok.status).toBe(200);
+    expect(ok.body.scheduled.content).toHaveLength(30000);
+    const tooBig = await send('中'.repeat(30001));
+    expect(tooBig.status).toBe(400);
+  });
+
   test('发送时间少于 15 分钟：返回 400', async () => {
     const res = await request(app)
       .post('/api/messages/schedule')

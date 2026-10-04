@@ -217,16 +217,43 @@ describe('#2 合并转发 merged', () => {
     expect(h.body.find(x => x.id === sent.body.id)).toBeUndefined();
   });
 
-  test('长度上限：merged 放宽到 20000，超出拒绝；text 仍是 2000', async () => {
+  test('长度上限：merged 为 20000，text 为 30000', async () => {
     const ok = await request(app).post(`/api/messages/${convId}`)
       .set(authOf(a)).send({ type: 'merged', content: 'x'.repeat(20000) });
     expect(ok.status).toBe(200);
     const tooBig = await request(app).post(`/api/messages/${convId}`)
       .set(authOf(a)).send({ type: 'merged', content: 'x'.repeat(20001) });
     expect(tooBig.status).toBe(400);
+    const textOk = await request(app).post(`/api/messages/${convId}`)
+      .set(authOf(a)).send({ type: 'text', content: '中'.repeat(30000) });
+    expect(textOk.status).toBe(200);
+    expect(textOk.body.content).toHaveLength(30000);
     const textTooBig = await request(app).post(`/api/messages/${convId}`)
-      .set(authOf(a)).send({ type: 'text', content: 'x'.repeat(2001) });
+      .set(authOf(a)).send({ type: 'text', content: '中'.repeat(30001) });
     expect(textTooBig.status).toBe(400);
+    const editOk = await request(app).put(`/api/messages/${textOk.body.id}/edit`)
+      .set(authOf(a)).send({ content: '编'.repeat(30000) });
+    expect(editOk.status).toBe(200);
+    const editTooBig = await request(app).put(`/api/messages/${textOk.body.id}/edit`)
+      .set(authOf(a)).send({ content: '编'.repeat(30001) });
+    expect(editTooBig.status).toBe(400);
+  });
+
+  test('Socket 文字消息接受 30000 字并拒绝 30001 字', async () => {
+    const sender = await connect(a.token);
+    try {
+      const ok = await sender.timeout(5000).emitWithAck('send_message', {
+        conversationId: convId, type: 'text', content: '中'.repeat(30000),
+      });
+      expect(ok.success).toBe(true);
+      const tooBig = await sender.timeout(5000).emitWithAck('send_message', {
+        conversationId: convId, type: 'text', content: '中'.repeat(30001),
+      });
+      expect(tooBig.success).toBe(false);
+      expect(tooBig.error).toContain('30000');
+    } finally {
+      sender.close();
+    }
   });
 });
 

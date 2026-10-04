@@ -94,8 +94,8 @@ const config = {
 
   // ── 业务常量 ────────────────────────────────────────────────
   limits: {
-    maxMsgLength:   2000,
-    maxMergedLength: 20000, // 合并转发：content=服务端透传JSON，最多30条item需要更大上限
+    maxMsgLength:   30000,
+    maxMergedLength: 20000, // 合并转发 content 为服务端透传 JSON，沿用独立上限
     msgRateLimit:   3,      // Socket：每用户每秒最多 3 条
     msgRateWindow:  1000,
     maxGroupMembers: 500,   // 单群最大成员数

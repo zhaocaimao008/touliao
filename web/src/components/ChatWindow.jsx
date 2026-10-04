@@ -3121,7 +3121,7 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
                   data-testid="chat-msg-input"
                   className="wc-textarea"
                   aria-label={t('chat.inputAriaLabel')}
-                  maxLength={2000}   /* 与后端 config.limits.maxMsgLength 一致，避免超长发送后才被静默拒绝 */
+                  maxLength={30000}   /* 与后端 config.limits.maxMsgLength 一致，避免超长发送后才被静默拒绝 */
                   value={input}
                   onChange={e => {
                     const val = e.target.value;
@@ -3153,11 +3153,11 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
             )}
             {!voiceMode && (
               <div className="wc-input-footer">
-                {/* 接近 2000 字上限时才提示,避免超长被静默截断而用户不知 */}
-                {input.length >= 1800 && (
+                {/* 接近 30000 字上限时才提示,避免超长被静默截断而用户不知 */}
+                {input.length >= 29800 && (
                   <span className="wc-input-counter" aria-live="polite"
-                    style={{ marginRight: 'auto', fontSize: 'var(--text-sm)', color: input.length >= 2000 ? 'var(--color-badge)' : 'var(--text-tertiary)' }}>
-                    {input.length}/2000
+                    style={{ marginRight: 'auto', fontSize: 'var(--text-sm)', color: input.length >= 30000 ? 'var(--color-badge)' : 'var(--text-tertiary)' }}>
+                    {input.length}/30000
                   </span>
                 )}
                 <button

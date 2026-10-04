@@ -130,6 +130,7 @@ export default function ScheduleSendModal({ convId, defaultContent = '', onClose
           <textarea
             ref={inputRef}
             value={content}
+            maxLength={30000}
             onChange={e => setContent(e.target.value)}
             rows={3}
             placeholder={t('ss.contentPlaceholder')}
