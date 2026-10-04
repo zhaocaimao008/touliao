@@ -88,7 +88,10 @@ test('启动失败或处理超时 → 503，杀掉进程组，并发名额释放
   await expect(scanner.assertAccepted(image, 'image')).rejects.toMatchObject({ status: 503 });
   expect(kill).toHaveBeenCalledWith(-hung.pid, 'SIGKILL');
   config.mediaModeration.timeoutMs = 2000;
+  // 并发请求可能各自启动一个常驻进程；为两种调度顺序都准备模拟子进程。
   const next = resident();
+  const second = resident();
   await expect(Promise.all([scanner.assertAccepted(image, 'image'), scanner.assertAccepted(image, 'image')])).resolves.toHaveLength(2);
   await resetPool(next);
+  await resetPool(second);
 });
