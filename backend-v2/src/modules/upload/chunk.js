@@ -1,7 +1,7 @@
 'use strict';
 // 分片 / 断点续传上传（自包含本地实现，无需云存储）。
 // 协议：
-//   init    POST /api/messages/:cid/upload-init      {filename,size,hash,mime}     -> {uploadId, received}
+//   init    POST /api/messages/:cid/upload-init      {filename,size,hash?,mime}    -> {uploadId, received}
 //   chunk   PUT  /api/messages/:cid/upload-chunk/:id (raw body, ?offset=N)         -> {received}
 //   status  GET  /api/messages/:cid/upload-status/:id                              -> {received,size}
 //   finish  POST /api/messages/:cid/upload-finish/:id {reply_to_id}                -> 消息对象(file_url)
@@ -59,8 +59,11 @@ function init(req, res) {
   const { conversationId } = req.params;
   const { filename, size, hash, mime } = req.body || {};
   if (!isMember(conversationId, req.user.id)) return res.status(403).json({ error: '无权上传至该会话' });
-  if (!filename || !size || !hash) return res.status(400).json({ error: '参数缺失: filename,size,hash' });
+  if (!filename || !size) return res.status(400).json({ error: '参数缺失: filename,size' });
   const total = parseInt(size, 10);
+  // hash 可选：老版客户端对 >50MB 文件不算 SHA-256、发空串（曾致 Windows 传大文件报"参数缺失"）。
+  // 缺省时用 文件名+大小 作续传键；非 64 位 hex 的值只当续传键，finish 不做完整性比对。
+  const resumeKey = (typeof hash === 'string' && hash) ? hash : `nohash:${filename}:${total}`;
   if (!(total > 0) || total > MAX_FILE) {
     return res.status(400).json({ error: `文件大小需为 1 ~ ${Math.floor(MAX_FILE / 1024 / 1024)}MB` });
   }
@@ -77,9 +80,9 @@ function init(req, res) {
   if (!ALLOWED_CHAT_EXTS.has(ext)) {
     return res.status(400).json({ error: `不支持的文件格式（${ext ? '.' + ext : '无扩展名'}）；仅支持常见图片/音视频/文档/压缩包` });
   }
-  const id = makeId(req.user.id, conversationId, hash);
+  const id = makeId(req.user.id, conversationId, resumeKey);
   if (finishing.has(id)) return res.status(409).json({ error: '文件正在审核，请等待上传完成' });
-  const m = { userId: req.user.id, convId: conversationId, filename, size: total, mime: mime || '', hash, createdAt: Date.now() };
+  const m = { userId: req.user.id, convId: conversationId, filename, size: total, mime: mime || '', hash: resumeKey, createdAt: Date.now() };
   meta.set(id, m);
   fs.writeFileSync(metaPath(id), JSON.stringify(m));
   return res.json({ uploadId: id, received: received(id), chunkSize: MAX_CHUNK });

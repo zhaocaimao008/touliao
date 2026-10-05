@@ -104,6 +104,22 @@ describe('P1-03 上传磁盘耗尽防护', () => {
     expect(res.status).toBe(400);
   });
 
+  test('不带 hash（老客户端 >50MB 发空串）→ 仍可 init/续传/完成', async () => {
+    chunkUp.__testResetForUser?.(u1.userId);
+    const body = Buffer.from(`no-hash document ${Date.now()}`);
+    const r = await init({ filename: 'big.txt', size: body.length, hash: '', mime: 'text/plain' });
+    expect(r.status).toBe(200);
+    // 同文件名+大小再次 init → 同一 uploadId（断点续传键稳定）
+    const again = await init({ filename: 'big.txt', size: body.length, hash: undefined, mime: 'text/plain' });
+    expect(again.body.uploadId).toBe(r.body.uploadId);
+    expect((await sendChunk(r.body.uploadId, body, 0)).status).toBe(200);
+    const done = await request(app)
+      .post(`/api/messages/${convId}/upload-finish/${r.body.uploadId}`)
+      .set('Authorization', `Bearer ${u1.token}`);
+    expect(done.status).toBe(200);
+    expect(done.body.file_url).toMatch(/^\/uploads\/files\/.+\.txt$/);
+  });
+
   test('非法 uploadId（路径穿越/非 hex）→ 400/404 均拒绝', async () => {
     const res = await sendChunk('../../etc/passwd', Buffer.alloc(1), 0);
     expect([400, 404]).toContain(res.status);
