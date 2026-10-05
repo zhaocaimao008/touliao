@@ -191,8 +191,8 @@ fun PdfViewerOverlay(url: String, filename: String?, onDismiss: () -> Unit) {
 
 /**
  * 不支持 App 内预览的格式（旧版 doc/ppt 二进制、zip/rar 等压缩包、其他二进制）落到这个
- * 「文件详情页」——只显示信息 + 下载/分享/用其他应用打开，绝不自动调用系统。
- * "用其他应用打开"是用户主动选择的动作，点了才会调用系统 Intent 打开本地已下载文件。
+ * 「文件详情页」——只显示信息 + 下载/分享，打开详情页本身绝不自动调用系统。
+ * 用户主动点"下载"后，下载完成会用系统 Intent 打开本地已下载文件（见 downloadFile）。
  */
 @Composable
 fun FileDetailsOverlay(url: String, filename: String?, sizeText: String?, onDismiss: () -> Unit) {
@@ -218,7 +218,7 @@ fun FileDetailsOverlay(url: String, filename: String?, sizeText: String?, onDism
                 }
                 Spacer(Modifier.height(8.dp))
                 Text(
-                    "该文件格式暂不支持在投聊内直接预览，可以下载保存，或下载后选择用其他应用打开。",
+                    "该文件格式暂不支持在投聊内直接预览，下载完成后将自动用其他应用打开。",
                     color = Color(0x99FFFFFF), fontSize = VxinTextSize.sm2,
                     modifier = Modifier.padding(top = 4.dp),
                 )

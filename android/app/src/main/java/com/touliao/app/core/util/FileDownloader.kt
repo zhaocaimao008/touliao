@@ -40,7 +40,7 @@ internal fun downloadHttpClient(context: Context): OkHttpClient =
         .downloadHttpClient()
 
 /**
- * 文件/视频：用系统 DownloadManager 后台下载到「下载」目录，完成后通知栏可直接点开对应应用。
+ * 文件/视频：用系统 DownloadManager 后台下载到「下载」目录，完成后自动用对应应用打开（App 在后台时留通知栏点开）。
  * 不用 ACTION_VIEW 打开 http 链接（那会跳浏览器/弹网页下载）。下载管理器使用短期只读票据（见 MediaUrlResolver）。
  * 供聊天窗口与收藏等处共用。
  */
@@ -69,11 +69,58 @@ private fun enqueueDownload(context: Context, url: String?, filename: String?) {
             .setAllowedOverRoaming(true)
         if (mime != null) req.setMimeType(mime)
         val dm = context.getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager
-        dm.enqueue(req)
-        Toast.makeText(context, "开始下载：$name（完成后可在通知栏点开）", Toast.LENGTH_SHORT).show()
+        val id = dm.enqueue(req)
+        openWhenDownloaded(context.applicationContext, id)
+        Toast.makeText(context, "开始下载：$name（完成后自动打开）", Toast.LENGTH_SHORT).show()
     }.onFailure {
         Toast.makeText(context, "下载失败：${it.message ?: "未知错误"}", Toast.LENGTH_SHORT).show()
     }
+}
+
+/**
+ * 监听这一个 downloadId 的完成广播，成功后用系统应用打开下载好的文件。
+ * 此前只 enqueue 不跟进，下载完只剩通知栏，用户反馈"下载完成后不能自动打开"。
+ * App 不在前台时不拉起（Android 10+ 也会拦后台启动 Activity），留给通知栏点开。
+ * 进程被杀则接收器随之失效，同样退回通知栏。
+ */
+private fun openWhenDownloaded(appContext: Context, downloadId: Long) {
+    val receiver = object : android.content.BroadcastReceiver() {
+        override fun onReceive(ctx: Context, intent: android.content.Intent) {
+            val id = intent.getLongExtra(DownloadManager.EXTRA_DOWNLOAD_ID, -1L)
+            if (id != downloadId) return
+            runCatching { appContext.unregisterReceiver(this) }
+            val dm = appContext.getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager
+            val status = dm.query(DownloadManager.Query().setFilterById(id))?.use { c ->
+                if (c.moveToFirst()) c.getInt(c.getColumnIndexOrThrow(DownloadManager.COLUMN_STATUS)) else null
+            }
+            if (status != DownloadManager.STATUS_SUCCESSFUL) {
+                Toast.makeText(appContext, "下载失败，请重试", Toast.LENGTH_SHORT).show()
+                return
+            }
+            if (!isAppInForeground(appContext)) return
+            val uri = dm.getUriForDownloadedFile(id) ?: return
+            val mime = dm.getMimeTypeForDownloadedFile(id)?.takeIf { it.isNotBlank() } ?: "*/*"
+            val view = android.content.Intent(android.content.Intent.ACTION_VIEW).apply {
+                setDataAndType(uri, mime)
+                addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION or android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+            runCatching { appContext.startActivity(view) }.onFailure {
+                Toast.makeText(appContext, "已下载到「下载」目录，没有可打开该文件的应用", Toast.LENGTH_LONG).show()
+            }
+        }
+    }
+    // DOWNLOAD_COMPLETE 由系统下载服务（另一个进程）发出，Android 14+ 动态注册须声明 EXPORTED
+    androidx.core.content.ContextCompat.registerReceiver(
+        appContext, receiver,
+        android.content.IntentFilter(DownloadManager.ACTION_DOWNLOAD_COMPLETE),
+        androidx.core.content.ContextCompat.RECEIVER_EXPORTED,
+    )
+}
+
+private fun isAppInForeground(context: Context): Boolean {
+    val info = android.app.ActivityManager.RunningAppProcessInfo()
+    android.app.ActivityManager.getMyMemoryState(info)
+    return info.importance <= android.app.ActivityManager.RunningAppProcessInfo.IMPORTANCE_FOREGROUND
 }
 
 /**
