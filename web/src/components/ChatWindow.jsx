@@ -1896,12 +1896,22 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
 
   // ── 分片 / 断点续传上传（大文件，云存储未配置时的本地大文件通道）──
   const uploadChunked = useCallback(async (file, onProgress) => {
-    // SHA-256 只对 ≤50MB 文件计算（大文件跳过以节省内存；hash 为空时服务端仍接受）
-    let hash = '';
+    // ≤50MB 算整文件 SHA-256（服务端 finish 时做完整性校验）；更大的文件不整读进内存，
+    // 改用"大小+修改时间+首尾各 1MB"的指纹作断点续传键（带 fp- 前缀，服务端只当续传键不做比对）。
+    // 不能发空串：旧后端要求 hash 必填，曾致 Windows 传 >50MB 的 Word 等文件报"参数缺失"。
+    const sha256Hex = async (buf) => Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256', buf)))
+      .map(b => b.toString(16).padStart(2, '0')).join('');
+    let hash;
     if (file.size <= 50 * 1024 * 1024) {
-      const buf = await file.arrayBuffer();
-      const digest = await crypto.subtle.digest('SHA-256', buf);
-      hash = Array.from(new Uint8Array(digest)).map(b => b.toString(16).padStart(2, '0')).join('');
+      hash = await sha256Hex(await file.arrayBuffer());
+    } else {
+      const EDGE = 1024 * 1024;
+      const sample = await new Blob([
+        `${file.name}|${file.size}|${file.lastModified || 0}|`,
+        file.slice(0, EDGE),
+        file.slice(file.size - EDGE),
+      ]).arrayBuffer();
+      hash = 'fp-' + await sha256Hex(sample);
     }
     const { data: init } = await axios.post(`/api/messages/${conversation.id}/upload-init`, {
       filename: file.name, size: file.size, hash, mime: file.type || 'application/octet-stream',
