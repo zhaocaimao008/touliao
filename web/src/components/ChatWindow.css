@@ -520,38 +520,6 @@
   box-shadow: 0 0 0 1.5px var(--color-primary);
 }
 
-/* ── 长消息折叠：max-height 过渡动画 ── */
-.wc-msg-collapsible-body {
-  display: block;
-  overflow: hidden;
-  max-height: 10.5em; /* 约 7 行（1.5 行高），超长时折叠 */
-  transition: max-height var(--dur-normal, .3s) ease;
-}
-.wc-msg-collapsible-body.expanded {
-  max-height: 200em; /* 足够容纳超长文本 */
-}
-.wc-msg-collapse-btn {
-  position: relative;
-  color: var(--text-link);
-  font-size: var(--text-sm);
-  padding: 2px 0;
-  margin-top: 2px;
-}
-/* 伪元素扩展点击热区到 44px 高 */
-.wc-msg-collapse-btn::after {
-  content: '';
-  position: absolute;
-  left: -8px;
-  right: -8px;
-  top: 50%;
-  transform: translateY(-50%);
-  height: 44px;
-}
-.wc-msg-collapse-btn:hover {
-  color: var(--text-link-hover);
-  text-decoration: underline;
-}
-
 /* 消息文本内的可点击链接：下划线 + 继承色，破坏气泡对比度最小 */
 .wc-msg-link {
   color: inherit;
