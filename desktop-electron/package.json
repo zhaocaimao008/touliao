@@ -1,6 +1,6 @@
 {
   "name": "touliao-desktop",
-  "version": "8.1.53",
+  "version": "8.1.54",
   "description": "投聊 桌面客户端",
   "homepage": "https://touliao.cc",
   "author": {
@@ -37,7 +37,12 @@
       }
     ],
     "afterPack": "scripts/afterPack.js",
-    "extraResources": [{ "from": "src/lib/install-verified.ps1", "to": "install-verified.ps1" }],
+    "extraResources": [
+      {
+        "from": "src/lib/install-verified.ps1",
+        "to": "install-verified.ps1"
+      }
+    ],
     "win": {
       "executableName": "touliao",
       "target": [
