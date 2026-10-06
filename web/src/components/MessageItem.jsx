@@ -24,34 +24,6 @@ export const TimeDivider = memo(function TimeDivider({ time }) {
   );
 });
 
-// 长文本折叠：超过阈值（300 字符）默认折叠，max-height 过渡动画展开/收起
-const COLLAPSE_THRESHOLD = 300;
-const CollapsibleText = memo(function CollapsibleText({ content, renderContent }) {
-  const { t } = useI18n();
-  const [expanded, setExpanded] = React.useState(false);
-  const text = String(content ?? '');
-  const collapsible = text.length > COLLAPSE_THRESHOLD;
-  if (!collapsible) return <>{renderContent(text)}</>;
-  return (
-    <span className="wc-msg-collapsible">
-      <span
-        className={`wc-msg-collapsible-body${expanded ? ' expanded' : ''}`}
-        aria-expanded={expanded}
-      >
-        {renderContent(text)}
-      </span>
-      <button
-        type="button"
-        className="wc-msg-collapse-btn"
-        onClick={e => { e.stopPropagation(); setExpanded(v => !v); }}
-        aria-expanded={expanded}
-      >
-        {expanded ? t('messageItem.collapse') : t('messageItem.expand')}
-      </button>
-    </span>
-  );
-});
-
 const MessageItem = memo(function MessageItem({ item, cbRef, measure }) {
   useMediaCredentials();
   const { t } = useI18n();
@@ -294,10 +266,7 @@ const MessageItem = memo(function MessageItem({ item, cbRef, measure }) {
             )}
             {msg.type === 'text' && (
               <span>
-                <CollapsibleText
-                  content={msg.content}
-                  renderContent={txt => renderRichText(txt, { myUsername })}
-                />
+                {renderRichText(String(msg.content ?? ''), { myUsername })}
                 {msg.edited ? <span className="wc-msg-edited" data-testid="msg-edited-flag" style={{ color: isMine ? 'rgba(0,0,0,.35)' : 'var(--text-tertiary)' }}>{t('messageItem.edited')}</span> : null}
               </span>
             )}
