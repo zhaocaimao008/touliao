@@ -284,7 +284,7 @@ final class NativeUIReviewTests: XCTestCase {
         try await Task.sleep(nanoseconds: 500_000_000)
         XCTAssertTrue(input.text.contains("中文"))
         XCTAssertTrue(input.text.contains("第二行 😀"))
-        XCTAssertFalse(input.text.contains("\n"), "Preserve the existing pasted-newline normalization")
+        XCTAssertTrue(input.text.contains("中文\n第二行"), "Newlines typed or pasted into the composer must be kept")
         input.insertText(String(repeating: "长文本输入高度检查", count: 8))
         try await Task.sleep(nanoseconds: 600_000_000)
         XCTAssertGreaterThan(input.bounds.height, singleLineHeight, "Long text must grow the composer beyond one line")
