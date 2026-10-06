@@ -37,8 +37,7 @@ function estimateTextLines(content) {
   const text = typeof content === 'string' ? content : '';
   if (!text) return 1;
   // 各「显式换行」行分别按列宽换行后求和：CJK/全角计 2 列、其余计 1 列。
-  // 发送路径已把换行折叠成空格（见 ChatWindow.sendMessage），故乐观气泡恒为 1 段；
-  // 历史多行消息(含 \n)按真实段数累加，避免整体低估导致下一行落进本行。
+  // 多行消息(含 \n)按真实段数累加，避免整体低估导致下一行落进本行。
   return text.split('\n').reduce((sum, line) => {
     let cols = 0;
     for (const ch of line) cols += (ch.codePointAt(0) >= 0x2e80 ? 2 : 1);

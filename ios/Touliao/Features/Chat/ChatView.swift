@@ -168,8 +168,8 @@ struct ChatView: View {
         .onChange(of: bgPhotoItem) { item in handleBgPhoto(item) }
         .onChange(of: stickerPhotoItem) { item in handleStickerPhoto(item) }
         .onChange(of: vm.input) { newVal in
-            // 粘贴多行文本时把换行折叠为空格，消息始终保持单行高度
-            let normalized = newVal.replacingOccurrences(of: "\n", with: " ").replacingOccurrences(of: "\r", with: " ")
+            // 保留换行（回车换行 / 粘贴多行），仅把 \r\n、\r 统一成 \n
+            let normalized = newVal.replacingOccurrences(of: "\r\n", with: "\n").replacingOccurrences(of: "\r", with: "\n")
             if normalized != newVal { vm.input = normalized }
             vm.userIsTyping()
         }

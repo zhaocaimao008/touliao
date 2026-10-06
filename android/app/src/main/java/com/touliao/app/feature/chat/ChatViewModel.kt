@@ -1227,8 +1227,8 @@ class ChatViewModel @Inject constructor(
 
     // ── 文本 ──────────────────────────────────────────────
     fun onInputChange(v: String) {
-        // 粘贴多行文本时把换行折叠为空格，消息始终保持单行高度（用户需求）
-        val normalized = v.replace("\n", " ").replace("\r", " ")
+        // 保留换行（回车换行 / 粘贴多行），仅把 \r\n、\r 统一成 \n
+        val normalized = v.replace("\r\n", "\n").replace("\r", "\n")
         _uiState.update { it.copy(input = normalized) }
         draftStore.set(conversationId, normalized)
         // 节流：非空且距上次 emit > 2s 才发 typing，避免刷屏

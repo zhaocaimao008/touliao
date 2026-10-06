@@ -1573,8 +1573,8 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
   const sendMessage = async () => {
     const sendScope = captureSession();
     if (!isSessionCurrent(sendScope) || sendScope.accountId !== user.id || sendScope.generation !== outboxScope?.generation) return;
-    // 复制多行文本粘贴进来时，把换行折叠成空格——消息始终保持单行高度（对齐需求）。
-    const text = input.replace(/[\r\n]+/g, ' ').trim();
+    // 保留换行（Shift+Enter / 粘贴多行），仅把 Windows 的 \r\n 统一成 \n。
+    const text = input.replace(/\r\n?/g, '\n').trim();
     if (!text) return;
     // 防 Enter 连击：500ms 内相同内容只发一次
     const now = Date.now();
