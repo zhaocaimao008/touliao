@@ -261,8 +261,14 @@ class GroupCallManager @Inject constructor(
             Log.w(TAG, "RECORD_AUDIO 未授权，暂不启动通话前台服务")
             return
         }
-        foregroundStarted = true
-        CallForegroundService.start(context, _state.value.isVideo)
+        // 只有请求真正发出才记为已起；被拒保持 false，回到前台时 onAppForeground() 补起
+        foregroundStarted = CallForegroundService.start(context, _state.value.isVideo)
+    }
+
+    /** App 回到前台：此前前台服务被系统拒绝（后台启动限制 / startForeground 失败）则补起。 */
+    fun onAppForeground() {
+        if (foregroundStarted && !CallForegroundService.running) foregroundStarted = false
+        ensureForegroundService()
     }
 
     fun consumeEnded() {
