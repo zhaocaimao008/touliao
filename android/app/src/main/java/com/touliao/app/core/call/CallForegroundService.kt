@@ -23,6 +23,9 @@ import com.touliao.app.core.push.NotificationHelper
  * - startForeground 失败（权限缺失/后台限制）必须 stopSelf()：startForegroundService 发出后服务若既
  *   不进前台也不停止，系统到时抛 ForegroundServiceDidNotStartInTimeException 直接崩进程。
  * - 不承载信令 / 媒体本身，仅承载前台态；无需 bind。
+ * - [running] 只在 startForeground 真正成功后为 true：App 在后台时 startForegroundService/startForeground
+ *   会被系统拒绝（Android 12+ 后台启动限制、Android 14 microphone 类型需 while-in-use），调用方据此
+ *   在回到前台时补起，否则整通电话在后台都被系统静音麦克风（对方听不见）。
  */
 class CallForegroundService : Service() {
 
@@ -64,15 +67,26 @@ class CallForegroundService : Service() {
         }
         runCatching {
             ServiceCompat.startForeground(this, NOTIFICATION_ID, notification, type)
+            running = true
         }.onFailure { e ->
             android.util.Log.w("CallForegroundService", "startForeground 失败，停止服务: ${e.message}")
+            running = false
             stopSelf()
         }
+    }
+
+    override fun onDestroy() {
+        running = false
+        super.onDestroy()
     }
 
     companion object {
         private const val NOTIFICATION_ID = 424243   // 与来电通知(424242)分开
         private const val EXTRA_VIDEO = "video"
+
+        /** 服务是否已真正进入前台（startForeground 成功）；被拒/已停为 false。 */
+        @Volatile @JvmStatic var running: Boolean = false
+            private set
 
         private fun hasPermission(context: Context, permission: String): Boolean =
             ContextCompat.checkSelfPermission(context, permission) == android.content.pm.PackageManager.PERMISSION_GRANTED
@@ -81,11 +95,17 @@ class CallForegroundService : Service() {
         fun hasRecordAudioPermission(context: Context): Boolean =
             hasPermission(context, android.Manifest.permission.RECORD_AUDIO)
 
-        /** 通话建立本地媒体且 RECORD_AUDIO 已授权后调用（未授权直接跳过，由调用方授权后再调）。 */
-        fun start(context: Context, video: Boolean) {
-            if (!hasRecordAudioPermission(context)) return
+        /**
+         * RECORD_AUDIO 已授权后调用（未授权直接跳过，由调用方授权后再调）。
+         * 返回请求是否发出：后台被拒（ForegroundServiceStartNotAllowedException 等）返回 false。
+         * 发出后 startForeground 仍可能在服务内失败，以 [running] 为准。
+         */
+        fun start(context: Context, video: Boolean): Boolean {
+            if (!hasRecordAudioPermission(context)) return false
             val intent = Intent(context, CallForegroundService::class.java).putExtra(EXTRA_VIDEO, video)
-            runCatching { ContextCompat.startForegroundService(context, intent) }
+            return runCatching { ContextCompat.startForegroundService(context, intent) }
+                .onFailure { e -> android.util.Log.w("CallForegroundService", "startForegroundService 被拒: ${e.message}") }
+                .isSuccess
         }
 
         /** 通话结束（cleanup）时调用。 */

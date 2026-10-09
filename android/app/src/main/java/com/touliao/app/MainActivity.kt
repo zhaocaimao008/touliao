@@ -17,6 +17,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.testTagsAsResourceId
 import com.touliao.app.core.call.CallManager
+import com.touliao.app.core.call.GroupCallManager
 import com.touliao.app.core.push.NotificationHelper
 import com.touliao.app.core.realtime.SocketManager
 import com.touliao.app.navigation.AppNavigation
@@ -29,6 +30,7 @@ import javax.inject.Inject
 class MainActivity : ComponentActivity() {
 
     @Inject lateinit var callManager: CallManager
+    @Inject lateinit var groupCallManager: GroupCallManager
     @Inject lateinit var socketManager: SocketManager
     @Inject lateinit var notificationHelper: NotificationHelper
 
@@ -57,6 +59,14 @@ class MainActivity : ComponentActivity() {
                 }
             }
         }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        // 通话中切后台时若保活前台服务没能起来（系统后台启动限制），回到前台立即补起，
+        // 之后再切后台麦克风不再被系统静音
+        callManager.onAppForeground()
+        groupCallManager.onAppForeground()
     }
 
     override fun onNewIntent(intent: Intent) {

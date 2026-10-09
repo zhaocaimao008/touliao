@@ -161,9 +161,10 @@ class CallManager @Inject constructor(
     // 来电看门狗：进入 INCOMING 后 60s 未接听/未收到 call:end（主叫断网、服务端超时事件丢失）
     // 自动收起来电界面并停铃，防止一直响。同款自守卫：到点仍是同一通 INCOMING 才收尾。
     private var incomingTimeoutJob: Job? = null
-    // 前台服务是否已起：需本地媒体已建立 + RECORD_AUDIO 已授权（Android 14 未授权起 microphone
-    // 类型 FGS 会抛 SecurityException）。未授权时等 CallScreen 授权回调里 ensureForegroundService()。
-    @Volatile private var localMediaReady = false
+    // 前台服务是否已请求：需 RECORD_AUDIO 已授权（Android 14 未授权起 microphone 类型 FGS 会抛
+    // SecurityException）。未授权时等 CallScreen 授权回调里 ensureForegroundService()。
+    // 拨打/接听那一刻（用户刚点按钮，App 必在前台）就起，不等 refreshIceServers/建流——
+    // 那段网络往返期间切到后台，Android 12+/14 会拒绝启动，整通电话麦克风在后台被系统静音。
     @Volatile private var foregroundStarted = false
     // 完美协商：polite 一方回滚了自己的 offer 去应答对方，应答完成后需把自己的变更（如切视频）重新 offer
     @Volatile private var renegotiateAfterRollback = false
@@ -257,6 +258,7 @@ class CallManager @Inject constructor(
         // ToneGenerator 走 STREAM_VOICE_CALL,未切模式/无焦点时部分 ROM 不发声
         // (此前回铃音先播、acquireAudioFocusAndRoute 在建流时才执行——顺序反了)
         acquireAudioFocusAndRoute()
+        ensureForegroundService()           // 趁仍在前台起保活前台服务（见 foregroundStarted 注释）
         playRingbackTone()                  // 主叫拨出→接通前循环回铃音（接通/挂断时停）
         // 本地呼出超时:45s 内未接通(对方不接/断线,后端 timeout 不向主叫发事件)则自动挂断收尾,
         // 防止界面永远卡在"呼叫中"。接通(CONNECTED)或挂断时取消(见 cleanup / IceConnectionState)。
@@ -285,9 +287,7 @@ class CallManager @Inject constructor(
                 _state.update { it.copy(isVideo = false) }
                 audioRouter.setVideo(false)
             }
-            // 本地媒体已开始采集（麦克风/摄像头）→ 起前台服务保活（RECORD_AUDIO 未授权时等授权回调再起）
-            localMediaReady = true
-            ensureForegroundService()
+            ensureForegroundService()       // 幂等补一次（拨打时已起则 no-op）
             val name = sessionManager.currentUser?.username.orEmpty()
             // ack 携带服务端生成的 callId + resumeToken；期间可能已挂断/重拨/被覆盖，仅在仍是同一通呼出时才回填（attempt 序号 + peer + stage 三重校验）
             val requestAck = socketManager.emitCallRequest(peerId, if (_state.value.isVideo) "video" else "audio", name)
@@ -341,6 +341,7 @@ class CallManager @Inject constructor(
         // 响铃阶段不碰通话模式/焦点（铃声走铃声流）；接听这一刻才切通话路由。
         // 之后 createLocalTracks 里的 acquire 是幂等的，不会把用户此间切的扬声器重置。
         acquireAudioFocusAndRoute()
+        ensureForegroundService()           // 趁仍在前台起保活前台服务（见 foregroundStarted 注释）
         // 接听后等待协商(offer/answer/ICE)超时看门狗,与主叫 45s 呼出超时对称。
         connectingTimeoutJob?.cancel()
         connectingTimeoutJob = scope.launch {
@@ -364,9 +365,7 @@ class CallManager @Inject constructor(
                 _state.update { it.copy(isVideo = false) }
                 audioRouter.setVideo(false)
             }
-            // 本地媒体已开始采集 → 起前台服务保活（RECORD_AUDIO 未授权时等授权回调再起）
-            localMediaReady = true
-            ensureForegroundService()
+            ensureForegroundService()       // 幂等补一次
             // accept 是被叫真正首次绑定 Socket 的时刻，只有这里能拿到 resumeToken（Q06 全修）
             socketManager.emitCallResponse(s.peerId, true, s.callId, onAck = { token -> participatingResumeToken = token })
             participatingCallId = s.callId
@@ -395,19 +394,25 @@ class CallManager @Inject constructor(
     }
 
     /**
-     * 起通话保活前台服务（幂等）：本地媒体已建立 + RECORD_AUDIO 已授权才起。
-     * 建流时与 CallScreen 权限授权回调里各调一次——谁后到谁真正启动。
+     * 起通话保活前台服务（幂等）：通话进行中（拨出/接通中/已接通）且 RECORD_AUDIO 已授权才起。
+     * 拨打/接听时、CallScreen 权限授权回调里、App 回到前台时各调一次。
      */
     fun ensureForegroundService() {
         val st = _state.value.stage
         if (st == CallStage.IDLE || st == CallStage.ENDED || st == CallStage.INCOMING) return
-        if (!localMediaReady || foregroundStarted) return
+        if (foregroundStarted) return
         if (!CallForegroundService.hasRecordAudioPermission(context)) {
             Log.w(TAG, "RECORD_AUDIO 未授权，暂不启动通话前台服务")
             return
         }
-        foregroundStarted = true
-        CallForegroundService.start(context, _state.value.isVideo)
+        // 只有请求真正发出才记为已起；被拒保持 false，回到前台时 onAppForeground() 补起
+        foregroundStarted = CallForegroundService.start(context, _state.value.isVideo)
+    }
+
+    /** App 回到前台：此前前台服务被系统拒绝（后台启动限制 / startForeground 失败）则补起。 */
+    fun onAppForeground() {
+        if (foregroundStarted && !CallForegroundService.running) foregroundStarted = false
+        ensureForegroundService()
     }
 
     // ── ICE restart 自愈(网络切换) ─────────────────────────────
@@ -990,7 +995,6 @@ class CallManager @Inject constructor(
         connectingTimeoutJob?.cancel(); connectingTimeoutJob = null   // 同上，取消接听协商超时
         iceRestartDebounceJob?.cancel(); iceRestartDebounceJob = null
         iceRestartRecoverJob?.cancel(); iceRestartRecoverJob = null
-        localMediaReady = false
         renegotiateAfterRollback = false
         if (foregroundStarted) {
             foregroundStarted = false
