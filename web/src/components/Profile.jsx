@@ -77,6 +77,25 @@ function SettingsSaveState({ saving, saveError }) {
   </>;
 }
 
+function SettingsTimeInput({ value, saving, label, testId, onSave }) {
+  const [edit, setEdit] = useState({ value, draft: value });
+  if (edit.value !== value) setEdit({ value, draft: value });
+  return <input type="time" value={edit.draft} disabled={saving}
+    aria-label={label} data-testid={testId} className="profile-time-input"
+    onChange={event => setEdit({ value, draft: event.target.value })}
+    onBlur={event => {
+      const next = event.target.value;
+      if (/^\d{2}:\d{2}$/.test(next)) {
+        if (next !== value) onSave(next);
+      } else {
+        setEdit({ value, draft: value });
+      }
+    }}
+    onKeyDown={event => {
+      if (event.key === 'Enter') { event.preventDefault(); event.currentTarget.blur(); }
+    }} />;
+}
+
 
 
 /* ── 修改昵称 ── */
@@ -817,17 +836,13 @@ function NotificationSettings({ onBack }) {
           {quietEnabled && (
             <>
               <CRow label={t('profile.quietStartTime')}
-                right={<input type="time" value={quietStart} disabled={saving}
-                  aria-label={t('profile.quietStartTime')}
-                  data-testid="quiet-start-input"
-                  onChange={e => saveSettings('quietStart', e.target.value)}
-                  className="profile-time-input" />} />
+                right={<SettingsTimeInput value={quietStart} saving={saving}
+                  label={t('profile.quietStartTime')} testId="quiet-start-input"
+                  onSave={value => saveSettings('quietStart', value)} />} />
               <CRow label={t('profile.quietEndTime')}
-                right={<input type="time" value={quietEnd} disabled={saving}
-                  aria-label={t('profile.quietEndTime')}
-                  data-testid="quiet-end-input"
-                  onChange={e => saveSettings('quietEnd', e.target.value)}
-                  className="profile-time-input" />} />
+                right={<SettingsTimeInput value={quietEnd} saving={saving}
+                  label={t('profile.quietEndTime')} testId="quiet-end-input"
+                  onSave={value => saveSettings('quietEnd', value)} />} />
             </>
           )}
         </Card>
