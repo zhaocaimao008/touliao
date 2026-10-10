@@ -248,7 +248,7 @@ html.touliao-ui body:not([data-skin="wechat"]):not([data-skin="wecom"]) :is(.tl-
   /* 为悬浮标签栏让出底部空间 */
   html.touliao-ui body:not([data-skin="wechat"]):not([data-skin="wecom"]) .m-page { padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 84px); }
 
-  /* 聊天输入：[语音][输入胶囊][表情][+ / 发送] 一行 */
+  /* Keep a full-width draft above persistent actions; typing must not hide More. */
   html.touliao-ui body:not([data-skin="wechat"]):not([data-skin="wecom"]) .wc-input-area {
     display: flex;
     flex-wrap: wrap;
@@ -256,26 +256,27 @@ html.touliao-ui body:not([data-skin="wechat"]):not([data-skin="wecom"]) :is(.tl-
     gap: 4px;
     margin: 6px 8px calc(env(safe-area-inset-bottom, 0px) + 8px);
     padding: 6px;
-    border-radius: 26px;
+    border-radius: 20px;
   }
   html.touliao-ui body:not([data-skin="wechat"]):not([data-skin="wecom"]) .wc-input-area :is(.wc-input-toolbar, .wc-input-footer) { display: contents; }
-  html.touliao-ui body:not([data-skin="wechat"]):not([data-skin="wecom"]) .wc-input-area .wc-tool-btn { width: 40px; height: 40px; flex: 0 0 40px; }
-  html.touliao-ui body:not([data-skin="wechat"]):not([data-skin="wecom"]) .wc-input-area [data-tool='voice'] { order: 1; }
-  html.touliao-ui body:not([data-skin="wechat"]):not([data-skin="wecom"]) .wc-input-area :is(.wc-input-box, .wc-voice-container) { order: 2; flex: 1 1 0; min-width: 0; }
+  html.touliao-ui body:not([data-skin="wechat"]):not([data-skin="wecom"]) .wc-input-area .wc-tool-btn { width: 44px; height: 44px; flex: 0 0 44px; }
+  html.touliao-ui body:not([data-skin="wechat"]):not([data-skin="wecom"]) .wc-input-area [data-tool='voice'] { order: 2; }
+  html.touliao-ui body:not([data-skin="wechat"]):not([data-skin="wecom"]) .wc-input-area :is(.wc-input-box, .wc-voice-container) { order: 1; flex: 1 0 100%; min-width: 0; }
   html.touliao-ui body:not([data-skin="wechat"]):not([data-skin="wecom"]) .wc-input-area [data-tool='emoji'] { order: 3; }
   html.touliao-ui body:not([data-skin="wechat"]):not([data-skin="wecom"]) .wc-input-area [data-tool='more'] { order: 4; }
-  html.touliao-ui body:not([data-skin="wechat"]):not([data-skin="wecom"]) .wc-input-area .wc-send-btn { order: 4; }
-  html.touliao-ui body:not([data-skin="wechat"]):not([data-skin="wecom"]) .wc-input-area :is(.wc-more-panel, .wc-emoji-panel, .wc-sticker-panel, .wc-input-counter) { order: 10; flex-basis: 100%; }
+  html.touliao-ui body:not([data-skin="wechat"]):not([data-skin="wecom"]) .wc-input-area .wc-send-btn { order: 5; margin-left: auto; }
+  html.touliao-ui body:not([data-skin="wechat"]):not([data-skin="wecom"]) .wc-input-area :is(.wc-more-panel, .wc-emoji-picker, .wc-input-counter) { order: 10; flex-basis: 100%; min-width: 0; }
+  html.touliao-ui body:not([data-skin="wechat"]):not([data-skin="wecom"]) .wc-input-area :is(.wc-more-panel, .wc-emoji-picker) { max-height: min(280px, 35dvh); overflow-y: auto; overscroll-behavior: contain; }
+  html.touliao-ui body:not([data-skin="wechat"]):not([data-skin="wecom"]) .wc-input-area .wc-more-panel { grid-template-columns: repeat(4, minmax(0, 1fr)); padding: 12px 4px; gap: 12px 8px; border-radius: 12px; }
   html.touliao-ui body:not([data-skin="wechat"]):not([data-skin="wecom"]) .wc-input-area :is([data-tool='stickers'], [data-tool='image'], [data-tool='file'], [data-tool='screenshot'], [data-tool='redpacket']) { display: none; }
   html.touliao-ui body:not([data-skin="wechat"]):not([data-skin="wecom"]) .wc-input-area .wc-input-box {
+    padding: 0;
     border-radius: 20px;
     background: var(--v4-fill);
   }
-  html.touliao-ui body:not([data-skin="wechat"]):not([data-skin="wecom"]) .wc-input-area .wc-textarea { min-height: 40px; padding: 9px 14px; font-size: 16px; }
-  /* 空输入时显示「+」，有内容时换成圆形发送按钮 */
-  html.touliao-ui body:not([data-skin="wechat"]):not([data-skin="wecom"]) .wc-input-area .wc-send-btn { width: 40px; height: 40px; min-height: 40px; padding: 0; justify-content: center; font-size: 0; gap: 0; }
-  html.touliao-ui body:not([data-skin="wechat"]):not([data-skin="wecom"]) .wc-input-area .wc-send-btn:not(.active) { display: none; }
-  html.touliao-ui body:not([data-skin="wechat"]):not([data-skin="wecom"]) .wc-input-area:has(.wc-send-btn.active) [data-tool='more'] { display: none; }
+  html.touliao-ui body:not([data-skin="wechat"]):not([data-skin="wecom"]) .wc-input-area .wc-textarea { min-height: 40px; max-height: min(140px, 25dvh); padding: 9px 14px; font-size: 16px; }
+  /* A stable send target avoids replacing the attachment button while typing. */
+  html.touliao-ui body:not([data-skin="wechat"]):not([data-skin="wecom"]) .wc-input-area .wc-send-btn { width: 44px; min-width: 44px; height: 44px; min-height: 44px; padding: 0; justify-content: center; font-size: 0; gap: 0; }
 }
 
 /* ── 打磨：头像、提醒卡片、桌面输入两行布局 ─────────────────── */
@@ -295,6 +296,7 @@ html.touliao-ui body:not([data-skin="wechat"]):not([data-skin="wecom"]) .permiss
 html.touliao-ui body:not([data-skin="wechat"]):not([data-skin="wecom"]) .permission-guide-actions button { border-radius: 999px; }
 
 @media (min-width: 768px) {
+  html.touliao-ui body:not([data-skin="wechat"]):not([data-skin="wecom"]) .wc-more-panel { grid-template-columns: repeat(5, minmax(0, 1fr)); max-height: min(280px, 40dvh); overflow-y: auto; overscroll-behavior: contain; }
   html.touliao-ui body:not([data-skin="wechat"]):not([data-skin="wecom"]) .wc-input-area { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: end; }
   html.touliao-ui body:not([data-skin="wechat"]):not([data-skin="wecom"]) .wc-input-area > * { grid-column: 1 / -1; }
   html.touliao-ui body:not([data-skin="wechat"]):not([data-skin="wecom"]) .wc-input-area > :is(.wc-input-box, .wc-voice-container) { grid-column: 1; }

@@ -296,6 +296,7 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
   // Item cache for flatItems - preserve object identity for unchanged messages
   const itemCacheRef = useRef(new Map());
   const fileInputRef = useRef(null);
+  const imageInputRef = useRef(null);
   const typingTimer = useRef(null);
   const typingClearTimer = useRef(null); // 接收侧兜底：stop_typing 丢包时自动收起"正在输入"
   const voiceUploadRef = useRef(null);
@@ -3022,7 +3023,7 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
 
           <label data-tool="image" className="wc-tool-btn wc-tool-label" title={t('chat.image')} aria-label={t('chat.sendImage')}>
             <IcoImage />
-            <input type="file" multiple data-testid="chat-attach-image" accept="image/jpeg,image/png,image/gif,image/webp" className="wc-hidden-input" onChange={handleFileUpload} />
+            <input type="file" multiple ref={imageInputRef} data-testid="chat-attach-image" accept="image/jpeg,image/png,image/gif,image/webp" className="wc-hidden-input" onChange={handleFileUpload} />
           </label>
 
           <label data-tool="file" className="wc-tool-btn wc-tool-label" title={t('chat.file')} aria-label={t('chat.sendFile')}>
@@ -3064,8 +3065,9 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
 
         {/* More panel */}
         {showMore && (
-          <div className="wc-more-panel">
+          <div className="wc-more-panel" role="group" aria-label={t('chat.more')}>
             {[
+              { bg:'var(--icon-bg-neutral)', testid:'chat-gallery-btn', svg:<IcoImage tone="onDark" size="md" />, label:t('chat.image'), action:()=>imageInputRef.current?.click() },
               { bg:'var(--icon-bg-neutral)', svg:<TouliaoIcon name="camera" tone="onDark" size="md" />, label:t('chat.camera'), action: async () => {
                 closePanels();
                 // Capacitor 移动端通过 window.__takePhoto__ 调用原生相机
@@ -3080,15 +3082,17 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
                     handleFileUpload({ target: { files: [file] } });
                   } catch { /* clipboard image read failed; ignore */ }
                 } else {
-                  document.querySelector('input[accept*="image"]')?.click();
+                  imageInputRef.current?.click();
                 }
               } },
               { bg:'var(--icon-bg-neutral)', svg:<TouliaoIcon name="file" tone="onDark" size="md" />, label:t('chat.file'), action:()=>fileInputRef.current?.click() },
+              { bg:'var(--icon-bg-neutral)', testid:'chat-stickers-btn', svg:<TouliaoIcon name="stickers" tone="onDark" size="md" />, label:t('chat.stickers'), action:()=>togglePanel('stickers') },
               { bg:'var(--icon-bg-neutral)', svg:<IcoVideo tone="onDark" size="md" />, label:t('chat.videoCall'), testid:'chat-call-video-btn', action:()=>{ closePanels(); startCall('video'); } },
               { bg:'var(--green)', svg:<TouliaoIcon name="voiceCall" tone="onDark" size="md" />, label:t('chat.voiceCall'), testid:'chat-call-audio-btn', action:()=>{ closePanels(); startCall('audio'); } },
               { bg:'var(--icon-bg-neutral)', svg:<IcoContacts tone="onDark" size="md" />, label:t('chat.contactCard'), action: openCardPicker },
               // 定时发送：把输入框当前文本设为定时消息，到点自动发出
               { bg:'var(--color-primary)', testid:'chat-schedule-btn', svg:<TouliaoIcon name="schedule" tone="onDark" size="md" />, label:t('chat.scheduleSend'), action: () => { closePanels(); openScheduleModal(); } },
+              { bg:'var(--color-badge)', testid:'chat-redpacket-btn', svg:<TouliaoIcon name="redPacket" tone="onDark" size="md" />, label:t('chat.sendRedPacket'), action: () => { setShowRedPacket(true); closePanels(); } },
               // 对端账号已注销（管理员删号后，服务端 listConversations 返回 otherUser: null）
               // 时不给通话入口：startCall 用的是 conversation.otherUser?.id 当 remoteId，
               // 点了必然 emit call:request { to: undefined }，被服务端 guardId 拒掉并回
@@ -3111,7 +3115,6 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
         {showStickers && <Suspense fallback={null}><StickerPanel onSend={sendSticker} /></Suspense>}
 
         {/* Text / Voice input — 始终显示 */}
-        {!showMore && (
           <>
             {voiceMode ? (
               <VoiceRecordButton capture={voiceCapture} />
@@ -3189,7 +3192,6 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
               </div>
             )}
           </>
-        )}
       </div>
       )} {/* end mute_all conditional */}
 
