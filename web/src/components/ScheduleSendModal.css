@@ -1,0 +1,35 @@
+.schedule-overlay { position: fixed; inset: 0; z-index: 500; display: flex; align-items: center; justify-content: center; padding: 16px; background: rgba(0,0,0,.4); }
+.schedule-dialog { display: flex; flex-direction: column; width: min(460px,100%); max-height: calc(100dvh - 32px); min-width: 0; margin: 0; border: 1px solid var(--tl-border, var(--border-default)); border-radius: 20px; background: var(--tl-surface, var(--bg-card)); color: var(--tl-text, var(--text-primary)); box-shadow: 0 16px 48px rgba(0,0,0,.18); overflow: hidden; }
+.schedule-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 16px 8px 24px; }
+.schedule-header h2 { margin: 0; font-size: 20px; line-height: 1.4; }
+.schedule-dialog button { min-height: 44px; border-radius: 10px; cursor: pointer; font: inherit; }
+.schedule-dialog button:disabled { opacity: .55; cursor: default; }
+.schedule-dialog :is(button,textarea,input):focus-visible { outline: 2px solid var(--tl-primary); outline-offset: 2px; }
+.schedule-close { width: 44px; flex: 0 0 44px; display: grid; place-items: center; border: 0; background: transparent; color: var(--tl-readable-muted); }
+.schedule-body { min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 4px 24px 16px; }
+.schedule-field { display: grid; gap: 8px; margin: 12px 0; font-size: 14px; }
+.schedule-field :is(textarea,input) { width: 100%; min-width: 0; box-sizing: border-box; border: 1px solid var(--tl-border-strong, var(--border-default)); border-radius: 12px; padding: 10px 12px; min-height: 44px; background: var(--tl-surface-secondary, var(--bg-input)); color: var(--tl-text, var(--text-primary)); font-size: 16px; line-height: 1.5; }
+.schedule-field textarea { resize: vertical; min-height: 96px; max-height: 200px; }
+.schedule-field [aria-invalid='true'] { border-color: var(--tl-readable-danger, var(--color-danger)); }
+.schedule-hint { margin: 6px 0; color: var(--tl-readable-muted, var(--text-secondary)); font-size: 12px; line-height: 1.6; overflow-wrap: anywhere; }
+.schedule-error { padding: 10px 12px; margin: 10px 0; border-radius: 10px; background: var(--tl-danger-soft, rgba(255,59,48,.08)); color: var(--tl-readable-danger, var(--color-danger)); font-size: 13px; line-height: 1.6; overflow-wrap: anywhere; }
+.schedule-link { border: 0; background: transparent; color: var(--tl-primary-text, var(--green)); padding: 8px; font-size: 13px !important; }
+.schedule-tasks { margin-top: 16px; border-top: 1px solid var(--tl-border); padding-top: 8px; }
+.schedule-task-heading { display: flex; gap: 8px; align-items: center; justify-content: space-between; }
+.schedule-task-heading h3 { margin: 0; font-size: 14px; }
+.schedule-task-list { padding: 0; margin: 0; list-style: none; }
+.schedule-task-list li { border-top: 1px solid var(--tl-border); padding: 12px 0 4px; }
+.schedule-task-content { font-size: 14px; line-height: 1.5; overflow-wrap: anywhere; white-space: pre-wrap; max-height: 96px; overflow: auto; }
+.schedule-task-meta { display: flex; gap: 8px; justify-content: space-between; align-items: center; color: var(--tl-readable-muted); font-size: 12px; }
+.schedule-task-cancel { flex-shrink: 0; padding: 8px; border: 0; background: transparent; color: var(--tl-readable-danger); font-size: 12px !important; }
+.schedule-uncertain { font-size: 13px; line-height: 1.6; color: var(--tl-readable-muted); }
+.schedule-footer { display: flex; gap: 10px; justify-content: flex-end; padding: 12px 24px 20px; border-top: 1px solid var(--tl-border); }
+.schedule-footer button { padding: 10px 16px; font-size: 14px; }
+.schedule-secondary { border: 1px solid var(--tl-border-strong); color: var(--tl-text); background: var(--tl-surface); }
+.schedule-primary { border: 0; color: var(--tl-primary-foreground); background: var(--tl-primary); }
+@media(max-width:480px) {
+  .schedule-header { padding-left: 16px; }
+  .schedule-body { padding-inline: 16px; }
+  .schedule-footer { padding: 12px 16px 16px; gap: 8px; }
+  .schedule-footer button { flex: 1; padding-inline: 8px; }
+}

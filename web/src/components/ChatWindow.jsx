@@ -3307,11 +3307,12 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
         <ScheduleSendModal
           convId={conversation.id}
           defaultContent={input}
-          onClose={() => setShowScheduleSend(false)}
+          onClose={() => { setShowScheduleSend(false); restoreComposerFocus(); }}
           onScheduled={(content) => {
             showToast(t('chat.scheduleSetSuccess'), 'success');
             dispatchCompose({ type: 'CONSUMED_DRAFT', content });
             setShowScheduleSend(false);
+            restoreComposerFocus();
           }}
         />
         </Suspense>

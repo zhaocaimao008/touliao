@@ -1,202 +1,93 @@
-import React, { useState, useRef, useEffect } from 'react';
-import axios from 'axios';
+import React, { useId, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useI18n } from '../contexts/I18nContext';
+import { useAuth } from '../contexts/AuthContext';
+import useFocusTrap from '../hooks/useFocusTrap';
+import { useScheduledMessages } from '../hooks/useScheduledMessages';
+import { defaultScheduleLocal, scheduleBounds } from '../utils/scheduleSend';
+import TouliaoIcon from '../ui-kit/Icon';
+import './ScheduleSendModal.css';
 
-/**
- * 定时发送弹窗：选择发送时间后创建定时消息，到点由后端调度器自动发出。
- *
- * Props:
- *   convId          — 目标会话 ID
- *   defaultContent  — 预填内容（来自输入框）
- *   onClose         — 取消/关闭回调
- *   onScheduled     — 创建成功回调 (content) => void
- */
-// datetime-local value 格式化：Date → "YYYY-MM-DDTHH:MM"（精确到分）
-function toLocalInput(d) {
-  d.setSeconds(0, 0);
-  const pad = n => String(n).padStart(2, '0');
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+function ScheduleForm({ convId, defaultContent = '', owner, onClose, onScheduled }) {
+  const { t, lang } = useI18n();
+  const titleId = useId(), errorId = useId(), timeHintId = useId();
+  const [content, setContent] = useState(defaultContent);
+  const [sendAtLocal, setSendAtLocal] = useState(() => defaultScheduleLocal());
+  const [bounds, setBounds] = useState(() => scheduleBounds());
+  const schedules = useScheduledMessages({ conversationId: convId, owner, onCreated: onScheduled });
+  const { state } = schedules;
+  const close = () => { if (schedules.canClose()) onClose(); };
+  const trapRef = useFocusTrap(true, { onEscape: close, lockScroll: true, initialFocus: state.phase ? undefined : '.schedule-content' });
+  const busy = !!state.phase;
+  const creating = state.phase === 'creating';
+  const timeError = ['ss.errInvalidTime', 'ss.errTooSoon', 'ss.errTooFar'].includes(state.error);
+  const contentError = ['ss.errEmptyContent', 'ss.errContentLong'].includes(state.error);
+  const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+  const formatTime = value => new Date(Number(value) * 1000).toLocaleString(lang || 'zh-CN', { dateStyle: 'medium', timeStyle: 'short' });
+
+  return createPortal(
+    <div className="schedule-overlay" onClick={event => { if (event.target === event.currentTarget) close(); }}>
+      <form className="schedule-dialog" ref={trapRef} tabIndex={-1} role="dialog" aria-modal="true" aria-labelledby={titleId} aria-busy={busy || undefined}
+        noValidate onSubmit={event => { event.preventDefault(); schedules.create(content, sendAtLocal); }}>
+        <header className="schedule-header">
+          <h2 id={titleId}>{t('ss.title')}</h2>
+          <button type="button" className="schedule-close" onClick={close} disabled={busy} aria-label={t('common.close')}><TouliaoIcon name="close" size="sm" /></button>
+        </header>
+        <div className="schedule-body">
+          <label className="schedule-field">
+            <span>{t('ss.contentLabel')}</span>
+            <textarea className="schedule-content" data-testid="schedule-content" rows={3} value={content} maxLength={30000} disabled={busy}
+              aria-invalid={contentError || undefined} aria-describedby={contentError ? errorId : undefined}
+              placeholder={t('ss.contentPlaceholder')} onChange={event => { setContent(event.target.value); schedules.clearError(); }} />
+          </label>
+          <label className="schedule-field">
+            <span>{t('ss.timeLabel')}</span>
+            <input type="datetime-local" data-testid="schedule-time" step="60" value={sendAtLocal} min={bounds.min} max={bounds.max} disabled={busy}
+              aria-invalid={timeError || undefined} aria-describedby={timeError ? `${timeHintId} ${errorId}` : timeHintId}
+              onChange={event => { setSendAtLocal(event.target.value); schedules.clearError(); }} />
+          </label>
+          <p className="schedule-hint" id={timeHintId}>{t('ss.timezoneTemplate').replace('{zone}', timezone)}</p>
+          {state.error && <div className="schedule-error" role="alert" id={errorId}>{state.detail || t(state.error)}</div>}
+          {state.error === 'ss.errTooSoon' && <button type="button" className="schedule-link" onClick={() => {
+            const now = Date.now(); setBounds(scheduleBounds(now)); setSendAtLocal(scheduleBounds(now + 60000).min); schedules.clearError();
+          }}>{t('ss.useEarliest')}</button>}
+          <section className="schedule-tasks" aria-label={t('ss.pendingTitle')}>
+            <div className="schedule-task-heading"><h3>{t('ss.pendingTitle')}</h3>
+              <button type="button" className="schedule-link" disabled={state.loading || busy} onClick={schedules.refresh}>{t('ss.refresh')}</button>
+            </div>
+            {state.loading ? <p className="schedule-hint" role="status">{t('common.loading')}</p>
+              : state.listError ? <p className="schedule-error" role="alert">{t('ss.loadFailed')}</p>
+                : state.tasks.length === 0 ? <p className="schedule-hint">{t('ss.noPending')}</p> : null}
+            {!state.loading && !state.listError && state.tasks.length > 0 && <ul className="schedule-task-list">
+              {state.tasks.map(item => <li key={item.id}>
+                <div className="schedule-task-content">{item.content}</div>
+                <div className="schedule-task-meta"><time dateTime={new Date(Number(item.send_at) * 1000).toISOString()}>{formatTime(item.send_at)}</time>
+                  <button type="button" className="schedule-task-cancel" disabled={busy} onClick={() => schedules.cancel(item.id)}
+                    aria-label={t('ss.cancelTaskTemplate').replace('{content}', item.content.slice(0, 50))}>
+                    {state.phase === item.id ? t('ss.cancelling') : t('ss.cancelTask')}
+                  </button>
+                </div>
+                {item.status === 'recovery_required' && <p className="schedule-hint">{t('ss.recoveryHint')}</p>}
+              </li>)}
+            </ul>}
+            {state.truncated && <p className="schedule-hint">{t('ss.listLimited')}</p>}
+            {state.uncertain && <div className="schedule-uncertain">
+              <p>{t('ss.reviewBeforeRetry')}</p>
+              <button type="button" className="schedule-link" disabled={busy || state.loading || state.listError} onClick={schedules.acknowledge}>{t('ss.reviewed')}</button>
+            </div>}
+          </section>
+        </div>
+        <footer className="schedule-footer">
+          <button type="button" className="schedule-secondary" onClick={close} disabled={busy}>{t('common.cancel')}</button>
+          <button type="submit" className="schedule-primary" disabled={busy || state.uncertain || !content.trim()}>{creating ? t('ss.saving') : t('ss.confirmSend')}</button>
+        </footer>
+      </form>
+    </div>, document.body,
+  );
 }
 
-export default function ScheduleSendModal({ convId, defaultContent = '', onClose, onScheduled }) {
-  const { t } = useI18n();
-  const [content, setContent] = useState(defaultContent);
-  const [sendAtLocal, setSendAtLocal] = useState('');
-  const [minDateTime, setMinDateTime] = useState('');
-  const [error, setError] = useState('');
-  const [saving, setSaving] = useState(false);
-  const [recoveryTasks, setRecoveryTasks] = useState([]);
-  const inputRef = useRef(null);
-
-  // 挂载时：读一次当前时间（副作用，不在 render 中调 Date.now，保证 render 纯净），
-  // 默认发送时间=1 小时后，最小可选=16 分钟后（精确到分会截掉秒，+15 分钟截断后会不足服务端要求的 15 分钟，
-  // 用户选最早时间必被拒）。同时聚焦内容框。
-  /* eslint-disable react-hooks/set-state-in-effect */
-  useEffect(() => {
-    const now = Date.now();
-    setSendAtLocal(toLocalInput(new Date(now + 3600 * 1000)));
-    setMinDateTime(toLocalInput(new Date(now + 16 * 60 * 1000)));
-    inputRef.current?.focus();
-  }, []);
-  /* eslint-enable react-hooks/set-state-in-effect */
-
-  useEffect(() => {
-    let current = true;
-    axios.get('/api/messages/schedule', { params: { status: 'recovery_required' } })
-      .then(({ data }) => { if (current) setRecoveryTasks(data.filter(item => item.conversation_id === convId)); })
-      .catch(err => { if (current) setError(err.response?.data?.error || t('ss.createFailed')); });
-    return () => { current = false; };
-  }, [convId, t]);
-
-  const cancelRecovery = async id => {
-    try {
-      await axios.delete(`/api/messages/schedule/${id}`);
-      setRecoveryTasks(items => items.filter(item => item.id !== id));
-    } catch (err) { setError(err.response?.data?.error || t('ss.createFailed')); }
-  };
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    setError('');
-    if (!content.trim()) { setError(t('ss.errEmptyContent')); return; }
-    let sendAt = Math.floor(new Date(sendAtLocal).getTime() / 1000);
-    const now = Math.floor(Date.now() / 1000);
-    if (sendAt - now < 15 * 60) { // 与服务端 MIN_DELTA 一致
-      // 选的是弹窗允许的时间、只是填写耗时让它变得不足 15 分钟：顺延到最早合法的整分钟，而不是让用户重选
-      const minAllowed = Math.floor(new Date(minDateTime).getTime() / 1000);
-      if (!(sendAt >= minAllowed)) { setError(t('ss.errTooSoon')); return; }
-      sendAt = Math.ceil((now + 15 * 60 + 30) / 60) * 60;
-    }
-    if (sendAt - now > 30 * 24 * 3600) { setError(t('ss.errTooFar')); return; }
-
-    setSaving(true);
-    try {
-      await axios.post('/api/messages/schedule', {
-        conversation_id: convId,
-        content: content.trim(),
-        type: 'text',
-        send_at: sendAt,
-      });
-      onScheduled?.(content.trim());
-    } catch (err) {
-      setError(err.response?.data?.error || t('ss.createFailed'));
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  return (
-    <div
-      role="dialog"
-      aria-label={t('ss.title')}
-      style={{
-        position: 'fixed', inset: 0, zIndex: 500,
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-      }}
-    >
-      {/* 遮罩 */}
-      <div
-        aria-hidden="true"
-        onClick={onClose}
-        style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.4)' }}
-      />
-      {/* 弹窗 */}
-      <form
-        onSubmit={handleSubmit}
-        onClick={e => e.stopPropagation()}
-        style={{
-          position: 'relative', zIndex: 1,
-          background: 'var(--bg-card)',
-          borderRadius: 'var(--radius-lg)',
-          boxShadow: '0 8px 32px rgba(0,0,0,.2)',
-          width: Math.min(420, window.innerWidth - 32),
-          padding: 24,
-        }}
-      >
-        <h3 style={{ margin: '0 0 16px', fontSize: 'var(--text-lg)', fontWeight: 600 }}>{t('ss.title')}</h3>
-
-        {recoveryTasks.length > 0 && <div style={{ maxHeight: 160, overflowY: 'auto', marginBottom: 12 }}>
-          <p>以下消息发送结果待核对。取消会停止后续发送，已经送达的消息会保留。</p>
-          {recoveryTasks.map(item => <div key={item.id}>
-            <span>{item.content}</span>
-            <button type="button" onClick={() => cancelRecovery(item.id)}>{t('common.cancel')}</button>
-          </div>)}
-        </div>}
-        {/* 内容 */}
-        <label style={{ display: 'block', marginBottom: 12 }}>
-          <span style={{ fontSize: 'var(--text-sm2)', color: 'var(--text-secondary)', display: 'block', marginBottom: 4 }}>
-            {t('ss.contentLabel')}
-          </span>
-          <textarea
-            ref={inputRef}
-            value={content}
-            maxLength={30000}
-            onChange={e => setContent(e.target.value)}
-            rows={3}
-            placeholder={t('ss.contentPlaceholder')}
-            style={{
-              width: '100%', boxSizing: 'border-box',
-              padding: '8px 10px', borderRadius: 'var(--radius-sm)',
-              border: '1px solid var(--border-default)',
-              background: 'var(--bg-input)',
-              color: 'var(--text-primary)', fontSize: 'var(--text-base)', resize: 'vertical',
-            }}
-          />
-        </label>
-
-        {/* 时间选择 */}
-        <label style={{ display: 'block', marginBottom: 16 }}>
-          <span style={{ fontSize: 'var(--text-sm2)', color: 'var(--text-secondary)', display: 'block', marginBottom: 4 }}>
-            {t('ss.timeLabel')}
-          </span>
-          <input
-            type="datetime-local"
-            value={sendAtLocal}
-            min={minDateTime}
-            onChange={e => setSendAtLocal(e.target.value)}
-            style={{
-              width: '100%', boxSizing: 'border-box',
-              padding: '8px 10px', borderRadius: 'var(--radius-sm)',
-              border: '1px solid var(--border-default)',
-              background: 'var(--bg-input)',
-              color: 'var(--text-primary)', fontSize: 'var(--text-base)',
-            }}
-          />
-        </label>
-
-        {error && (
-          <div style={{ fontSize: 'var(--text-sm2)', color: 'var(--color-danger)',
-            marginBottom: 12, padding: '6px 10px',
-            background: 'rgba(255,59,48,.08)', borderRadius: 'var(--radius-sm)' }}>
-            {error}
-          </div>
-        )}
-
-        {/* 操作按钮 */}
-        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
-          <button
-            type="button"
-            onClick={onClose}
-            disabled={saving}
-            style={{
-              padding: '8px 18px', borderRadius: 'var(--radius-sm)',
-              border: '1px solid var(--border-default)',
-              background: 'var(--bg-card)', color: 'var(--text-secondary)',
-              cursor: 'pointer', fontSize: 'var(--text-base)',
-            }}
-          >{t('common.cancel')}</button>
-          <button
-            type="submit"
-            disabled={saving || !content.trim()}
-            style={{
-              padding: '8px 18px', borderRadius: 'var(--radius-sm)',
-              border: 'none', background: 'var(--green)',
-              color: 'var(--text-on-brand)', cursor: 'pointer', fontSize: 'var(--text-base)',
-              opacity: (saving || !content.trim()) ? 0.6 : 1,
-            }}
-          >{saving ? t('ss.saving') : t('ss.confirmSend')}</button>
-        </div>
-      </form>
-    </div>
-  );
+export default function ScheduleSendModal(props) {
+  const { outboxScope } = useAuth();
+  const key = JSON.stringify([props.convId, outboxScope?.server, outboxScope?.accountId, outboxScope?.generation]);
+  return <ScheduleForm key={key} {...props} owner={outboxScope} />;
 }
