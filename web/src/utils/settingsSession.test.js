@@ -55,7 +55,8 @@ describe('settings load and confirmed saves', () => {
 
   it('does not accept an old reload or publish after disposal', async () => {
     const old = deferred(), current = deferred(), save = deferred(), onState = vi.fn(), onConfirmed = vi.fn();
-    const session = createSettingsSession({ load: vi.fn().mockReturnValueOnce(old.promise).mockReturnValueOnce(current.promise), save: () => save.promise, onState, onConfirmed });
+    let saveSignal;
+    const session = createSettingsSession({ load: vi.fn().mockReturnValueOnce(old.promise).mockReturnValueOnce(current.promise), save: (_body, signal) => { saveSignal = signal; return save.promise; }, onState, onConfirmed });
     const first = session.reload(), second = session.reload();
     current.resolve(original);
     await second;
@@ -64,10 +65,24 @@ describe('settings load and confirmed saves', () => {
     expect(onConfirmed).toHaveBeenCalledTimes(1);
     const updating = session.update('ringtone', 'soft');
     session.dispose();
+    expect(saveSignal.aborted).toBe(false);
     const calls = onState.mock.calls.length;
     save.resolve({ ...original, ringtone: 'soft' });
     await updating;
     expect(onState).toHaveBeenCalledTimes(calls);
     expect(onConfirmed).toHaveBeenCalledTimes(1);
+  });
+
+  it('cancels a pending read when the page closes', async () => {
+    const pending = deferred(), onState = vi.fn(), onConfirmed = vi.fn();
+    let signal;
+    const session = createSettingsSession({ load: value => { signal = value; return pending.promise; }, save: vi.fn(), onState, onConfirmed });
+    const loading = session.reload();
+    session.dispose();
+    expect(signal.aborted).toBe(true);
+    pending.resolve(original);
+    await loading;
+    expect(onConfirmed).not.toHaveBeenCalled();
+    expect(onState).toHaveBeenCalledTimes(1);
   });
 });

@@ -55,7 +55,10 @@ export function createSettingsSession({ load, save, onState, onConfirmed = () =>
     },
     dispose() {
       active = false;
-      request?.abort();
+      // Leaving the page cancels reads, but must not cancel an already submitted
+      // edit (for example a time field committing on blur before Back is clicked).
+      // The response still cannot publish into a closed page or update its cache.
+      if (!state.saving) request?.abort();
       request = null;
     },
   };
