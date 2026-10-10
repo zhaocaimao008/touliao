@@ -2494,10 +2494,13 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
 
   // 多选辅助（toggleMsgSelect 经 callbacksRef 注入，见下方）
   const exitMultiSelect = useCallback(() => { setMultiSelect(false); setSelectedMsgs(new Set()); }, []);
+  const restoreComposerFocus = useCallback(() => {
+    requestAnimationFrame(() => (textareaRef.current || inputAreaRef.current?.querySelector('button'))?.focus({ preventScroll: true }));
+  }, []);
   const cancelMultiSelect = useCallback(() => {
     exitMultiSelect();
-    requestAnimationFrame(() => (textareaRef.current || inputAreaRef.current?.querySelector('button'))?.focus({ preventScroll: true }));
-  }, [exitMultiSelect]);
+    restoreComposerFocus();
+  }, [exitMultiSelect, restoreComposerFocus]);
   const multiForward = useCallback(() => {
     // 保持选中消息的时间顺序（messages 已按时间升序）
     const msgs = messages.filter(m => selectedMsgs.has(m.id));
@@ -2988,7 +2991,10 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
       {/* ── 转发弹窗（单条）── */}
       {forwardMsg && (
         <Suspense fallback={null}>
-        <ForwardModal message={forwardMsg} sourceConversationName={conversation.name} onClose={() => setForwardMsg(null)} />
+        <ForwardModal message={forwardMsg} sourceConversationName={conversation.name} onClose={() => {
+          setForwardMsg(null);
+          restoreComposerFocus();
+        }} />
         </Suspense>
       )}
       {/* ── 转发弹窗（多条逐条转发）── */}
@@ -2996,7 +3002,7 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
         <Suspense fallback={null}>
         <ForwardModal messages={forwardMsgs} sourceConversationName={conversation.name} onClose={() => {
           setForwardMsgs(null);
-          requestAnimationFrame(() => textareaRef.current?.focus({ preventScroll: true }));
+          restoreComposerFocus();
         }} />
         </Suspense>
       )}
