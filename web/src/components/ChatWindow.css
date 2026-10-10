@@ -1048,3 +1048,14 @@
 .wc-compose-feedback-error { color: var(--tl-readable-danger); }
 .wc-textarea:disabled { opacity: .7; cursor: wait; }
 html.touliao-ui body :is(.wc-edit-cancel-btn, .wc-reply-bar-close) { min-width: 44px; min-height: 44px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+
+/* Hold-to-talk uses one pointer stream across mouse, touch and pen. */
+html.touliao-ui body .wc-voice-container { padding: 0; }
+.wc-voice-container .wc-voice-btn { touch-action: none; user-select: none; -webkit-touch-callout: none; min-height: 48px; width: 100%; margin: 0; padding: 8px 12px; font-size: 15px; font-weight: 500; }
+html.touliao-ui body .wc-voice-container .wc-voice-btn:not(.recording) { background: var(--tl-primary-soft); color: var(--tl-primary-text); border-color: var(--tl-border-strong); border-radius: 16px; }
+.wc-voice-container .wc-voice-btn[aria-disabled='true'] { cursor: wait; opacity: .65; }
+.wc-voice-hint { order: 10; flex: 0 0 100%; padding: 4px 8px 8px; font-size: 12px; line-height: 1.5; text-align: center; color: var(--tl-readable-muted, var(--text-secondary)); overflow-wrap: anywhere; }
+@media (max-width: 767px) {
+  .wc-voice-hint { padding-bottom: 2px; }
+  .wc-voice-keyboard-hint { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+}

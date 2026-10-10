@@ -11,7 +11,10 @@ import axios from 'axios';
 import Avatar from './Avatar';
 import ImagePreview from './ImagePreview';
 import { prewarmAudio } from '../utils/callTones';
-import { createVoiceRecorder, recordedVoice } from '../utils/voiceRecording';
+import { useVoiceCapture } from '../hooks/useVoiceCapture';
+import VoiceRecordButton from './VoiceRecordButton';
+import { uploadBlob } from '../utils/uploadBlob';
+import { sendVoiceMessage } from '../utils/sendVoiceMessage';
 import VideoPreview from './VideoPreview';
 import { useFilePreview } from '../contexts/FilePreviewContext';
 import VirtualMessageList from './VirtualMessageList';
@@ -206,7 +209,6 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
       dispatchCompose({ type: 'TOGGLE_PANEL', panel });
     }
   };
-  const [recording, setRecording] = useState(false);
   const [showGroupInfo, setShowGroupInfo] = useState(false);
   const [members, setMembers] = useState([]);
   const [myGroupRole, setMyGroupRole] = useState('member'); // 'owner'|'admin'|'member'
@@ -296,10 +298,7 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
   const fileInputRef = useRef(null);
   const typingTimer = useRef(null);
   const typingClearTimer = useRef(null); // 接收侧兜底：stop_typing 丢包时自动收起"正在输入"
-  const recorderRef = useRef(null);
-  const recordingLockRef = useRef(false); // 同步锁：防触摸设备补发合成鼠标事件导致重复开麦（麦克风流泄漏）
-  const lastTouchRef = useRef(0);         // 最近触摸时间：据此让鼠标事件忽略触摸设备补发的合成鼠标事件
-  const streamRef = useRef(null);
+  const voiceUploadRef = useRef(null);
   const textareaRef = useRef(null);
   // 输入框单行起步、随内容增高（上限与 CSS max-height 一致）。支持 CSS field-sizing 的浏览器由样式处理。
   useLayoutEffect(() => {
@@ -540,8 +539,6 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
     // 快照 ref 指向的 Map，避免 cleanup 运行时 ref.current 已被后续渲染替换（react-hooks/exhaustive-deps）
     const burnTimers = burnTimersRef.current;
     return () => {
-      if (recorderRef.current) stopRecording();
-      if (streamRef.current) streamRef.current.getTracks().forEach(t => t.stop());
       clearTimeout(typingTimer.current);
       // 切换会话时取消所有阅后即焚定时器，防止旧会话定时器影响新会话消息状态
       burnTimers.forEach(handle => clearTimeout(handle));
@@ -1830,25 +1827,14 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
   };
 
   // ── 云存储直传（XHR 支持进度回调）─────────────────────────────
-  const uploadToCloud = useCallback(async (fileOrBlob, contentType, filename, onProgress) => {
+  const uploadToCloud = useCallback(async (fileOrBlob, contentType, filename, onProgress, request = {}) => {
     const { data } = await axios.post('/api/upload/credential', {
       filename, contentType, conversationId: conversation.id,
       fileSize: fileOrBlob?.size,   // 后端据此校验上限（1GB）；不传则不校验
-    });
-    await new Promise((resolve, reject) => {
-      const xhr = new XMLHttpRequest();
-      xhr.upload.addEventListener('progress', (e) => {
-        if (e.lengthComputable) onProgress?.(Math.round(e.loaded / e.total * 100));
-      });
-      xhr.addEventListener('load', () => {
-        if (xhr.status >= 200 && xhr.status < 300) resolve();
-        else reject(new Error(t('chat.uploadFailedCorsTemplate').replace('{status}', xhr.status)));
-      });
-      xhr.addEventListener('error', () => reject(new Error(t('chat.uploadNetworkError'))));
-      xhr.addEventListener('abort', () => reject(new Error(t('chat.uploadCancelled'))));
-      xhr.open('PUT', data.uploadUrl);
-      xhr.setRequestHeader('Content-Type', contentType);
-      xhr.send(fileOrBlob);
+    }, request);
+    await uploadBlob(data.uploadUrl, fileOrBlob, contentType, {
+      signal: request.signal, onProgress,
+      errorText: status => status ? t('chat.uploadFailedCorsTemplate').replace('{status}', status) : t('chat.uploadNetworkError'),
     });
     // thumbUploadUrl 仅图片扩展名(jpg/jpeg/png/webp)才有：云直传路径服务器不经手字节，
     // 无法像本地上传那样自己用 sharp 生成缩略图，由调用方在图片场景下画布生成后传上去。
@@ -1900,16 +1886,17 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
   }, [uploadToCloud, setChatBackground, conversation.id, t]);
 
   // ── 本地上传回退：云存储未配置(503)时，直传后端 /upload（入库+广播由后端完成）──
-  const uploadLocal = useCallback(async (file, onProgress) => {
+  const uploadLocal = useCallback(async (file, onProgress, request = {}) => {
     const form = new FormData();
     form.append('file', file);
-    if (replyTo?.id) form.append('reply_to_id', replyTo.id);
+    if (replyTo?.id && !request.skipReply) form.append('reply_to_id', replyTo.id);
     const { data } = await axios.post(`/api/messages/${conversation.id}/upload`, form, {
       headers: { 'Content-Type': 'multipart/form-data' },
       onUploadProgress: (e) => { if (e.total) onProgress?.(Math.round(e.loaded / e.total * 100)); },
       // 直传路径没有大小上限（后端 MAX_UPLOAD_BYTES 默认 200MB），全局 20s 默认对大文件/慢网络
       // 明显不够，给一个远大于正常场景的兜底值，而不是完全不设超时（那样又回到"可能永久挂起"）。
       timeout: 600000, // 10 分钟
+      signal: request.signal, _sessionContext: request._sessionContext,
     });
     return data.file_url;
   }, [conversation.id, replyTo]);
@@ -2222,95 +2209,71 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
     enqueueFiles(e.dataTransfer.files);
   };
 
-  // Voice recording
-  const startRecording = async () => {
-    if (recordingLockRef.current) return; // 已在录音/正在开麦，忽略重复触发
-    recordingLockRef.current = true;
-    let stream;
+  const sendRecordedVoice = async ({ blob, mimeType, filename }, operation) => {
+    const { isCurrent } = operation;
+    if (!isCurrent()) return;
+    if (isUploadingRef.current) { showToast(t('chat.voiceUploadBusy'), 'info'); return; }
+    const upload = {};
+    voiceUploadRef.current = upload;
+    isUploadingRef.current = filename;
+    const tempId = 'tmp_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8);
+    const localPreviewUrl = URL.createObjectURL(blob);
+    const optimistic = {
+      id: tempId, conversation_id: conversation.id, sender_id: user.id,
+      senderName: user.username, senderAvatar: user.avatar,
+      content: filename, type: 'voice', file_url: localPreviewUrl,
+      created_at: Math.floor(Date.now() / 1000),
+      reply_to_id: null, replyTo: null, deleted: 0, edited: 0, reactions: [],
+      _status: 'sending', _tempId: tempId,
+    };
+    forceScrollRef.current = true;
+    setMessages(prev => [...prev, optimistic]);
+    setUploadState({ name: t('chat.voiceUploadName'), progress: 0, status: 'uploading' });
+    const dropOptimistic = () => {
+      if (isCurrent()) setMessages(prev => prev.filter(message => message._tempId !== tempId));
+    };
+    const onProgress = progress => {
+      if (isCurrent()) setUploadState(state => state ? { ...state, progress } : null);
+    };
     try {
-      stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      streamRef.current = stream;
-      const recorder = createVoiceRecorder(stream);
-      const chunks = [];
-      recorder.ondataavailable = e => chunks.push(e.data);
-      recorder.onstop = async () => {
-        stream.getTracks().forEach(t => t.stop());
-        let recording;
-        try { recording = recordedVoice(chunks, recorder); }
-        catch { showToast(t('chat.voiceSendFailed'), 'error'); return; }
-        const { blob, mimeType, filename } = recording;
-        if (blob.size < 1000) { stream.getTracks().forEach(t => t.stop()); return; } // too short
-        setUploadState({ name: t('chat.voiceUploadName'), progress: 0, status: 'uploading' });
-        const onProg = (p) => setUploadState(s => s ? { ...s, progress: p } : null);
-        // 乐观占位:同图片/文件修复,点发送瞬间就显示这条语音消息并贴底,不等上传+广播一整趟
-        // 网络往返才第一次出现,也避免广播延迟到达时的强制贴底打断用户正在翻看的历史。
-        const tempId = `tmp_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-        const localPreviewUrl = URL.createObjectURL(blob);
-        const optimistic = {
-          id: tempId, conversation_id: conversation.id, sender_id: user.id,
-          senderName: user.username, senderAvatar: user.avatar,
-          content: filename, type: 'voice', file_url: localPreviewUrl,
-          created_at: Math.floor(Date.now() / 1000),
-          reply_to_id: null, replyTo: null, deleted: 0, edited: 0, reactions: [],
-          _status: 'sending', _tempId: tempId,
-        };
-        forceScrollRef.current = true;
-        setMessages(prev => [...prev, optimistic]);
-        const dropOptimistic = () => {
-          setMessages(prev => prev.filter(m => m._tempId !== tempId));
-          URL.revokeObjectURL(localPreviewUrl);
-        };
-        try {
-          let publicUrl;
-          try {
-            ({ publicUrl } = await uploadToCloud(blob, mimeType, filename, onProg));
-          } catch (cloudErr) {
-            // 与图片/文件一致:云直传失败(非400/403)回退本地上传(走后端/upload,CSP必放行)。
-            // 修复"未配置云存储/Electron CSP拦截时语音消息100%失败"。
-            const status = cloudErr.response?.status;
-            if (status === 400 || status === 403) throw cloudErr;
-            const voiceFile = new File([blob], filename, { type: mimeType });
-            await uploadLocal(voiceFile, onProg); // 后端入库+广播,无需再 emit
-            setUploadState(null);
-            // 这条兜底路径没有 clientMsgId 回执可对上占位消息,先摘掉,真实消息到达后作为新行插入。
-            dropOptimistic();
-            stream.getTracks().forEach(t => t.stop());
-            return;
-          }
-          setUploadState(null);
-          socket?.emit('send_file_message', {
-            conversationId: conversation.id,
-            type:     'voice',
-            file_url: publicUrl,
-            content:  filename,
-            clientMsgId: tempId, // 与占位消息用同一个 id:onMsg 按 client_msg_id 原地替换占位,不重复
-          }, (res) => {
-            if (!res?.success) { showToast(res?.error || t('chat.voiceSendFailed'), 'error'); dropOptimistic(); }
-            else setTimeout(() => URL.revokeObjectURL(localPreviewUrl), 5000);
-          });
-        } catch {
-          setUploadState({ name: t('chat.voiceUploadName'), progress: 0, status: 'error', errorMsg: t('chat.sendFailed') });
-          dropOptimistic();
-        }
-        stream.getTracks().forEach(t => t.stop());
-      };
-      try {
-        recorder.start();
-      } catch (e) {
-        stream.getTracks().forEach(t => t.stop());
-        throw e;
+      const result = await sendVoiceMessage({
+        recording: { blob, mimeType, filename }, conversationId: conversation.id,
+        clientMsgId: tempId, operation, socket, uploadCloud: uploadToCloud, uploadLocal, onProgress, t,
+      });
+      if (!isCurrent()) return;
+      setUploadState(null);
+      if (result?.message) {
+        setMessages(previous => {
+          const withoutPending = previous.filter(message => message._tempId !== tempId);
+          if (!withoutPending.some(message => message.id === result.message.id)) insertBySeq(withoutPending, result.message);
+          return withoutPending;
+        });
+      } else { dropOptimistic(); }
+    } catch (error) {
+      if (isCurrent()) {
+        setUploadState({ name: t('chat.voiceUploadName'), progress: 0, status: 'error', errorMsg: error.message || t('chat.voiceSendFailed') });
+        dropOptimistic();
       }
-      recorderRef.current = recorder;
-      setRecording(true);
-    } catch { stream?.getTracks().forEach(t => t.stop()); showToast(t('chat.micAccessDenied'), 'error'); recordingLockRef.current = false; }
+    } finally {
+      URL.revokeObjectURL(localPreviewUrl);
+      if (voiceUploadRef.current === upload) {
+        voiceUploadRef.current = null; isUploadingRef.current = false;
+        if (mountedRef.current && syncViewRef.current === syncView) {
+          setUploadState(state => state?.status === 'uploading' ? null : state);
+          if (!isCurrent()) setMessages(previous => previous.filter(message => message._tempId !== tempId));
+        }
+      }
+    }
   };
-
-  const stopRecording = () => {
-    recorderRef.current?.stop();
-    recorderRef.current = null;
-    setRecording(false);
-    recordingLockRef.current = false;
-  };
+  const voiceCapture = useVoiceCapture({
+    conversationId: conversation.id, owner: outboxScope,
+    enabled: voiceMode && !multiSelect && !showMore && !(conversation.type === 'group' && groupSettings.mute_all && myGroupRole === 'member'),
+    canStart: () => {
+      if (!isUploadingRef.current) return true;
+      showToast(t('chat.voiceUploadBusy'), 'info'); return false;
+    },
+    onReady: sendRecordedVoice, onError: key => showToast(t(key), 'error'),
+  });
 
   const handleContextMenu = (e, msg) => {
     if (msg.deleted) return;
@@ -3151,18 +3114,7 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
         {!showMore && (
           <>
             {voiceMode ? (
-              <div className="wc-voice-container">
-                <button
-                  data-testid="chat-voice-btn"
-                  className={`wc-voice-btn${recording ? ' recording' : ''}`}
-                  onMouseDown={() => { if (Date.now() - lastTouchRef.current < 700) return; startRecording(); }}
-                  onMouseUp={() => { if (Date.now() - lastTouchRef.current < 700) return; stopRecording(); }}
-                  onTouchStart={() => { lastTouchRef.current = Date.now(); startRecording(); }}
-                  onTouchEnd={() => { lastTouchRef.current = Date.now(); stopRecording(); }}
-                >
-                  {recording ? t('chat.releaseToSend') : t('chat.holdToTalk')}
-                </button>
-              </div>
+              <VoiceRecordButton capture={voiceCapture} />
             ) : (
               <div className="wc-input-box wc-input-box-relative">
                 {/* 草稿提示：从草稿恢复时右上角显示 */}
