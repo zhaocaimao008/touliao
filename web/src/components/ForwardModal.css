@@ -155,7 +155,7 @@
   flex-shrink: 0;
 }
 .fwd-mode button {
-  min-height: 34px;
+  min-height: 44px;
   border: 0;
   border-radius: var(--radius-sm);
   background: transparent;
