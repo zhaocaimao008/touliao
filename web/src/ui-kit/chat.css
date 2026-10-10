@@ -35,7 +35,7 @@ html.touliao-ui body .wc-chat-item-draft { color: var(--tl-readable-danger); }
 html.touliao-ui body .wc-chat-item-badge { min-width: 18px; height: 18px; font-size: 12px; }
 /* [class] 压过 index.css 的 body.dark-mode .wc-chat[class]，否则深色下悬浮输入框四周露出 --bg-chat 色带 */
 html.touliao-ui body :is(.wc-chat, .wc-messages)[class] { background: var(--tl-background); }
-html.touliao-ui body .wc-chat-header { min-height: 64px; height: 64px; padding: 0 24px; border-bottom: 1px solid var(--tl-border); background: var(--tl-surface) !important; }
+html.touliao-ui body .wc-chat-header { position: relative; z-index: 10; min-height: 64px; height: 64px; padding: 0 24px; border-bottom: 1px solid var(--tl-border); background: var(--tl-surface) !important; }
 html.touliao-ui body .wc-chat-header-name { font-size: 18px; font-weight: 600; }
 html.touliao-ui body .wc-chat-header-btn { width: 36px; height: 36px; min-width: 36px; color: var(--tl-readable-muted); border-radius: 8px; }
 html.touliao-ui body .wc-chat-header-name-clickable { margin-inline: 0; padding-inline: 0; max-width: 100%; }
