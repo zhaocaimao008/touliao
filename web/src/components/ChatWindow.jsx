@@ -2423,6 +2423,9 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
       case 'multiselect':
         setMultiSelect(true);
         setSelectedMsgs(new Set([msg.id]));
+        dispatchCompose({ type: 'CLOSE_PANEL' });
+        textareaRef.current?.blur();
+        requestAnimationFrame(() => document.getElementById(`msg-${msg.id}`)?.focus({ preventScroll: true }));
         break;
 
       case 'readStatus':
@@ -2491,6 +2494,10 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
 
   // 多选辅助（toggleMsgSelect 经 callbacksRef 注入，见下方）
   const exitMultiSelect = useCallback(() => { setMultiSelect(false); setSelectedMsgs(new Set()); }, []);
+  const cancelMultiSelect = useCallback(() => {
+    exitMultiSelect();
+    requestAnimationFrame(() => (textareaRef.current || inputAreaRef.current?.querySelector('button'))?.focus({ preventScroll: true }));
+  }, [exitMultiSelect]);
   const multiForward = useCallback(() => {
     // 保持选中消息的时间顺序（messages 已按时间升序）
     const msgs = messages.filter(m => selectedMsgs.has(m.id));
@@ -2643,6 +2650,7 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
   const callbacksRef = useRef(null);
   if (!callbacksRef.current) callbacksRef.current = {};
   callbacksRef.current.handleContextMenu = handleContextMenu;
+  callbacksRef.current.cancelMultiSelect = cancelMultiSelect;
   callbacksRef.current.toggleMsgSelect = (msgId) =>
     setSelectedMsgs(prev => { const s = new Set(prev); s.has(msgId) ? s.delete(msgId) : s.add(msgId); return s; });
   callbacksRef.current.retryMessage = retryMessage;
@@ -2970,12 +2978,12 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
       <UploadProgressBar uploadState={uploadState} onCancel={cancelUpload} />
 
       {/* ── 编辑/回复上下文条（抽离为 memo 化 ComposeContextBar，编辑优先）── */}
-      <ComposeContextBar
+      {!multiSelect && <ComposeContextBar
         editingMsg={editingMsg}
         replyTo={replyTo}
         onCancelEdit={cancelEdit}
         onCancelReply={cancelReply}
-      />
+      />}
 
       {/* ── 转发弹窗（单条）── */}
       {forwardMsg && (
@@ -2999,7 +3007,7 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
           selectedCount={selectedMsgs.size}
           onForward={multiForward}
           onDelete={multiDelete}
-          onCancel={exitMultiSelect}
+          onCancel={cancelMultiSelect}
         />
       )}
 
@@ -3010,7 +3018,7 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
         </div>
       ) : (
       /* ── Input area ── */
-      <div className="wc-input-area" ref={inputAreaRef} data-composer-mode={composerMode}>
+      <div className="wc-input-area" ref={inputAreaRef} data-composer-mode={composerMode} style={multiSelect ? { display: 'none' } : undefined}>
         {/* Toolbar */}
         <div className="wc-input-toolbar">
           <button data-tool="emoji"

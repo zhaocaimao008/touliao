@@ -36,6 +36,7 @@ const MessageItem = memo(function MessageItem({ item, cbRef, measure }) {
   // 左滑快捷回复（移动端）：仅普通消息可用，多选/系统消息禁用
   const canSwipeReply = !multiSelect && !msg.deleted;
   const { swipeOffset, swipeHandlers, resetSwipe, swipeEnabled } = useSwipe({
+    disabled: !canSwipeReply,
     maxOffset: 72,
     allowRight: false, // 只有左滑回复；右滑没有对应操作，不跟手
     onSwipeLeft: () => { /* 吸附展开，按钮点击时真正触发回复 */ },
@@ -133,20 +134,41 @@ const MessageItem = memo(function MessageItem({ item, cbRef, measure }) {
     doAvatarProfile(); // 双击 → 直达好友资料卡
   };
 
+  const selectMessage = (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    cbs.toggleMsgSelect(msg.id);
+  };
+  const selectionLabel = msg.type === 'text' || msg.type === 'file'
+    ? String(msg.content || t('messageItem.replyPreviewFile'))
+    : t({ image: 'messageItem.replyPreviewImage', video: 'messageItem.replyPreviewVideo',
+      voice: 'messageItem.replyPreviewVoice', sticker: 'messageItem.replyPreviewSticker',
+      contact_card: 'messageItem.replyPreviewContactCard', red_packet: 'messageItem.replyPreviewRedPacket',
+    }[msg.type] || 'chat.multiSelect');
+
   return (
     <div
       id={`msg-${msg.id}`}
       data-msg-id={msg.id}
       className={`wc-msg-row${isMine ? ' mine' : ''}${consecutive ? ' consecutive' : ''}${multiSelect ? ' multiselect-row' : ''}${isHighlighted ? ' wc-msg-hl' : ''}`}
-      onClick={multiSelect ? () => cbs.toggleMsgSelect(msg.id) : (swipeOffset !== 0 ? resetSwipe : undefined)}
-      onKeyDown={multiSelect ? e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); cbs.toggleMsgSelect(msg.id); } } : undefined}
+      onClickCapture={multiSelect ? selectMessage : undefined}
+      onKeyDownCapture={multiSelect ? e => {
+        if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); cbs.cancelMultiSelect?.(); return; }
+        if (e.key === 'Enter' || e.key === ' ') {
+          if (e.repeat) { e.preventDefault(); e.stopPropagation(); return; }
+          selectMessage(e);
+        }
+      } : undefined}
+      onContextMenuCapture={multiSelect ? e => { e.preventDefault(); e.stopPropagation(); } : undefined}
+      onClick={!multiSelect && swipeOffset !== 0 ? resetSwipe : undefined}
       role={multiSelect ? 'checkbox' : undefined}
+      aria-label={multiSelect ? selectionLabel : undefined}
       aria-checked={multiSelect ? isSelected : undefined}
       tabIndex={multiSelect ? 0 : undefined}
       {...(canSwipeReply && swipeEnabled ? swipeHandlers : {})}
       style={{
         ...(multiSelect ? { cursor: 'pointer' } : {}),
-        ...(swipeOffset !== 0 ? { transform: `translateX(${swipeOffset}px)` } : {}),
+        ...(canSwipeReply && swipeOffset !== 0 ? { transform: `translateX(${swipeOffset}px)` } : {}),
       }}
     >
       {/* 左滑快捷回复按钮（移动端） */}
@@ -181,7 +203,8 @@ const MessageItem = memo(function MessageItem({ item, cbRef, measure }) {
       >
         <Avatar src={msg.senderAvatar} name={msg.senderName} size='sm' />
       </div>
-      <div className="wc-msg-body">
+      {/* One checkbox owns the whole message during selection, including nested media and links. */}
+      <div className="wc-msg-body" inert={multiSelect ? '' : undefined} style={multiSelect ? { pointerEvents: 'none' } : undefined}>
         {!isMine && convType === 'group' && !consecutive && (
           <div
             className="wc-msg-sender"
@@ -231,6 +254,13 @@ const MessageItem = memo(function MessageItem({ item, cbRef, measure }) {
             data-testid={`msg-bubble-${msg.id}`}
             className={`wc-msg-bubble ${isMine ? 'mine' : 'other'}${isMentioned ? ' mentioned' : ''}`}
             title={msg.created_at ? formatFull(msg.created_at * 1000) : undefined}
+            tabIndex={multiSelect ? undefined : 0}
+            aria-haspopup={multiSelect ? undefined : 'menu'}
+            onKeyDown={e => {
+              if (!multiSelect && (e.key === 'ContextMenu' || (e.shiftKey && e.key === 'F10'))) {
+                cbs.handleContextMenu(e, msg);
+              }
+            }}
             onContextMenu={e => cbs.handleContextMenu(e, msg)}
           >
             {/* 引用块：被引用消息已撤回/删除时整块移除，UI 无痕（不显示"消息已撤回"） */}

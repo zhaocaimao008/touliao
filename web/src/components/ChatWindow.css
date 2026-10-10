@@ -346,7 +346,13 @@
   align-items: center;
   justify-content: space-between;
   flex-shrink: 0;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding-bottom: max(10px, env(safe-area-inset-bottom, 0px));
 }
+.wc-multiselect-bar button { min-width: 44px; min-height: 44px; }
+.wc-msg-row.multiselect-row:focus-visible { outline: 2px solid var(--green); outline-offset: -2px; border-radius: var(--radius-sm); }
+.wc-msg-bubble[aria-haspopup="menu"]:focus-visible { outline: 2px solid var(--green); outline-offset: 3px; }
 .wc-ms-btn {
   font-size: var(--text-base);
   padding: 6px 14px;
@@ -365,17 +371,17 @@
   opacity: 0.5;
 }
 .wc-ms-btn-forward {
-  background: linear-gradient(135deg, var(--brand-400), var(--brand-600));
-  box-shadow: 0 2px 8px rgba(var(--color-primary-rgb), .3);
+  background: var(--color-primary-solid);
+  box-shadow: none;
 }
-.wc-ms-btn-forward:hover:not(:disabled) { background: linear-gradient(135deg, var(--brand-300), var(--brand-500)); }
+.wc-ms-btn-forward:hover:not(:disabled) { background: var(--brand-600); }
 .wc-ms-btn-forward:active:not(:disabled) { transform: scale(.96); }
 .wc-ms-btn-delete {
   background: var(--color-badge);
 }
 .wc-ms-count {
   font-size: var(--text-sm2);
-  color: var(--text-tertiary);
+  color: var(--text-secondary);
 }
 .wc-ms-btn-group {
   display: flex;

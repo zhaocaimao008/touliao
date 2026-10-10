@@ -8,9 +8,10 @@ import { useI18n } from '../contexts/I18nContext';
 function MultiSelectBar({ selectedCount, onForward, onDelete, onCancel }) {
   const { t } = useI18n();
   return (
-    <div className="wc-multiselect-bar">
+    <div className="wc-multiselect-bar" role="group" aria-label={t('chat.multiSelect')}
+      onKeyDown={event => { if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); onCancel(); } }}>
       <button className="wc-ms-cancel-btn" onClick={onCancel}>{t('common.cancel')}</button>
-      <span className="wc-ms-count">{t('multiSelect.selectedCountTemplate').replace('{n}', selectedCount)}</span>
+      <span className="wc-ms-count" role="status" aria-live="polite">{t('multiSelect.selectedCountTemplate').replace('{n}', selectedCount)}</span>
       <div className="wc-ms-btn-group">
         <button className="wc-ms-btn-primary wc-ms-btn-forward" onClick={onForward} disabled={selectedCount === 0}>{t('chat.forward')}</button>
         <button className="wc-ms-btn-primary wc-ms-btn-delete" onClick={onDelete} disabled={selectedCount === 0}>{t('chat.recall')}</button>
