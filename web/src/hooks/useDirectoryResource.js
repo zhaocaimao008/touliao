@@ -38,5 +38,13 @@ export function useDirectoryResource(url, select = listData) {
   const setData = useCallback(update => setState(previous => ({ ...previous,
     data: typeof update === 'function' ? update(previous.data) : update,
   })), []);
-  return { ...state, reload, setData, emptyReady: state.loaded && !state.loading && !state.error };
+  const commitData = useCallback(update => {
+    // A list requested before an acknowledged write cannot restore its stale snapshot.
+    requestRef.current?.controller.abort();
+    requestRef.current = null;
+    setState(previous => ({ ...previous, loading: false, error: false,
+      data: typeof update === 'function' ? update(previous.data) : update,
+    }));
+  }, []);
+  return { ...state, reload, setData, commitData, emptyReady: state.loaded && !state.loading && !state.error };
 }

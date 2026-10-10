@@ -1,7 +1,6 @@
 import { EmptyState } from './StateViews';
 import TouliaoIcon from '../ui-kit/Icon';
 import React, { useState, useEffect, useCallback, useRef, useMemo, memo, Suspense } from 'react';
-import axios from 'axios';
 import Avatar from './Avatar';
 
 import UserProfile from './UserProfile';
@@ -10,7 +9,7 @@ import { GroupAvatar } from './GroupAvatar';
 import { useSocketCore } from '../contexts/SocketContext'; // 只订阅 socket，重连不触发无关 re-render
 // 懒加载：AddFriendModal 仅在点「添加朋友」时才渲染，避免打进 ContactList/Home 首屏 chunk
 const AddFriendModal = lazyWithRetry(() => import('./AddFriendModal'));
-import { showToast, showConfirm } from '../utils/toast';
+import { showConfirm } from '../utils/toast';
 import { firstLetter, comparePinyin } from '../utils/pinyin';
 import { formatLastOnline } from '../utils/time';
 import { useI18n } from '../contexts/I18nContext';
@@ -22,6 +21,10 @@ import ConversationOpenFeedback from './ConversationOpenFeedback';
 import { useOpenConversation } from '../hooks/useOpenConversation';
 import { useDirectoryFocus } from '../hooks/useDirectoryFocus';
 import { matchesContact, normalizeContactQuery } from '../utils/contactSearch';
+import { useDirectoryAction } from '../hooks/useDirectoryAction';
+import DirectoryActionFeedback from './DirectoryActionFeedback';
+import { handleFriendRequest, unblockContact, saveFriendLabel, deleteFriendLabel, changeLabelMember } from '../utils/directoryActions';
+import { keepSettingFocus } from '../utils/settingFocus';
 
 const selectAiBots = data => data?.features?.aiAssistants;
 
@@ -53,9 +56,9 @@ export default function ContactList({ onStartChat, searchQuery = '', addFriendRe
   const labelResource = useDirectoryResource('/api/friend-labels');
   const aiResource = useDirectoryResource('/api/config', selectAiBots);
   const { data: contacts, setData: setContacts, reload: fetchContacts } = contactResource;
-  const { data: requests, setData: setRequests, reload: fetchRequests } = requestResource;
+  const { data: requests, commitData: setRequests, reload: fetchRequests } = requestResource;
   const { data: sentRequests, reload: fetchSent } = sentResource;
-  const { data: blockedUsers, setData: setBlockedUsers, reload: fetchBlocked } = blockedResource;
+  const { data: blockedUsers, commitData: setBlockedUsers, reload: fetchBlocked } = blockedResource;
   const { data: groups, reload: fetchGroups } = groupResource;
   const { data: labels, reload: fetchLabels } = labelResource;
   const { data: aiBots, reload: fetchAiBots } = aiResource;
@@ -66,7 +69,7 @@ export default function ContactList({ onStartChat, searchQuery = '', addFriendRe
   const [activeChar, setActiveChar] = useState(null);
   const [viewProfile, setViewProfile] = useState(null);
   const [showAddFriend, setShowAddFriend] = useState(false);
-  const [handlingReq, setHandlingReq] = useState(null); // 正在处理的申请 id，防连点重复提交
+  const directoryAction = useDirectoryAction(JSON.stringify([tab, requestsSubTab, viewProfile, showAddFriend]));
   const listRef = useRef(null);
   const navigation = useOpenConversation(onStartChat, JSON.stringify([tab, normalizedQuery, viewProfile, showAddFriend]));
   useDirectoryFocus(listRef, tab);
@@ -147,27 +150,22 @@ export default function ContactList({ onStartChat, searchQuery = '', addFriendRe
     if (openFriendRequests && openFriendRequests === seenOpenReq) onOpenFriendRequestsConsumed?.();
   }, [openFriendRequests, seenOpenReq, onOpenFriendRequestsConsumed]);
 
-  const handleRequest = async (id, action) => {
-    if (handlingReq) return; // 防连点：上一次处理未结束时忽略
-    setHandlingReq(id);
-    try {
-      await axios.post(`/api/users/friend-request/${id}/handle`, { action });
+  const handleRequest = (id, action) => keepSettingFocus(() => directoryAction.run({
+    key: `request:${id}:${action}`,
+    request: config => handleFriendRequest(id, action, config),
+    commit: () => {
       setRequests(prev => prev.filter(r => r.id !== id));
       if (action === 'accepted') fetchContacts();
-    } catch (err) {
-      showToast(err.response?.data?.error || t('common.actionFailed'), 'error');
-    }
-    setHandlingReq(null);
-  };
+    },
+    reconcile: () => Promise.all([fetchRequests(), fetchContacts()]),
+  }));
 
-  const unblock = async (userId) => {
-    try {
-      await axios.delete(`/api/users/block/${userId}`);
-      setBlockedUsers(prev => prev.filter(u => u.id !== userId));
-    } catch (e) {
-      showToast(e.response?.data?.error || t('common.actionFailed'), 'error');
-    }
-  };
+  const unblock = userId => keepSettingFocus(() => directoryAction.run({
+    key: `unblock:${userId}`,
+    request: config => unblockContact(userId, config),
+    commit: () => setBlockedUsers(prev => prev.filter(u => u.id !== userId)),
+    reconcile: fetchBlocked,
+  }));
 
   // 按首字母分组联系人（含拼音排序，较贵；仅 contacts/搜索词变化时重算，避免每次渲染都跑）
   const { grouped, filtered, letters } = useMemo(() => {
@@ -292,6 +290,7 @@ export default function ContactList({ onStartChat, searchQuery = '', addFriendRe
             {requestsSubTab === 'received' && (
               <>
                 <DirectoryFeedback resource={requestResource} />
+                <DirectoryActionFeedback action={directoryAction} />
                 {requestResource.emptyReady && requests.length === 0 && (
                   <EmptyState className="cl-empty" icon={<TouliaoIcon name="contact" className="cl-empty-icon" tone="secondary" size="xl" />} title={<>{t('contacts.noNewRequests')}</>} />
                 )}
@@ -306,8 +305,8 @@ export default function ContactList({ onStartChat, searchQuery = '', addFriendRe
                       <div className="req-msg">{r.message || t('contacts.defaultFriendRequestMsg')}</div>
                     </div>
                     <div className="req-btns">
-                      <button className="req-accept" data-testid="friend-request-accept" disabled={handlingReq === r.id} onClick={() => handleRequest(r.id, 'accepted')}>{t('contacts.accept')}</button>
-                      <button className="req-reject" data-testid="friend-request-reject" disabled={handlingReq === r.id} onClick={() => handleRequest(r.id, 'rejected')}>{t('contacts.reject')}</button>
+                      <button className="req-accept" data-testid="friend-request-accept" disabled={!!directoryAction.pendingKey} aria-busy={directoryAction.pendingKey === `request:${r.id}:accepted`} onClick={() => handleRequest(r.id, 'accepted')}>{t('contacts.accept')}</button>
+                      <button className="req-reject" data-testid="friend-request-reject" disabled={!!directoryAction.pendingKey} aria-busy={directoryAction.pendingKey === `request:${r.id}:rejected`} onClick={() => handleRequest(r.id, 'rejected')}>{t('contacts.reject')}</button>
                     </div>
                   </div>
                 ))}
@@ -371,6 +370,7 @@ export default function ContactList({ onStartChat, searchQuery = '', addFriendRe
           <>
             <SectionHeader title={t('contacts.blacklist')} onBack={() => setTab('contacts')} />
             <DirectoryFeedback resource={blockedResource} />
+            <DirectoryActionFeedback action={directoryAction} />
             {blockedResource.emptyReady && blockedUsers.length === 0 && (
               <EmptyState className="cl-empty" illustration="contacts" title={<>{t('contacts.blacklistEmpty')}</>} />
             )}
@@ -380,7 +380,7 @@ export default function ContactList({ onStartChat, searchQuery = '', addFriendRe
                 <div className="req-info">
                   <div className="req-name">{u.username}</div>
                 </div>
-                <button className="req-reject" onClick={() => unblock(u.id)}>{t('contacts.remove')}</button>
+                <button className="req-reject" disabled={!!directoryAction.pendingKey} aria-busy={directoryAction.pendingKey === `unblock:${u.id}`} onClick={() => unblock(u.id)}>{t('contacts.remove')}</button>
               </div>
             ))}
           </>
@@ -392,7 +392,6 @@ export default function ContactList({ onStartChat, searchQuery = '', addFriendRe
             labels={labels}
             contacts={contacts}
             onBack={() => setTab('contacts')}
-            onUpdate={fetchLabels}
             resource={labelResource}
             contactResource={contactResource}
           />
@@ -461,162 +460,142 @@ const getBrandHex = () => {
     return getComputedStyle(document.documentElement).getPropertyValue('--color-primary').trim() || '#6D5AE6';
   } catch { return '#6D5AE6'; }
 };
-function LabelsTab({ labels, contacts, onBack, onUpdate, resource, contactResource }) {
+const LABEL_COLORS = ['#6D5AE6', '#FA5151', '#17B8A6', '#FF9A00', '#FF6B35', '#8A93A6', '#5B7BF0', '#7D4BF0'];
+
+export function LabelsTab({ labels, contacts, onBack, resource, contactResource }) {
   const { t } = useI18n();
-  const [editLabel, setEditLabel] = useState(null); // null | 'new' | labelObject
+  const [editLabel, setEditLabel] = useState(null);
   const [nameInput, setNameInput] = useState('');
   const [colorInput, setColorInput] = useState(getBrandHex);
-  const [showMembers, setShowMembers] = useState(null); // labelId
-  const [saving, setSaving] = useState(false);
+  const [showMembers, setShowMembers] = useState(null);
+  const panelRef = useRef(null);
+  const view = editLabel ? `edit:${editLabel === 'new' ? 'new' : editLabel.id}` : showMembers ? `members:${showMembers}` : 'list';
+  const action = useDirectoryAction(view);
+  const busy = !!action.pendingKey;
+  useDirectoryFocus(panelRef, view, 'list');
 
-  const COLORS = ['#6D5AE6', '#FA5151', '#17B8A6', '#FF9A00', '#FF6B35', '#8A93A6', '#5B7BF0', '#7D4BF0'];
-
-  const startCreate = () => {
-    setEditLabel('new');
-    setNameInput('');
-    setColorInput(getBrandHex());
+  const startCreate = () => { setEditLabel('new'); setNameInput(''); setColorInput(getBrandHex()); };
+  const startEdit = label => { setEditLabel(label); setNameInput(label.name); setColorInput(label.color || getBrandHex()); };
+  const saveLabel = event => {
+    event.preventDefault();
+    if (!nameInput.trim() || !editLabel) return;
+    const id = editLabel === 'new' ? null : editLabel.id;
+    const values = { name: nameInput.trim(), color: colorInput };
+    return keepSettingFocus(() => action.run({
+      key: 'save',
+      request: config => saveFriendLabel(id, values, config),
+      commit: saved => resource.commitData(previous => id
+        ? previous.map(label => label.id === id ? { ...label, ...saved, members: label.members || [] } : label)
+        : [...previous.filter(label => label.id !== saved.id), saved]),
+      onSuccess: () => setEditLabel(null),
+      reconcile: resource.reload,
+    }));
   };
+  const deleteLabel = id => keepSettingFocus(() => action.run({
+    key: `delete:${id}`,
+    confirm: () => showConfirm(t('contacts.confirmDeleteLabel')),
+    request: config => deleteFriendLabel(id, config),
+    commit: () => resource.commitData(previous => previous.filter(label => label.id !== id)),
+    reconcile: resource.reload,
+  }));
+  const toggleMember = (labelId, friendId, remove) => keepSettingFocus(() => action.run({
+    key: `member:${friendId}`,
+    request: config => changeLabelMember(labelId, friendId, remove, config),
+    commit: member => resource.commitData(previous => previous.map(label => label.id !== labelId ? label : {
+      ...label,
+      members: remove ? (label.members || []).filter(item => item.id !== friendId)
+        : [...(label.members || []).filter(item => item.id !== friendId), member],
+    })),
+    reconcile: resource.reload,
+  }));
 
-  const startEdit = (label) => {
-    setEditLabel(label);
-    setNameInput(label.name);
-    setColorInput(label.color || getBrandHex());
-  };
-
-  const saveLabel = async () => {
-    if (!nameInput.trim()) return;
-    setSaving(true);
-    try {
-      if (editLabel === 'new') {
-        await axios.post('/api/friend-labels', { name: nameInput.trim(), color: colorInput });
-      } else {
-        await axios.put(`/api/friend-labels/${editLabel.id}`, { name: nameInput.trim(), color: colorInput });
-      }
-      onUpdate();
-      setEditLabel(null);
-    } catch (e) {
-      showToast(e.response?.data?.error || t('common.saveFailed'), 'error');
-    }
-    setSaving(false);
-  };
-
-  const deleteLabel = async (id) => {
-    if (!await showConfirm(t('contacts.confirmDeleteLabel'))) return;
-    try {
-      await axios.delete(`/api/friend-labels/${id}`);
-      onUpdate();
-    } catch (e) {
-      showToast(e.response?.data?.error || t('chat.deleteFailedRetry'), 'error');
-    }
-  };
-
-  const toggleMember = async (labelId, friendId, isMember) => {
-    try {
-      if (isMember) {
-        await axios.delete(`/api/friend-labels/${labelId}/members/${friendId}`);
-      } else {
-        await axios.post(`/api/friend-labels/${labelId}/members`, { friendId });
-      }
-      onUpdate();
-    } catch (e) {
-      showToast(e.response?.data?.error || t('common.actionFailed'), 'error');
-    }
-  };
-
+  let content;
   if (editLabel) {
-    return (
-      <>
-        <SectionHeader title={editLabel === 'new' ? t('contacts.newLabel') : t('contacts.editLabel')} onBack={() => setEditLabel(null)} />
-        <div className="lt-edit-pad">
-          <input
-            value={nameInput}
-            onChange={e => setNameInput(e.target.value)}
-            placeholder={t('contacts.labelName')}
-            maxLength={20}
-            aria-label={t('contacts.labelName')}
-            className="lt-edit-input"
-          />
-          <div className="lt-edit-label">{t('contacts.color')}</div>
-          <div role="radiogroup" aria-label={t('contacts.labelColorAriaLabel')} className="lt-color-grid">
-            {COLORS.map(c => (
-              <div key={c} role="radio" tabIndex={0} aria-checked={colorInput === c} aria-label={t('contacts.colorAriaLabelTemplate').replace('{color}', c)}
-                onClick={() => setColorInput(c)}
-                onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setColorInput(c); } }}
-                className={`lt-color-swatch${colorInput === c ? ' lt-color-selected' : ''}`}
-                style={{ background: c }} />
-            ))}
+    const colors = LABEL_COLORS.some(color => color.toLowerCase() === colorInput.toLowerCase())
+      ? LABEL_COLORS : [colorInput, ...LABEL_COLORS];
+    content = <>
+      <SectionHeader title={editLabel === 'new' ? t('contacts.newLabel') : t('contacts.editLabel')} onBack={() => setEditLabel(null)} />
+      <DirectoryActionFeedback action={action} />
+      {resource.error && <DirectoryFeedback resource={resource} />}
+      <form className="lt-edit-pad" onSubmit={saveLabel} aria-busy={busy}>
+        <label className="lt-name-label" htmlFor="friend-label-name">{t('contacts.labelName')}</label>
+        <input id="friend-label-name" value={nameInput} disabled={busy} data-directory-initial-focus
+          onChange={event => setNameInput(event.target.value)} placeholder={t('contacts.labelName')}
+          maxLength={20} className="lt-edit-input" autoComplete="off" />
+        <div className="lt-name-count" aria-hidden="true">{nameInput.length}/20</div>
+        <fieldset className="lt-color-fieldset" disabled={busy}>
+          <legend className="lt-edit-label">{t('contacts.color')}</legend>
+          <div className="lt-color-grid">
+            {colors.map(color => <label className="lt-color-option" key={color}>
+              <input type="radio" name="friend-label-color" value={color}
+                checked={colorInput.toLowerCase() === color.toLowerCase()}
+                aria-label={t('contacts.colorAriaLabelTemplate').replace('{color}', color)}
+                onChange={() => setColorInput(color)} />
+              <span className="lt-color-swatch" style={{ background: color }} aria-hidden="true">
+                {colorInput.toLowerCase() === color.toLowerCase() && <IcoCheck tone="onDark" size="xs" />}
+              </span>
+            </label>)}
           </div>
-          <button onClick={saveLabel} disabled={saving || !nameInput.trim()}
-            className="lt-save-btn">
-            {saving ? t('common.saving') : t('common.save')}
-          </button>
-        </div>
-      </>
-    );
-  }
-
-  if (showMembers) {
-    const label = labels.find(l => l.id === showMembers);
-    if (!label) return null;
-    const memberIds = new Set((label.members || []).map(m => m.id));
-    return (
-      <>
-        <SectionHeader title={t('contacts.labelMembersTitleTemplate').replace('{name}', label.name)} onBack={() => setShowMembers(null)} />
-        <DirectoryFeedback resource={resource} />
+        </fieldset>
+        <button type="submit" disabled={busy || !nameInput.trim()} className="lt-save-btn">
+          {action.pendingKey === 'save' ? t('common.saving') : t('common.save')}
+        </button>
+      </form>
+    </>;
+  } else if (showMembers) {
+    const label = labels.find(item => item.id === showMembers);
+    const memberIds = new Set((label?.members || []).map(member => member.id));
+    content = <>
+      <SectionHeader title={label ? t('contacts.labelMembersTitleTemplate').replace('{name}', label.name) : t('contacts.friendLabels')} onBack={() => setShowMembers(null)} />
+      <DirectoryFeedback resource={resource} />
+      <DirectoryActionFeedback action={action} />
+      {label ? <>
         <DirectoryFeedback resource={contactResource} />
         <div className="lt-members-pad">
-          {contacts.map(c => {
-            const inLabel = memberIds.has(c.id);
-            return (
-              <div key={c.id} className="wc-contact-item" role="checkbox" tabIndex={0} aria-checked={inLabel}
-                onClick={() => { toggleMember(label.id, c.id, inLabel); memberIds[inLabel ? 'delete' : 'add'](c.id); }}
-                onKeyDown={e => (e.key === 'Enter' || e.key === ' ') && (toggleMember(label.id, c.id, inLabel), memberIds[inLabel ? 'delete' : 'add'](c.id))}>
-                <Avatar src={c.avatar} name={c.remark || c.username} size='md' style={{ borderRadius: 'var(--radius-sm)' }} />
-                <div className="cl-contact-info">
-                  <div className="wc-contact-item-name">{c.remark || c.username}</div>
-                </div>
-                <div className="lt-member-checkbox" style={{ border: `2px solid ${inLabel ? 'var(--green)' : 'var(--divider)'}`, background: inLabel ? 'var(--green)' : 'transparent' }}>
-                  {inLabel && <IcoCheck tone="onDark" size="xs" />}
-                </div>
-              </div>
-            );
+          {contacts.map(contact => {
+            const inLabel = memberIds.has(contact.id);
+            return <button type="button" key={contact.id} className="wc-contact-item lt-member-row" role="checkbox"
+              aria-checked={inLabel} disabled={busy} aria-busy={action.pendingKey === `member:${contact.id}`}
+              onClick={() => toggleMember(label.id, contact.id, inLabel)}>
+              <Avatar src={contact.avatar} name={contact.remark || contact.username} size="md" />
+              <span className="cl-contact-info"><span className="wc-contact-item-name">{contact.remark || contact.username}</span></span>
+              <span className={`lt-member-checkbox${inLabel ? ' is-selected' : ''}`} aria-hidden="true">
+                {inLabel && <IcoCheck tone="onDark" size="xs" />}
+              </span>
+            </button>;
           })}
-          {contactResource.emptyReady && contacts.length === 0 && <EmptyState className="cl-empty" illustration="contacts" title={<>{t('contacts.noContacts')}</>} />}
+          {contactResource.emptyReady && contacts.length === 0 && <EmptyState className="cl-empty" illustration="contacts" title={t('contacts.noContacts')} />}
         </div>
-      </>
-    );
-  }
-
-  return (
-    <>
+      </> : resource.emptyReady && <EmptyState className="cl-empty" illustration="contacts" title={t('contacts.labelUnavailable')} />}
+    </>;
+  } else {
+    content = <>
       <SectionHeader title={t('contacts.friendLabels')} onBack={onBack} />
       <DirectoryFeedback resource={resource} />
+      <DirectoryActionFeedback action={action} />
       <div className="lt-list-header">
-        <button onClick={startCreate}
-          className="lt-create-btn">
+        <button type="button" onClick={startCreate} disabled={busy || !resource.loaded} data-directory-section="edit:new" className="lt-create-btn">
           <TouliaoIcon name="add" size="sm" /> {t('contacts.newLabel')}
         </button>
       </div>
-      {resource.emptyReady && labels.length === 0 && (
-        <EmptyState className="cl-empty" illustration="contacts" title={<>{t('contacts.noLabels')}</>} desc={<>{t('contacts.noLabelsSub')}</>} />
-      )}
-      {labels.map(label => (
-        <div key={label.id} className="wc-contact-item">
-          <div className="lt-label-icon-box" style={{ background: label.color || 'var(--color-primary)' }}>
-            <TouliaoIcon name="tag" size="sm" />
-          </div>
-          <div className="cl-contact-info">
-            <div className="wc-contact-item-name">{label.name}</div>
-            <div className="wc-contact-item-sub">{t('contacts.memberCountTemplate').replace('{count}', (label.members || []).length)}</div>
-          </div>
-          <button onClick={() => setShowMembers(label.id)} className="lt-action-btn" style={{ marginRight: 8 }}>{t('contacts.members')}</button>
-          <button onClick={() => startEdit(label)} className="lt-action-btn" style={{ marginRight: 4 }}>{t('contacts.edit')}</button>
-          <button onClick={() => deleteLabel(label.id)} className="lt-delete-btn">{t('contacts.delete')}</button>
+      {resource.emptyReady && labels.length === 0 && <EmptyState className="cl-empty" illustration="contacts" title={t('contacts.noLabels')} desc={t('contacts.noLabelsSub')} />}
+      {labels.map(label => <div key={label.id} className="wc-contact-item lt-label-row">
+        <div className="lt-label-icon-box" style={{ background: label.color || 'var(--color-primary)' }}><TouliaoIcon name="tag" size="sm" /></div>
+        <div className="cl-contact-info">
+          <div className="wc-contact-item-name">{label.name}</div>
+          <div className="wc-contact-item-sub">{t('contacts.memberCountTemplate').replace('{count}', (label.members || []).length)}</div>
         </div>
-      ))}
-    </>
-  );
+        <div className="lt-label-actions" role="group" aria-label={label.name}>
+          <button type="button" disabled={busy} onClick={() => setShowMembers(label.id)} data-directory-section={`members:${label.id}`} className="lt-action-btn">{t('contacts.members')}</button>
+          <button type="button" disabled={busy} onClick={() => startEdit(label)} data-directory-section={`edit:${label.id}`} className="lt-action-btn">{t('contacts.edit')}</button>
+          <button type="button" disabled={busy} aria-busy={action.pendingKey === `delete:${label.id}`} onClick={() => deleteLabel(label.id)} className="lt-delete-btn">{t('contacts.delete')}</button>
+        </div>
+      </div>)}
+    </>;
+  }
+  return <div ref={panelRef} className="lt-panel">{content}</div>;
 }
+
 
 // 单条联系人行：memo 隔离在线状态抖动。presence(user_online/offline) 事件会频繁改 onlineIds
 // 触发 ContactList 整体重渲染——若行不 memo，几百个好友的 vnode 每次都全量 reconcile。

@@ -107,3 +107,14 @@ test('socket refresh replaces an in-flight list without dropping confirmed local
   response.resolve({ data: [{ id: 'a', remark: 'New remark' }, { id: 'b' }] }); await task;
   expect(render().data).toHaveLength(2);
 });
+
+test.each(['success', 'failure'])('an acknowledged change survives a pre-write refresh %s', async outcome => {
+  axios.get.mockResolvedValueOnce({ data: [{ id: 'a' }] }); await render().reload();
+  const response = deferred(); axios.get.mockReturnValueOnce(response.promise);
+  const task = render().reload();
+  render().commitData(previous => previous.map(row => ({ ...row, members: [{ id: 'friend' }] })));
+  expect(axios.get.mock.calls[1][1].signal.aborted).toBe(true);
+  if (outcome === 'success') response.resolve({ data: [{ id: 'a', members: [] }] }); else response.reject(new Error('offline'));
+  await task;
+  expect(render()).toMatchObject({ data: [{ id: 'a', members: [{ id: 'friend' }] }], loading: false, error: false });
+});
