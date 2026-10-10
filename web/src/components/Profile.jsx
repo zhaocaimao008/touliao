@@ -9,6 +9,8 @@ import React, { useEffect, useState, useRef, useCallback } from 'react';
 import axios from 'axios';
 import Avatar from './Avatar';
 import AuthImage from './AuthImage';
+import { ErrorState } from './StateViews';
+import useAccountSettings from '../hooks/useAccountSettings';
 
 import { IcoBack, IcoCheck } from './Icons';
 import { useAuth } from '../contexts/AuthContext';
@@ -59,6 +61,20 @@ function PageHeader({ title, onBack, right }) {
 
 function SLabel({ children, serif = false }) {
   return <div className={`wc-slabel${serif ? ' wc-slabel-serif' : ''}`}>{children}</div>;
+}
+
+function SettingsLoadState({ status, reload }) {
+  const { t } = useI18n();
+  return status === 'error' ? <ErrorState onRetry={reload} />
+    : <div className="wc-loading" role="status" aria-live="polite">{t('common.loading')}</div>;
+}
+
+function SettingsSaveState({ saving, saveError }) {
+  const { t } = useI18n();
+  return <>
+    {saving && <div className="profile-save-state" role="status">{t('common.saving')}</div>}
+    {saveError && <div className="profile-save-state profile-save-error" role="alert">{t('common.saveFailed')}</div>}
+  </>;
 }
 
 
@@ -532,13 +548,20 @@ function DeviceList({ onBack }) {
   const { t } = useI18n();
   const [sessions, setSessions] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
+  const [retry, setRetry] = useState(0);
 
   useEffect(() => {
-    axios.get('/api/auth/sessions')
-      .then(({ data }) => setSessions(data))
-      .catch(() => setSessions([]))
-      .finally(() => setLoading(false));
-  }, []);
+    const controller = new AbortController();
+    axios.get('/api/auth/sessions', { signal: controller.signal })
+      .then(({ data }) => {
+        if (!Array.isArray(data)) throw new Error('Invalid sessions response');
+        if (!controller.signal.aborted) setSessions(data);
+      })
+      .catch(() => { if (!controller.signal.aborted) setError(true); })
+      .finally(() => { if (!controller.signal.aborted) setLoading(false); });
+    return () => controller.abort();
+  }, [retry]);
 
   const removeSession = async (id) => {
     // 安全动作：仅在后端确实删除成功后才从 UI 移除，避免"已下线"的虚假安全感
@@ -574,6 +597,8 @@ function DeviceList({ onBack }) {
       <div className="wc-device-pad">
         {loading ? (
           <div role="status" className="wc-loading">{t('common.loading')}</div>
+        ) : error ? (
+          <ErrorState onRetry={() => { setLoading(true); setError(false); setRetry(value => value + 1); }} />
         ) : (
           <Card>
             {sessions.length === 0
@@ -704,19 +729,23 @@ function AppearanceSettings({ onBack }) {
 }
 
 /* ── 通知 ── */
+function syncNotificationSettings(settings) {
+  localStorage.setItem('wc_lock_screen', settings.messageNotify !== false ? '1' : '0');
+  localStorage.setItem('wc_notify_preview', settings.detailPreview !== false ? '1' : '0');
+  if (settings.ringtone) setIncomingRingtone(settings.ringtone);
+}
+
 function NotificationSettings({ onBack }) {
   const { t } = useI18n();
   const { notifySound, setNotifySound } = useSettings();
-  const [messageNotify, setMessageNotify] = useState(true);
-  const [preview, setPreview]             = useState(true);
-  const [vibrate, setVibrate]             = useState(false);
-  // 勿扰时段（夜间免打扰）：开关 + 起止时间（HH:MM）
-  const [quietEnabled, setQuietEnabled]   = useState(false);
-  const [quietStart, setQuietStart]       = useState('23:00');
-  const [quietEnd, setQuietEnd]           = useState('07:00');
-  const [ringtone, setRingtone]           = useState('classic');
-  const [saving, setSaving]               = useState(false);
-  const [loaded, setLoaded]               = useState(false);
+  const { settings, status, saving, saveError, reload, saveSetting } = useAccountSettings(syncNotificationSettings);
+  const messageNotify = settings?.messageNotify !== false;
+  const preview = settings?.detailPreview !== false;
+  const vibrate = settings?.vibrate === true;
+  const quietEnabled = settings?.quietEnabled === true;
+  const quietStart = settings?.quietStart || '23:00';
+  const quietEnd = settings?.quietEnd || '07:00';
+  const ringtone = settings?.ringtone || 'classic';
   // 浏览器通知（Web Push）：仅网页端；桌面端/原生壳走各自的通知通道
   const webPushSupported = typeof Notification !== 'undefined' && 'serviceWorker' in navigator
     && typeof PushManager !== 'undefined' && !window.__ELECTRON_CONFIG__ && !window.Capacitor?.isNativePlatform?.();
@@ -739,51 +768,24 @@ function NotificationSettings({ onBack }) {
       .catch(() => {});
   };
 
-  // 初始化：从后端读取用户设置
-  useEffect(() => {
-    axios.get('/api/users/me/settings').then(r => {
-      const s = r.data || {};
-      // 后端 serializeSettings 返回 camelCase 布尔值（非 snake_case、非 0/1）
-      setMessageNotify(s.messageNotify !== false);
-      setPreview(s.detailPreview !== false);
-      setVibrate(s.vibrate === true);
-      setQuietEnabled(s.quietEnabled === true);
-      if (s.quietStart) setQuietStart(s.quietStart);
-      if (s.quietEnd) setQuietEnd(s.quietEnd);
-      if (s.ringtone) { setRingtone(s.ringtone); setIncomingRingtone(s.ringtone); }
-      // 同步 localStorage（向后兼容老版本）
-      localStorage.setItem('wc_lock_screen', s.messageNotify !== false ? '1' : '0');
-      localStorage.setItem('wc_notify_preview', s.detailPreview !== false ? '1' : '0');
-      setLoaded(true);
-    }).catch(() => setLoaded(true));
-  }, []);
-
-  const saveSettings = async (key, value) => {
-    setSaving(true);
-    try {
-      // 键名须与后端 normalizeSettings 的 camelCase 一致，否则被 undefined 忽略、存不进
-      const body = { [key]: value };
-      // 勿扰时段按用户所在时区判定，保存勿扰相关项时顺带上报时区
-      if (key.startsWith('quiet')) {
-        try { body.timezone = Intl.DateTimeFormat().resolvedOptions().timeZone; } catch { /* 旧浏览器拿不到时区：不上报，服务端按默认时区兜底 */ }
-      }
-      await axios.put('/api/users/me/settings', body);
-      if (key === 'messageNotify') localStorage.setItem('wc_lock_screen', value ? '1' : '0');
-      else if (key === 'detailPreview') localStorage.setItem('wc_notify_preview', value ? '1' : '0');
-    } catch {
-      // 回滚 UI 状态
-      if (key === 'messageNotify') setMessageNotify(!value);
-      else if (key === 'detailPreview') setPreview(!value);
-      else if (key === 'vibrate') setVibrate(!value);
+  const saveSettings = (key, value) => {
+    if ((key === 'quietStart' || key === 'quietEnd') && !/^\d{2}:\d{2}$/.test(value)) return;
+    const extra = {};
+    if (key.startsWith('quiet')) {
+      try { extra.timezone = Intl.DateTimeFormat().resolvedOptions().timeZone; } catch { /* Keep server timezone if unavailable. */ }
     }
-    setSaving(false);
+    return saveSetting(key, value, extra);
   };
 
-  if (!loaded) return <PageBg><PageHeader title={t('profile.notificationSettingsTitle')} onBack={onBack} /></PageBg>;
+  if (status !== 'ready') return <PageBg>
+    <PageHeader title={t('profile.notificationSettingsTitle')} onBack={onBack} />
+    <SettingsLoadState status={status} reload={reload} />
+  </PageBg>;
 
   return (
     <PageBg>
       <PageHeader title={t('profile.notificationSettingsTitle')} onBack={onBack} />
+      <SettingsSaveState saving={saving} saveError={saveError} />
       <SLabel>{t('profile.messageNotifications')}</SLabel>
       <div className="wc-notif-pad">
         <Card>
@@ -796,13 +798,13 @@ function NotificationSettings({ onBack }) {
                 : <span className="profile-browser-notify-state">{t(browserPerm === 'granted' ? 'profile.browserNotifyOn' : 'profile.browserNotifyBlocked')}</span>} />
           )}
           <CRow label={t('profile.lockScreenNotify')} desc={t('profile.lockScreenNotifyDesc')}
-            right={<TouliaoSwitch value={messageNotify} onChange={v => { setMessageNotify(v); saveSettings('messageNotify', v); }} disabled={saving} />} />
+            right={<TouliaoSwitch value={messageNotify} onChange={v => saveSettings('messageNotify', v)} disabled={saving} />} />
           <CRow label={t('profile.detailPreview')} desc={t('profile.detailPreviewDesc')}
-            right={<TouliaoSwitch value={preview} onChange={v => { setPreview(v); saveSettings('detailPreview', v); }} disabled={saving} />} />
+            right={<TouliaoSwitch value={preview} onChange={v => saveSettings('detailPreview', v)} disabled={saving} />} />
           <CRow label={t('profile.notifySound')}
             right={<TouliaoSwitch value={notifySound} onChange={setNotifySound} />} />
           <CRow label={t('profile.notifyVibrate')}
-            right={<TouliaoSwitch value={vibrate} onChange={v => { setVibrate(v); saveSettings('vibrate', v); }} disabled={saving} />} />
+            right={<TouliaoSwitch value={vibrate} onChange={v => saveSettings('vibrate', v)} disabled={saving} />} />
         </Card>
       </div>
 
@@ -811,18 +813,20 @@ function NotificationSettings({ onBack }) {
       <div className="wc-notif-pad">
         <Card>
           <CRow label={t('profile.quietHoursToggle')} desc={t('profile.quietHoursDesc')}
-            right={<TouliaoSwitch value={quietEnabled} onChange={v => { setQuietEnabled(v); saveSettings('quietEnabled', v); }} disabled={saving} />} />
+            right={<TouliaoSwitch value={quietEnabled} onChange={v => saveSettings('quietEnabled', v)} disabled={saving} />} />
           {quietEnabled && (
             <>
               <CRow label={t('profile.quietStartTime')}
                 right={<input type="time" value={quietStart} disabled={saving}
+                  aria-label={t('profile.quietStartTime')}
                   data-testid="quiet-start-input"
-                  onChange={e => { setQuietStart(e.target.value); saveSettings('quietStart', e.target.value); }}
+                  onChange={e => saveSettings('quietStart', e.target.value)}
                   className="profile-time-input" />} />
               <CRow label={t('profile.quietEndTime')}
                 right={<input type="time" value={quietEnd} disabled={saving}
+                  aria-label={t('profile.quietEndTime')}
                   data-testid="quiet-end-input"
-                  onChange={e => { setQuietEnd(e.target.value); saveSettings('quietEnd', e.target.value); }}
+                  onChange={e => saveSettings('quietEnd', e.target.value)}
                   className="profile-time-input" />} />
             </>
           )}
@@ -837,13 +841,9 @@ function NotificationSettings({ onBack }) {
             right={<select
               value={ringtone}
               disabled={saving}
+              aria-label={t('profile.ringtoneLabel')}
               data-testid="ringtone-select"
-              onChange={e => {
-                const v = e.target.value;
-                setRingtone(v);
-                setIncomingRingtone(v);   // 本地立即生效
-                saveSettings('ringtone', v);
-              }}
+              onChange={e => saveSettings('ringtone', e.target.value)}
               className="profile-select"
             >
               <option value="classic">{t('profile.ringtoneClassic')}</option>
@@ -861,39 +861,24 @@ function NotificationSettings({ onBack }) {
 function PrivacySettings({ user, onBack }) {
   const { t } = useI18n();
   const [page, setPage] = useState('main');
-  const [settings, setSettings] = useState({
-    // 仅保留后端 serializeSettings 真实支持的开关（对齐 Android/iOS）
-    addByVxinId: true, addByPhone: true, requireVerify: true,
-    noDirectGroupInvite: false, profileVisible: true, blockUnknownMessages: false,
-  });
+  const { settings, status, saving, saveError, reload, saveSetting: setFlag } = useAccountSettings();
 
-  useEffect(() => {
-    axios.get('/api/users/me/settings')
-      .then(({ data }) => setSettings(s => ({ ...s, ...data })))
-      .catch(() => {});
-  }, []);
-
-  const setFlag = async (key, value) => {
-    const prev = settings[key];
-    setSettings(s => ({ ...s, [key]: value }));
-    try {
-      const { data } = await axios.put('/api/users/me/settings', { [key]: value });
-      setSettings(s => ({ ...s, ...data }));
-    } catch {
-      setSettings(s => ({ ...s, [key]: prev }));
-    }
-  };
+  if (status !== 'ready') return <PageBg>
+    <PageHeader title={t('settings.privacy')} onBack={onBack} />
+    <SettingsLoadState status={status} reload={reload} />
+  </PageBg>;
 
   if (page === 'add-methods') return (
     <PageBg>
       <PageHeader title={t('profile.addMethodsTitle')} onBack={() => setPage('main')} />
+      <SettingsSaveState saving={saving} saveError={saveError} />
       <div className="wc-privacy-outer">
         <div className="wc-privacy-desc">{t('profile.addMethodsDesc')}</div>
         <Card>
           <CRow label={t('profile.addByIdLabel')} desc={user?.wechat_id ? `${t('profile.touliaoIdLabel')}: ${user.wechat_id}` : t('profile.notAssigned')}
-            right={<TouliaoSwitch value={settings.addByVxinId} onChange={v => setFlag('addByVxinId', v)} />} />
+            right={<TouliaoSwitch value={settings.addByVxinId} disabled={saving} onChange={v => setFlag('addByVxinId', v)} />} />
           <CRow label={t('profile.addByPhoneLabel')} desc={user?.phone || ''}
-            right={<TouliaoSwitch value={settings.addByPhone} onChange={v => setFlag('addByPhone', v)} />} />
+            right={<TouliaoSwitch value={settings.addByPhone} disabled={saving} onChange={v => setFlag('addByPhone', v)} />} />
         </Card>
       </div>
     </PageBg>
@@ -902,17 +887,18 @@ function PrivacySettings({ user, onBack }) {
   return (
     <PageBg>
       <PageHeader title={t('settings.privacy')} onBack={onBack} />
+      <SettingsSaveState saving={saving} saveError={saveError} />
       <div className="wc-privacy-outer">
         <Card className="wc-privacy-card-mt">
           <CRow label={t('profile.addMethodsEntry')} desc={t('profile.addMethodsEntryDesc')} onClick={() => setPage('add-methods')} />
           <CRow label={t('profile.requireVerifyLabel')} desc={t('profile.requireVerifyDesc')}
-            right={<TouliaoSwitch value={settings.requireVerify} onChange={v => setFlag('requireVerify', v)} />} />
+            right={<TouliaoSwitch value={settings.requireVerify} disabled={saving} onChange={v => setFlag('requireVerify', v)} />} />
           <CRow label={t('profile.noDirectGroupInviteLabel')} desc={t('profile.noDirectGroupInviteDesc')}
-            right={<TouliaoSwitch value={settings.noDirectGroupInvite} onChange={v => setFlag('noDirectGroupInvite', v)} />} />
+            right={<TouliaoSwitch value={settings.noDirectGroupInvite} disabled={saving} onChange={v => setFlag('noDirectGroupInvite', v)} />} />
           <CRow label={t('profile.profileVisibleLabel')} desc={t('profile.profileVisibleDesc')}
-            right={<TouliaoSwitch value={settings.profileVisible} onChange={v => setFlag('profileVisible', v)} />} />
+            right={<TouliaoSwitch value={settings.profileVisible} disabled={saving} onChange={v => setFlag('profileVisible', v)} />} />
           <CRow label={t('profile.blockUnknownLabel')} desc={t('profile.blockUnknownDesc')}
-            right={<TouliaoSwitch value={settings.blockUnknownMessages} onChange={v => setFlag('blockUnknownMessages', v)} />} />
+            right={<TouliaoSwitch value={settings.blockUnknownMessages} disabled={saving} onChange={v => setFlag('blockUnknownMessages', v)} />} />
         </Card>
       </div>
     </PageBg>

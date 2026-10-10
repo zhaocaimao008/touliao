@@ -20,6 +20,10 @@ html.touliao-ui body .wc-switch.on span { transform: translateX(18px); }
 html.touliao-ui body :is(.wc-edit-input, .wc-server-input) { background: var(--tl-surface); color: var(--tl-text); min-height: 44px; border: 1px solid var(--tl-border-strong); border-radius: 12px; }
 html.touliao-ui body .wc-device-item { background: var(--tl-surface); min-height: 76px; padding: 16px; border-bottom: 1px solid var(--tl-border); gap: 12px; }
 html.touliao-ui body .wc-device-icon { color: var(--tl-primary); width: 40px; height: 40px; display: grid; place-items: center; background: var(--tl-primary-soft); border-radius: 12px; }
+html.touliao-ui body :is(.wc-device-name, .wc-device-info) { overflow-wrap: anywhere; }
+html.touliao-ui body :is(.profile-time-input, .profile-select) { min-height: 44px; max-width: 55%; min-width: 0; padding: 8px; box-sizing: border-box; color: var(--tl-text); background: var(--tl-surface); border: 1px solid var(--tl-border-strong); border-radius: 8px; font: inherit; }
+html.touliao-ui body .profile-save-state { padding: 8px 16px; font-size: 13px; line-height: 1.6; color: var(--tl-readable-muted); }
+html.touliao-ui body .profile-save-error { color: var(--tl-readable-danger); }
 html.touliao-ui body .wc-badge-current { color: var(--tl-primary); background: var(--tl-primary-soft); border-radius: 8px; padding: 4px 8px; }
 html.touliao-ui body :is(.wc-btn-exit, .wc-btn-exit-all, .wc-logout-btn) { min-height: 36px; color: var(--tl-readable-danger); background: var(--tl-surface); border: 1px solid var(--tl-border); border-radius: 8px; }
 /* Width includes the parent inset; legacy 100% + horizontal margins overflowed. */
