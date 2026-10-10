@@ -32,6 +32,10 @@ const translations = {
     'ui.skinTouliao': '投聊蓝',
 
     'callHistory.justNow': '刚刚',
+    'callHistory.historyLoadFailed': '通话记录加载失败',
+    'callHistory.refreshFailed': '更新失败，正在显示上次的记录',
+    'callHistory.openingChat': '正在打开聊天…',
+    'callHistory.openChatFailed': '打开聊天失败，请再次点击这条记录重试',
     'callHistory.minutesAgoTemplate': '{n}分钟前',
     'callHistory.hoursAgoTemplate': '{n}小时前',
     'callHistory.monthDayTemplate': '{month}月{day}日',

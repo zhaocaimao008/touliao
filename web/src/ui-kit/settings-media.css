@@ -50,6 +50,18 @@ html.touliao-ui body .chatfiles-info-meta { font-size: 12px; color: var(--tl-rea
 html.touliao-ui body .tl-call-history { width: 100%; max-width: 1000px; margin-inline: auto; } /* 父级是横向 flex：不给宽度会缩成内容宽（约 300px），状态文字被截断 */
 html.touliao-ui body .tl-call-log { background: var(--tl-surface); min-height: 76px; }
 html.touliao-ui body .tl-call-log:hover { background: var(--tl-surface-hover); }
+html.touliao-ui body .tl-call-log:focus-visible { outline: 2px solid var(--tl-primary); outline-offset: -3px; }
+html.touliao-ui body .tl-call-log[aria-disabled='true'] { cursor: progress; }
+html.touliao-ui body :is(.tl-call-name, .tl-call-description, .tl-call-feedback) { overflow-wrap: anywhere; line-height: 1.6; }
+html.touliao-ui body .tl-call-description > .tl-icon { flex-shrink: 0; margin-top: 3px; }
+html.touliao-ui body .tl-call-description > span { min-width: 0; }
+html.touliao-ui body .tl-call-time { align-self: flex-start; margin-top: 3px; }
+html.touliao-ui body .tl-call-feedback { font-size: var(--text-sm); color: var(--tl-readable-muted); margin-top: 4px; }
+html.touliao-ui body .tl-call-feedback.is-error { color: var(--tl-readable-danger); }
+html.touliao-ui body .tl-call-state { padding: 48px 24px; text-align: center; color: var(--tl-readable-muted); font-size: var(--text-sm2); line-height: 1.6; }
+html.touliao-ui body .tl-call-refresh { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; padding: 8px 18px; background: var(--tl-surface); color: var(--tl-readable-muted); font-size: var(--text-sm); }
+html.touliao-ui body :is(.tl-call-state, .tl-call-refresh) button { min-height: 44px; padding: 8px 16px; border: 1px solid var(--tl-border-strong); border-radius: 8px; background: var(--tl-surface); color: var(--tl-primary); cursor: pointer; }
+html.touliao-ui body .tl-call-refresh button:disabled { opacity: .6; cursor: progress; }
 /* Calls intentionally keep a dark media canvas for readable controls over video. */
 html.touliao-ui body .cm-dialog { background: var(--tl-media-surface); color: var(--tl-media-text); }
 html.touliao-ui body .cm-voice-bg { background: radial-gradient(ellipse at 50% 30%, var(--tl-media-control), var(--tl-media-surface) 70%); }

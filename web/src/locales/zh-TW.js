@@ -29,6 +29,10 @@ export default {
   'ui.skinTouliao': '投聊藍',
 
   'callHistory.justNow': '剛剛',
+  'callHistory.historyLoadFailed': '通話記錄載入失敗',
+  'callHistory.refreshFailed': '更新失敗，目前顯示上次的記錄',
+  'callHistory.openingChat': '正在開啟聊天…',
+  'callHistory.openChatFailed': '開啟聊天失敗，請再次點選這筆記錄重試',
   'callHistory.minutesAgoTemplate': '{n}分鐘前',
   'callHistory.hoursAgoTemplate': '{n}小時前',
   'callHistory.monthDayTemplate': '{month}月{day}日',

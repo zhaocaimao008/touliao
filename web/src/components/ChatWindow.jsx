@@ -20,6 +20,7 @@ import UploadProgressBar from './UploadProgressBar';
 import ComposeContextBar from './ComposeContextBar';
 import MultiSelectBar from './MultiSelectBar';
 import useBatchRecall from '../hooks/useBatchRecall';
+import useReadStatus from '../hooks/useReadStatus';
 import { loadOutbox, upsertOutbox, removeFromOutbox } from '../utils/outbox';
 import { captureSession, isSessionCurrent } from '../utils/sessionContext';
 import { sendOwnedText } from '../utils/outboxSender';
@@ -69,7 +70,7 @@ import { copyToClipboard, copyImageToClipboard } from '../utils/clipboard';
 import { downloadFile } from '../utils/download';
 import { shareMessage, canShare } from '../utils/share';
 import { isForwardableMessage } from '../utils/mergedForward';
-import { canViewReadStatus, readUserIdsForMessage } from '../utils/readStatus';
+import { canViewReadStatus } from '../utils/readStatus';
 import './ChatWindow.css';
 import { IcoImage, IcoFile, IcoVideo, IcoContacts } from './Icons';
 
@@ -216,7 +217,7 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
   const [showRedPacket, setShowRedPacket] = useState(false);
   const [showTransfer,  setShowTransfer]  = useState(false);
   const [ctxMenu, setCtxMenu] = useState(null);
-  const [readStatus, setReadStatus] = useState(null);
+  const { state: readStatus, load: loadReadStatus, close: closeReadStatus } = useReadStatus(conversation.id, user.id);
   // 多选模式
   const [multiSelect, setMultiSelect] = useState(false);
   const [selectedMsgs, setSelectedMsgs] = useState(new Set());
@@ -2325,24 +2326,6 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
 
   const closeCtx = () => setCtxMenu(null);
 
-  const loadReadStatus = async (msg) => {
-    if (!canViewReadStatus(msg, user.id)) return;
-    const messageId = String(msg.id);
-    setReadStatus({ message: msg, readUserIds: [], loading: true, error: false });
-    try {
-      const { data } = await axios.get(`/api/messages/conversation/${conversation.id}/read-states`, {
-        params: { msgIds: messageId },
-      });
-      setReadStatus(current => current && String(current.message.id) === messageId
-        ? { ...current, readUserIds: readUserIdsForMessage(data, messageId), loading: false }
-        : current);
-    } catch {
-      setReadStatus(current => current && String(current.message.id) === messageId
-        ? { ...current, loading: false, error: true }
-        : current);
-    }
-  };
-
   // 🔥 点击外部关闭菜单
   useEffect(() => {
     if (!ctxMenu) return;
@@ -3349,11 +3332,12 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
       {readStatus && (
         <Suspense fallback={null}>
           <ReadStatusModal
+            key={readStatus.message.id}
             state={readStatus}
             conversation={conversation}
             members={members}
             currentUserId={user.id}
-            onClose={() => setReadStatus(null)}
+            onClose={() => { closeReadStatus(); restoreComposerFocus(); }}
             onRetry={loadReadStatus}
           />
         </Suspense>

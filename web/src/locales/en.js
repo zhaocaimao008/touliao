@@ -29,6 +29,10 @@ export default {
   'ui.skinTouliao': 'Touliao Blue',
 
   'callHistory.justNow': 'Just now',
+  'callHistory.historyLoadFailed': 'Could not load call history',
+  'callHistory.refreshFailed': 'Could not refresh. Showing previous records.',
+  'callHistory.openingChat': 'Opening chat…',
+  'callHistory.openChatFailed': 'Could not open chat. Select this record again to retry.',
   'callHistory.minutesAgoTemplate': '{n}m ago',
   'callHistory.hoursAgoTemplate': '{n}h ago',
   'callHistory.monthDayTemplate': '{month}/{day}',

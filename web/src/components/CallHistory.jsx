@@ -1,7 +1,7 @@
 import TouliaoIcon from '../ui-kit/Icon';
-import React, { useState, useEffect, useCallback } from 'react';
-import axios from 'axios';
+import React from 'react';
 import Avatar from './Avatar';
+import useCallHistory, { canOpenCall } from '../hooks/useCallHistory';
 
 import { GroupAvatar } from './GroupAvatar';
 import { Skeleton } from './StateViews';
@@ -40,67 +40,27 @@ const STATUS = {
 
 export default function CallHistory({ onOpenChat, refreshKey = 0 }) {
   const { t } = useI18n();
-  const [list, setList] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [loadError, setLoadError] = useState(false);
-
-  // 重试用：显示转圈后重新拉取
-  const load = useCallback(() => {
-    setLoading(true);
-    axios.get('/api/users/me/call-logs')
-      .then(r => { setList(r.data); setLoadError(false); })
-      .catch(() => setLoadError(true))
-      .finally(() => setLoading(false));
-  }, []);
-
-  // 初次挂载拉取：loading 初值已为 true，effect 内不做同步 setState（避免级联渲染）
-  useEffect(() => {
-    let alive = true;
-    axios.get('/api/users/me/call-logs')
-      .then(r => { if (alive) { setList(r.data); setLoadError(false); } })
-      .catch(() => { if (alive) setLoadError(true); })
-      .finally(() => { if (alive) setLoading(false); });
-    return () => { alive = false; };
-  }, []);
-
-  // 通话结束事件驱动刷新：Home 层在收到 call:end（挂断/拒绝/超时/断线）时 bump
-  // refreshKey——停留在历史页时列表也能自动出现新记录。静默刷新，不闪 loading。
-  useEffect(() => {
-    if (refreshKey === 0) return; // 首次挂载由上方 effect 拉取
-    let alive = true;
-    axios.get('/api/users/me/call-logs')
-      .then(r => { if (alive) { setList(r.data); setLoadError(false); } })
-      .catch(() => { if (alive) setLoadError(true); });
-    return () => { alive = false; };
-  }, [refreshKey]);
-
-  // 点击通话记录 → 打开对方会话（回拨/继续聊天）或群聊（群通话记录），对齐移动端
-  const openPeer = async (c) => {
-    if (!onOpenChat) return;
-    if (c.kind === 'group') {
-      if (!c.conversation_id) return;
-      onOpenChat({ id: c.conversation_id, type: 'group', name: c.peer_name, avatar: c.peer_avatar });
-      return;
-    }
-    if (!c.peer_id) return;
-    try {
-      const { data } = await axios.post('/api/messages/conversation/private', { userId: c.peer_id });
-      onOpenChat({ id: data.conversationId, type: 'private', name: c.peer_name, avatar: c.peer_avatar, otherUser: { id: c.peer_id, username: c.peer_name, avatar: c.peer_avatar } });
-    } catch { /* 静默失败，用户可重试 */ }
-  };
+  const { list, loading, loadError, retry, openingId, openErrorId, openPeer } = useCallHistory(refreshKey, onOpenChat);
 
   return (
-    <div className="tl-call-history" style={{ height: '100%', overflowY: 'auto' }}>
-      {loading ? (
+    <div className="tl-call-history" style={{ height: '100%', overflowY: 'auto' }} aria-busy={loading}>
+      {loading && list.length === 0 ? (
         <Skeleton rows={6} avatar />
       ) : loadError && list.length === 0 ? (
-        <div role="status" style={{ textAlign: 'center', padding: 60, color: 'var(--text-tertiary)', fontSize: 'var(--text-sm2)' }}>
-          {t('callHistory.loadFailed')}<button onClick={load} style={{ color: 'var(--green)', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>{t('callHistory.clickToRetry')}</button>
+        <div className="tl-call-state" role="status">
+          <p>{t('callHistory.historyLoadFailed')}</p><button type="button" onClick={retry}>{t('common.retry')}</button>
         </div>
       ) : list.length === 0 ? (
-        <div role="status" style={{ textAlign: 'center', padding: 60, color: 'var(--text-tertiary)', fontSize: 'var(--text-sm2)' }}>{t('callHistory.noCallHistory')}</div>
-      ) : (
+        <div className="tl-call-state" role="status">{t('callHistory.noCallHistory')}</div>
+      ) : <>
+        {(loadError || loading) && <div className="tl-call-refresh" role="status">
+          <span>{t(loading ? 'common.loading' : 'callHistory.refreshFailed')}</span>
+          <button type="button" onClick={retry} disabled={loading}>{t('common.retry')}</button>
+        </div>}
+        {
         list.map(c => {
+          const actionable = Boolean(onOpenChat && canOpenCall(c));
+          const pending = openingId === c.id;
           const stRaw = STATUS[c.status] || STATUS.completed;
           const st = { ...stRaw, label: t(`callHistory.status.${stRaw.key}`) };
           const isMissed = c.direction === 'in' && (c.status === 'missed' || c.status === 'canceled');
@@ -110,28 +70,33 @@ export default function CallHistory({ onOpenChat, refreshKey = 0 }) {
             : c.status === 'ongoing' ? st.color : 'var(--text-tertiary)';
           return (
             <div key={c.id} className="tl-call-log" data-testid="call-log-item" onClick={() => openPeer(c)}
-              role={onOpenChat ? 'button' : undefined} tabIndex={onOpenChat ? 0 : undefined}
-              onKeyDown={e => { if (onOpenChat && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); openPeer(c); } }}
-              style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 18px', borderBottom: '1px solid var(--border-color)', cursor: onOpenChat ? 'pointer' : 'default' }}>
+              role={actionable ? 'button' : undefined} tabIndex={actionable ? 0 : undefined}
+              aria-disabled={actionable && openingId !== null ? true : undefined} aria-busy={pending || undefined}
+              onKeyDown={e => { if (actionable && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); openPeer(c); } }}
+              style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 18px', borderBottom: '1px solid var(--border-color)', cursor: actionable ? 'pointer' : 'default' }}>
               {c.kind === 'group'
                 ? <GroupAvatar avatar={c.peer_avatar} size='md' />
                 : <Avatar src={c.peer_avatar} name={c.peer_name} size='md' />}
               <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontSize: 'var(--text-name)', fontWeight: 500, color: isMissed ? 'var(--color-badge)' : 'var(--text-primary)' }}>{c.peer_name || t('messageItem.defaultUsername')}</div>
-                <div style={{ fontSize: 'var(--text-sm)', color: statusColor, marginTop: 2, display: 'flex', alignItems: 'center', gap: 6 }}>
+                <div className="tl-call-name" style={{ fontSize: 'var(--text-name)', fontWeight: 500, color: isMissed ? 'var(--color-badge)' : 'var(--text-primary)' }}>{c.peer_name || t('messageItem.defaultUsername')}</div>
+                <div className="tl-call-description" style={{ fontSize: 'var(--text-sm)', color: statusColor, marginTop: 2, display: 'flex', alignItems: 'flex-start', gap: 6 }}>
                   <TouliaoIcon name={isMissed ? 'callMissed' : c.direction === 'out' ? 'callOutgoing' : 'callIncoming'} size="xs" />
+                  <span>
                   {c.direction === 'out' ? t('callHistory.outgoing') : t('callHistory.incoming')} · {c.kind === 'group'
                     ? (c.type === 'video' ? t('chat.groupVideoCall') : t('chat.groupVoiceCall'))
                     : (c.type === 'video' ? t('chat.videoCall') : t('chat.voiceCall'))} · {st.label}
                   {c.duration > 0 && ` · ${fmtDuration(c.duration, t)}`}
                   {c.kind === 'group' && c.participant_count > 0 && ` · ${t('callHistory.participantsTemplate').replace('{n}', c.participant_count)}`}
+                  </span>
                 </div>
+                {pending && <div className="tl-call-feedback" role="status">{t('callHistory.openingChat')}</div>}
+                {openErrorId === c.id && <div className="tl-call-feedback is-error" role="alert">{t('callHistory.openChatFailed')}</div>}
               </div>
-              <span style={{ fontSize: 'var(--text-sm)', color: 'var(--text-tertiary)', flexShrink: 0 }}>{ago(c.created_at, t)}</span>
+              <span className="tl-call-time" style={{ fontSize: 'var(--text-sm)', color: 'var(--text-tertiary)', flexShrink: 0 }}>{ago(c.created_at, t)}</span>
             </div>
           );
         })
-      )}
+      }</>}
     </div>
   );
 }
