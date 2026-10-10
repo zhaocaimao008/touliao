@@ -1,6 +1,7 @@
 import TouliaoIcon from '../ui-kit/Icon';
 import useFocusTrap from '../hooks/useFocusTrap';
 import React, { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { downloadFile, startDownload, subscribe, getState, cancelDownload, retryDownload } from '../utils/downloadManager';
 import { shareMessage, canShare } from '../utils/share';
 import { useI18n } from '../contexts/I18nContext';
@@ -45,7 +46,7 @@ export default function VideoPreview({ url: fileUrl, name, onClose }) {
   };
   const modalRef = useFocusTrap(true, { onEscape: onClose, lockScroll: true, initialFocus: '[data-testid="video-lightbox-close"]' });
 
-  return (
+  return createPortal(
     <div ref={modalRef} tabIndex={-1} data-testid="video-lightbox" className="media-preview"
       role="dialog" aria-modal="true" aria-label={t('videoPreview.title')}
       onClick={event => { if (event.target === event.currentTarget) onClose(); }}>
@@ -84,6 +85,6 @@ export default function VideoPreview({ url: fileUrl, name, onClose }) {
           {download?.status === 'cancelled' && t('filePreview.cancelledRedownload')}
         </span>
       </div>
-    </div>
+    </div>, document.body
   );
 }

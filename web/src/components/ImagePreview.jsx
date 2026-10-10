@@ -1,6 +1,7 @@
 import TouliaoIcon from '../ui-kit/Icon';
 import useFocusTrap, { isTopFocusLayer } from '../hooks/useFocusTrap';
 import React, { useEffect, useState, useRef, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { downloadFile } from '../utils/download';
 import { shareMessage, canShare } from '../utils/share';
 import { useI18n } from '../contexts/I18nContext';
@@ -137,7 +138,7 @@ export default function ImagePreview({ url, urls = null, initialIdx = 0, onClose
   };
   const handleMouseUp = () => setDragging(false);
 
-  return (
+  return createPortal(
     <div data-testid="lightbox" className="media-preview"
       ref={modalRef} tabIndex={-1} role="dialog" aria-modal="true" aria-label={t('imagePreview.title')}
       onClick={event => { if (event.target === event.currentTarget) onClose(); }}
@@ -184,6 +185,6 @@ export default function ImagePreview({ url, urls = null, initialIdx = 0, onClose
           </button>}
         </div>
       </div>
-    </div>
+    </div>, document.body
   );
 }
