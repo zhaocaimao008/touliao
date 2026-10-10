@@ -217,7 +217,6 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
   const [showRedPacket, setShowRedPacket] = useState(false);
   const [showTransfer,  setShowTransfer]  = useState(false);
   const [ctxMenu, setCtxMenu] = useState(null);
-  const { state: readStatus, load: loadReadStatus, close: closeReadStatus } = useReadStatus(conversation.id, user.id);
   // 多选模式
   const [multiSelect, setMultiSelect] = useState(false);
   const [selectedMsgs, setSelectedMsgs] = useState(new Set());
@@ -308,6 +307,7 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
   const inputAreaRef = useRef(null);
   const { socket, reconnectCount, registerDelivered } = useSocket();
   const { user, outboxScope } = useAuth();
+  const { state: readStatus, load: loadReadStatus, close: closeReadStatus } = useReadStatus(conversation.id, user.id);
   const [renderOwner, setRenderOwner] = useState(outboxScope);
   if (renderOwner !== outboxScope) {
     setRenderOwner(outboxScope);
