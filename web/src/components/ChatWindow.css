@@ -1043,3 +1043,8 @@
   font-size: var(--text-xl);
   line-height: var(--lh-none);
 }
+
+.wc-compose-feedback { flex-shrink: 0; padding: 8px 16px; color: var(--text-secondary); background: var(--bg-panel); font-size: var(--text-sm); line-height: 1.5; overflow-wrap: anywhere; }
+.wc-compose-feedback-error { color: var(--tl-readable-danger); }
+.wc-textarea:disabled { opacity: .7; cursor: wait; }
+html.touliao-ui body :is(.wc-edit-cancel-btn, .wc-reply-bar-close) { min-width: 44px; min-height: 44px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }

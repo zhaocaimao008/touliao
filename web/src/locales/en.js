@@ -1,5 +1,7 @@
 // 按需加载的语言包（首屏只打包简体中文，见 contexts/I18nContext.jsx 的 LOCALE_LOADERS）。
 export default {
+    'chat.editSaveFailed': 'The edit was not confirmed. Your changes are kept. Please try again.',
+    'chat.draftLocalOnly': 'Local storage is unavailable. This draft is kept only in this page. Avoid refreshing or closing it.',
     'up.discardDraft': 'Your changes have not been saved. Discard them and leave?',
     'up.actionUnconfirmed': 'Could not confirm the result. Check the current state before retrying.',
     'gs.openingChat': 'Opening chat…',

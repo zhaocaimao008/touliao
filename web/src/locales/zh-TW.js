@@ -1,5 +1,7 @@
 // 按需加载的语言包（首屏只打包简体中文，见 contexts/I18nContext.jsx 的 LOCALE_LOADERS）。
 export default {
+    'chat.editSaveFailed': '儲存未完成，編輯內容已保留，請重試。',
+    'chat.draftLocalOnly': '本機儲存暫時無法使用，草稿僅保留在目前頁面，請勿重新整理或關閉。',
     'up.discardDraft': '已編輯的內容尚未儲存，確定放棄並離開嗎？',
     'up.actionUnconfirmed': '暫時無法確認操作結果，請核對目前狀態後重試。',
     'gs.openingChat': '正在開啟聊天…',

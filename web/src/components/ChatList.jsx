@@ -1,5 +1,5 @@
 import TouliaoIcon from '../ui-kit/Icon';
-import { clientStorage as localStorage } from '../utils/clientStorage';
+import { useChatDrafts } from '../hooks/useChatDrafts';
 import React, { useState, useEffect, useCallback, useRef, memo, useMemo } from 'react';
 import axios from 'axios';
 import Avatar from './Avatar';
@@ -139,21 +139,6 @@ function previewMsg(conv, user, t) {
   return conv.lastMessage;
 }
 
-// 扫描 localStorage 里的所有草稿（键形如 draft_<convId>），供会话列表显示「[草稿]」标记
-function readAllDrafts() {
-  const out = {};
-  try {
-    for (let i = 0; i < localStorage.length; i++) {
-      const k = localStorage.key(i);
-      if (k && k.startsWith('draft_')) {
-        const v = localStorage.getItem(k);
-        if (v) out[k.slice(6)] = v;
-      }
-    }
-  } catch { /* localStorage 不可用时忽略 */ }
-  return out;
-}
-
 // 首屏骨架：8 行占位（头像 + 两行文本），shimmer 微光，避免加载时闪「暂无聊天」
 function ChatListSkeleton() {
   return (
@@ -193,9 +178,9 @@ export default function ChatList({ onSelectConv, activeConvId, unread = {}, sear
   const [loaded, setLoaded] = useState(false);   // 首屏是否已拉过一次：未拉完显示骨架，避免闪「暂无聊天」
   const [ctxMenu, setCtxMenu] = useState(null);
   const [showArchived, setShowArchived] = useState(false);
-  const [drafts, setDrafts] = useState(readAllDrafts);
   const { socket, reconnectCount } = useSocket();
-  const { user } = useAuth();
+  const { user, outboxScope } = useAuth();
+  const drafts = useChatDrafts(outboxScope);
 
   // 右键菜单打开时：Esc 关闭 + 滚动/窗口失焦自动收起(避免菜单悬浮在错位处)
   useEffect(() => {
@@ -211,22 +196,6 @@ export default function ChatList({ onSelectConv, activeConvId, unread = {}, sear
       window.removeEventListener('resize', close);
     };
   }, [ctxMenu]);
-
-  // 监听 ChatWindow 派发的草稿变更事件，实时刷新列表里的「[草稿]」标记
-  useEffect(() => {
-    const onDraftChanged = (e) => {
-      const { convId, text } = e.detail || {};
-      if (convId == null) return;
-      setDrafts(prev => {
-        const has = !!prev[convId];
-        if (text) { if (prev[convId] === text) return prev; return { ...prev, [convId]: text }; }
-        if (!has) return prev;
-        const next = { ...prev }; delete next[convId]; return next;
-      });
-    };
-    window.addEventListener('draft-changed', onDraftChanged);
-    return () => window.removeEventListener('draft-changed', onDraftChanged);
-  }, []);
 
   const fetchConvs = useCallback(async () => {
     try {

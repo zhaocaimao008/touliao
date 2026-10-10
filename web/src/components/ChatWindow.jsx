@@ -1,9 +1,11 @@
 import TouliaoIcon from '../ui-kit/Icon';
-import { clientStorage as localStorage, isIsolatedWindow } from '../utils/clientStorage';
+import { isIsolatedWindow } from '../utils/clientStorage';
 
-import React, { useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo, useReducer, Suspense } from 'react';
+import React, { useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo, Suspense } from 'react';
 import { createPortal } from 'react-dom';
-import { composeReducer, initialComposeState } from '../reducers/composeReducer';
+import { insertComposeText } from '../reducers/composeReducer';
+import { useChatComposer } from '../hooks/useChatComposer';
+import { useMessageEdit } from '../hooks/useMessageEdit';
 import { showToast, showConfirm } from '../utils/toast';
 import axios from 'axios';
 import Avatar from './Avatar';
@@ -179,16 +181,14 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
   const [messages, setMessages] = useState([]);
   // 首屏加载态：消息为空且数据仍在途（无缓存/缓存为空）时显示骨架，避免纯空白
   const [initialLoading, setInitialLoading] = useState(true);
-  // 输入区（compose）状态收敛进 useReducer：input / voiceMode / editingMsg /
-  // replyTo 四者有真实协同转换（开始编辑=载入文本+清回复；发送=清文本+清回复；
-  // 切换会话=全清），改为原子 dispatch，杜绝散落 setState 的不一致。见
-  // reducers/composeReducer.js（已 vitest 穷举测试）。recording 由 MediaRecorder
-  // 副作用驱动，仍用独立 useState。
-  // 首页以 key={会话id} 渲染本组件，切换会话即重新挂载：草稿必须在初始化时载入
-  // （下方「conversation.id 变化」分支在重新挂载时不会触发，原先草稿存了却从不回填输入框）
-  const [compose, dispatchCompose] = useReducer(composeReducer, conversation.id,
-    id => composeReducer(initialComposeState, { type: 'RESET', draft: localStorage.getItem(`draft_${id}`) || '' }));
+  const { user, outboxScope } = useAuth();
+  const [compose, dispatchCompose, draftStorageFailed] = useChatComposer(conversation.id, outboxScope);
   const { input, mode: composerMode, editingMsg, replyTo, fromDraft } = compose;
+  const messageEdit = useMessageEdit(editingMsg, outboxScope, ({ editor, content }) => {
+    setMessages(previous => previous.map(message => message.id === editor.id ? { ...message, content, edited: 1 } : message));
+    dispatchCompose({ type: 'EDIT_SAVED', editor, content });
+    requestAnimationFrame(() => textareaRef.current?.focus());
+  });
   const voiceMode = composerMode === 'VOICE';
   const [typingName, setTypingName] = useState('');
   // A single presentation mode owns voice, keyboard and all attachment panels.
@@ -196,7 +196,7 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
   const showEmoji = activePanel === 'emoji';
   const showStickers = activePanel === 'stickers';
   const showMore = activePanel === 'more';
-  const closePanels = useCallback(() => dispatchCompose({ type: 'CLOSE_PANEL' }), []);
+  const closePanels = useCallback(() => dispatchCompose({ type: 'CLOSE_PANEL' }), [dispatchCompose]);
   const togglePanel = (panel) => {
     if (activePanel === panel) {
       dispatchCompose({ type: 'TOGGLE_PANEL', panel });
@@ -310,7 +310,6 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
   }, [input]);
   const inputAreaRef = useRef(null);
   const { socket, reconnectCount, registerDelivered } = useSocket();
-  const { user, outboxScope } = useAuth();
   const { state: readStatus, load: loadReadStatus, close: closeReadStatus } = useReadStatus(conversation.id, user.id);
   const [renderOwner, setRenderOwner] = useState(outboxScope);
   if (renderOwner !== outboxScope) {
@@ -638,10 +637,8 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
     setMessages([]);
     setPrevConvId(conversation.id);
     setInitialLoading(true);
-    // compose 全清 + 载入新会话草稿（replyTo/editingMsg/voiceMode/input 原子重置）
-    dispatchCompose({ type: 'RESET', draft: localStorage.getItem(`draft_${conversation.id}`) || '' });
+    // useChatComposer resets and restores the draft for this conversation and owner.
     setMention(null); // 清 @ 提及态,避免跨会话残留下拉
-    closePanels();  // 关闭 emoji/stickers/more 任一展开面板
     setHasMore(true);
     setShowGroupInfo(false);
     setMultiSelect(false);
@@ -1592,20 +1589,15 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
     // 保留换行（Shift+Enter / 粘贴多行），仅把 Windows 的 \r\n 统一成 \n。
     const text = input.replace(/\r\n?/g, '\n').trim();
     if (!text) return;
-    // 防 Enter 连击：500ms 内相同内容只发一次
+    // Editing has its own request lock and view ownership; retries are not text sends.
+    if (editingMsg) {
+      if (text === editingMsg.content) { cancelEdit(); return; }
+      await messageEdit.save(text);
+      return;
+    }
     const now = Date.now();
     if (text === lastSendRef.current.text && now - lastSendRef.current.time < 500) return;
     lastSendRef.current = { text, time: now };
-
-    // ── 编辑模式 ──
-    if (editingMsg) {
-      if (text === editingMsg.content) { cancelEdit(); return; }
-      try {
-        await axios.put(`/api/messages/${editingMsg.id}/edit`, { content: text });
-        cancelEdit();
-      } catch (e) { showToast(e.response?.data?.error || t('chat.editFailed'), 'error'); }
-      return;
-    }
 
     // 停在跳转后的历史窗口里发消息：先回到最新，发出的消息才会接在最新消息后面
     if (hasNewerRef.current) jumpToLatestRef.current?.();
@@ -1635,8 +1627,6 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
     forceScrollRef.current = true; // 自己发消息：无条件滚到底(多帧贴底 effect 接管)
     setMessages(prev => [...prev, optimistic]);
     dispatchCompose({ type: 'SENT' });   // 清输入 + 清回复（原子）
-    localStorage.removeItem(`draft_${conversation.id}`);
-    window.dispatchEvent(new CustomEvent('draft-changed', { detail: { convId: conversation.id, text: '' } }));
     closePanels();
     clearTimeout(typingTimer.current); lastTypingEmitRef.current = 0;
     socket?.emit('stop_typing', { conversationId: conversation.id });
@@ -1723,15 +1713,16 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
   };
 
   const startEdit = (msg) => {
+    if (!msg || msg._tempId || msg.deleted || msg.type !== 'text' || msg.sender_id !== user.id) return;
     dispatchCompose({ type: 'START_EDIT', msg }); // 载入原文 + 进编辑态 + 清回复（原子）
     setTimeout(() => { textareaRef.current?.focus(); textareaRef.current?.select(); }, 50);
   };
 
   const cancelEdit = useCallback(() => {
-    dispatchCompose({ type: 'CANCEL_EDIT' });     // 退编辑 + 清输入（原子）
-    textareaRef.current?.focus();
-  }, []);
-  const cancelReply = useCallback(() => dispatchCompose({ type: 'CLEAR_REPLY' }), []);
+    dispatchCompose({ type: 'CANCEL_EDIT' });     // Restore the original draft and reply.
+    requestAnimationFrame(() => textareaRef.current?.focus());
+  }, [dispatchCompose]);
+  const cancelReply = useCallback(() => dispatchCompose({ type: 'CLEAR_REPLY' }), [dispatchCompose]);
 
   // 当前 @ 候选：按已输入的 atQuery 过滤成员（大小写不敏感），排除自己
   const atCandidates = useMemo(() => {
@@ -1785,7 +1776,7 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
     if (e.key === 'ArrowUp' && !input && !editingMsg) {
       for (let i = messages.length - 1; i >= 0; i--) {
         const m = messages[i];
-        if (m.sender_id === user.id && m.type === 'text' && !m.deleted) {
+        if (m.sender_id === user.id && m.type === 'text' && !m.deleted && !m._tempId) {
           e.preventDefault();
           startEdit(m);
           return;
@@ -1812,6 +1803,17 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
     typingTimer.current = setTimeout(() => { lastTypingEmitRef.current = 0; socket.emit('stop_typing', { conversationId: conversation.id }); }, 2000);
   };
 
+  const insertEmoji = text => {
+    if (messageEdit.saving) return;
+    const element = textareaRef.current;
+    const start = element?.selectionStart ?? input.length;
+    const end = element?.selectionEnd ?? start;
+    const insertion = insertComposeText(input, text, start, end);
+    dispatchCompose({ type: 'INSERT_INPUT', text, start, end });
+    notifyTyping(insertion.value);
+    requestAnimationFrame(() => { element?.focus(); element?.setSelectionRange(insertion.caret, insertion.caret); });
+  };
+
   const insertAtMention = (member) => {
     const el = textareaRef.current;
     const caret = el?.selectionStart ?? input.length;
@@ -1819,9 +1821,10 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
     const start = mention ? mention.start : input.length;
     const end = mention ? caret : input.length;
     const inserted = member.isAll ? '@所有人 ' : `@${member.username} `;
-    const next = input.slice(0, start) + inserted + input.slice(end);
-    const pos = start + inserted.length;
-    dispatchCompose({ type: 'REPLACE_INPUT', value: next });
+    const insertion = insertComposeText(input, inserted, start, end);
+    const pos = insertion.caret;
+    dispatchCompose({ type: 'INSERT_INPUT', text: inserted, start, end });
+    notifyTyping(insertion.value);
     setMention(null);
     setTimeout(() => { el?.focus(); el?.setSelectionRange(pos, pos); }, 0);
   };
@@ -2116,7 +2119,7 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
       }
     };
     await doUpload();
-  }, [uploadToCloud, uploadLocal, uploadChunked, socket, conversation.id, replyTo, t, user.id, user.username, user.avatar]);
+  }, [uploadToCloud, uploadLocal, uploadChunked, socket, conversation.id, replyTo, t, user.id, user.username, user.avatar, dispatchCompose]);
 
   // 多文件发送队列：多选/拖入/粘贴的文件按顺序逐个上传发送（handleFileSelect 会 await 到
   // 上传结束）；上传中再加入的文件排到队尾，而不是被「请等待上传完成」拒掉。
@@ -2990,6 +2993,8 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
         onCancelEdit={cancelEdit}
         onCancelReply={cancelReply}
       />}
+      {!multiSelect && messageEdit.error && <div className="wc-compose-feedback wc-compose-feedback-error" role="alert">{messageEdit.detail || t('chat.editSaveFailed')}</div>}
+      {!multiSelect && draftStorageFailed && <div className="wc-compose-feedback" role="status">{t('chat.draftLocalOnly')}</div>}
 
       {/* ── 转发弹窗（单条）── */}
       {forwardMsg && (
@@ -3139,7 +3144,7 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
         )}
 
         {/* Emoji panel */}
-        {showEmoji && <Suspense fallback={null}><EmojiPicker onSelect={e => { dispatchCompose({ type: 'APPEND_INPUT', text: e }); textareaRef.current?.focus(); }} /></Suspense>}
+        {showEmoji && <Suspense fallback={null}><EmojiPicker onSelect={insertEmoji} /></Suspense>}
         {showStickers && <Suspense fallback={null}><StickerPanel onSend={sendSticker} /></Suspense>}
 
         {/* Text / Voice input — 始终显示 */}
@@ -3189,6 +3194,7 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
                   aria-label={t('chat.inputAriaLabel')}
                   maxLength={30000}   /* 与后端 config.limits.maxMsgLength 一致，避免超长发送后才被静默拒绝 */
                   value={input}
+                  disabled={messageEdit.saving}
                   onChange={e => {
                     const val = e.target.value;
                     dispatchCompose({ type: 'SET_INPUT', value: val });
@@ -3203,12 +3209,7 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
                     } else if (atList) {
                       closeMention();
                     }
-                    // 编辑态复用同一输入框：此时不写草稿，避免编辑文本污染并覆盖真实草稿
-                    if (conversation.id && !editingMsg) {
-                      if (val) localStorage.setItem(`draft_${conversation.id}`, val);
-                      else localStorage.removeItem(`draft_${conversation.id}`);
-                      window.dispatchEvent(new CustomEvent('draft-changed', { detail: { convId: conversation.id, text: val } }));
-                    }
+
                   }}
                   onKeyDown={handleKeyDown}
                   onPaste={handlePaste}
@@ -3230,8 +3231,9 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
                   data-testid="chat-send-btn"
                   className={`wc-send-btn${input.trim() ? ' active' : ''}`}
                   onClick={sendMessage}
-                  disabled={!input.trim()}
-                ><TouliaoIcon name="send" size="sm" />{t('chat.send')}</button>
+                  disabled={!input.trim() || messageEdit.saving}
+                  aria-busy={messageEdit.saving || undefined}
+                ><TouliaoIcon name={editingMsg ? 'selected' : 'send'} size="sm" />{t(editingMsg ? (messageEdit.saving ? 'up.saving' : 'common.save') : 'chat.send')}</button>
               </div>
             )}
           </>
@@ -3276,7 +3278,7 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
           {/* 编辑：仅限自己的文字消息，不限时间 */}
           {ctxMenu.msg.sender_id === user.id &&
            ctxMenu.msg.type === 'text' &&
-           !ctxMenu.msg.deleted && (
+           !ctxMenu.msg.deleted && !ctxMenu.msg._tempId && (
             <div className="wc-ctx-item" role="menuitem" tabIndex={0} data-testid="ctx-edit" onClick={() => ctxAction('edit')} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); ctxAction('edit'); } }}><TouliaoIcon name="edit" size="sm" />{t('chat.edit')}</div>
           )}
           {/* 下载视频/文件：视频和文件消息显示下载按钮 */}
@@ -3320,7 +3322,7 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
         <RedPacketModal
           conversation={conversation}
           onClose={() => setShowRedPacket(false)}
-          onSent={() => { dispatchCompose({ type: 'SET_INPUT', value: '' }); }}
+          onSent={() => {}}
         />
         </Suspense>
       )}
@@ -3354,9 +3356,9 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
           convId={conversation.id}
           defaultContent={input}
           onClose={() => setShowScheduleSend(false)}
-          onScheduled={(_content) => {
+          onScheduled={(content) => {
             showToast(t('chat.scheduleSetSuccess'), 'success');
-            dispatchCompose({ type: 'SET_INPUT', value: '' });
+            dispatchCompose({ type: 'CONSUMED_DRAFT', content });
             setShowScheduleSend(false);
           }}
         />
