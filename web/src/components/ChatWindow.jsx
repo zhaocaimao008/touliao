@@ -248,7 +248,7 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
   // 通话状态
   // 文件上传进度：null | { name, progress:0-100, status:'uploading'|'error', retryFn? }
   const [uploadState, setUploadState] = useState(null);
-  // 跳转到指定消息（供撤回定位、引用点击等）——非搜索，保留
+  // 跳转到指定消息（搜索结果、引用点击等）
   const [highlightedMsgId, setHighlightedMsgId] = useState(null);
   const [pendingScrollId, setPendingScrollId] = useState(null);
   // 红包：详情弹窗 { packet, claims, myClaim, justClaimed } | null
@@ -285,6 +285,7 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
   // 期间收到 onHeightSettle 才补贴底,避免每帧盲滚导致最新消息抖动。
   const stickPendingRef = useRef(false);
   const stickWorkRef = useRef({ raf: null, timer: null });
+  const messageJumpRef = useRef({ request: 0, positioning: false, raf: null, settleRaf: null, highlightTimer: null });
   // Item cache for flatItems - preserve object identity for unchanged messages
   const itemCacheRef = useRef(new Map());
   const fileInputRef = useRef(null);
@@ -843,12 +844,18 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
   // A fast ACK/error must not cancel the first frame that reveals the new row.
   useEffect(() => {
     const work = stickWorkRef.current;
+    const jump = messageJumpRef.current;
     return () => {
       cancelAnimationFrame(work.raf);
       clearTimeout(work.timer);
       stickPendingRef.current = false;
       autoScrollingRef.current = false;
       lastStickSigRef.current = '';
+      jump.request += 1;
+      jump.positioning = false;
+      cancelAnimationFrame(jump.raf);
+      cancelAnimationFrame(jump.settleRaf);
+      clearTimeout(jump.highlightTimer);
     };
   }, []);
 
@@ -859,7 +866,7 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
   //   修复"在上方查看历史时发消息看不到自己刚发的消息"。收到他人消息仍只在接近底部时跟随。
   useEffect(() => {
     const outer = listOuterRef.current;
-    if (!outer) return;
+    if (!outer || messageJumpRef.current.positioning) return;
     const force = forceScrollRef.current;
     forceScrollRef.current = false;
     // force(自己发消息)无条件贴底;否则看持久贴底意图。
@@ -905,7 +912,7 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
   // A status row can settle after the initial 500ms window (e.g. a failed send).
   // Reading history clears stickBottomRef, so late measurements cannot pull it down.
   const handleHeightSettle = useCallback(() => {
-    if (!stickBottomRef.current) return;
+    if (!stickBottomRef.current || messageJumpRef.current.positioning) return;
     const o = listOuterRef.current;
     if (!o) return;
     virtListRef.current?.scrollToLast();
@@ -967,6 +974,9 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
     if (scrollRafRef.current) return;
     scrollRafRef.current = requestAnimationFrame(async () => {
       scrollRafRef.current = null;
+      // Replacing a history window can clamp the old offset to its new bottom.
+      // That layout scroll must not restore bottom-following or load another page.
+      if (messageJumpRef.current.positioning) return;
       const container = listOuterRef.current;
       if (!container) return;
       const distFromBottom = container.scrollHeight - container.scrollTop - container.clientHeight;
@@ -2609,13 +2619,23 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
     if (!pendingScrollId) return;
     const idx = flatItems.findIndex(it => it.type === 'message' && it.msg?.id === pendingScrollId);
     if (idx >= 0) {
-      // 在 rAF 回调中消费一次性触发（清 pendingScrollId），避免 effect 体内同步 setState
-      requestAnimationFrame(() => {
+      const jump = messageJumpRef.current;
+      jump.raf = requestAnimationFrame(() => {
         virtListRef.current?.scrollToItem(idx, 'center');
-        setHighlightedMsgId(String(pendingScrollId));
-        setPendingScrollId(null);
-        setTimeout(() => setHighlightedMsgId(null), 2000);
+        // The first frame mounts/measures the destination rows. Align once more
+        // with their measured heights before accepting scroll events again.
+        jump.settleRaf = requestAnimationFrame(() => {
+          virtListRef.current?.scrollToItem(idx, 'center');
+          jump.positioning = false;
+          setHighlightedMsgId(String(pendingScrollId));
+          setPendingScrollId(null);
+          jump.highlightTimer = setTimeout(() => setHighlightedMsgId(null), 2000);
+        });
       });
+      return () => {
+        cancelAnimationFrame(jump.raf);
+        cancelAnimationFrame(jump.settleRaf);
+      };
     }
   }, [pendingScrollId, flatItems]);
 
@@ -2663,24 +2683,34 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
       outer.scrollTo({ top: outer.scrollHeight, behavior: 'smooth' });
   };
   callbacksRef.current.scrollToMsg = async (msgId) => {
+    const jump = messageJumpRef.current;
+    const request = ++jump.request;
+    const snapConvId = convIdRef.current;
+    jump.positioning = true;
+    cancelAnimationFrame(jump.raf);
+    cancelAnimationFrame(jump.settleRaf);
+    clearTimeout(jump.highlightTimer);
+    cancelAnimationFrame(stickWorkRef.current.raf);
+    clearTimeout(stickWorkRef.current.timer);
+    autoScrollingRef.current = false;
+    forceScrollRef.current = false;
     // 跳转是明确的「离开底部」：结束贴底跟随，否则内容高度稳定后贴底循环会把视图拽回底部
     stickBottomRef.current = false;
     stickPendingRef.current = false;
     const idx = flatItems.findIndex(it => it.type === 'message' && it.msg?.id === msgId);
     if (idx >= 0) {
-      virtListRef.current?.scrollToItem(idx, 'center');
-      setHighlightedMsgId(String(msgId));
-      setTimeout(() => setHighlightedMsgId(null), 2000);
+      setPendingScrollId(msgId);
       return;
     }
-    const el = document.getElementById(`msg-${msgId}`);
-    if (el) { el.scrollIntoView({ behavior: 'smooth', block: 'center' }); return; }
     // 消息不在当前窗口，从服务端加载上下文
-    const snapConvId = conversation.id;
     try {
       const { data } = await axios.get(`/api/messages/${snapConvId}/around/${msgId}`);
-      if (conversation.id !== snapConvId) return; // 用户已切换对话
-      if (!data?.messages?.length) { showToast(t('chat.cannotLocateMessage'), 'info'); return; }
+      if (convIdRef.current !== snapConvId || jump.request !== request) return;
+      if (!data?.messages?.some(msg => msg.id === msgId)) {
+        jump.positioning = false;
+        showToast(t('chat.cannotLocateMessage'), 'info');
+        return;
+      }
       setMessages(data.messages);
       setHasMore(data.hasMore);
       newerBlockUntilRef.current = Date.now() + 1500;
@@ -2689,6 +2719,8 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
       markHasNewer(!!data.hasNewer);
       setPendingScrollId(msgId);
     } catch {
+      if (convIdRef.current !== snapConvId || jump.request !== request) return;
+      jump.positioning = false;
       showToast(t('chat.cannotLocateMessage'), 'info');
     }
   };
