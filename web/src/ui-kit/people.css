@@ -7,8 +7,6 @@
   html.touliao-ui body .tl-full-panel .wc-search { max-width: 420px; }
   html.touliao-ui body .tl-full-panel .cl-panel { max-width: 1000px; width: 100%; margin: 0 auto; }
   html.touliao-ui body .tl-full-panel .cl-panel > .wc-list { padding: 24px 36px; }
-  html.touliao-ui body .tl-full-panel .tl-contact-shortcuts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin-bottom: 24px; }
-  html.touliao-ui body .tl-full-panel .tl-contact-shortcut { border: 1px solid var(--tl-border); border-radius: 12px; padding: 16px; min-height: 80px; }
 }
 html.touliao-ui body :is(.wc-contact-item, .req-item, .gs-row, .cg-row) { min-height: 68px; padding: 12px 16px; gap: 12px; background: var(--tl-surface); border-bottom: 1px solid var(--tl-border); transform: none; }
 html.touliao-ui body :is(.wc-contact-item, .gs-row, .cg-row):hover { background: var(--tl-surface-hover); transform: none; }
@@ -17,6 +15,24 @@ html.touliao-ui body :is(.wc-contact-item-sub, .req-msg, .gs-sub) { font-size: 1
 html.touliao-ui body :is(.wc-contacts-alpha, .gs-cat) { background: var(--tl-background); color: var(--tl-readable-muted); padding: 12px 16px 8px; font-size: 12px; font-weight: 600; }
 html.touliao-ui body .cl-entry-icon-box { color: var(--tl-primary); background: var(--tl-primary-soft) !important; border-radius: 12px; }
 html.touliao-ui body .cl-entry-arrow { color: var(--tl-readable-muted); }
+/* Three common actions stay visible; secondary tools use one disclosure. */
+html.touliao-ui body .tl-contact-actions { padding: 12px 16px 4px; }
+html.touliao-ui body .tl-contact-shortcuts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+html.touliao-ui body .tl-contact-shortcut { position: relative; display: flex; flex-direction: column; justify-content: flex-start; gap: 8px; width: 100%; min-width: 0; min-height: 92px; padding: 12px 4px; border: 1px solid var(--tl-border); border-radius: 14px; font: inherit; text-align: center; }
+html.touliao-ui body .tl-contact-shortcut .cl-entry-name { flex: none; min-width: 0; }
+html.touliao-ui body .tl-contact-shortcut .wc-contact-item-name { font-size: 13px; line-height: 1.5; white-space: normal; overflow-wrap: anywhere; }
+html.touliao-ui body .tl-contact-shortcut .cl-entry-arrow { display: none; }
+html.touliao-ui body .tl-contact-shortcut .cl-entry-badge { position: absolute; top: 4px; right: 4px; }
+html.touliao-ui body .tl-contact-more > summary { display: flex; align-items: center; justify-content: space-between; min-height: 44px; margin-top: 4px; color: var(--tl-readable-muted); font-size: 13px; cursor: pointer; list-style: none; }
+.tl-contact-more > summary::-webkit-details-marker { display: none; }
+.tl-contact-more > summary .tl-icon { transform: rotate(-90deg); }
+.tl-contact-more[open] > summary .tl-icon { transform: rotate(90deg); }
+html.touliao-ui body .tl-contact-secondary { grid-template-columns: repeat(2, minmax(0, 1fr)); padding-bottom: 8px; }
+html.touliao-ui body .tl-contact-shortcut:focus-visible, .tl-contact-more > summary:focus-visible { outline: 2px solid var(--tl-focus); outline-offset: 2px; }
+@media (min-width: 768px) {
+  html.touliao-ui body .tl-contact-actions { padding-inline: 0; }
+  html.touliao-ui body .tl-contact-secondary { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+}
 html.touliao-ui body .wc-alpha-index { padding: 8px 2px; background: transparent; }
 html.touliao-ui body .wc-alpha-char { color: var(--tl-primary); min-height: 24px; min-width: 24px; display: grid; place-items: center; }
 html.touliao-ui body :is(.cl-section-header, .cgm-header, .afm-header, .gi-header) { min-height: 64px; padding: 12px 16px; background: var(--tl-surface); border-bottom: 1px solid var(--tl-border); }

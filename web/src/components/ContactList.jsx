@@ -230,7 +230,8 @@ export default function ContactList({ onStartChat, searchQuery = '', addFriendRe
         {tab === 'contacts' && (
           <>
             {/* 功能入口：真实功能保持原有处理函数 */}
-            <div className="tl-contact-shortcuts">
+            {!searchQuery.trim() && <div className="tl-contact-actions">
+            <div className="tl-contact-shortcuts tl-contact-primary">
             <EntryRow
               icon={<IcoPersonAdd size="sm" />}
               color="var(--icon-bg-newfriend)" label={t('contacts.newFriends')} badge={requests.length}
@@ -246,6 +247,10 @@ export default function ContactList({ onStartChat, searchQuery = '', addFriendRe
               color="var(--brand-500)" label={t('contacts.addFriend')} badge={0}
               onClick={() => setShowAddFriend(true)}
             />
+            </div>
+            <details className="tl-contact-more">
+              <summary>{t('contacts.moreTools')}<TouliaoIcon name="back" size="xs" /></summary>
+              <div className="tl-contact-shortcuts tl-contact-secondary">
             <EntryRow
               icon={<TouliaoIcon name="blocked" size="sm" />}
               color="var(--icon-bg-neutral)" label={t('contacts.blacklist')} badge={0}
@@ -272,7 +277,9 @@ export default function ContactList({ onStartChat, searchQuery = '', addFriendRe
               }}
             />
 
-            </div>
+              </div>
+            </details>
+            </div>}
             <div className="cl-divider" />
 
             {/* 字母分组联系人 */}
@@ -683,9 +690,8 @@ const ContactRow = memo(function ContactRow({ contact: c, online, onOpen }) {
 
 function EntryRow({ icon, color, label, badge, onClick, testid }) {
   return (
-    <div className="wc-contact-item tl-contact-shortcut gi-cp" onClick={onClick}
-      role="button" tabIndex={0} data-testid={testid}
-      onKeyDown={e => (e.key === 'Enter' || e.key === ' ') && (e.preventDefault(), onClick?.(e))}>
+    <button type="button" className="wc-contact-item tl-contact-shortcut gi-cp" onClick={onClick}
+      data-testid={testid}>
       <div className="cl-entry-icon-box" style={{ background: color }}>
         {icon}
       </div>
@@ -698,7 +704,7 @@ function EntryRow({ icon, color, label, badge, onClick, testid }) {
         </span>
       )}
       <IcoBack className="cl-entry-arrow" style={{color:"var(--text-tertiary)"}} size="xs" />
-    </div>
+    </button>
   );
 }
 

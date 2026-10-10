@@ -3,6 +3,11 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 
 const translations = {
   'zh-CN': {
+    'chat.callOptions': '选择通话方式',
+    'contacts.moreTools': '更多功能',
+    'home.startConversation': '开始一段对话',
+    'home.selectConversationHint': '选择左侧会话继续聊天，或从通讯录发起新对话。',
+    'home.openContacts': '打开通讯录',
     "auth.passwordRequirements": "至少 8 位，包含字母和数字。",
     "auth.tenantCodeWebHint": "企业代码请向你的公司或团队管理员索取。",
     "auth.downloadForDevice": "适合当前设备的客户端",

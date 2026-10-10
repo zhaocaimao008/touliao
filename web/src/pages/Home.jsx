@@ -43,16 +43,14 @@ import { useI18n } from '../contexts/I18nContext';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { lazyWithRetry } from '../utils/lazyWithRetry';
 
-function WcEmpty() {
-  // 对齐微信 PC：未选会话时近乎纯净留白，仅一枚极淡的单色图标，无文字、无彩色
+function WcEmpty({ onOpenContacts }) {
+  const { t } = useI18n();
   return (
     <div className="we-empty">
-      <svg className="we-empty-svg" viewBox="0 0 64 64" aria-hidden="true">
-        <rect x="6" y="12" width="44" height="32" rx="9" fill="#E6E9EF"/>
-        <path d="M16 50l0-9 9 0z" fill="#E6E9EF"/>
-        <rect x="14" y="22" width="28" height="3" rx="1.5" fill="#CFD5DF"/>
-        <rect x="14" y="30" width="20" height="3" rx="1.5" fill="#CFD5DF"/>
-      </svg>
+      <div className="we-empty-brand"><TouliaoIcon name="chat" size="lg" /></div>
+      <h2 className="we-empty-title">{t('home.startConversation')}</h2>
+      <p className="we-empty-desc">{t('home.selectConversationHint')}</p>
+      <button type="button" className="we-empty-action" onClick={onOpenContacts}>{t('home.openContacts')}</button>
     </div>
   );
 }
@@ -1420,7 +1418,7 @@ export default function Home() {
                   </Suspense>
                 </ChatWindowBoundary>
               )
-              : <WcEmpty />
+              : <WcEmpty onOpenContacts={() => setTab('contacts')} />
             }
           </div>
         )}

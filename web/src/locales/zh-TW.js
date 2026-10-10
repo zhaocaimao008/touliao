@@ -1,5 +1,10 @@
 // 按需加载的语言包（首屏只打包简体中文，见 contexts/I18nContext.jsx 的 LOCALE_LOADERS）。
 export default {
+    'chat.callOptions': '選擇通話方式',
+    'contacts.moreTools': '更多功能',
+    'home.startConversation': '開始一段對話',
+    'home.selectConversationHint': '選擇左側對話繼續聊天，或從通訊錄發起新對話。',
+    'home.openContacts': '開啟通訊錄',
     "auth.passwordRequirements": "至少 8 位，包含字母和數字。",
     "auth.tenantCodeWebHint": "企業代碼請向你的公司或團隊管理員索取。",
     "auth.downloadForDevice": "適合目前裝置的用戶端",

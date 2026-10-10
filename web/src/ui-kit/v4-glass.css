@@ -244,7 +244,7 @@ html.touliao-ui body:not([data-skin="wechat"]):not([data-skin="wecom"]) :is(.tl-
   }
   html.touliao-ui body:not([data-skin="wechat"]):not([data-skin="wecom"]) .m-tab { border-radius: 26px; transition: background var(--tl-duration-fast) var(--v4-spring), color var(--tl-duration-fast); }
   html.touliao-ui body:not([data-skin="wechat"]):not([data-skin="wecom"]) .m-tab.active { background: var(--tl-primary-soft); color: var(--tl-primary-text); }
-  html.touliao-ui body:not([data-skin="wechat"]):not([data-skin="wecom"]) .m-tab-label { font-size: 10px; font-weight: 600; }
+  html.touliao-ui body:not([data-skin="wechat"]):not([data-skin="wecom"]) .m-tab-label { font-size: 12px; font-weight: 600; }
   /* 为悬浮标签栏让出底部空间 */
   html.touliao-ui body:not([data-skin="wechat"]):not([data-skin="wecom"]) .m-page { padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 84px); }
 
@@ -286,9 +286,9 @@ html.touliao-ui body:not([data-skin="wechat"]):not([data-skin="wecom"]) :is(.wc-
 html.touliao-ui body:not([data-skin="wechat"]):not([data-skin="wecom"]) .wc-avatar-face { border-radius: 50% !important; }
 
 html.touliao-ui body:not([data-skin="wechat"]):not([data-skin="wecom"]) .permission-guide {
-  margin: 4px 12px 10px;
+  margin: 4px 12px 8px;
   border: 1px solid var(--v4-glass-border);
-  border-radius: 18px;
+  border-radius: 14px;
   background: var(--tl-primary-soft);
   box-shadow: none;
 }

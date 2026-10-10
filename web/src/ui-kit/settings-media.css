@@ -22,7 +22,9 @@ html.touliao-ui body .wc-device-item { background: var(--tl-surface); min-height
 html.touliao-ui body .wc-device-icon { color: var(--tl-primary); width: 40px; height: 40px; display: grid; place-items: center; background: var(--tl-primary-soft); border-radius: 12px; }
 html.touliao-ui body .wc-badge-current { color: var(--tl-primary); background: var(--tl-primary-soft); border-radius: 8px; padding: 4px 8px; }
 html.touliao-ui body :is(.wc-btn-exit, .wc-btn-exit-all, .wc-logout-btn) { min-height: 36px; color: var(--tl-readable-danger); background: var(--tl-surface); border: 1px solid var(--tl-border); border-radius: 8px; }
-html.touliao-ui body .wc-logout-btn { min-height: 44px; }
+/* Width includes the parent inset; legacy 100% + horizontal margins overflowed. */
+html.touliao-ui body .wc-logout-div { padding-inline: 16px; }
+html.touliao-ui body .wc-logout-btn { min-height: 44px; width: 100%; margin-inline: 0; box-sizing: border-box; }
 @media (min-width: 768px) {
   html.touliao-ui body .tl-full-panel .wc-page-bg { padding: 24px max(24px, calc((100% - 800px) / 2)); }
   html.touliao-ui body .tl-full-panel .wc-section-pad { padding-inline: 0; }
