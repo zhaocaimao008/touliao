@@ -31,7 +31,8 @@ html.touliao-ui body .wc-chat-item.active .wc-chat-item-avatar > * { box-shadow:
 html.touliao-ui body .wc-chat-item-name { font-size: max(14px, var(--font-name)); font-weight: 500; }
 html.touliao-ui body .wc-chat-item-preview { font-size: max(12px, var(--font-preview)); }
 html.touliao-ui body .wc-chat-item-time { font-size: 12px; font-variant-numeric: tabular-nums; }
-html.touliao-ui body .wc-chat-item-draft { color: var(--tl-readable-danger); }
+/* Keep draft text readable when legacy active-row styles set descendants to white. */
+html.touliao-ui body .wc-chat-item .wc-chat-item-draft { color: var(--tl-readable-danger); }
 html.touliao-ui body .wc-chat-item-badge { min-width: 18px; height: 18px; font-size: 12px; }
 /* [class] 压过 index.css 的 body.dark-mode .wc-chat[class]，否则深色下悬浮输入框四周露出 --bg-chat 色带 */
 html.touliao-ui body :is(.wc-chat, .wc-messages)[class] { background: var(--tl-background); }
