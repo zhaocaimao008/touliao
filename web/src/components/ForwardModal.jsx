@@ -2,6 +2,8 @@ import { normalizeForwardResult } from '../utils/forwardResult';
 import TouliaoIcon from '../ui-kit/Icon';
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import axios from 'axios';
+import { createPortal } from 'react-dom';
+import { loadForwardDirectory } from '../utils/forwardDirectory';
 import Avatar from './Avatar';
 import { GroupAvatar } from './GroupAvatar';
 import { showToast } from '../utils/toast';
@@ -17,7 +19,7 @@ export default function ForwardModal({ message, messages, sourceConversationName
   // 支持单条(message)与多条(messages)转发；统一成数组处理
   const msgList = Array.isArray(messages) && messages.length ? messages : (message ? [message] : []);
   const primaryMsg = msgList[0] || null;
-  const trapRef = useFocusTrap();
+  const trapRef = useFocusTrap(true, { onEscape: onClose, lockScroll: true, initialFocus: '.fwd-search-inp' });
   const mergedRequestIds = useRef(new Map());
   const mergedSucceededTargets = useRef(new Set());
   const [tab, setTab] = useState('friends');
@@ -32,21 +34,31 @@ export default function ForwardModal({ message, messages, sourceConversationName
   const [forwardMode, setForwardMode] = useState('separate');
   const mergedMessageCount = Math.min(msgList.length, 30);
 
-  useEffect(() => {
-    // 兜底成数组：接口异常/返回非数组时避免 filteredFriends/.filter 抛错导致弹窗白屏
-    axios.get('/api/users/contacts')
-      .then(r => setFriends(Array.isArray(r.data) ? r.data : []))
-      .catch(() => setFriends([]));
-    axios.get('/api/messages/my-groups')
-      .then(r => setGroups(Array.isArray(r.data) ? r.data : []))
-      .catch(() => setGroups([]));
-  }, []);
+  const [directoryStatus, setDirectoryStatus] = useState({ friends: 'loading', groups: 'loading' });
+  const [reloadCount, setReloadCount] = useState({ friends: 0, groups: 0 });
+  const [selecting, setSelecting] = useState(false);
+  const interactionRef = useRef(null);
+  const mountedRef = useRef(true);
+  const busy = sending || selecting;
+  const activeStatus = directoryStatus[tab];
 
   useEffect(() => {
-    const handler = e => { if (e.key === 'Escape') onClose(); };
-    document.addEventListener('keydown', handler);
-    return () => document.removeEventListener('keydown', handler);
-  }, [onClose]);
+    mountedRef.current = true;
+    return () => { mountedRef.current = false; };
+  }, []);
+  useEffect(() => loadForwardDirectory(
+    signal => axios.get('/api/users/contacts', { signal }).then(response => response.data),
+    state => { setFriends(state.items); setDirectoryStatus(previous => ({ ...previous, friends: state.status })); }
+  ), [reloadCount.friends]);
+  useEffect(() => loadForwardDirectory(
+    signal => axios.get('/api/messages/my-groups', { signal }).then(response => response.data),
+    state => { setGroups(state.items); setDirectoryStatus(previous => ({ ...previous, groups: state.status })); }
+  ), [reloadCount.groups]);
+  useEffect(() => {
+    if (!done || result?.status !== 'success') return;
+    const timer = setTimeout(onClose, 3000);
+    return () => clearTimeout(timer);
+  }, [done, result, onClose]);
 
   // 搜索词只归一化一次;名称兜底空串,避免 remark/username/name 为空时 toLowerCase 抛错致白屏
   const q = search.trim().toLowerCase();
@@ -65,22 +77,31 @@ export default function ForwardModal({ message, messages, sourceConversationName
   };
 
   const toggleFriend = async (friend) => {
+    if (interactionRef.current) return;
     if (friendConvMap[friend.id]) {
       const convId = friendConvMap[friend.id];
       setSelected(prev => { const s = new Set(prev); s.has(convId) ? s.delete(convId) : s.add(convId); return s; });
       return;
     }
+    interactionRef.current = 'select';
+    setSelecting(true);
     try {
       const { data } = await axios.post('/api/messages/conversation/private', { userId: friend.id });
+      if (!mountedRef.current) return;
       const convId = data.conversationId;
+      if (!convId) throw new Error('Missing conversation');
       setFriendConvMap(prev => ({ ...prev, [friend.id]: convId }));
       setSelected(prev => { const s = new Set(prev); s.add(convId); return s; });
     } catch (e) {
-      showToast(e.response?.data?.error || t('fwd.selectFriendFailed'), 'error');
+      if (mountedRef.current) showToast(e.response?.data?.error || t('fwd.selectFriendFailed'), 'error');
+    } finally {
+      interactionRef.current = null;
+      if (mountedRef.current) setSelecting(false);
     }
   };
 
   const selectAllFriends = async () => {
+    if (interactionRef.current) return;
     const allSelected = filteredFriends.every(f => isFriendSelected(f));
     if (allSelected) {
       const toRemove = filteredFriends.map(f => friendConvMap[f.id]).filter(Boolean);
@@ -91,18 +112,25 @@ export default function ForwardModal({ message, messages, sourceConversationName
       const cached = filteredFriends.filter(f => friendConvMap[f.id]);
       let newMap = { ...friendConvMap };
       if (uncached.length > 0) {
+        interactionRef.current = 'select';
+        setSelecting(true);
         try {
           const { data } = await axios.post('/api/messages/conversation/private/batch', {
             userIds: uncached.map(f => f.id)
           });
+          if (!mountedRef.current) return;
+          if (!Array.isArray(data.conversations)) throw new Error('Missing conversations');
           if (data.conversations) {
             data.conversations.forEach(({ userId, conversationId }) => {
               newMap[userId] = conversationId;
             });
           }
         } catch (e) {
-          showToast(e.response?.data?.error || t('fwd.batchSelectFailed'), 'error');
+          if (mountedRef.current) showToast(e.response?.data?.error || t('fwd.batchSelectFailed'), 'error');
           return;
+        } finally {
+          interactionRef.current = null;
+          if (mountedRef.current) setSelecting(false);
         }
       }
       setFriendConvMap(newMap);
@@ -116,10 +144,12 @@ export default function ForwardModal({ message, messages, sourceConversationName
   };
 
   const toggleGroup = (group) => {
+    if (interactionRef.current) return;
     setSelected(prev => { const s = new Set(prev); s.has(group.id) ? s.delete(group.id) : s.add(group.id); return s; });
   };
 
   const selectAllGroups = () => {
+    if (interactionRef.current) return;
     const allSelected = filteredGroups.every(g => selected.has(g.id));
     setSelected(prev => {
       const s = new Set(prev);
@@ -130,7 +160,8 @@ export default function ForwardModal({ message, messages, sourceConversationName
   };
 
   const forward = async () => {
-    if (selected.size === 0 || msgList.length === 0) return;
+    if (interactionRef.current || selected.size === 0 || msgList.length === 0) return;
+    interactionRef.current = 'send';
     setSending(true);
     try {
       if (forwardMode === 'merged') {
@@ -156,6 +187,7 @@ export default function ForwardModal({ message, messages, sourceConversationName
             type: 'merged', content, clientMsgId: mergedRequestIds.current.get(fingerprint),
           }, { skipRetry: true, _sessionContext: scope });
         }));
+        if (!mountedRef.current) return;
         const successCount = sends.filter(item => item.status === 'fulfilled').length;
         const failedCount = sends.length - successCount;
         targets.forEach((conversationId, index) => {
@@ -164,7 +196,6 @@ export default function ForwardModal({ message, messages, sourceConversationName
         if (failedCount > 0) {
           setSelected(new Set(targets.filter((_, index) => sends[index].status === 'rejected')));
           showToast(t('fwd.forwardFailed'), 'error');
-          setSending(false);
           return;
         }
         setResult({
@@ -173,9 +204,7 @@ export default function ForwardModal({ message, messages, sourceConversationName
           failed_count: failedCount,
           forwardMode: 'merged',
         });
-        setSending(false);
         setDone(true);
-        setTimeout(onClose, 3000);
         return;
       }
       // 多条走 msgIds，单条走 msgId（后端两者都兼容）
@@ -184,13 +213,16 @@ export default function ForwardModal({ message, messages, sourceConversationName
       if (msgList.length > 1) payload.msgIds = msgList.map(m => m.id);
       else payload.msgId = msgList[0].id;
       const { data } = await axios.post('/api/messages/forward', payload);
+      if (!mountedRef.current) return;
       setResult(normalizeForwardResult(data));
       setDone(true);
-      setTimeout(onClose, 3000);
+
     } catch (e) {
-      showToast(e.response?.data?.error || t('fwd.forwardFailed'), 'error');
+      if (mountedRef.current) showToast(e.response?.data?.error || t('fwd.forwardFailed'), 'error');
+    } finally {
+      interactionRef.current = null;
+      if (mountedRef.current) setSending(false);
     }
-    setSending(false);
   };
 
   const typePreview = (m) => {
@@ -210,9 +242,9 @@ export default function ForwardModal({ message, messages, sourceConversationName
   const allFriendsSelected = filteredFriends.length > 0 && filteredFriends.every(f => isFriendSelected(f));
   const allGroupsSelected = filteredGroups.length > 0 && filteredGroups.every(g => selected.has(g.id));
 
-  return (
-    <div className="wc-modal-overlay" ref={trapRef} onClick={e => e.target === e.currentTarget && onClose()}>
-      <div className="fwd-panel" role="dialog" aria-modal="true" aria-label={t('fwd.title')}>
+  return createPortal(
+    <div className="wc-modal-overlay fwd-overlay" ref={trapRef} onClick={e => e.target === e.currentTarget && onClose()}>
+      <div className="fwd-panel" tabIndex={-1} role="dialog" aria-modal="true" aria-label={t('fwd.title')}>
 
         {/* 标题栏 */}
         <div className="fwd-hd">
@@ -221,7 +253,7 @@ export default function ForwardModal({ message, messages, sourceConversationName
         </div>
 
         {done ? (
-          <div className="fwd-done">
+          <div className="fwd-done" role="status">
             <div className="fwd-done-ring">
               <TouliaoIcon name="forward" tone="onDark" size="lg" />
             </div>
@@ -238,6 +270,7 @@ export default function ForwardModal({ message, messages, sourceConversationName
           </div>
         ) : (
           <>
+            <div className="fwd-content">
             {/* 消息预览 */}
             <div className="fwd-preview">
               <div className="fwd-preview-bar" />
@@ -249,8 +282,8 @@ export default function ForwardModal({ message, messages, sourceConversationName
 
             {msgList.length > 1 && (
               <div className="fwd-mode" role="radiogroup" aria-label={t('fwd.modeAriaLabel')}>
-                <button type="button" role="radio" aria-checked={forwardMode === 'separate'} className={forwardMode === 'separate' ? 'active' : ''} onClick={() => setForwardMode('separate')}>{t('fwd.forwardOneByOne')}</button>
-                <button type="button" role="radio" aria-checked={forwardMode === 'merged'} className={forwardMode === 'merged' ? 'active' : ''} onClick={() => setForwardMode('merged')}>{t('fwd.mergeForward')}</button>
+                <button type="button" role="radio" aria-checked={forwardMode === 'separate'} className={forwardMode === 'separate' ? 'active' : ''} disabled={busy} onClick={() => setForwardMode('separate')}>{t('fwd.forwardOneByOne')}</button>
+                <button type="button" role="radio" aria-checked={forwardMode === 'merged'} className={forwardMode === 'merged' ? 'active' : ''} disabled={busy} onClick={() => setForwardMode('merged')}>{t('fwd.mergeForward')}</button>
               </div>
             )}
 
@@ -260,30 +293,45 @@ export default function ForwardModal({ message, messages, sourceConversationName
                 <span className="fwd-search-ico">
                   <TouliaoIcon name="search" style={{color:'var(--text-tertiary)'}} size="xs" />
                 </span>
-                <input className="fwd-search-inp" placeholder={t('common.search')} value={search} autoFocus onChange={e => setSearch(e.target.value)}
+                <input className="fwd-search-inp" placeholder={t('common.search')} value={search} onChange={e => setSearch(e.target.value)}
                   aria-label={t('fwd.searchAriaLabel')} />
                 {search && (
                   <button type="button" className="fwd-search-clr" aria-label={t('fwd.clearSearchAriaLabel')} title={t('common.clear')}
-                    onClick={() => setSearch('')}><TouliaoIcon name="close" size="sm" /></button>
+                    onClick={event => { setSearch(''); event.currentTarget.parentElement.querySelector('input')?.focus(); }}><TouliaoIcon name="close" size="sm" /></button>
                 )}
               </div>
             </div>
 
             {/* Tab 切换 */}
-            <div className="fwd-tabs" role="tablist">
+            <div className="fwd-tabs" role="tablist" aria-label={t('fwd.searchAriaLabel')}>
               {[['friends', t('fwd.friendsTab')], ['groups', t('fwd.groupsTab')]].map(([key, label]) => (
-                <button key={key} role="tab" aria-selected={tab === key} className={`fwd-tab${tab === key ? ' active' : ''}`} onClick={() => setTab(key)}>
+                <button type="button" key={key} id={`fwd-tab-${key}`} aria-controls="fwd-targets" tabIndex={tab === key ? 0 : -1} onKeyDown={event => {
+                  if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
+                  event.preventDefault();
+                  const target = event.key === 'Home' ? 'friends' : event.key === 'End' ? 'groups' : key === 'friends' ? 'groups' : 'friends';
+                  setTab(target);
+                  event.currentTarget.parentElement.querySelector(`#fwd-tab-${target}`)?.focus();
+                }} role="tab" aria-selected={tab === key} className={`fwd-tab${tab === key ? ' active' : ''}`} onClick={() => setTab(key)}>
                   {label}
-                  <span className="fwd-tab-cnt">{key === 'friends' ? filteredFriends.length : filteredGroups.length}</span>
+                  <span className="fwd-tab-cnt">{directoryStatus[key] === 'ready' ? key === 'friends' ? filteredFriends.length : filteredGroups.length : '…'}</span>
                 </button>
               ))}
             </div>
 
             {/* 列表 */}
-            <div className="fwd-list" role="tabpanel">
+            <div className="fwd-list" id="fwd-targets" role="tabpanel" aria-labelledby={`fwd-tab-${tab}`} aria-busy={activeStatus === 'loading'}>
+              {activeStatus === 'loading' && <div role="status" className="fwd-empty">{t('common.loading')}</div>}
+              {activeStatus === 'error' && <div role="alert" className="fwd-empty fwd-directory-error">
+                <TouliaoIcon name="warning" size="md" />
+                <span>{t('fwd.loadFailed')}</span>
+                <button type="button" className="fwd-btn fwd-btn-cancel" onClick={() => {
+                  trapRef.current?.querySelector('.fwd-search-inp')?.focus();
+                  setReloadCount(previous => ({ ...previous, [tab]: previous[tab] + 1 }));
+                }}>{t('common.retry')}</button>
+              </div>}
               {/* 全选行 */}
               {tab === 'friends' && filteredFriends.length > 0 && (
-                <button type="button" className="fwd-sel-all" onClick={selectAllFriends}>
+                <button type="button" className="fwd-sel-all" aria-pressed={allFriendsSelected} disabled={busy} onClick={selectAllFriends}>
                   <div className={`fwd-check${allFriendsSelected ? ' checked' : ''}`}>
                     <span className="fwd-check-icon">
                       <TouliaoIcon name="check" tone="onDark" size="xs" />
@@ -293,7 +341,7 @@ export default function ForwardModal({ message, messages, sourceConversationName
                 </button>
               )}
               {tab === 'groups' && filteredGroups.length > 0 && (
-                <button type="button" className="fwd-sel-all" onClick={selectAllGroups}>
+                <button type="button" className="fwd-sel-all" aria-pressed={allGroupsSelected} disabled={busy} onClick={selectAllGroups}>
                   <div className={`fwd-check${allGroupsSelected ? ' checked' : ''}`}>
                     <span className="fwd-check-icon">
                       <TouliaoIcon name="check" tone="onDark" size="xs" />
@@ -305,7 +353,7 @@ export default function ForwardModal({ message, messages, sourceConversationName
 
               {/* 好友列表 */}
               {tab === 'friends' && filteredFriends.map(f => (
-                <button type="button" key={f.id} className="fwd-item" onClick={() => toggleFriend(f)}>
+                <button type="button" key={f.id} className="fwd-item" aria-pressed={isFriendSelected(f)} disabled={busy} onClick={() => toggleFriend(f)}>
                   <div className={`fwd-check${isFriendSelected(f) ? ' checked' : ''}`}>
                     <span className="fwd-check-icon">
                       <TouliaoIcon name="check" tone="onDark" size="xs" />
@@ -317,13 +365,13 @@ export default function ForwardModal({ message, messages, sourceConversationName
                   </div>
                 </button>
               ))}
-              {tab === 'friends' && filteredFriends.length === 0 && (
-                <div role="status" className="fwd-empty">{t('moments.noFriends')}</div>
+              {tab === 'friends' && activeStatus === 'ready' && filteredFriends.length === 0 && (
+                <div role="status" className="fwd-empty">{t(q ? 'fwd.noMatches' : 'moments.noFriends')}</div>
               )}
 
               {/* 群聊列表 */}
               {tab === 'groups' && filteredGroups.map(g => (
-                <button type="button" key={g.id} className="fwd-item" onClick={() => toggleGroup(g)}>
+                <button type="button" key={g.id} className="fwd-item" aria-pressed={selected.has(g.id)} disabled={busy} onClick={() => toggleGroup(g)}>
                   <div className={`fwd-check${selected.has(g.id) ? ' checked' : ''}`}>
                     <span className="fwd-check-icon">
                       <TouliaoIcon name="check" tone="onDark" size="xs" />
@@ -336,20 +384,21 @@ export default function ForwardModal({ message, messages, sourceConversationName
                   </div>
                 </button>
               ))}
-              {tab === 'groups' && filteredGroups.length === 0 && (
-                <div role="status" className="fwd-empty">{t('fwd.noGroups')}</div>
+              {tab === 'groups' && activeStatus === 'ready' && filteredGroups.length === 0 && (
+                <div role="status" className="fwd-empty">{t(q ? 'fwd.noMatches' : 'fwd.noGroups')}</div>
               )}
             </div>
 
+            </div>
             {/* 底部确认栏 */}
             <div className="fwd-footer">
-              <span className="fwd-footer-count">{t('fwd.selectedCountPrefix')}<strong>{selected.size}</strong>{t('fwd.selectedCountSuffix')}</span>
+              <span className="fwd-footer-count" role="status" aria-live="polite">{selecting ? t('fwd.selecting') : <>{t('fwd.selectedCountPrefix')}<strong>{selected.size}</strong>{t('fwd.selectedCountSuffix')}</>}</span>
               <div className="fwd-footer-btns">
                 <button className="fwd-btn fwd-btn-cancel" onClick={onClose}>{t('common.cancel')}</button>
                 <button
                   className="fwd-btn fwd-btn-send"
                   onClick={forward}
-                  disabled={selected.size === 0 || sending}
+                  disabled={selected.size === 0 || busy}
                 >
                   {sending ? t('fwd.sending') : (selected.size > 0 ? t('fwd.sendCountTemplate').replace('{count}', selected.size) : t('fwd.send'))}
                 </button>
@@ -358,6 +407,6 @@ export default function ForwardModal({ message, messages, sourceConversationName
           </>
         )}
       </div>
-    </div>
+    </div>, document.body
   );
 }
