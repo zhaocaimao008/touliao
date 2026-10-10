@@ -67,6 +67,7 @@ function ChatHeader({
   const { t } = useI18n();
   const isPrivate = conversation.type === 'private';
   const isGroup   = conversation.type === 'group';
+  const isFileHelper = conversation.type === 'filehelper';
 
   return (
     <div className="wc-chat-header">
@@ -133,12 +134,12 @@ function ChatHeader({
         {/* 群聊信息 / 聊天信息 */}
         <button
           className={`wc-chat-header-btn${showGroupInfo ? ' active' : ''}`}
-          title={isGroup ? t('chat.groupInfo') : t('chat.chatInfo')}
-          aria-label={isGroup ? t('chat.groupInfo') : t('chat.chatInfo')}
+          title={t(isFileHelper ? 'chatFiles.title' : isGroup ? 'chat.groupInfo' : 'chat.chatInfo')}
+          aria-label={t(isFileHelper ? 'chatFiles.title' : isGroup ? 'chat.groupInfo' : 'chat.chatInfo')}
           aria-pressed={showGroupInfo}
           data-testid="chat-group-info-btn"
           onClick={onToggleGroupInfo}
-        ><IcoInfo /></button>
+        >{isFileHelper ? <TouliaoIcon name="folderOpen" /> : <IcoInfo />}</button>
       </div>
     </div>
   );

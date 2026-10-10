@@ -2785,13 +2785,13 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
         conversation={conversation}
         memberCount={memberCount}
         features={features}
-        showGroupInfo={showGroupInfo}
+        showGroupInfo={conversation.type === 'filehelper' ? showChatFiles : showGroupInfo}
         showSearch={showSearchBar}
         onClose={onClose}
         onOpenUserProfile={openUserProfile}
         onStartCall={startCall}
         onStartGroupCall={startGroupCall}
-        onToggleGroupInfo={toggleGroupInfo}
+        onToggleGroupInfo={conversation.type === 'filehelper' ? openChatFiles : toggleGroupInfo}
         onToggleSearch={toggleSearchBar}
         typingName={typingName}
       />
