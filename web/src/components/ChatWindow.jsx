@@ -2986,7 +2986,10 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
       {/* ── 转发弹窗（多条逐条转发）── */}
       {forwardMsgs && (
         <Suspense fallback={null}>
-        <ForwardModal messages={forwardMsgs} sourceConversationName={conversation.name} onClose={() => setForwardMsgs(null)} />
+        <ForwardModal messages={forwardMsgs} sourceConversationName={conversation.name} onClose={() => {
+          setForwardMsgs(null);
+          requestAnimationFrame(() => textareaRef.current?.focus({ preventScroll: true }));
+        }} />
         </Suspense>
       )}
 
