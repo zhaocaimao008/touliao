@@ -54,7 +54,7 @@ test('selecting a friend blocks overlapping selection and sending until the targ
   await row.props.onClick();
   expect(post).toHaveBeenCalledTimes(1);
   tree = render();
-  expect(nodes(tree, node => node.props?.className === 'fwd-item')[0].props.disabled).toBe(true);
+  expect(nodes(tree, node => node.props?.className === 'fwd-item')[0].props['aria-disabled']).toBe(true);
   const send = nodes(tree, node => node.props?.className === 'fwd-btn fwd-btn-send')[0];
   expect(send.props.disabled).toBe(true);
   await send.props.onClick();

@@ -55,10 +55,11 @@ export default function ForwardModal({ message, messages, sourceConversationName
     state => { setGroups(state.items); setDirectoryStatus(previous => ({ ...previous, groups: state.status })); }
   ), [reloadCount.groups]);
   useEffect(() => {
+    if (done) trapRef?.current?.querySelector('.fwd-done-close')?.focus({ preventScroll: true });
     if (!done || result?.status !== 'success') return;
     const timer = setTimeout(onClose, 3000);
     return () => clearTimeout(timer);
-  }, [done, result, onClose]);
+  }, [done, result, onClose, trapRef]);
 
   // 搜索词只归一化一次;名称兜底空串,避免 remark/username/name 为空时 toLowerCase 抛错致白屏
   const q = search.trim().toLowerCase();
@@ -331,7 +332,7 @@ export default function ForwardModal({ message, messages, sourceConversationName
               </div>}
               {/* 全选行 */}
               {tab === 'friends' && filteredFriends.length > 0 && (
-                <button type="button" className="fwd-sel-all" aria-pressed={allFriendsSelected} disabled={busy} onClick={selectAllFriends}>
+                <button type="button" className="fwd-sel-all" aria-pressed={allFriendsSelected} aria-disabled={busy} onClick={selectAllFriends}>
                   <div className={`fwd-check${allFriendsSelected ? ' checked' : ''}`}>
                     <span className="fwd-check-icon">
                       <TouliaoIcon name="check" tone="onDark" size="xs" />
@@ -341,7 +342,7 @@ export default function ForwardModal({ message, messages, sourceConversationName
                 </button>
               )}
               {tab === 'groups' && filteredGroups.length > 0 && (
-                <button type="button" className="fwd-sel-all" aria-pressed={allGroupsSelected} disabled={busy} onClick={selectAllGroups}>
+                <button type="button" className="fwd-sel-all" aria-pressed={allGroupsSelected} aria-disabled={busy} onClick={selectAllGroups}>
                   <div className={`fwd-check${allGroupsSelected ? ' checked' : ''}`}>
                     <span className="fwd-check-icon">
                       <TouliaoIcon name="check" tone="onDark" size="xs" />
@@ -353,7 +354,7 @@ export default function ForwardModal({ message, messages, sourceConversationName
 
               {/* 好友列表 */}
               {tab === 'friends' && filteredFriends.map(f => (
-                <button type="button" key={f.id} className="fwd-item" aria-pressed={isFriendSelected(f)} disabled={busy} onClick={() => toggleFriend(f)}>
+                <button type="button" key={f.id} className="fwd-item" aria-pressed={isFriendSelected(f)} aria-disabled={busy} onClick={() => toggleFriend(f)}>
                   <div className={`fwd-check${isFriendSelected(f) ? ' checked' : ''}`}>
                     <span className="fwd-check-icon">
                       <TouliaoIcon name="check" tone="onDark" size="xs" />
@@ -371,7 +372,7 @@ export default function ForwardModal({ message, messages, sourceConversationName
 
               {/* 群聊列表 */}
               {tab === 'groups' && filteredGroups.map(g => (
-                <button type="button" key={g.id} className="fwd-item" aria-pressed={selected.has(g.id)} disabled={busy} onClick={() => toggleGroup(g)}>
+                <button type="button" key={g.id} className="fwd-item" aria-pressed={selected.has(g.id)} aria-disabled={busy} onClick={() => toggleGroup(g)}>
                   <div className={`fwd-check${selected.has(g.id) ? ' checked' : ''}`}>
                     <span className="fwd-check-icon">
                       <TouliaoIcon name="check" tone="onDark" size="xs" />
