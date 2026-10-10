@@ -17,6 +17,8 @@ import { useSwipe } from '../hooks/useSwipe';
 import { EmptyState } from './StateViews';
 import designTokens from '../ui-kit/tokens.json';
 import { groupSystemPreview } from '../utils/groupSystemText';
+import { applyConversationSettings, publishConversationSettings, subscribeConversationSettings } from '../utils/conversationSettings';
+import { captureSession, isSessionCurrent } from '../utils/sessionContext';
 
 const rowHeight = () => window.innerWidth < designTokens.layout.breakpoints.compactDesktopMin
   ? designTokens.components.listRow.mobileMinimum : designTokens.components.listRow.desktopMinimum;
@@ -381,6 +383,10 @@ export default function ChatList({ onSelectConv, activeConvId, unread = {}, sear
     return () => { clearTimeout(timer); socket.off('user_profile_updated', onProfile); };
   }, [socket, fetchConvs]);
 
+  useEffect(() => subscribeConversationSettings(change => {
+    setConversations(previous => previous.map(conversation => applyConversationSettings(conversation, change)).sort(byPinnedThenTime));
+  }), []);
+
   // 备注变更后刷新会话列表
   useEffect(() => {
     const handler = () => fetchConvs();
@@ -390,19 +396,20 @@ export default function ChatList({ onSelectConv, activeConvId, unread = {}, sear
 
   const pin = useCallback(async (conv, pinned) => {
     setCtxMenu(null);
+    const scope = captureSession();
     try {
-      await axios.post(`/api/messages/conversation/${conv.id}/pin`, { pinned });
-      setConversations(prev => prev.map(c => c.id === conv.id ? { ...c, pinned: pinned ? 1 : 0 } : c)
-        .sort(byPinnedThenTime));
-    } catch { showToast(t('common.actionFailed'), 'error'); }
+      await axios.post(`/api/messages/conversation/${conv.id}/pin`, { pinned }, { _sessionContext: scope });
+      publishConversationSettings(conv.id, { pinned: pinned ? 1 : 0 }, scope);
+    } catch { if (isSessionCurrent(scope)) showToast(t('common.actionFailed'), 'error'); }
   }, [t]);
 
   const mute = async (conv, muted) => {
     setCtxMenu(null);
+    const scope = captureSession();
     try {
-      await axios.post(`/api/messages/conversation/${conv.id}/mute`, { muted });
-      setConversations(prev => prev.map(c => c.id === conv.id ? { ...c, muted: muted ? 1 : 0 } : c));
-    } catch { showToast(t('common.actionFailed'), 'error'); }
+      await axios.post(`/api/messages/conversation/${conv.id}/mute`, { muted }, { _sessionContext: scope });
+      publishConversationSettings(conv.id, { muted: muted ? 1 : 0 }, scope);
+    } catch { if (isSessionCurrent(scope)) showToast(t('common.actionFailed'), 'error'); }
   };
 
   const archive = async (conv, archived) => {

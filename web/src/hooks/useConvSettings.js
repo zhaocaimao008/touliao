@@ -1,43 +1,77 @@
-import { useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import axios from 'axios';
-import { showToast } from '../utils/toast';
+import { useI18n } from '../contexts/I18nContext';
+import { captureSession, isSessionCurrent } from '../utils/sessionContext';
+import { publishConversationSettings } from '../utils/conversationSettings';
 
-/**
- * 会话「免打扰 / 置顶」设置逻辑（GroupInfo 与 PrivateChatSettings 共用）。
- *
- * 抽取动机：两个设置面板此前各自重复实现了完全相同的 mute/pin state +
- * `/mute` `/pin` API 调用（含乐观回退与错误 toast），仅 UI 外观不同。此 hook
- * 只封装「逻辑」，不涉及任何 markup —— 两个面板保留各自的开关样式，零视觉回归。
- *
- * @param {object}   conversation           当前会话（读 id / muted / pinned 初值）
- * @param {function} onConvUpdate           成功后回传变更给父组件（同步会话列表等）
- * @returns {{ muted, pinned, saving, setSaving, toggleMute, togglePin }}
- *          setSaving 暴露给面板复用同一忙碌标志（如私聊「双向删除」与开关互斥）。
- */
+const valuesOf = conversation => ({ muted: !!conversation.muted, pinned: !!conversation.pinned, burn_after: Number(conversation.burn_after) || 0 });
+const BURN_SECONDS = new Set([0, 10, 30, 60, 300, 3600, 86400, 604800]);
+
+/** A settings panel owns one operation, including any confirmation before it. */
 export function useConvSettings(conversation, onConvUpdate) {
-  const [muted, setMuted]   = useState(!!conversation.muted);
-  const [pinned, setPinned] = useState(!!conversation.pinned);
-  const [saving, setSaving] = useState(false);
+  const { t } = useI18n();
+  const incoming = valuesOf(conversation);
+  const sourceKey = JSON.stringify([conversation.id, incoming]);
+  const [snapshot, setSnapshot] = useState(() => ({ id: conversation.id, key: sourceKey, source: incoming, values: incoming }));
+  let values = snapshot.values;
+  // Apply changed parent fields without reverting a just-acknowledged local
+  // setting while the parent is still carrying its previous snapshot.
+  if (snapshot.key !== sourceKey) {
+    values = snapshot.id !== conversation.id ? incoming : Object.fromEntries(Object.keys(incoming).map(key =>
+      [key, incoming[key] !== snapshot.source[key] ? incoming[key] : snapshot.values[key]]));
+    setSnapshot({ id: conversation.id, key: sourceKey, source: incoming, values });
+  }
+  const [progress, setProgress] = useState(null);
+  const [failure, setFailure] = useState(null);
+  const operationRef = useRef(null);
+  useEffect(() => () => {
+    operationRef.current?.controller.abort();
+    operationRef.current = null;
+    setProgress(null); setFailure(null);
+  }, [conversation.id]);
 
-  const toggleMute = async (val) => {
-    setSaving(true);
+  const runAction = useCallback(async (kind, { confirm, request, onSuccess, failureMessage }) => {
+    if (operationRef.current) return;
+    const scope = captureSession();
+    if (!isSessionCurrent(scope)) return;
+    const operation = { controller: new AbortController() };
+    operationRef.current = operation;
+    const current = () => operationRef.current === operation && isSessionCurrent(scope);
+    setProgress({ id: conversation.id, kind }); setFailure(null);
     try {
-      await axios.post(`/api/messages/conversation/${conversation.id}/mute`, { muted: val ? 1 : 0 });
-      setMuted(val);
-      onConvUpdate?.({ muted: val ? 1 : 0 });
-    } catch { showToast('操作失败', 'error'); }
-    setSaving(false);
-  };
+      if (confirm && !await confirm()) return;
+      if (!current()) return;
+      const result = await request({ signal: operation.controller.signal, _sessionContext: scope });
+      if (current()) onSuccess?.(result, scope);
+    } catch (error) {
+      if (current()) setFailure({ id: conversation.id, text: typeof error.response?.data?.error === 'string' ? error.response.data.error : failureMessage });
+    } finally {
+      if (operationRef.current === operation) { operationRef.current = null; setProgress(null); }
+    }
+  }, [conversation.id]);
 
-  const togglePin = async (val) => {
-    setSaving(true);
-    try {
-      await axios.post(`/api/messages/conversation/${conversation.id}/pin`, { pinned: val ? 1 : 0 });
-      setPinned(val);
-      onConvUpdate?.({ pinned: val ? 1 : 0 });
-    } catch { showToast('操作失败', 'error'); }
-    setSaving(false);
+  const save = (field, value, endpoint, payload) => runAction('save', {
+    request: config => axios.post(`/api/messages/conversation/${conversation.id}/${endpoint}`, payload, config),
+    failureMessage: t('privateChat.saveFailed'),
+    onSuccess: ({ data }, scope) => {
+      if (data?.success !== true) throw new Error('Setting was not acknowledged');
+      const committed = field === 'burn_after' && data.burn_after !== undefined ? Number(data.burn_after) : value;
+      if (field === 'burn_after' && !BURN_SECONDS.has(committed)) throw new Error('Invalid burn setting');
+      setSnapshot(previous => ({ ...previous, values: { ...previous.values, [field]: committed } }));
+      const patch = { [field]: typeof committed === 'boolean' ? Number(committed) : committed };
+      publishConversationSettings(conversation.id, patch, scope);
+      onConvUpdate?.(patch);
+    },
+  });
+  const toggleMute = value => save('muted', !!value, 'mute', { muted: value ? 1 : 0 });
+  const togglePin = value => save('pinned', !!value, 'pin', { pinned: value ? 1 : 0 });
+  const changeBurnAfter = value => {
+    const seconds = Number(value);
+    if (!BURN_SECONDS.has(seconds) || seconds === values.burn_after) return;
+    return save('burn_after', seconds, 'burn-after', { seconds });
   };
-
-  return { muted, pinned, saving, setSaving, toggleMute, togglePin };
+  const pending = progress?.id === conversation.id ? progress.kind : null;
+  return { muted: values.muted, pinned: values.pinned, burnAfter: values.burn_after,
+    saving: !!pending, pending, error: failure?.id === conversation.id ? failure.text : '',
+    toggleMute, togglePin, changeBurnAfter, runAction };
 }

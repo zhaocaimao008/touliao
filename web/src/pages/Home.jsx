@@ -10,6 +10,7 @@ import PushPermissionGuide from '../components/PushPermissionGuide';
 import './Home.css';
 import axios from 'axios';
 import ChatList from '../components/ChatList';
+import { applyConversationSettings, subscribeConversationSettings } from '../utils/conversationSettings';
 import ChatWindowBoundary from '../components/ChatWindowBoundary';
 import ContactList from '../components/ContactList';
 import { showFriendRequestCard } from '../components/FriendRequestCard';
@@ -528,6 +529,14 @@ export default function Home() {
   const [unread, setUnread] = useState({});
   // 免打扰会话 id（由 ChatList 上报）：不计入底部红点、标题和任务栏角标，与安卓一致
   const [mutedConvIds, setMutedConvIds] = useState(() => new Set());
+  useEffect(() => subscribeConversationSettings(change => {
+    setActiveConv(previous => applyConversationSettings(previous, change));
+    if (change.patch.muted !== undefined) setMutedConvIds(previous => {
+      const next = new Set(previous);
+      if (change.patch.muted) next.add(change.conversationId); else next.delete(change.conversationId);
+      return next;
+    });
+  }), []);
   // 朋友圈互动未读（手机「发现」标签红点）：进出页面与收到互动事件时刷新；朋友圈关闭时接口 403，按 0 处理
   const momentUnread = useMomentUnread(featuresReady && features.moments !== false, tab);
   const [friendReqCount, setFriendReqCount] = useState(0);

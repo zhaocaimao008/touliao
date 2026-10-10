@@ -9,6 +9,7 @@ import Avatar from './Avatar';
 import { mediaUrl, useMediaCredentials } from '../utils/url';
 import { showToast, showConfirm } from '../utils/toast';
 import { useConvSettings } from '../hooks/useConvSettings';
+import { keepSettingFocus } from '../utils/settingFocus';
 import { GroupAvatar } from './GroupAvatar';
 import { useI18n } from '../contexts/I18nContext';
 import { useSocket } from '../contexts/SocketContext';
@@ -136,7 +137,7 @@ export default function GroupInfo({ conversation, currentUserId, onClose, onLeav
   // 免打扰 / 置顶：与 PrivateChatSettings 共用 useConvSettings（state + /mute /pin API）。
   // 原为 mute/pin 各自独立的 toggling 标志，现统一为单个 saving（切换期间两个开关一起禁用，
   // 防跨开关重复提交）；行为与私聊设置面板一致。
-  const { muted: myMuted, pinned: myPinned, saving: savingSetting, toggleMute, togglePin } = useConvSettings(conversation, onConvUpdate);
+  const { muted: myMuted, pinned: myPinned, saving: savingSetting, error: settingError, toggleMute, togglePin } = useConvSettings(conversation, onConvUpdate);
   // 踢人搜索
   const [kickSearch, setKickSearch] = useState('');
   // 群头像上传
@@ -724,6 +725,8 @@ export default function GroupInfo({ conversation, currentUserId, onClose, onLeav
 
         {/* 个人设置 */}
         <div className="gi-section">
+          {savingSetting && <div className="tl-settings-feedback" role="status">{t('common.saving')}</div>}
+          {settingError && <div className="tl-settings-feedback is-error" role="alert">{settingError}</div>}
           <div className="gi-row" style={{ cursor: 'pointer' }} role="button" tabIndex={0} onClick={() => onOpenChatFiles?.()} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onOpenChatFiles?.(); } }}>
             <span className="gi-label">{t('groupInfo.chatFiles')}</span>
             <IcoBack className="gi-s14 gi-fill-tertiary" />
@@ -734,7 +737,7 @@ export default function GroupInfo({ conversation, currentUserId, onClose, onLeav
               label={t('chatlist.muteChat')}
               value={myMuted}
               disabled={savingSetting}
-              onChange={toggleMute}
+              onChange={value => keepSettingFocus(() => toggleMute(value))}
             />
           </div>
           <div className="gi-row">
@@ -743,7 +746,7 @@ export default function GroupInfo({ conversation, currentUserId, onClose, onLeav
               label={t('chatlist.pinChat')}
               value={myPinned}
               disabled={savingSetting}
-              onChange={togglePin}
+              onChange={value => keepSettingFocus(() => togglePin(value))}
             />
           </div>
           <div className={`gi-row${conversation.background ? '' : ' gi-row-noborder'}`} style={{ cursor: 'pointer' }} role="button" tabIndex={0} onClick={() => onPickBackground?.()} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onPickBackground?.(); } }}>

@@ -21,6 +21,7 @@ import ComposeContextBar from './ComposeContextBar';
 import MultiSelectBar from './MultiSelectBar';
 import useBatchRecall from '../hooks/useBatchRecall';
 import useReadStatus from '../hooks/useReadStatus';
+import { applyConversationSettings, subscribeConversationSettings } from '../utils/conversationSettings';
 import { loadOutbox, upsertOutbox, removeFromOutbox } from '../utils/outbox';
 import { captureSession, isSessionCurrent } from '../utils/sessionContext';
 import { sendOwnedText } from '../utils/outboxSender';
@@ -172,6 +173,9 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
   useMediaCredentials();
   const { t } = useI18n();
   const [conversation, setConversation] = useState(initialConv);
+  useEffect(() => subscribeConversationSettings(change => {
+    setConversation(previous => applyConversationSettings(previous, change));
+  }), []);
   const [messages, setMessages] = useState([]);
   // 首屏加载态：消息为空且数据仍在途（无缓存/缓存为空）时显示骨架，避免纯空白
   const [initialLoading, setInitialLoading] = useState(true);

@@ -987,6 +987,9 @@ const translations = {
     'groupInfo.clearMessagesBtn': '双向删除聊天记录',
     // 私聊设置面板
     'privateChat.title': '聊天设置',
+    'privateChat.saveFailed': '未能确认设置已保存，请重试',
+    'privateChat.exporting': '正在准备聊天记录…',
+    'privateChat.processing': '正在处理，请稍候…',
     'privateChat.burnOff': '关闭',
     'privateChat.burn10s': '10秒',
     'privateChat.burn30s': '30秒',
