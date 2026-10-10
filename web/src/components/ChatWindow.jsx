@@ -1643,7 +1643,8 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
   const closeSearchBar = useCallback(() => setShowSearchBar(false), []);
   const handleSearchJump = useCallback((msgId) => {
     setShowSearchBar(false);
-    setPendingScrollId(String(msgId));
+    // Search can return a message outside the currently loaded history window.
+    callbacksRef.current?.scrollToMsg?.(String(msgId));
   }, []);
 
   // 打开聊天文件聚合视图（同时收起信息面板，避免抽屉叠加）

@@ -50,7 +50,6 @@ export default function ConvSearchBar({ convId, onJump, onClose }) {
 
   const handleJump = (msg) => {
     onJump(msg.id);
-    // 不关闭搜索栏，方便用户跳转多条结果
   };
 
   const previewOf = (msg) => {
