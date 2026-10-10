@@ -13,6 +13,7 @@ import ChatList from '../components/ChatList';
 import { applyConversationSettings, subscribeConversationSettings } from '../utils/conversationSettings';
 import ChatWindowBoundary from '../components/ChatWindowBoundary';
 import ContactList from '../components/ContactList';
+import ResponsiveHomeLayout from '../components/ResponsiveHomeLayout';
 import { showFriendRequestCard } from '../components/FriendRequestCard';
 import Profile from '../components/Profile';
 import GlobalSearch from '../components/GlobalSearch';
@@ -1093,8 +1094,6 @@ export default function Home() {
 
   const [isMobile, setIsMobile] = useState(() =>
     window.innerWidth < 768 || !!window.Capacitor?.isNativePlatform?.());
-  const [showPanel] = useState(true);   // 桌面布局保留
-  const [showChat] = useState(false);
 
   const handleMobileSelectConv = useCallback((conv) => { handleSelectConv(conv); }, [handleSelectConv]);
   const handleMobileBack = useCallback(() => { setActiveConv(null); }, []);
@@ -1267,184 +1266,93 @@ export default function Home() {
     </React.Fragment>
   );
 
-  // ── 移动端布局（宽度 < 768 或原生 App）：底部 TabBar + 全屏页 + 全屏聊天 ──
-  if (isMobile) {
-    // 底部固定 4 项：6 个标签在手机上过挤、文字过小。朋友圈/收藏受后台开关控制，关闭时从「发现」里隐藏。
-    const discoverItems = visibleTabs(features).filter(tb => DISCOVER_KEYS.includes(tb.key));
-    const byKey = k => TABS.find(tb => tb.key === k);
-    const mobileTabs = [byKey('chats'), byKey('contacts'), { key: 'discover', Icon: IcoMoments, labelKey: 'home.tab.discover' }, byKey('me')];
-    const navKey = DISCOVER_KEYS.includes(tab) ? 'discover' : tab;
-    const inDiscoverChild = DISCOVER_KEYS.includes(tab);
-    const mobileBadges = { ...badges, discover: features.moments !== false ? momentUnread : 0 };
-    const mLabel = (k) => { if (k === 'discover') return t('home.tab.discover'); const found = byKey(k); return found ? t(found.labelKey) : ''; };
+  const discoverItems = visibleTabs(features).filter(item => DISCOVER_KEYS.includes(item.key));
+  const byKey = key => TABS.find(item => item.key === key);
+  const mobileTabs = [byKey('chats'), byKey('contacts'), { key: 'discover', Icon: IcoMoments, labelKey: 'home.tab.discover' }, byKey('me')];
+  const navKey = DISCOVER_KEYS.includes(tab) ? 'discover' : tab;
+  const inDiscoverChild = DISCOVER_KEYS.includes(tab);
+  const mobileBadges = { ...badges, discover: features.moments !== false ? momentUnread : 0 };
+  const mobileLabel = tab === 'discover' ? t('home.tab.discover') : byKey(tab) ? t(byKey(tab).labelKey) : '';
+  const showChatArea = ['chats', 'contacts'].includes(tab);
 
-    return (
-      <div className="m-shell">
-        {activeConv ? (
-          <div className="m-chat-page">
-            <ChatWindowBoundary convId={activeConv.id}>
-              <Suspense fallback={<ChatSkeleton />}>
-                <ChatWindow key={activeConv.id} conversation={activeConv} features={features} onClose={handleMobileBack} onStartCall={handleStartCall} onStartGroupCall={handleStartGroupCall} onStartChat={handleMobileSelectConv} />
-              </Suspense>
-            </ChatWindowBoundary>
-          </div>
-        ) : (
-          <>
-            <div className="m-page">
-              {(tab === 'chats' || tab === 'contacts') ? (
-                <>
-                  <div className="m-topbar">
-                    <span className="m-title">{mLabel(tab)}</span>
-                    {tab === 'chats' && (
-                      <button ref={addBtnRef} className="m-topbar-add" data-testid="add-menu-btn" onClick={toggleAddMenu} aria-label={t('home.launch')}>
-                        <IcoAdd className="ico-md" />
-                      </button>
-                    )}
-                  </div>
-                  <TouliaoField className="m-search tl-global-search" variant="SEARCH"
-                    icon={<IcoSearch className="ico-sm" />} placeholder={t('common.search')}
-                    aria-label={t('common.search')} value={search} onClear={() => setSearch('')}
-                    onChange={e => setSearch(e.target.value)} />
-                </>
-              ) : (tab === 'me' && meSubPage) ? null : (
-                <div className="m-topbar">
-                  {inDiscoverChild && (
-                    <button type="button" className="m-topbar-back" onClick={() => handleTabChange('discover')} aria-label={t('common.back')}>
-                      <IcoBack className="ico-md" />
-                    </button>
-                  )}
-                  <span className="m-title">{mLabel(tab)}</span>
-                </div>
-              )}
-              {!(tab === 'me' && meSubPage) && (
-                <>
-                  <CallSoundGuide />
-                  <PushPermissionGuide permission={pushPermission} onEnable={enablePush} />
-                </>
-              )}
-              <div className="m-content">
-                {search.trim() ? (
-                  <GlobalSearch query={search}
-                    onSelectConv={(conv) => { handleMobileSelectConv(conv); setSearch(''); }}
-                    onNetworkSearch={(q) => setNetSearchQ(q || search)} />
-                ) : tab === 'chats' ? (
-                  <ChatList onSelectConv={handleMobileSelectConv} activeConvId={activeConv?.id}
-                    unread={unread} searchQuery={search}
-                    convRefreshKey={convRefreshKey} onMutedChange={setMutedConvIds} onOpenMentions={() => setShowMentions(true)} />
-                ) : tab === 'discover' ? (
-                  <DiscoverList items={discoverItems} momentUnread={features.moments !== false ? momentUnread : 0} onOpen={handleTabChange} />
-                ) : renderMain()}
-              </div>
-            </div>
-
-            <nav className="m-tabbar" aria-label={t('home.mainNav')}>
-              {mobileTabs.map(({ key, Icon, labelKey }) => {
-                const count = mobileBadges[key] || 0;
-                const label = t(labelKey);
-                return (
-                  <button key={key} data-testid={`nav-tab-${key}`} className={`m-tab${navKey === key ? ' active' : ''}`}
-                    role="tab" aria-selected={navKey === key} aria-label={label}
-                    onClick={() => handleTabChange(key)}>
-                    <span className="m-tab-ico"><Icon /></span>
-                    <span className="m-tab-label">{label}</span>
-                    {count > 0 && <span className="m-tab-badge">{count > 99 ? '99+' : count}</span>}
-                  </button>
-                );
-              })}
-            </nav>
-          </>
-        )}
-        {overlays}
-      </div>
-    );
-  }
-
-  return (
-    <div className={`wc-app${isMobile ? ' wc-mobile' : ''}${(tab !== 'chats' || search.trim()) && !activeConv ? ' tl-full-panel' : ''}`}>
-
-      {/* 左侧导航栏 */}
-      <div className="wc-sidebar">
-        <AccountSwitcher />
-        {/* Tab 按钮紧跟头像，不用 spacer 下推，防止小屏被裁切 */}
-        <div className="wc-sidebar-btns" role="tablist" aria-label={t('home.mainNav')}>
-          {visibleTabs(features).map(({ key, Icon, labelKey }) => {
-            const count = badges[key] || 0;
-            const label = t(labelKey);
-            return (
-              <div key={key}
-                data-testid={`nav-tab-${key}`}
-                className={`wc-sidebar-btn${tab === key ? ' active' : ''}`}
-                onClick={() => handleTabChange(key)} title={label}
-                role="tab" tabIndex={0} aria-selected={tab === key} aria-label={label}
-                onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleTabChange(key); } }}>
-                <div className="icon"><Icon /></div>
-                <span className="wc-sidebar-label">{label}</span>
-                {count > 0 && (
-                  <span className="wc-sidebar-badge">{count > 99 ? '99+' : count}</span>
-                )}
-              </div>
-            );
-          })}
-        </div>
-      </div>
-
-      {/* 主内容区 */}
-      <div className="wc-main">
-
-        {/* 面板区（固定顶栏 + 内容） */}
-        {(!isMobile || showPanel) && (
-          <div className={`wc-panel${['moments', 'favorites', 'me', 'profile', 'calls'].includes(tab) ? ' wc-panel-wide' : ''}`}>
-
-            <div className="tl-panel-heading"><h1>{t(TABS.find(item => item.key === tab)?.labelKey || 'home.tab.chats')}</h1></div>
-            {/* 固定顶栏：搜索 + 二维码 + 添加——只在消息/通讯录显示；朋友圈/通话/收藏/我的页面放全局搜索和「+」没有意义 */}
-            {['chats', 'contacts'].includes(tab) && (
-            <div className="wc-panel-topbar">
-              <TouliaoField className="wc-search tl-global-search" variant="SEARCH"
-                icon={<IcoSearch className="ico-sm" />} placeholder={t('common.search')}
-                aria-label={t('common.search')} value={search} onClear={() => setSearch('')}
-                onChange={e => setSearch(e.target.value)} />
-
-              {/* 添加按钮 */}
-              <button ref={addBtnRef} className="wc-icon-btn" data-testid="add-menu-btn" title={t('home.launch')} aria-label={t('home.launch')} aria-expanded={showAddMenu} onClick={toggleAddMenu}>
-                <IcoAdd className="ico-md" />
-              </button>
-            </div>
-            )}
-
-            <CallSoundGuide />
-            <PushPermissionGuide permission={pushPermission} onEnable={enablePush} />
-            <div className="wc-panel-content">
-              {search.trim() ? (
-                <GlobalSearch
-                  query={search}
-                  onSelectConv={(conv) => { (isMobile ? handleMobileSelectConv : handleSelectConv)(conv); setSearch(''); }}
-                  onNetworkSearch={(q) => setNetSearchQ(q || search)}
-                />
-              ) : renderMain()}
-            </div>
-          </div>
-        )}
-
-        {/* 聊天区 */}
-        {(!isMobile || showChat) && ['chats', 'contacts'].includes(tab) && (
-          <div className="home-chat-area">
-            {activeConv
-              ? (
-                <ChatWindowBoundary convId={activeConv.id}>
-                  <Suspense fallback={<div className="wc-lazy-pane" />}>
-                    <ChatWindow key={activeConv.id} conversation={activeConv} features={features} onClose={isMobile ? handleMobileBack : () => setActiveConv(null)} onStartCall={handleStartCall} onStartGroupCall={handleStartGroupCall} onStartChat={handleSelectConv} />
-                  </Suspense>
-                </ChatWindowBoundary>
-              )
-              : <WcEmpty onOpenContacts={() => setTab('contacts')} />
-            }
-          </div>
-        )}
-      </div>
-
-      {overlays}
+  const sidebar = <>
+    <AccountSwitcher />
+    <div className="wc-sidebar-btns" role="tablist" aria-label={t('home.mainNav')}>
+      {visibleTabs(features).map(({ key, Icon, labelKey }) => {
+        const count = badges[key] || 0;
+        const label = t(labelKey);
+        return <div key={key} data-testid={`nav-tab-${key}`}
+          className={`wc-sidebar-btn${tab === key ? ' active' : ''}`}
+          onClick={() => handleTabChange(key)} title={label}
+          role="tab" tabIndex={0} aria-selected={tab === key} aria-label={label}
+          onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); handleTabChange(key); } }}>
+          <div className="icon"><Icon /></div>
+          <span className="wc-sidebar-label">{label}</span>
+          {count > 0 && <span className="wc-sidebar-badge">{count > 99 ? '99+' : count}</span>}
+        </div>;
+      })}
     </div>
-  );
+  </>;
+  const navigation = <nav className="m-tabbar" aria-label={t('home.mainNav')}>
+    {mobileTabs.map(({ key, Icon, labelKey }) => {
+      const count = mobileBadges[key] || 0;
+      const label = t(labelKey);
+      return <button key={key} data-testid={`nav-tab-${key}`} className={`m-tab${navKey === key ? ' active' : ''}`}
+        role="tab" aria-selected={navKey === key} aria-label={label} onClick={() => handleTabChange(key)}>
+        <span className="m-tab-ico"><Icon /></span>
+        <span className="m-tab-label">{label}</span>
+        {count > 0 && <span className="m-tab-badge">{count > 99 ? '99+' : count}</span>}
+      </button>;
+    })}
+  </nav>;
+  const header = isMobile ? <>
+    {showChatArea ? <>
+      <div className="m-topbar">
+        <span className="m-title">{mobileLabel}</span>
+        {tab === 'chats' && <button ref={addBtnRef} className="m-topbar-add" data-testid="add-menu-btn"
+          onClick={toggleAddMenu} aria-label={t('home.launch')}><IcoAdd className="ico-md" /></button>}
+      </div>
+      <TouliaoField className="m-search tl-global-search" variant="SEARCH"
+        icon={<IcoSearch className="ico-sm" />} placeholder={t('common.search')}
+        aria-label={t('common.search')} value={search} onClear={() => setSearch('')}
+        onChange={event => setSearch(event.target.value)} />
+    </> : (tab === 'me' && meSubPage) ? null : <div className="m-topbar">
+      {inDiscoverChild && <button type="button" className="m-topbar-back" onClick={() => handleTabChange('discover')}
+        aria-label={t('common.back')}><IcoBack className="ico-md" /></button>}
+      <span className="m-title">{mobileLabel}</span>
+    </div>}
+  </> : <>
+    <div className="tl-panel-heading"><h1>{t(tab === 'discover' ? 'home.tab.discover' : byKey(tab)?.labelKey || 'home.tab.chats')}</h1></div>
+    {showChatArea && <div className="wc-panel-topbar">
+      <TouliaoField className="wc-search tl-global-search" variant="SEARCH"
+        icon={<IcoSearch className="ico-sm" />} placeholder={t('common.search')}
+        aria-label={t('common.search')} value={search} onClear={() => setSearch('')}
+        onChange={event => setSearch(event.target.value)} />
+      <button ref={addBtnRef} className="wc-icon-btn" data-testid="add-menu-btn" title={t('home.launch')}
+        aria-label={t('home.launch')} aria-expanded={showAddMenu} onClick={toggleAddMenu}><IcoAdd className="ico-md" /></button>
+    </div>}
+  </>;
+  const guides = !(isMobile && tab === 'me' && meSubPage) && <>
+    <CallSoundGuide />
+    <PushPermissionGuide permission={pushPermission} onEnable={enablePush} />
+  </>;
+  const chat = activeConv ? <ChatWindowBoundary convId={activeConv.id}>
+    <Suspense fallback={<ChatSkeleton />}>
+      <ChatWindow key={activeConv.id} conversation={activeConv} features={features}
+        onClose={handleMobileBack} onStartCall={handleStartCall} onStartGroupCall={handleStartGroupCall} onStartChat={handleSelectConv} />
+    </Suspense>
+  </ChatWindowBoundary> : !isMobile && showChatArea ? <WcEmpty onOpenContacts={() => setTab('contacts')} /> : null;
+
+  return <ResponsiveHomeLayout mobile={isMobile} fullPanel={(tab !== 'chats' || search.trim()) && !activeConv}
+    widePanel={['moments', 'favorites', 'me', 'profile', 'calls', 'discover'].includes(tab)}
+    chatOpen={!!activeConv} showChatArea={showChatArea}
+    sidebar={sidebar} navigation={navigation} header={header} guides={guides} chat={chat} overlays={overlays}>
+    {search.trim() ? <GlobalSearch query={search}
+      onSelectConv={conv => { handleSelectConv(conv); setSearch(''); }}
+      onNetworkSearch={query => setNetSearchQ(query || search)} />
+      : tab === 'discover' ? <DiscoverList items={discoverItems} momentUnread={features.moments !== false ? momentUnread : 0} onOpen={handleTabChange} />
+      : renderMain()}
+  </ResponsiveHomeLayout>;
 }
 
 function AddDropItem({ icon, label, onClick, testid }) {
