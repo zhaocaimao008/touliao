@@ -5,6 +5,9 @@ import { downloadFile } from '../utils/download';
 import { shareMessage, canShare } from '../utils/share';
 import { useI18n } from '../contexts/I18nContext';
 import { mediaUrl, useMediaCredentials } from '../utils/url';
+import useMediaLoadState from '../hooks/useMediaLoadState';
+import MediaPreviewStatus from './MediaPreviewStatus';
+import './MediaPreview.css';
 
 // 从(可能带 ?token= 的)图片地址里抽一个像样的下载文件名
 function filenameFromUrl(u) {
@@ -24,21 +27,13 @@ export default function ImagePreview({ url, urls = null, initialIdx = 0, onClose
   const [idx, setIdx] = useState(initialIdx);
   const sourceUrl = gallery ? urls[idx] : url;
   const currentUrl = mediaUrl(sourceUrl);
+  const media = useMediaLoadState(currentUrl);
 
   const [scale, setScale] = useState(1);
   const [position, setPosition] = useState({ x: 0, y: 0 });
   const [dragging, setDragging] = useState(false);
-  const [loaded, setLoaded] = useState(false);   // 当前大图是否已加载(未加载时显示转圈)
   const dragStart = useRef({ x: 0, y: 0 });
   const posStart = useRef({ x: 0, y: 0 });
-
-  // 切换到新图 → 复位加载态，重新显示转圈直到 onLoad。
-  // render 期派生（存上一次 currentUrl）替代 effect，避免多一帧旧图残留。
-  const [loadedUrl, setLoadedUrl] = useState(currentUrl);
-  if (currentUrl !== loadedUrl) {
-    setLoadedUrl(currentUrl);
-    setLoaded(false);
-  }
 
   const resetTransform = () => { setScale(1); setPosition({ x: 0, y: 0 }); };
 
@@ -46,14 +41,15 @@ export default function ImagePreview({ url, urls = null, initialIdx = 0, onClose
   const next = useCallback(() => { setIdx(i => i < urls.length - 1 ? i + 1 : 0); resetTransform(); }, [urls]);
 
   const handleKeyDown = useCallback((e) => {
-    if (!isTopFocusLayer(modalRef.current)) return;
-    if (gallery && e.key === 'ArrowLeft') prev();
-    if (gallery && e.key === 'ArrowRight') next();
+    if (!isTopFocusLayer(modalRef.current) || e.ctrlKey || e.metaKey || e.altKey) return;
+    if (gallery && e.key === 'ArrowLeft') { e.preventDefault(); prev(); }
+    if (gallery && e.key === 'ArrowRight') { e.preventDefault(); next(); }
+    if (media.status !== 'ready') return;
     // 键盘缩放：+/= 放大、-/_ 缩小、0 复位(对齐通用图片查看器)
     if (e.key === '+' || e.key === '=') { setScale(s => Math.min(5, s + 0.25)); }
     if (e.key === '-' || e.key === '_') { setScale(s => { const ns = Math.max(0.5, s - 0.25); if (ns <= 1) setPosition({ x: 0, y: 0 }); return ns; }); }
     if (e.key === '0') { setScale(1); setPosition({ x: 0, y: 0 }); }
-  }, [modalRef, gallery, prev, next]);
+  }, [modalRef, gallery, prev, next, media.status]);
 
   useEffect(() => {
     window.addEventListener('keydown', handleKeyDown);
@@ -64,6 +60,7 @@ export default function ImagePreview({ url, urls = null, initialIdx = 0, onClose
 
   // Mouse wheel zoom
   const handleWheel = useCallback((e) => {
+    if (media.status !== 'ready' || e.ctrlKey || e.metaKey) return;
     e.preventDefault();
     const delta = e.deltaY > 0 ? -0.1 : 0.1;
     setScale(s => {
@@ -72,13 +69,20 @@ export default function ImagePreview({ url, urls = null, initialIdx = 0, onClose
       if (ns <= 1) setPosition({ x: 0, y: 0 });
       return ns;
     });
-  }, []);
+  }, [media.status]);
+  useEffect(() => {
+    const node = modalRef.current;
+    node?.addEventListener('wheel', handleWheel, { passive: false });
+    return () => node?.removeEventListener('wheel', handleWheel);
+  }, [handleWheel, modalRef]);
 
   // Pinch zoom (touch)
   const lastPinchDist = useRef(null);
   const touchStartX = useRef(null);
   const handleTouchStart = (e) => {
+    if (e.target.closest('button') || media.status !== 'ready') return;
     if (e.touches.length === 2) {
+      touchStartX.current = null;
       const dx = e.touches[0].clientX - e.touches[1].clientX;
       const dy = e.touches[0].clientY - e.touches[1].clientY;
       lastPinchDist.current = Math.sqrt(dx * dx + dy * dy);
@@ -111,6 +115,7 @@ export default function ImagePreview({ url, urls = null, initialIdx = 0, onClose
 
   // Drag to pan (when zoomed in)
   const handleMouseDown = (e) => {
+    if (e.target.closest('button') || media.status !== 'ready') return;
     if (scale > 1) {
       setDragging(true);
       dragStart.current = { x: e.clientX, y: e.clientY };
@@ -133,164 +138,52 @@ export default function ImagePreview({ url, urls = null, initialIdx = 0, onClose
   const handleMouseUp = () => setDragging(false);
 
   return (
-    <div
-      data-testid="lightbox"
+    <div data-testid="lightbox" className="media-preview"
       ref={modalRef} tabIndex={-1} role="dialog" aria-modal="true" aria-label={t('imagePreview.title')}
-      style={{
-        position: 'fixed', inset: 0, zIndex: "var(--z-top)",
-        background: 'rgba(0,0,0,.92)',
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-        cursor: scale > 1 ? 'grab' : 'zoom-out',
-        userSelect: 'none',
-        animation: 'fadeIn .18s ease-out',   // 遮罩淡入，避免生硬弹出
-      }}
-      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
-      onWheel={handleWheel}
-      onTouchStart={handleTouchStart}
-      onTouchMove={handleTouchMove}
-      onTouchEnd={handleTouchEnd}
-      onMouseDown={handleMouseDown}
-      onMouseMove={handleMouseMove}
-      onMouseUp={handleMouseUp}
-      onMouseLeave={handleMouseUp}
-    >
-      {!loaded && (
-        <div
-          aria-hidden="true"
-          style={{
-            position: 'absolute', width: 40, height: 40, borderRadius: '50%',
-            border: '3px solid rgba(255,255,255,.25)', borderTopColor: '#fff',
-            animation: 'wc-spin .8s linear infinite', pointerEvents: 'none',
-          }}
-        />
-      )}
-      <img
-        data-testid="lightbox-image"
-        key={currentUrl}
-        src={currentUrl}
-        alt={gallery ? t('imagePreview.imageAltTemplate').replace('{n}', idx + 1).replace('{total}', urls.length) : t('imagePreview.title')}
-        loading="lazy"
-        draggable={false}
-        onLoad={() => setLoaded(true)}
-        onError={e => { setLoaded(true); e.currentTarget.style.opacity = '.25'; e.currentTarget.alt = '图片加载失败'; }}
-        onClick={(e) => e.stopPropagation()}
-        onDoubleClick={(e) => {
-          // 双击缩放切换：已放大→复位;原始大小→放大到 2x(对齐图片查看器通用手势)
-          e.stopPropagation();
-          if (scale > 1) resetTransform();
-          else setScale(2);
-        }}
-        style={{
-          maxWidth: '90vw',
-          maxHeight: '90vh',
-          objectFit: 'contain',
-          borderRadius: 'var(--radius-button-sm)',
-          boxShadow: '0 8px 40px rgba(0,0,0,.5)',
-          transform: `scale(${scale}) translate(${position.x / scale}px, ${position.y / scale}px)`,
-          transition: dragging ? 'none' : 'transform .15s ease',
-          cursor: scale > 1 ? (dragging ? 'grabbing' : 'grab') : 'zoom-in',
-          animation: 'fadeIn .22s ease-out',   // 图片淡入(仅 opacity,不碰 transform 以免与缩放/平移冲突)；切换图片时随 key 重播
-        }}
-      />
-
-      {/* Gallery navigation arrows */}
-      {gallery && (
-        <>
-          <button data-testid="lightbox-prev" onClick={(e) => { e.stopPropagation(); prev(); }} style={arrowStyle('left')} aria-label={t('imagePreview.prev')}><TouliaoIcon name="previous" size="md" /></button>
-          <button data-testid="lightbox-next" onClick={(e) => { e.stopPropagation(); next(); }} style={arrowStyle('right')} aria-label={t('imagePreview.next')}><TouliaoIcon name="disclosure" size="md" /></button>
-          <div style={{ position: 'absolute', top: 18, left: '50%', transform: 'translateX(-50%)',
-            color: 'rgba(255,255,255,.7)', fontSize: 'var(--text-sm2)', zIndex: 10, pointerEvents: 'none' }}>
-            {idx + 1} / {urls.length}
-          </div>
-        </>
-      )}
-
-      {/* 底部操作条：下载 + 分享到第三方。下载走统一 downloadFile,桌面/移动端与跨域云图也能可靠落盘 */}
-      <div
-        onClick={(e) => e.stopPropagation()}
-        style={{
-          position: 'absolute', bottom: 30, left: '50%',
-          transform: 'translateX(-50%)',
-          display: 'flex', alignItems: 'center', gap: 12, zIndex: 10,
-        }}
-      >
-        <button
-          onClick={(e) => { e.stopPropagation(); downloadFile(sourceUrl, filenameFromUrl(sourceUrl)); }}
-          aria-label={t('imagePreview.download')}
-          style={{
-            border: 'none', cursor: 'pointer',
-            color: 'var(--text-inverse)', fontSize: 'var(--text-sm2)',
-            background: 'rgba(255,255,255,.18)',
-            padding: '8px 20px', borderRadius: 'var(--radius-2xl)',
-            textDecoration: 'none',
-            display: 'flex', alignItems: 'center', gap: 6,
-            backdropFilter: 'blur(10px)',
-          }}
-        >
-          <TouliaoIcon name="download" tone="onDark" size="xs" />
-          下载
+      onClick={event => { if (event.target === event.currentTarget) onClose(); }}
+      onTouchStart={handleTouchStart} onTouchMove={handleTouchMove} onTouchEnd={handleTouchEnd}
+      onTouchCancel={() => { lastPinchDist.current = null; touchStartX.current = null; }}
+      onMouseDown={handleMouseDown} onMouseMove={handleMouseMove} onMouseUp={handleMouseUp} onMouseLeave={handleMouseUp}>
+      <div className="media-preview-header">
+        <div className="media-preview-heading">{t('imagePreview.title')}
+          {gallery && <span className="media-preview-count" aria-live="polite">{idx + 1} / {urls.length}</span>}
+        </div>
+        <button type="button" data-testid="lightbox-close" className="media-preview-close" onClick={onClose} aria-label={t('common.close')}>
+          <TouliaoIcon name="close" size="sm" />
         </button>
-        {canShare() && (
-          <button
-            onClick={(e) => { e.stopPropagation(); shareMessage({ fileUrl: sourceUrl, filename: filenameFromUrl(sourceUrl), title: t('imagePreview.share') }); }}
-            aria-label={t('imagePreview.share')}
-            data-testid="lightbox-share"
-            style={{
-              border: 'none', cursor: 'pointer',
-              color: 'var(--text-inverse)', fontSize: 'var(--text-sm2)',
-              background: 'rgba(255,255,255,.18)',
-              padding: '8px 20px', borderRadius: 'var(--radius-2xl)',
-              display: 'flex', alignItems: 'center', gap: 6,
-              backdropFilter: 'blur(10px)',
-            }}
-          >
-            <TouliaoIcon name="share" tone="onDark" size="xs" />
-            分享
-          </button>
-        )}
       </div>
-
-      {/* Close button */}
-      <button
-        data-testid="lightbox-close"
-        onClick={(e) => { e.stopPropagation(); onClose(); }}
-        style={{
-          position: 'absolute', top: 18, right: 18,
-          color: 'var(--text-inverse)', fontSize: 24, lineHeight: 1,
-          background: 'rgba(255,255,255,.12)',
-          width: 36, height: 36, borderRadius: 'var(--radius-full)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          border: 'none', cursor: 'pointer', zIndex: 10,
-          backdropFilter: 'blur(10px)',
-        }}
-        aria-label={t('common.close')}
-      ><TouliaoIcon name="close" size="sm" /></button>
-
-      {/* Zoom indicator */}
-      <div
-        style={{
-          position: 'absolute', bottom: 80, left: '50%',
-          transform: 'translateX(-50%)',
-          color: 'rgba(255,255,255,.5)',
-          fontSize: 'var(--text-sm)', zIndex: 10,
-          pointerEvents: 'none',
-        }}
-      >
-        {scale !== 1 ? `${Math.round(scale * 100)}%` : gallery ? '← → 切换  滚轮缩放' : '滚轮缩放'}
+      <div className="media-preview-stage" onClick={event => { if (event.target === event.currentTarget) onClose(); }}>
+        <img data-testid="lightbox-image" key={media.key} src={currentUrl}
+          data-load-state={media.status} aria-hidden={media.status === 'error' || undefined}
+          alt={gallery ? t('imagePreview.imageAltTemplate').replace('{n}', idx + 1).replace('{total}', urls.length) : t('imagePreview.title')}
+          draggable={false} onLoad={media.ready} onError={media.fail}
+          onClick={event => event.stopPropagation()}
+          onDoubleClick={event => { event.stopPropagation(); if (scale > 1) resetTransform(); else setScale(2); }}
+          style={{ transform: `scale(${scale}) translate(${position.x / scale}px, ${position.y / scale}px)`,
+            transition: dragging ? 'none' : 'transform .15s ease', cursor: scale > 1 ? (dragging ? 'grabbing' : 'grab') : 'zoom-in' }} />
+        <MediaPreviewStatus state={media} errorKey="imagePreview.loadFailed" />
+        {gallery && <>
+          <button type="button" data-testid="lightbox-prev" className="media-preview-arrow media-preview-arrow--prev" onClick={prev} aria-label={t('imagePreview.prev')}><TouliaoIcon name="previous" size="md" /></button>
+          <button type="button" data-testid="lightbox-next" className="media-preview-arrow media-preview-arrow--next" onClick={next} aria-label={t('imagePreview.next')}><TouliaoIcon name="disclosure" size="md" /></button>
+        </>}
+      </div>
+      <div className="media-preview-footer">
+        <div className="media-preview-zoom" role="group" aria-label={t('imagePreview.zoomControls')}>
+          <button type="button" onClick={() => { setScale(value => Math.max(.5, value - .25)); setPosition({ x: 0, y: 0 }); }} disabled={media.status !== 'ready' || scale <= .5} aria-label={t('imagePreview.zoomOut')}><TouliaoIcon name="minimize" size="sm" /></button>
+          <button type="button" className="media-preview-scale" onClick={resetTransform} disabled={media.status !== 'ready'} aria-label={t('imagePreview.resetZoom')}>{Math.round(scale * 100)}%</button>
+          <button type="button" onClick={() => setScale(value => Math.min(5, value + .25))} disabled={media.status !== 'ready' || scale >= 5} aria-label={t('imagePreview.zoomIn')}><TouliaoIcon name="add" size="sm" /></button>
+        </div>
+        <p className="media-preview-hint media-preview-hint--desktop">{t(gallery ? 'imagePreview.galleryHint' : 'imagePreview.zoomHint')}</p>
+        <p className="media-preview-hint media-preview-hint--touch">{t('imagePreview.touchHint')}</p>
+        <div className="media-preview-actions">
+          <button type="button" onClick={() => downloadFile(sourceUrl, filenameFromUrl(sourceUrl))} aria-label={t('imagePreview.download')}>
+            <TouliaoIcon name="download" tone="onDark" size="xs" />{t('videoPreview.downloadShort')}
+          </button>
+          {canShare() && <button type="button" data-testid="lightbox-share" onClick={() => shareMessage({ fileUrl: sourceUrl, filename: filenameFromUrl(sourceUrl), title: t('imagePreview.share') })} aria-label={t('imagePreview.share')}>
+            <TouliaoIcon name="share" tone="onDark" size="xs" />{t('videoPreview.shareShort')}
+          </button>}
+        </div>
       </div>
     </div>
   );
-}
-
-function arrowStyle(side) {
-  return {
-    position: 'absolute', [side]: 16, top: '50%', transform: 'translateY(-50%)',
-    color: 'var(--text-inverse)', fontSize: 48, lineHeight: 1,
-    background: 'rgba(255,255,255,.1)',
-    width: 48, height: 80, borderRadius: 'var(--radius-input)',
-    display: 'flex', alignItems: 'center', justifyContent: 'center',
-    border: 'none', cursor: 'pointer', zIndex: 10,
-    backdropFilter: 'blur(6px)',
-    transition: 'background .15s',
-  };
 }
