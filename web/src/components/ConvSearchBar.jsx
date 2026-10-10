@@ -1,9 +1,11 @@
 import TouliaoField from '../ui-kit/Field';
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useId } from 'react';
 import axios from 'axios';
 import { format } from '../utils/time';
 import { useI18n } from '../contexts/I18nContext';
 import { IcoClose, IcoSearch } from './Icons';
+import { startSearchTask } from '../utils/searchTask';
+import './ConvSearchBar.css';
 
 /**
  * 会话内消息搜索栏
@@ -15,14 +17,20 @@ import { IcoClose, IcoSearch } from './Icons';
 export default function ConvSearchBar({ convId, onJump, onClose }) {
   const { t } = useI18n();
   const [query, setQuery] = useState('');
-  const [results, setResults] = useState([]);
-  const [loading, setLoading] = useState(false);
-  const [searched, setSearched] = useState(false);
+  const [search, setSearch] = useState({ status: 'idle', data: [] });
+  const [retry, setRetry] = useState(0);
   const inputRef = useRef(null);
-  const timerRef = useRef(null);
+  const statusId = useId();
+  const key = JSON.stringify([convId, query.trim()]);
+  const status = search.key === key ? search.status : query.trim() ? 'loading' : 'idle';
+  const results = search.key === key ? search.data : [];
 
   // 自动聚焦
-  useEffect(() => { inputRef.current?.focus(); }, []);
+  useEffect(() => {
+    const previous = document.activeElement;
+    inputRef.current?.focus();
+    return () => { if (previous?.isConnected) previous.focus({ preventScroll: true }); };
+  }, []);
 
   // Escape 关闭
   useEffect(() => {
@@ -31,33 +39,14 @@ export default function ConvSearchBar({ convId, onJump, onClose }) {
     return () => document.removeEventListener('keydown', h);
   }, [onClose]);
 
-  const doSearch = useCallback((q) => {
-    const trimmed = q.trim();
-    if (!trimmed) { setResults([]); setSearched(false); return; }
-    clearTimeout(timerRef.current);
-    timerRef.current = setTimeout(async () => {
-      setLoading(true);
-      try {
-        const { data } = await axios.get(
-          `/api/messages/conversation/${convId}/search`,
-          { params: { q: trimmed } }
-        );
-        setResults(Array.isArray(data) ? data : []);
-        setSearched(true);
-      } catch {
-        setResults([]);
-        setSearched(true);
-      } finally {
-        setLoading(false);
-      }
-    }, 280);
-  }, [convId]);
-
-  const handleChange = (e) => {
-    const v = e.target.value;
-    setQuery(v);
-    doSearch(v);
-  };
+  useEffect(() => startSearchTask({
+    key, query,
+    load: async (q, signal) => {
+      const { data } = await axios.get(`/api/messages/conversation/${convId}/search`, { params: { q }, signal });
+      return data;
+    },
+    onState: setSearch,
+  }), [convId, key, query, retry]);
 
   const handleJump = (msg) => {
     onJump(msg.id);
@@ -82,7 +71,7 @@ export default function ConvSearchBar({ convId, onJump, onClose }) {
     return (
       <>
         {text.slice(0, idx)}
-        <mark style={{ background: 'rgba(var(--color-primary-rgb), .2)', color: 'var(--green)', borderRadius: 'var(--radius-xs)', padding: '0 1px' }}>
+        <mark className="conv-search-highlight">
           {text.slice(idx, idx + q.length)}
         </mark>
         {text.slice(idx + q.length)}
@@ -91,82 +80,53 @@ export default function ConvSearchBar({ convId, onJump, onClose }) {
   };
 
   return (
-    <div style={{
-      borderBottom: '1px solid var(--border-default)',
-      background: 'var(--bg-card)',
-    }}>
+    <section className="conv-search" aria-label={t('convSearch.searchPlaceholder')}>
       {/* 搜索输入行 */}
-      <div style={{
-        display: 'flex', alignItems: 'center', gap: 8,
-        padding: '8px 12px',
-      }}>
-        <IcoSearch style={{flexShrink:0,color:'var(--text-tertiary)'}} size="xs" />
+      <div className="conv-search-row">
         <TouliaoField variant="SEARCH" className="tl-field-inline"
-          wrapperStyle={{ flex: 1 }} ref={inputRef} value={query}
-          onChange={handleChange} aria-label={t('convSearch.searchPlaceholder')}
+          icon={<IcoSearch size="xs" />} ref={inputRef} value={query}
+          onChange={event => setQuery(event.target.value)} aria-label={t('convSearch.searchPlaceholder')}
+          aria-describedby={statusId}
+          onClear={() => { setQuery(''); inputRef.current?.focus(); }}
           placeholder={t('convSearch.searchPlaceholder')} />
-        {loading && (
-          <span style={{ fontSize: 'var(--text-xs)', color: 'var(--text-secondary)' }}>{t('convSearch.searching')}</span>
-        )}
         <button
+          type="button" className="conv-search-close"
           onClick={onClose}
           aria-label={t('convSearch.closeSearch')}
-          style={{
-            background: 'none', border: 'none', cursor: 'pointer',
-            padding: 4, color: 'var(--text-tertiary)', lineHeight: 0,
-            borderRadius: 'var(--radius-tag)',
-          }}
         >
-          <IcoClose size="xs" />
+          <IcoClose size="sm" />
         </button>
       </div>
 
-      {/* 结果列表 */}
-      {query.trim() && (
-        <div style={{
-          maxHeight: 280, overflowY: 'auto',
-          borderTop: '1px solid var(--border-subtle)',
-        }}>
-          {searched && results.length === 0 && !loading && (
-            <div style={{
-              padding: '16px 16px',
-              fontSize: 'var(--text-sm2)', color: 'var(--text-secondary)', textAlign: 'center',
-            }}>
-              {t('convSearch.noResults')}
-            </div>
-          )}
+      <div className="conv-search-status" id={statusId} role="status" aria-live="polite">
+        {status === 'idle' && t('convSearch.hint')}
+        {status === 'loading' && t('convSearch.searching')}
+        {status === 'error' && t('convSearch.failed')}
+        {status === 'success' && (results.length ? t('convSearch.resultCount').replace('{count}', results.length) : t('convSearch.noResults'))}
+      </div>
+      {status === 'error' && <button type="button" className="conv-search-retry" onClick={() => setRetry(value => value + 1)}>{t('common.retry')}</button>}
+      {status === 'success' && results.length > 0 && (
+        <div className="conv-search-results">
           {results.map(msg => (
-            <div
+            <button type="button" className="conv-search-result"
               key={msg.id}
-              role="button"
-              tabIndex={0}
               onClick={() => handleJump(msg)}
-              onKeyDown={e => (e.key === 'Enter' || e.key === ' ') && handleJump(msg)}
-              style={{
-                display: 'flex', flexDirection: 'column', gap: 2,
-                padding: '9px 16px', cursor: 'pointer',
-                borderBottom: '1px solid var(--border-subtle)',
-                transition: 'background .1s',
-              }}
-              onMouseEnter={e => { e.currentTarget.style.background = 'var(--bg-hover)'; }}
-              onMouseLeave={e => { e.currentTarget.style.background = ''; }}
             >
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span style={{ fontSize: 'var(--text-sm)', fontWeight: 600, color: 'var(--text-secondary)' }}>
+              <span className="conv-search-meta">
+                <span className="conv-search-sender">
                   {msg.senderName || t('chatlist.unknown')}
                 </span>
-                <span style={{ fontSize: 'var(--text-xs)', color: 'var(--text-secondary)' }}>
+                <span className="conv-search-time">
                   {format((msg.created_at || 0) * 1000)}
                 </span>
-              </div>
-              <div style={{ fontSize: 'var(--text-sm2)', color: 'var(--text-primary)', lineHeight: 1.5,
-                overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              </span>
+              <span className="conv-search-preview">
                 {highlight(previewOf(msg), query.trim())}
-              </div>
-            </div>
+              </span>
+            </button>
           ))}
         </div>
       )}
-    </div>
+    </section>
   );
 }

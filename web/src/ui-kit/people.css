@@ -81,4 +81,7 @@ html.touliao-ui body .gs-time-filter button.active { color: var(--tl-primary); b
 /* 窄屏：右侧字母索引是绝对定位，给列表留出索引宽度，避免字母压在行尾箭头/徽标上 */
 @media (max-width: 768px) {
   html.touliao-ui body .cl-panel .wc-list { padding-right: 18px; }
+  html.touliao-ui body .gs-filters :is(select, button) { min-height: 44px; }
+  html.touliao-ui body .gs-time-filter { display: flex; flex-wrap: wrap; gap: 4px; }
+  html.touliao-ui body .gs-time-filter button { flex: 1 1 auto; min-width: 44px; }
 }

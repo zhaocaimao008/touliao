@@ -3,6 +3,9 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 
 const translations = {
   'zh-CN': {
+    'convSearch.hint': "输入关键词，查找当前聊天记录",
+    'convSearch.failed': "搜索暂时不可用，请检查网络后重试。",
+    'convSearch.resultCount': "找到 {count} 条消息，点击可定位",
     'chat.callOptions': '选择通话方式',
     'contacts.moreTools': '更多功能',
     'home.startConversation': '开始一段对话',
@@ -982,10 +985,10 @@ const translations = {
     'privateChat.burn24hours': '24小时',
     'privateChat.burn7days': '7天',
     'privateChat.burnAfterReading': '阅后即焚',
-    'privateChat.changeBackground': '更换 ›',
-    'privateChat.chooseImage': '选择图片 ›',
-    'privateChat.mediaTypesHint': '图片 / 视频 / 文件 ›',
-    'privateChat.saveAsTxt': '保存为 .txt ›',
+    'privateChat.changeBackground': '更换',
+    'privateChat.chooseImage': '选择图片',
+    'privateChat.mediaTypesHint': '图片 / 视频 / 文件',
+    'privateChat.saveAsTxt': '保存为 .txt',
     'privateChat.defaultChatName': '当前聊天',
     'privateChat.confirmClearTemplate': '确认双向删除「{name}」的全部聊天记录？对方也将看不到这些记录。',
     'privateChat.clearFailed': '清理失败',

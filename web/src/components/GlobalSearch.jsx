@@ -1,11 +1,12 @@
 import TouliaoIcon, { iconForMessageType } from '../ui-kit/Icon';
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import axios from 'axios';
 import Avatar from './Avatar';
 import { EmptyState, ErrorState } from './StateViews';
 import { TextButton } from '../ui-kit/Button';
 import { GroupAvatar } from './GroupAvatar';
 import { useI18n } from '../contexts/I18nContext';
+import { startSearchTask } from '../utils/searchTask';
 import {
   buildMessageSearchParams,
   formatSearchMessageSummary,
@@ -38,47 +39,44 @@ export default function GlobalSearch({ query, onSelectConv, onNetworkSearch }) {
   const { t } = useI18n();
   const [contacts, setContacts] = useState([]);
   const [conversations, setConversations] = useState([]);
-  const [messages, setMessages] = useState([]);
-  const [searchingMsg, setSearchingMsg] = useState(false);
+  const [messageSearch, setMessageSearch] = useState({ status: 'idle', data: [] });
+  const [lookupLoading, setLookupLoading] = useState(true);
+  const [contactError, setContactError] = useState(null);
   const [convError, setConvError] = useState(null);
-  const [messageError, setMessageError] = useState(null);
   const [retry, setRetry] = useState(0);
   const [typeFilter, setTypeFilter] = useState('');
   const [timeRange, setTimeRange] = useState('');
   const [senderId, setSenderId] = useState('');
   const [senderOptions, setSenderOptions] = useState([]);
-  // 懒加载守卫：联系人 + 会话仅在用户首次输入时拉取一次，之后走本地过滤。
-  // （原先在组件挂载即预拉，未输入也产生两个请求；改为按需拉取，省掉无谓请求，
-  //   且只拉一次，后续按键不重复请求、无每键网络延迟。）
-  const loadedRef = useRef(false);
+  const q = query.trim().toLowerCase();
+  const hasQuery = !!q;
+  const searchKey = JSON.stringify([q, typeFilter, timeRange, senderId]);
 
+  // Fetch lookups once on entry, or on retry; typing uses local filtering.
   useEffect(() => {
-    if (!query.trim() || loadedRef.current) return;
-    loadedRef.current = true;
-
-    axios.get('/api/users/contacts')
+    if (!hasQuery) return;
+    const ac = new AbortController();
+    const contactsRequest = axios.get('/api/users/contacts', { signal: ac.signal })
       .then(r => {
-        setContacts(r.data || []);
+        if (ac.signal.aborted) return;
+        setContacts(Array.isArray(r.data) ? r.data : []);
+        setContactError(null);
       })
-      .catch(() => {
-        // [GlobalSearch] Failed to load contacts — suppressed
-      });
-
-    axios.get('/api/messages/conversations')
+      .catch(() => { if (!ac.signal.aborted) setContactError(t('convSearch.failed')); });
+    const conversationsRequest = axios.get('/api/messages/conversations', { signal: ac.signal })
       .then(r => {
-        setConversations(r.data || []);
+        if (ac.signal.aborted) return;
+        setConversations(Array.isArray(r.data) ? r.data : []);
         setConvError(null);
       })
       .catch(err => {
-        const errorMsg = err.response?.status === 401
-          ? t('gs.authFailedRelogin')
-          : err.response?.data?.error || err.message;
-        // [GlobalSearch] Failed to load conversations — suppressed
-        setConvError(errorMsg);
+        if (!ac.signal.aborted) setConvError(t(err.response?.status === 401 ? 'gs.authFailedRelogin' : 'convSearch.failed'));
       });
-  }, [query, t, retry]);
-
-  const q = query.trim().toLowerCase();
+    Promise.allSettled([contactsRequest, conversationsRequest]).then(() => {
+      if (!ac.signal.aborted) setLookupLoading(false);
+    });
+    return () => ac.abort();
+  }, [hasQuery, t, retry]);
 
   // 搜会话名(联系人、群聊、文件传输助手)
   const matchedContacts = useMemo(() => {
@@ -112,38 +110,25 @@ export default function GlobalSearch({ query, onSelectConv, onNetworkSearch }) {
     return results;
   }, [conversations, q, t]);
 
-  // 搜历史消息(防抖 300ms，减少请求次数)
-  useEffect(() => {
-    // 空关键词时直接返回（残留结果由 render 期 msgResults/actualSearching 派生忽略），
-    // 避免 effect 内同步 setState 触发级联渲染
-    if (!q || q.length < 1) return;
-    // AbortController：快速输入时取消上一次未完成请求，防止慢响应覆盖新结果（旧数据竞态）
-    const ac = new AbortController();
-    const timer = setTimeout(() => {
-      setSearchingMsg(true);
-      setMessageError(null);
+  // The query and filters identify a result set, including while debouncing.
+  useEffect(() => startSearchTask({
+    key: searchKey, query: q, delay: 300,
+    load: async (_query, signal) => {
       const params = buildMessageSearchParams({ query: q, type: typeFilter, timeRange, senderId });
-      axios.get('/api/messages/search', { params, signal: ac.signal })
-        .then(r => {
-          const msgs = Array.isArray(r.data?.results) ? r.data.results : [];
-          setMessages(msgs);
-          setSenderOptions(previous => {
-            const byId = new Map(previous.map(sender => [String(sender.id), sender]));
-            msgs.forEach(message => {
-              if (!message.sender_id) return;
-              byId.set(String(message.sender_id), {
-                id: String(message.sender_id),
-                name: message.senderName || '',
-              });
-            });
-            return [...byId.values()].sort((a, b) => a.name.localeCompare(b.name));
-          });
-        })
-        .catch(err => { if (!axios.isCancel?.(err) && err.code !== 'ERR_CANCELED') { setMessages([]); setMessageError(err.response?.data?.error || err.message); } })
-        .finally(() => { if (!ac.signal.aborted) setSearchingMsg(false); });
-    }, 300);
-    return () => { clearTimeout(timer); ac.abort(); };
-  }, [q, typeFilter, timeRange, senderId, retry]);
+      const { data } = await axios.get('/api/messages/search', { params, signal });
+      return data?.results;
+    },
+    onState: next => {
+      setMessageSearch(next);
+      if (next.status === 'success') setSenderOptions(previous => {
+        const byId = new Map(previous.map(sender => [String(sender.id), sender]));
+        next.data.forEach(message => {
+          if (message.sender_id) byId.set(String(message.sender_id), { id: String(message.sender_id), name: message.senderName || '' });
+        });
+        return [...byId.values()].sort((a, b) => a.name.localeCompare(b.name));
+      });
+    },
+  }), [q, typeFilter, timeRange, senderId, retry, searchKey]);
 
   const openContact = async (c) => {
     try {
@@ -170,17 +155,20 @@ export default function GlobalSearch({ query, onSelectConv, onNetworkSearch }) {
   };
 
   // 空关键词时忽略上一次搜索的残留（不在 effect 内清空，改由此处派生）
-  const hasQuery = !!q && q.length >= 1;
-  const msgResults = hasQuery ? messages : [];
-  const actualSearching = hasQuery && searchingMsg;
+  const currentSearch = messageSearch.key === searchKey;
+  const msgResults = hasQuery && currentSearch ? messageSearch.data : [];
+  const actualSearching = hasQuery && (lookupLoading || !currentSearch || messageSearch.status === 'loading');
+  const messageError = currentSearch && messageSearch.status === 'error' ? t('convSearch.failed') : null;
   const empty = matchedContacts.length === 0 && matchedConversations.length === 0 && msgResults.length === 0;
 
   return (
     <div className="gs-scroll">
       {/* 会话加载失败提示（此前静默吞掉，导致会话搜索结果为空却无任何反馈） */}
-      {hasQuery && (convError || messageError) && (
-        <ErrorState desc={convError || messageError} onRetry={() => {
-          if (convError) loadedRef.current = false;
+      {hasQuery && (contactError || convError || messageError) && (
+        <ErrorState desc={contactError || convError || messageError} onRetry={() => {
+          setLookupLoading(true);
+          setContactError(null);
+          setConvError(null);
           setRetry(value => value + 1);
         }} />
       )}
@@ -295,7 +283,7 @@ export default function GlobalSearch({ query, onSelectConv, onNetworkSearch }) {
       )}
 
       {/* 降级兜底：仅在有实际查询词时展示,避免清空输入时闪出「去网络搜索『』」空串 */}
-      {empty && !actualSearching && !convError && !messageError && q && (
+      {empty && !actualSearching && !contactError && !convError && !messageError && q && (
         <EmptyState illustration="search" title={t('gs.noLocalResultsPrefix')} action={
           <TextButton className="gs-network-row" onClick={() => onNetworkSearch(query)}>
             <TouliaoIcon name="search" className="gs-network-icon" tone="selected" size="xs" />

@@ -1,5 +1,8 @@
 // 按需加载的语言包（首屏只打包简体中文，见 contexts/I18nContext.jsx 的 LOCALE_LOADERS）。
 export default {
+    'convSearch.hint': "輸入關鍵字，尋找目前的聊天記錄",
+    'convSearch.failed': "搜尋暫時無法使用，請檢查網路後重試。",
+    'convSearch.resultCount': "找到 {count} 則訊息，點選可定位",
     'chat.callOptions': '選擇通話方式',
     'contacts.moreTools': '更多功能',
     'home.startConversation': '開始一段對話',
@@ -968,10 +971,10 @@ export default {
   'privateChat.burn24hours': '24小時',
   'privateChat.burn7days': '7天',
   'privateChat.burnAfterReading': '閱後即焚',
-  'privateChat.changeBackground': '更換 ›',
-  'privateChat.chooseImage': '選擇圖片 ›',
-  'privateChat.mediaTypesHint': '圖片 / 影片 / 檔案 ›',
-  'privateChat.saveAsTxt': '儲存為 .txt ›',
+  'privateChat.changeBackground': '更換',
+  'privateChat.chooseImage': '選擇圖片',
+  'privateChat.mediaTypesHint': '圖片 / 影片 / 檔案',
+  'privateChat.saveAsTxt': '儲存為 .txt',
   'privateChat.defaultChatName': '目前聊天',
   'privateChat.confirmClearTemplate': '確認雙向刪除「{name}」的全部聊天記錄？對方也將看不到這些記錄。',
   'privateChat.clearFailed': '清理失敗',
