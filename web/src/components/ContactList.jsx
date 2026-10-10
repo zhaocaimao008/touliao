@@ -16,6 +16,11 @@ import { formatLastOnline } from '../utils/time';
 import { useI18n } from '../contexts/I18nContext';
 import { IcoBack, IcoCheck, IcoPersonAdd } from './Icons';
 import { lazyWithRetry } from '../utils/lazyWithRetry';
+import { useDirectoryResource } from '../hooks/useDirectoryResource';
+import DirectoryFeedback from './DirectoryFeedback';
+import { matchesContact, normalizeContactQuery } from '../utils/contactSearch';
+
+const selectAiBots = data => data?.features?.aiAssistants;
 
 function formatRequestTime(timestamp, formatter) {
   const seconds = Number(timestamp);
@@ -58,12 +63,21 @@ export default function ContactList({ onStartChat, searchQuery = '', addFriendRe
   const requestTimeFormatter = useMemo(() => new Intl.DateTimeFormat(lang, {
     month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit',
   }), [lang]);
-  const [contacts, setContacts] = useState([]);
-  const [requests, setRequests] = useState([]);
-  const [sentRequests, setSentRequests] = useState([]);
-  const [blockedUsers, setBlockedUsers] = useState([]);
-  const [groups, setGroups] = useState([]);
-  const [labels, setLabels] = useState([]);
+  const contactResource = useDirectoryResource('/api/users/contacts');
+  const requestResource = useDirectoryResource('/api/users/friend-requests');
+  const sentResource = useDirectoryResource('/api/users/friend-requests/sent');
+  const blockedResource = useDirectoryResource('/api/users/me/blocked');
+  const groupResource = useDirectoryResource('/api/messages/my-groups');
+  const labelResource = useDirectoryResource('/api/friend-labels');
+  const aiResource = useDirectoryResource('/api/config', selectAiBots);
+  const { data: contacts, setData: setContacts, reload: fetchContacts } = contactResource;
+  const { data: requests, setData: setRequests, reload: fetchRequests } = requestResource;
+  const { data: sentRequests, reload: fetchSent } = sentResource;
+  const { data: blockedUsers, setData: setBlockedUsers, reload: fetchBlocked } = blockedResource;
+  const { data: groups, reload: fetchGroups } = groupResource;
+  const { data: labels, reload: fetchLabels } = labelResource;
+  const { data: aiBots, reload: fetchAiBots } = aiResource;
+  const normalizedQuery = normalizeContactQuery(searchQuery);
   const [tab, setTab] = useState('contacts');
   const [requestsSubTab, setRequestsSubTab] = useState('received');
   const [onlineIds, setOnlineIds] = useState(new Set());
@@ -71,30 +85,8 @@ export default function ContactList({ onStartChat, searchQuery = '', addFriendRe
   const [viewProfile, setViewProfile] = useState(null);
   const [showAddFriend, setShowAddFriend] = useState(false);
   const [handlingReq, setHandlingReq] = useState(null); // 正在处理的申请 id，防连点重复提交
-  const [contactsLoaded, setContactsLoaded] = useState(false); // 首屏是否已拉过：未拉完显示骨架，避免闪「暂无联系人」
-  const [aiBots, setAiBots] = useState([]); // AI 助手入口列表（GET /api/config → features.aiAssistants）
   const listRef = useRef(null);
   const { socket } = useSocketCore();
-
-  // 统一兜底成数组：若接口异常返回非数组，避免下方 .filter/.map 抛错导致整页白屏
-  const fetchContacts = useCallback(() =>
-    axios.get('/api/users/contacts').then(r => setContacts(Array.isArray(r.data) ? r.data : [])).catch(() => setContacts([]))
-      .finally(() => setContactsLoaded(true)), []);
-  const fetchRequests = useCallback(() =>
-    axios.get('/api/users/friend-requests').then(r => setRequests(Array.isArray(r.data) ? r.data : [])).catch(() => setRequests([])), []);
-  const fetchSent = useCallback(() =>
-    axios.get('/api/users/friend-requests/sent').then(r => setSentRequests(Array.isArray(r.data) ? r.data : [])).catch(() => setSentRequests([])), []);
-  const fetchBlocked = useCallback(() =>
-    axios.get('/api/users/me/blocked').then(r => setBlockedUsers(Array.isArray(r.data) ? r.data : [])).catch(() => setBlockedUsers([])), []);
-  const fetchGroups = useCallback(() =>
-    axios.get('/api/messages/my-groups').then(r => setGroups(Array.isArray(r.data) ? r.data : [])).catch(() => setGroups([])), []);
-  const fetchLabels = useCallback(() =>
-    axios.get('/api/friend-labels').then(r => setLabels(Array.isArray(r.data) ? r.data : [])).catch(() => setLabels([])), []);
-  // AI 助手入口列表：来自 /api/config（后端 .env botId 联动），拉取失败静默隐藏分组
-  const fetchAiBots = useCallback(() =>
-    axios.get('/api/config')
-      .then(r => setAiBots(Array.isArray(r.data?.features?.aiAssistants) ? r.data.features.aiAssistants : []))
-      .catch(() => setAiBots([])), []);
 
   useEffect(() => {
     fetchContacts(); fetchRequests(); fetchSent(); fetchGroups(); fetchLabels(); fetchAiBots();
@@ -104,7 +96,7 @@ export default function ContactList({ onStartChat, searchQuery = '', addFriendRe
     if (!socket) return;
     const onOnline = ({ userId }) => setOnlineIds(prev => new Set([...prev, userId]));
     const onOffline = ({ userId }) => setOnlineIds(prev => { const s = new Set(prev); s.delete(userId); return s; });
-    const onFriendReq = (req) => setRequests(prev => [req, ...prev]);
+    const onFriendReq = () => fetchRequests();
     const onAccepted = () => { fetchContacts(); fetchRequests(); fetchSent(); };
     const onProfile = () => fetchContacts(); // 好友改了昵称/头像
     socket.on('user_profile_updated', onProfile);
@@ -139,7 +131,7 @@ export default function ContactList({ onStartChat, searchQuery = '', addFriendRe
     };
     window.addEventListener('touliao:remark-changed', handler);
     return () => window.removeEventListener('touliao:remark-changed', handler);
-  }, [fetchContacts]);
+  }, [fetchContacts, setContacts]);
 
   // 从顶栏"添加朋友"入口触发（addFriendRequest 为递增触发信号）——
   // 用 render 期上一次值比较替代 effect，避免 effect 内同步 setState。
@@ -196,11 +188,7 @@ export default function ContactList({ onStartChat, searchQuery = '', addFriendRe
   // 按首字母分组联系人（含拼音排序，较贵；仅 contacts/搜索词变化时重算，避免每次渲染都跑）
   const { grouped, filtered, letters } = useMemo(() => {
     const grouped = {};
-    const filtered = contacts.filter(c => {
-      if (!searchQuery) return true;
-      const q = searchQuery.toLowerCase();
-      return (c.remark || c.username || '').toLowerCase().includes(q) || (c.phone || '').includes(q);
-    });
+    const filtered = contacts.filter(c => matchesContact(c, normalizedQuery));
     filtered.forEach(c => {
       const name = c.remark || c.username || '';
       const letter = firstLetter(name); // 汉字按拼音首字母归组（张→Z），而非全部落入 #
@@ -212,7 +200,7 @@ export default function ContactList({ onStartChat, searchQuery = '', addFriendRe
       arr.sort((a, b) => comparePinyin(a.remark || a.username || '', b.remark || b.username || '')));
     const letters = Object.keys(grouped).sort((a, b) => a === '#' ? 1 : b === '#' ? -1 : a.localeCompare(b));
     return { grouped, filtered, letters };
-  }, [contacts, searchQuery]);
+  }, [contacts, normalizedQuery]);
 
   // 固定引用：传给 memo 的 ContactRow，避免每次渲染新建函数击穿 memo。
   const openProfile = useCallback((id) => setViewProfile(id), []);
@@ -230,7 +218,7 @@ export default function ContactList({ onStartChat, searchQuery = '', addFriendRe
         {tab === 'contacts' && (
           <>
             {/* 功能入口：真实功能保持原有处理函数 */}
-            {!searchQuery.trim() && <div className="tl-contact-actions">
+            {!normalizedQuery && <div className="tl-contact-actions">
             <div className="tl-contact-shortcuts tl-contact-primary">
             <EntryRow
               icon={<IcoPersonAdd size="sm" />}
@@ -282,6 +270,7 @@ export default function ContactList({ onStartChat, searchQuery = '', addFriendRe
             </div>}
             <div className="cl-divider" />
 
+            <DirectoryFeedback resource={contactResource} />
             {/* 字母分组联系人 */}
             {letters.map(letter => (
               <div key={letter}>
@@ -292,24 +281,14 @@ export default function ContactList({ onStartChat, searchQuery = '', addFriendRe
               </div>
             ))}
 
-            {!contactsLoaded && contacts.length === 0 && !searchQuery && (
-              <div aria-hidden="true" className="cl-skeleton-pad">
-                {Array.from({ length: 8 }).map((_, i) => (
-                  <div key={i} className="wc-contact-item cl-skeleton-item">
-                    <div className="wc-skel wc-skel-avatar cl-skel-avatar-gap" />
-                    <div className="wc-skel wc-skel-line" style={{ width: '38%' }} />
-                  </div>
-                ))}
-              </div>
-            )}
-            {contactsLoaded && contacts.length === 0 && !searchQuery && (
+            {contactResource.emptyReady && contacts.length === 0 && !normalizedQuery && (
               <EmptyState className="cl-empty" icon={<svg viewBox="0 0 48 48" width="48" height="48" fill="none" className="cl-empty-icon">
                   <circle cx="24" cy="20" r="10" fill="#E8ECF0"/>
                   <path d="M8 40c0-8.84 7.16-16 16-16s16 7.16 16 16" stroke="#D0D7E3" strokeWidth="2" strokeLinecap="round"/>
                 </svg>} title={<>{t('contacts.noContacts')}</>} desc={<>{t('contacts.searchToAddFriend')}</>} />
             )}
-            {searchQuery && filtered.length === 0 && (
-              <EmptyState className="cl-empty" illustration="search" title={<>{t('contacts.notFoundTemplate').replace('{query}', searchQuery)}</>} />
+            {normalizedQuery && contactResource.emptyReady && filtered.length === 0 && (
+              <EmptyState className="cl-empty" illustration="search" title={<>{t('contacts.notFoundTemplate').replace('{query}', searchQuery.trim())}</>} />
             )}
           </>
         )}
@@ -318,20 +297,21 @@ export default function ContactList({ onStartChat, searchQuery = '', addFriendRe
         {tab === 'requests' && (
           <>
             <SectionHeader title={t('contacts.newFriends')} onBack={() => setTab('contacts')} />
-            <div className="cl-subtabs">
+            <div className="cl-subtabs" role="group" aria-label={t('contacts.newFriends')}>
               <button className={`cl-subtab${requestsSubTab === 'received' ? ' active' : ''}`}
-                onClick={() => setRequestsSubTab('received')}>
+                aria-pressed={requestsSubTab === 'received'} onClick={() => setRequestsSubTab('received')}>
                 {t('contacts.received')}{requests.length > 0 ? ` (${requests.length})` : ''}
               </button>
               <button className={`cl-subtab${requestsSubTab === 'sent' ? ' active' : ''}`}
-                onClick={() => { setRequestsSubTab('sent'); fetchSent(); }}>
+                aria-pressed={requestsSubTab === 'sent'} onClick={() => { setRequestsSubTab('sent'); fetchSent(); }}>
                 {t('contacts.sent')}
               </button>
             </div>
 
             {requestsSubTab === 'received' && (
               <>
-                {requests.length === 0 && (
+                <DirectoryFeedback resource={requestResource} />
+                {requestResource.emptyReady && requests.length === 0 && (
                   <EmptyState className="cl-empty" icon={<TouliaoIcon name="contact" className="cl-empty-icon" tone="secondary" size="xl" />} title={<>{t('contacts.noNewRequests')}</>} />
                 )}
                 {requests.map(r => (
@@ -355,7 +335,8 @@ export default function ContactList({ onStartChat, searchQuery = '', addFriendRe
 
             {requestsSubTab === 'sent' && (
               <>
-                {sentRequests.length === 0 && (
+                <DirectoryFeedback resource={sentResource} />
+                {sentResource.emptyReady && sentRequests.length === 0 && (
                   <EmptyState className="cl-empty" illustration="contacts" title={<>{t('contacts.noSentRequests')}</>} />
                 )}
                 {sentRequests.map(r => (
@@ -382,7 +363,8 @@ export default function ContactList({ onStartChat, searchQuery = '', addFriendRe
         {tab === 'ai' && (
           <>
             <SectionHeader title={t('contacts.aiAssistant')} onBack={() => setTab('contacts')} />
-            {aiBots.length === 0 && (
+            <DirectoryFeedback resource={aiResource} />
+            {aiResource.emptyReady && aiBots.length === 0 && (
               <EmptyState className="cl-empty" illustration="chat" title={<>{t('contacts.noAiAssistants')}</>} />
             )}
             {aiBots.map(b => (
@@ -417,7 +399,8 @@ export default function ContactList({ onStartChat, searchQuery = '', addFriendRe
         {tab === 'blocked' && (
           <>
             <SectionHeader title={t('contacts.blacklist')} onBack={() => setTab('contacts')} />
-            {blockedUsers.length === 0 && (
+            <DirectoryFeedback resource={blockedResource} />
+            {blockedResource.emptyReady && blockedUsers.length === 0 && (
               <EmptyState className="cl-empty" illustration="contacts" title={<>{t('contacts.blacklistEmpty')}</>} />
             )}
             {blockedUsers.map(u => (
@@ -439,6 +422,8 @@ export default function ContactList({ onStartChat, searchQuery = '', addFriendRe
             contacts={contacts}
             onBack={() => setTab('contacts')}
             onUpdate={fetchLabels}
+            resource={labelResource}
+            contactResource={contactResource}
           />
         )}
 
@@ -446,6 +431,7 @@ export default function ContactList({ onStartChat, searchQuery = '', addFriendRe
         {tab === 'groups' && (
           <>
             <SectionHeader title={t('contacts.groupsCountTemplate').replace('{count}', groups.length)} onBack={() => setTab('contacts')} />
+            <DirectoryFeedback resource={groupResource} />
             {groups.map(g => (
               <div key={g.id} className="wc-contact-item"
                 onClick={() => onStartChat({ id: g.id, type: 'group', name: g.name, avatar: g.avatar || '', members: [] })}
@@ -459,7 +445,7 @@ export default function ContactList({ onStartChat, searchQuery = '', addFriendRe
                 <IcoBack style={{color:"var(--text-tertiary)"}} size="xs" />
               </div>
             ))}
-            {groups.length === 0 && (
+            {groupResource.emptyReady && groups.length === 0 && (
               <EmptyState className="cl-empty" illustration="contacts" title={<>{t('contacts.noGroups')}</>} />
             )}
           </>
@@ -504,7 +490,7 @@ const getBrandHex = () => {
     return getComputedStyle(document.documentElement).getPropertyValue('--color-primary').trim() || '#6D5AE6';
   } catch { return '#6D5AE6'; }
 };
-function LabelsTab({ labels, contacts, onBack, onUpdate }) {
+function LabelsTab({ labels, contacts, onBack, onUpdate, resource, contactResource }) {
   const { t } = useI18n();
   const [editLabel, setEditLabel] = useState(null); // null | 'new' | labelObject
   const [nameInput, setNameInput] = useState('');
@@ -605,6 +591,8 @@ function LabelsTab({ labels, contacts, onBack, onUpdate }) {
     return (
       <>
         <SectionHeader title={t('contacts.labelMembersTitleTemplate').replace('{name}', label.name)} onBack={() => setShowMembers(null)} />
+        <DirectoryFeedback resource={resource} />
+        <DirectoryFeedback resource={contactResource} />
         <div className="lt-members-pad">
           {contacts.map(c => {
             const inLabel = memberIds.has(c.id);
@@ -622,7 +610,7 @@ function LabelsTab({ labels, contacts, onBack, onUpdate }) {
               </div>
             );
           })}
-          {contacts.length === 0 && <EmptyState className="cl-empty" illustration="contacts" title={<>{t('contacts.noContacts')}</>} />}
+          {contactResource.emptyReady && contacts.length === 0 && <EmptyState className="cl-empty" illustration="contacts" title={<>{t('contacts.noContacts')}</>} />}
         </div>
       </>
     );
@@ -631,13 +619,14 @@ function LabelsTab({ labels, contacts, onBack, onUpdate }) {
   return (
     <>
       <SectionHeader title={t('contacts.friendLabels')} onBack={onBack} />
+      <DirectoryFeedback resource={resource} />
       <div className="lt-list-header">
         <button onClick={startCreate}
           className="lt-create-btn">
           <TouliaoIcon name="add" size="sm" /> {t('contacts.newLabel')}
         </button>
       </div>
-      {labels.length === 0 && (
+      {resource.emptyReady && labels.length === 0 && (
         <EmptyState className="cl-empty" illustration="contacts" title={<>{t('contacts.noLabels')}</>} desc={<>{t('contacts.noLabelsSub')}</>} />
       )}
       {labels.map(label => (

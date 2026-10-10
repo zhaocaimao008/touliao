@@ -7,6 +7,7 @@ import { TextButton } from '../ui-kit/Button';
 import { GroupAvatar } from './GroupAvatar';
 import { useI18n } from '../contexts/I18nContext';
 import { startSearchTask } from '../utils/searchTask';
+import { matchesContact, normalizeContactQuery } from '../utils/contactSearch';
 import {
   buildMessageSearchParams,
   formatSearchMessageSummary,
@@ -48,7 +49,7 @@ export default function GlobalSearch({ query, onSelectConv, onNetworkSearch }) {
   const [timeRange, setTimeRange] = useState('');
   const [senderId, setSenderId] = useState('');
   const [senderOptions, setSenderOptions] = useState([]);
-  const q = query.trim().toLowerCase();
+  const q = normalizeContactQuery(query);
   const hasQuery = !!q;
   const searchKey = JSON.stringify([q, typeFilter, timeRange, senderId]);
 
@@ -81,11 +82,7 @@ export default function GlobalSearch({ query, onSelectConv, onNetworkSearch }) {
   // 搜会话名(联系人、群聊、文件传输助手)
   const matchedContacts = useMemo(() => {
     if (!q) return [];
-    return contacts.filter(c =>
-      (c.remark || '').toLowerCase().includes(q) ||
-      (c.username || '').toLowerCase().includes(q) ||
-      (c.wechat_id || '').toLowerCase().includes(q)
-    );
+    return contacts.filter(c => matchesContact(c, q));
   }, [contacts, q]);
 
   const matchedConversations = useMemo(() => {
@@ -183,10 +180,13 @@ export default function GlobalSearch({ query, onSelectConv, onNetworkSearch }) {
               <Avatar src={c.avatar} name={c.remark || c.username} size='md' />
               <div className="gs-info">
                 <div className="gs-name">{highlight(c.remark || c.username, q)}</div>
-                {c.remark && c.username && c.username.toLowerCase().includes(q) && (
+                {c.remark && c.username && String(c.username).toLowerCase().includes(q) && (
                   <div className="gs-sub">{t('gs.nicknameLabel')}{highlight(c.username, q)}</div>
                 )}
-                {c.wechat_id && c.wechat_id.toLowerCase().includes(q) && (
+                {c.phone && String(c.phone).toLowerCase().includes(q) && (
+                  <div className="gs-sub">{highlight(c.phone, q)}</div>
+                )}
+                {c.wechat_id && String(c.wechat_id).toLowerCase().includes(q) && (
                   <div className="gs-sub">{t('gs.touliaoIdLabel')}{highlight(c.wechat_id, q)}</div>
                 )}
               </div>

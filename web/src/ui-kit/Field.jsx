@@ -29,7 +29,11 @@ const TouliaoField = forwardRef(function TouliaoField({ id, label, icon, variant
         onClick={() => setRevealed(v => !v)} aria-label={t(revealed ? 'auth.hidePassword' : 'auth.showPassword')} aria-pressed={revealed}>
         <TouliaoIcon name={revealed ? 'showPassword' : 'hidePassword'} size="sm" />
       </button>}
-      {onClear && value && !readOnly && !disabled && <button type="button" className="auth-pwd-toggle" onClick={onClear} aria-label={t('common.clear')}><TouliaoIcon name="close" size="sm" /></button>}
+      {onClear && value && !readOnly && !disabled && <button type="button" className="auth-pwd-toggle" onClick={event => {
+        const control = event.currentTarget.parentElement.querySelector('input, textarea');
+        onClear(event);
+        if (control?.isConnected) control.focus({ preventScroll: true });
+      }} aria-label={t('common.clear')}><TouliaoIcon name="close" size="sm" /></button>}
     </div>
     {(error || hint) && <div id={`${fieldId}-description`} className="tl-field-description">{error || hint}</div>}
   </div>;

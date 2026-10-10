@@ -2,6 +2,28 @@
    ContactList.jsx — 内联样式提取
    ============================ */
 
+.cl-load-status {
+  padding: 12px 16px;
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
+  overflow-wrap: anywhere;
+}
+.cl-load-error.wc-state {
+  min-height: 0;
+  padding: 24px 16px;
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 480px) {
+  .cl-panel .req-name-row {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 2px;
+  }
+  .cl-panel .req-name { max-width: 100%; }
+  .cl-panel .req-time { margin-left: 0; }
+}
+
 /* ── 骨架屏 ── */
 .cl-skeleton-pad {
   padding: 4px 0;
