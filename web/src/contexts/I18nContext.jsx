@@ -3,6 +3,20 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 
 const translations = {
   'zh-CN': {
+    "auth.passwordRequirements": "至少 8 位，包含字母和数字。",
+    "auth.tenantCodeWebHint": "企业代码请向你的公司或团队管理员索取。",
+    "auth.downloadForDevice": "适合当前设备的客户端",
+    "auth.webAvailable": "也可以直接使用网页版",
+    "auth.otherVersions": "其他版本",
+    "auth.otherPlatformClients": "其他平台客户端",
+    "auth.recoverySubtitle": "我们会协助你恢复账号访问",
+    "auth.recoveryHelp": "账号找回帮助",
+    "auth.recoveryStep1": "通过下方邮箱联系支持，说明无法登录的情况。",
+    "auth.recoveryStep2": "如使用公司或团队服务器，请先联系对应管理员。",
+    "auth.recoveryPrivacy": "请勿在邮件中发送密码或验证码；身份核验由支持人员引导完成。",
+    "auth.recoverySubject": "投聊账号登录协助",
+    "auth.contactSupport": "发送邮件求助",
+    "auth.supportDetails": "客服与支持说明",
     'ui.conversationFilter': '会话筛选',
     'ui.filter.all': '全部',
     'ui.filter.unread': '未读',

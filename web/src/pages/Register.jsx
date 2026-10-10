@@ -1,3 +1,4 @@
+import AuthBrand from '../components/AuthBrand';
 import TouliaoField from '../ui-kit/Field';
 import { PrimaryButton } from '../ui-kit/Button';
 import TouliaoIcon from '../ui-kit/Icon';
@@ -70,7 +71,7 @@ export default function Register() {
     { key: 'phone', label: t('auth.phone'), type: 'tel', inputMode: 'tel', autocomplete: 'username', placeholder: t('auth.phonePlaceholder'), maxLength: 11, icon: (
       <TouliaoIcon name="phoneNumber" className="auth-field-icon" size="sm" />
     )},
-    { key: 'password', label: t('auth.password'), type: 'password', autocomplete: 'new-password', placeholder: t('auth.setPasswordPlaceholder'), icon: (
+    { key: 'password', label: t('auth.password'), type: 'password', autocomplete: 'new-password', placeholder: t('auth.passwordPlaceholder'), icon: (
       <TouliaoIcon name="lock" className="auth-field-icon" size="sm" />
     )},
     ...(inviteRequired ? [{ key: 'inviteCode', label: t('auth.inviteCode'), type: 'text', inputMode: 'numeric', autocomplete: 'off', placeholder: t('auth.inviteCodePlaceholder'), maxLength: 6, icon: (
@@ -84,17 +85,8 @@ export default function Register() {
       <div className="auth-bg-circle auth-bg-circle-2" />
       <div className="auth-bg-circle auth-bg-circle-3" />
 
-      <div className="auth-container" style={{ width: 400 }}>
-        <div className="auth-brand">
-          <div className="auth-brand-icon">
-            <svg viewBox="0 0 40 40" width="38" height="38" fill="none">
-              <path d="M5 7a3 3 0 013-3h16a3 3 0 013 3v12a3 3 0 01-3 3H14l-5 5V7z" fill="rgba(255,255,255,.3)"/>
-              <path d="M17 15a3 3 0 013-3h11a3 3 0 013 3v10a3 3 0 01-3 3h-3v4l-5-4h-3a3 3 0 01-3-3V15z" fill="white"/>
-            </svg>
-          </div>
-          <h1 className="auth-brand-name">{t('auth.createAccount')}</h1>
-          <p className="auth-brand-desc">{t('auth.registerSlogan')}</p>
-        </div>
+      <div className="auth-container">
+        <AuthBrand title={t('auth.createAccount')} description={t('auth.registerSlogan')} />
 
         <form className="auth-form" onSubmit={handleSubmit}>
           {inviteRequired && (
@@ -109,6 +101,7 @@ export default function Register() {
               variant={f.key === 'password' ? 'PASSWORD' : f.key === 'inviteCode' ? 'CODE' : 'TEXT'}
               type={f.type} inputMode={f.inputMode} autoComplete={f.autocomplete} placeholder={f.placeholder}
               value={form[f.key]} maxLength={f.maxLength} required
+              hint={f.key === 'password' ? t('auth.passwordRequirements') : undefined}
               error={errorField === f.key ? error : undefined} aria-describedby={error && !errorField ? 'register-error' : undefined}
               onChange={e => { setForm({...form, [f.key]: e.target.value}); if (errorField === f.key) { setErrorField(null); setError(''); } }} />
           ))}

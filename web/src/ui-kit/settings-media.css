@@ -29,25 +29,6 @@ html.touliao-ui body .wc-logout-btn { min-height: 44px; }
   html.touliao-ui body .tl-full-panel .wc-page-header { margin-bottom: 20px; border: 1px solid var(--tl-border); border-radius: 12px; }
   html.touliao-ui body .tl-full-panel .wc-slabel { padding-left: 2px; }
 }
-/* Authentication retains real password/captcha/server/account flows. */
-html.touliao-ui body .auth-page { background: var(--tl-background); padding: 32px 16px; color: var(--tl-text); }
-html.touliao-ui body .auth-bg-circle { display: none; }
-html.touliao-ui body .auth-container { width: 400px; max-width: 100%; }
-html.touliao-ui body .auth-brand { margin-bottom: 24px; }
-html.touliao-ui body .auth-brand-name { color: var(--tl-text); font-size: 28px; font-weight: 600; }
-html.touliao-ui body :is(.auth-brand-desc, .auth-footer, .auth-remember, .auth-download-label, .auth-server-toggle, .auth-server-hint, .auth-accounts-title, .auth-accounts-count, .auth-account-id) { color: var(--tl-readable-muted); font-size: 12px; }
-html.touliao-ui body .auth-form { background: var(--tl-surface); border: 1px solid var(--tl-border); border-radius: 20px; padding: 24px; box-shadow: var(--tl-shadow-card); backdrop-filter: none; }
-html.touliao-ui body .auth-field-label { position: static; width: auto; height: auto; margin: 0 0 8px; overflow: visible; clip: auto; white-space: normal; display: block; color: var(--tl-readable-muted); font-size: 12px; }
-html.touliao-ui body .auth-field-input-wrap { min-height: 44px; height: 44px; padding: 0 12px; background: var(--tl-surface-secondary); border: 1px solid var(--tl-border-strong); border-radius: 12px; }
-html.touliao-ui body .auth-field.focused .auth-field-input-wrap { border-color: var(--tl-primary); box-shadow: 0 0 0 2px var(--tl-primary-soft); background: var(--tl-surface); }
-html.touliao-ui body :is(.auth-field-icon, .auth-pwd-toggle) { color: var(--tl-readable-muted); }
-html.touliao-ui body :is(.auth-field-input, .auth-account-name, .auth-server-title) { color: var(--tl-text); }
-html.touliao-ui body .auth-error { color: var(--tl-readable-danger); background: var(--tl-danger-soft); border-color: var(--tl-readable-danger); }
-html.touliao-ui body :is(.auth-link, .auth-server-cancel) { color: var(--tl-primary); }
-html.touliao-ui body :is(.auth-server-panel, .auth-accounts, .auth-accounts-header) { background: var(--tl-surface); border-color: var(--tl-border); }
-html.touliao-ui body .auth-server-input { background: var(--tl-surface-secondary); color: var(--tl-text); border: 1px solid var(--tl-border-strong); border-radius: 12px; min-height: 44px; }
-html.touliao-ui body .auth-download-btn { color: var(--tl-text); background: var(--tl-surface); border-color: var(--tl-border); border-radius: 8px; }
-html.touliao-ui body .auth-captcha-input { min-width: 0; color: var(--tl-text); border: 1px solid var(--tl-border-strong); border-radius: 12px; padding: 8px; background: var(--tl-surface-secondary); }
 /* File collections remain per-conversation and keep download/preview handlers. */
 html.touliao-ui body .chatfiles-panel { background: var(--tl-surface); border-left: 1px solid var(--tl-border); box-shadow: var(--tl-shadow-dialog); }
 html.touliao-ui body .chatfiles-header { min-height: 64px; background: var(--tl-surface); padding: 16px; border-color: var(--tl-border); }
@@ -76,20 +57,5 @@ html.touliao-ui.windows-desktop body .cm-dialog { top: 30px; }
   html.touliao-ui body .wc-me-header { margin: 16px; padding: 20px; }
   html.touliao-ui body .wc-crow { min-height: 68px; }
   html.touliao-ui body .wc-crow-label { font-size: 16px; }
-  html.touliao-ui body .auth-page { padding: 24px 16px; align-items: flex-start; }
-  html.touliao-ui body .auth-form { padding: 20px; }
-  html.touliao-ui body .auth-field-input-wrap { min-height: 48px; }
-  html.touliao-ui body :is(.auth-field-input, .auth-server-input) { font-size: 16px; }
   html.touliao-ui body :is(.chatfiles-tab-btn, .chatfiles-close-btn, .wc-btn-exit) { min-height: 44px; }
 }
-@media (max-height: 700px) {
-  html.touliao-ui body .auth-page { align-items: flex-start; padding-block: 16px; }
-  html.touliao-ui body .auth-brand { margin-bottom: 12px; }
-  html.touliao-ui body .auth-brand-icon { width: 44px; height: 44px; margin-bottom: 8px; }
-  html.touliao-ui body .auth-brand-icon img { width: 44px; height: 44px; }
-  html.touliao-ui body .auth-form { padding: 16px 24px; }
-  html.touliao-ui body .auth-field { margin-bottom: 12px; }
-}
-
-html.touliao-ui body .auth-note { color: var(--tl-readable-muted); background: var(--tl-surface); border: 1px solid var(--tl-border); border-radius: 12px; padding: 16px; }
-html.touliao-ui body .auth-brand-icon { background: var(--tl-primary); color: var(--tl-primary-foreground); box-shadow: none; border-radius: 12px; }

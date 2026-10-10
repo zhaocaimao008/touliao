@@ -60,7 +60,7 @@ html.touliao-ui body.dark-mode:not([data-skin="wechat"]):not([data-skin="wecom"]
 }
 
 /* 玻璃材质：不支持 backdrop-filter 或用户要求减少透明度时退回不透明表面 */
-html.touliao-ui body:not([data-skin="wechat"]):not([data-skin="wecom"]) :is(.wc-sidebar, .wc-panel, .wc-chat-header, .wc-input-area, .m-tabbar, .m-topbar, .auth-form) {
+html.touliao-ui body:not([data-skin="wechat"]):not([data-skin="wecom"]) :is(.wc-sidebar, .wc-panel, .wc-chat-header, .wc-input-area, .m-tabbar, .m-topbar) {
   -webkit-backdrop-filter: var(--v4-blur);
   backdrop-filter: var(--v4-blur);
 }
@@ -205,27 +205,6 @@ html.touliao-ui body:not([data-skin="wechat"]):not([data-skin="wecom"]) :is(.tl-
   box-shadow: var(--tl-shadow-card);
   overflow: hidden;
 }
-
-/* ── 登录 / 注册 ─────────────────────────────────────────────── */
-html.touliao-ui body:not([data-skin="wechat"]):not([data-skin="wecom"]):has(.auth-container) { background: var(--v4-canvas); background-attachment: fixed; }
-html.touliao-ui body:not([data-skin="wechat"]):not([data-skin="wecom"]) :is(.auth-page, .auth-container) { background: transparent; }
-html.touliao-ui body:not([data-skin="wechat"]):not([data-skin="wecom"]) .auth-form {
-  background: var(--v4-glass-strong);
-  border: 1px solid var(--v4-glass-border);
-  border-radius: 28px;
-  box-shadow: var(--v4-shadow-float);
-}
-html.touliao-ui body:not([data-skin="wechat"]):not([data-skin="wecom"]) .auth-form .tl-field-control {
-  min-height: 52px;
-  background: var(--v4-fill);
-  border: 0;
-  border-radius: 14px;
-}
-html.touliao-ui body:not([data-skin="wechat"]):not([data-skin="wecom"]) .auth-form .tl-field-control:focus-within {
-  background: var(--tl-surface);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--tl-primary) 28%, transparent);
-}
-html.touliao-ui body:not([data-skin="wechat"]):not([data-skin="wecom"]) .auth-submit { min-height: 52px; border-radius: 999px; font-size: 16px; font-weight: 600; }
 
 /* ── 手机：大标题 + 悬浮玻璃标签栏 + 单行输入栏 ─────────────── */
 @media (max-width: 767px) {
