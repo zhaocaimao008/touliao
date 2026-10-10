@@ -351,6 +351,9 @@
   padding-bottom: max(10px, env(safe-area-inset-bottom, 0px));
 }
 .wc-multiselect-bar button { min-width: 44px; min-height: 44px; }
+.wc-multiselect-bar button[aria-disabled="true"] { opacity: .55; cursor: wait; }
+.wc-ms-feedback { flex-basis: 100%; font-size: var(--text-sm); color: var(--text-secondary); overflow-wrap: anywhere; }
+.wc-ms-feedback.is-error { color: var(--text-danger); }
 .wc-msg-row.multiselect-row:focus-visible { outline: 2px solid var(--green); outline-offset: -2px; border-radius: var(--radius-sm); }
 .wc-msg-bubble[aria-haspopup="menu"]:focus-visible { outline: 2px solid var(--green); outline-offset: 3px; }
 .wc-ms-btn {

@@ -19,6 +19,7 @@ import PinnedBanner from './PinnedBanner';
 import UploadProgressBar from './UploadProgressBar';
 import ComposeContextBar from './ComposeContextBar';
 import MultiSelectBar from './MultiSelectBar';
+import useBatchRecall from '../hooks/useBatchRecall';
 import { loadOutbox, upsertOutbox, removeFromOutbox } from '../utils/outbox';
 import { captureSession, isSessionCurrent } from '../utils/sessionContext';
 import { sendOwnedText } from '../utils/outboxSender';
@@ -2421,6 +2422,7 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
         break;
 
       case 'multiselect':
+        clearRecallError();
         setMultiSelect(true);
         setSelectedMsgs(new Set([msg.id]));
         dispatchCompose({ type: 'CLOSE_PANEL' });
@@ -2497,11 +2499,25 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
   const restoreComposerFocus = useCallback(() => {
     requestAnimationFrame(() => (textareaRef.current || inputAreaRef.current?.querySelector('button'))?.focus({ preventScroll: true }));
   }, []);
-  const cancelMultiSelect = useCallback(() => {
+  const completeBatchRecall = useCallback(ids => {
+    const removed = new Set(ids);
+    setMessages(previous => previous.filter(message => !removed.has(message.id)).map(message =>
+      removed.has(message.replyTo?.id) ? { ...message, replyTo: { ...message.replyTo, deleted: 1 } } : message));
+    ids.forEach(id => removeFromCache(conversation.id, id).catch(() => {}));
     exitMultiSelect();
     restoreComposerFocus();
-  }, [exitMultiSelect, restoreComposerFocus]);
+  }, [conversation.id, exitMultiSelect, restoreComposerFocus]);
+  const reconcileBatchRecall = useCallback(() => { catchUp().catch(() => {}); }, [catchUp]);
+  const batchRecall = useBatchRecall({ conversationId: conversation.id, t, onComplete: completeBatchRecall, onReconcile: reconcileBatchRecall });
+  const { busy: selectionBusy, isPending: isRecallPending, clearError: clearRecallError } = batchRecall;
+  const cancelMultiSelect = useCallback(() => {
+    if (isRecallPending()) return;
+    clearRecallError();
+    exitMultiSelect();
+    restoreComposerFocus();
+  }, [exitMultiSelect, restoreComposerFocus, isRecallPending, clearRecallError]);
   const multiForward = useCallback(() => {
+    if (isRecallPending()) return;
     // 保持选中消息的时间顺序（messages 已按时间升序）
     const msgs = messages.filter(m => selectedMsgs.has(m.id));
     if (msgs.length === 0) return;
@@ -2512,12 +2528,8 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
     if (valid.length === 1) setForwardMsg(valid[0]);
     else setForwardMsgs(valid);
     exitMultiSelect();
-  }, [messages, selectedMsgs, exitMultiSelect, t]);
-  const multiDelete = useCallback(async () => {
-    if (!await showConfirm(t('chat.confirmBatchRecallDeleteTemplate').replace('{count}', selectedMsgs.size), { variant: 'DANGER' })) return;
-    await axios.post('/api/messages/batch-delete', { msgIds: [...selectedMsgs], conversationId: conversation.id }).catch(e => showToast(e.response?.data?.error || t('chat.operationFailed'), 'error'));
-    exitMultiSelect();
-  }, [selectedMsgs, conversation.id, exitMultiSelect, t]);
+  }, [messages, selectedMsgs, exitMultiSelect, t, isRecallPending]);
+  const multiDelete = () => batchRecall.run(selectedMsgs);
 
   // Precompute the last mine message id to avoid O(n) per message in flatItems
   const lastMineId = useMemo(() => {
@@ -2581,6 +2593,7 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
         && cached.isSelected === isSelected
         && cached.isHighlighted === isHighlighted
         && cached.multiSelect === multiSelect
+        && cached.selectionBusy === selectionBusy
         && cached.convType === conversation.type
         && cached.groupSettings === groupSettings
         && cached.myGroupRole === myGroupRole
@@ -2602,6 +2615,7 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
           isSelected,
           isHighlighted,
           multiSelect,
+          selectionBusy,
           convType: conversation.type,
           convId: conversation.id,
           userId: user.id,
@@ -2620,7 +2634,7 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
 
     itemCacheRef.current = newCache;
     return items;
-  }, [messages, multiSelect, selectedMsgs, highlightedMsgId, conversation.id,
+  }, [messages, multiSelect, selectionBusy, selectedMsgs, highlightedMsgId, conversation.id,
       conversation.type, pinnedMessages, myGroupRole, members, groupSettings,
       user.id, user.username, claiming, lastMineId]);
 
@@ -2654,8 +2668,10 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
   if (!callbacksRef.current) callbacksRef.current = {};
   callbacksRef.current.handleContextMenu = handleContextMenu;
   callbacksRef.current.cancelMultiSelect = cancelMultiSelect;
-  callbacksRef.current.toggleMsgSelect = (msgId) =>
+  callbacksRef.current.toggleMsgSelect = (msgId) => {
+    if (isRecallPending()) return;
     setSelectedMsgs(prev => { const s = new Set(prev); s.has(msgId) ? s.delete(msgId) : s.add(msgId); return s; });
+  };
   callbacksRef.current.retryMessage = retryMessage;
   callbacksRef.current.setLightboxUrl = (clickedUrl) => {
     // 收集会话内所有图片做画廊左右切换。flatItems 的项 type 是 'message'/'divider',
@@ -3011,6 +3027,9 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
       {multiSelect && (
         <MultiSelectBar
           selectedCount={selectedMsgs.size}
+          busy={selectionBusy}
+          phase={batchRecall.phase}
+          error={batchRecall.error}
           onForward={multiForward}
           onDelete={multiDelete}
           onCancel={cancelMultiSelect}

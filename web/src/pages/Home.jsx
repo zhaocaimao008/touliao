@@ -42,6 +42,7 @@ import { saveCred, removeCred } from '../utils/rememberedCreds';
 import { useI18n } from '../contexts/I18nContext';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { lazyWithRetry } from '../utils/lazyWithRetry';
+import useMomentUnread from '../hooks/useMomentUnread';
 
 function WcEmpty({ onOpenContacts }) {
   const { t } = useI18n();
@@ -517,7 +518,9 @@ function CreateGroupModal({ onClose, onCreated }) {
 export default function Home() {
   const { t, lang } = useI18n();
   const [tab, setTab] = useState('chats');
-  const [features, setFeatures] = useState({ moments: true, collect: true });
+  const [features, setFeatures] = useState({ moments: false, collect: false });
+  const [featuresReady, setFeaturesReady] = useState(false);
+  const featureVersionRef = useRef(0);
   const [netSearchQ, setNetSearchQ] = useState(null); // null=关闭；字符串=带词打开网络搜索
   const [showMentions, setShowMentions] = useState(false); // @我的消息聚合面板
   const [showScan, setShowScan] = useState(false);          // 扫一扫入群
@@ -526,15 +529,7 @@ export default function Home() {
   // 免打扰会话 id（由 ChatList 上报）：不计入底部红点、标题和任务栏角标，与安卓一致
   const [mutedConvIds, setMutedConvIds] = useState(() => new Set());
   // 朋友圈互动未读（手机「发现」标签红点）：进出页面与收到互动事件时刷新；朋友圈关闭时接口 403，按 0 处理
-  const [momentUnread, setMomentUnread] = useState(0);
-  useEffect(() => {
-    if (features.moments === false) return undefined; // 关闭时使用处已按 0 处理
-    const load = () => axios.get('/api/moments/notifications/unread-count')
-      .then(({ data }) => setMomentUnread(Number(data?.count) || 0)).catch(() => setMomentUnread(0));
-    load();
-    window.addEventListener('touliao:moment', load);
-    return () => window.removeEventListener('touliao:moment', load);
-  }, [features.moments, tab]);
+  const momentUnread = useMomentUnread(featuresReady && features.moments !== false, tab);
   const [friendReqCount, setFriendReqCount] = useState(0);
   const [search, setSearch] = useState('');
   const [showQR, setShowQR] = useState(false);
@@ -708,12 +703,26 @@ export default function Home() {
 
   // 功能开关：后台可隐藏朋友圈/收藏/群语音/群视频。若当前所在 tab 被关闭则退回消息页
   const applyFeatures = useCallback((f) => {
+    featureVersionRef.current++;
     setFeatures(f || {});
+    setFeaturesReady(true);
     setTab(prev => ((prev === 'moments' && f?.moments === false) || (prev === 'favorites' && f?.collect === false)) ? 'chats' : prev);
   }, []);
   useEffect(() => {
-    axios.get('/api/config').then(r => applyFeatures(r.data?.features || {})).catch(() => {});
-  }, [applyFeatures]);
+    let controller;
+    const load = () => {
+      controller?.abort();
+      const request = new AbortController();
+      controller = request;
+      const version = featureVersionRef.current;
+      axios.get('/api/config', { signal: request.signal }).then(r => {
+        if (!request.signal.aborted && version === featureVersionRef.current) applyFeatures(r.data?.features || {});
+      }).catch(() => {});
+    };
+    load();
+    window.addEventListener('focus', load);
+    return () => { controller?.abort(); window.removeEventListener('focus', load); };
+  }, [applyFeatures, reconnectCount]);
   // 后台改动开关 → 服务端广播 config:updated → 在线端实时热更新，无需刷新
   useEffect(() => {
     if (!socket) return;

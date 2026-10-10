@@ -27,7 +27,7 @@ export const TimeDivider = memo(function TimeDivider({ time }) {
 const MessageItem = memo(function MessageItem({ item, cbRef, measure }) {
   useMediaCredentials();
   const { t } = useI18n();
-  const { msg, isMine, isLastMine, isSelected, isHighlighted, multiSelect,
+  const { msg, isMine, isLastMine, isSelected, isHighlighted, multiSelect, selectionBusy,
     convType, userId, myUsername, groupSettings, myGroupRole, members,
     consecutive } = item;
 
@@ -137,7 +137,7 @@ const MessageItem = memo(function MessageItem({ item, cbRef, measure }) {
   const selectMessage = (event) => {
     event.preventDefault();
     event.stopPropagation();
-    cbs.toggleMsgSelect(msg.id);
+    if (!selectionBusy) cbs.toggleMsgSelect(msg.id);
   };
   const selectionLabel = msg.type === 'text' || msg.type === 'file'
     ? String(msg.content || t('messageItem.replyPreviewFile'))
@@ -164,6 +164,7 @@ const MessageItem = memo(function MessageItem({ item, cbRef, measure }) {
       role={multiSelect ? 'checkbox' : undefined}
       aria-label={multiSelect ? selectionLabel : undefined}
       aria-checked={multiSelect ? isSelected : undefined}
+      aria-disabled={multiSelect && selectionBusy ? true : undefined}
       tabIndex={multiSelect ? 0 : undefined}
       {...(canSwipeReply && swipeEnabled ? swipeHandlers : {})}
       style={{
