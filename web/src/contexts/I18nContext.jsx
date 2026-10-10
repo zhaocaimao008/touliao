@@ -3,6 +3,8 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 
 const translations = {
   'zh-CN': {
+    'gs.openingChat': '正在打开聊天…',
+    'gs.openFailed': '暂时无法打开聊天，请重试。',
     'convSearch.hint': "输入关键词，查找当前聊天记录",
     'convSearch.failed': "搜索暂时不可用，请检查网络后重试。",
     'convSearch.resultCount': "找到 {count} 条消息，点击可定位",

@@ -7,6 +7,8 @@ import { TextButton } from '../ui-kit/Button';
 import { GroupAvatar } from './GroupAvatar';
 import { useI18n } from '../contexts/I18nContext';
 import { startSearchTask } from '../utils/searchTask';
+import { useOpenConversation } from '../hooks/useOpenConversation';
+import ConversationOpenFeedback from './ConversationOpenFeedback';
 import { matchesContact, normalizeContactQuery } from '../utils/contactSearch';
 import {
   buildMessageSearchParams,
@@ -52,6 +54,8 @@ export default function GlobalSearch({ query, onSelectConv, onNetworkSearch }) {
   const q = normalizeContactQuery(query);
   const hasQuery = !!q;
   const searchKey = JSON.stringify([q, typeFilter, timeRange, senderId]);
+  const navigation = useOpenConversation(onSelectConv, searchKey);
+  const { openContact, openConversation } = navigation;
 
   // Fetch lookups once on entry, or on retry; typing uses local filtering.
   useEffect(() => {
@@ -127,17 +131,6 @@ export default function GlobalSearch({ query, onSelectConv, onNetworkSearch }) {
     },
   }), [q, typeFilter, timeRange, senderId, retry, searchKey]);
 
-  const openContact = async (c) => {
-    try {
-      const { data } = await axios.post('/api/messages/conversation/private', { userId: c.id });
-      onSelectConv({ id: data.conversationId, type: 'private', name: c.remark || c.username, avatar: c.avatar, otherUser: c });
-    } catch { /* open-conversation failed; ignore */ }
-  };
-
-  const openConversation = (conv) => {
-    onSelectConv(conv);
-  };
-
   const openMessageLocation = (msg) => {
     // 定位到消息：打开会话 + 滚到消息位置
     const convObj = {
@@ -148,7 +141,7 @@ export default function GlobalSearch({ query, onSelectConv, onNetworkSearch }) {
       scrollToId: msg.id,
     };
     if (msg.otherUser) convObj.otherUser = msg.otherUser;
-    onSelectConv(convObj);
+    openConversation(convObj);
   };
 
   // 空关键词时忽略上一次搜索的残留（不在 effect 内清空，改由此处派生）
@@ -160,6 +153,7 @@ export default function GlobalSearch({ query, onSelectConv, onNetworkSearch }) {
 
   return (
     <div className="gs-scroll">
+      <ConversationOpenFeedback navigation={navigation} />
       {/* 会话加载失败提示（此前静默吞掉，导致会话搜索结果为空却无任何反馈） */}
       {hasQuery && (contactError || convError || messageError) && (
         <ErrorState desc={contactError || convError || messageError} onRetry={() => {
@@ -175,7 +169,7 @@ export default function GlobalSearch({ query, onSelectConv, onNetworkSearch }) {
           <div className="gs-cat">{t('gs.contactsCategory')}</div>
           {matchedContacts.map(c => (
             <div key={c.id} className="gs-row" onClick={() => openContact(c)}
-              role="button" tabIndex={0}
+              role="button" tabIndex={0} aria-busy={navigation.openingKey === `contact:${c.id}`} aria-disabled={navigation.openingKey === `contact:${c.id}`}
               onKeyDown={e => (e.key === 'Enter' || e.key === ' ') && (e.preventDefault(), openContact(c))}>
               <Avatar src={c.avatar} name={c.remark || c.username} size='md' />
               <div className="gs-info">
@@ -205,7 +199,7 @@ export default function GlobalSearch({ query, onSelectConv, onNetworkSearch }) {
           </div>
           {matchedConversations.map(g => (
             <div key={g.id} className="gs-row" onClick={() => openConversation(g)}
-              role="button" tabIndex={0}
+              role="button" tabIndex={0} aria-busy={navigation.openingKey === `conversation:${g.id}`} aria-disabled={navigation.openingKey === `conversation:${g.id}`}
               onKeyDown={e => (e.key === 'Enter' || e.key === ' ') && (e.preventDefault(), openConversation(g))}>
               {g.type === 'filehelper' ? (
                 <div className="gs-filehelper-icon">

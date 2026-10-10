@@ -18,6 +18,9 @@ import { IcoBack, IcoCheck, IcoPersonAdd } from './Icons';
 import { lazyWithRetry } from '../utils/lazyWithRetry';
 import { useDirectoryResource } from '../hooks/useDirectoryResource';
 import DirectoryFeedback from './DirectoryFeedback';
+import ConversationOpenFeedback from './ConversationOpenFeedback';
+import { useOpenConversation } from '../hooks/useOpenConversation';
+import { useDirectoryFocus } from '../hooks/useDirectoryFocus';
 import { matchesContact, normalizeContactQuery } from '../utils/contactSearch';
 
 const selectAiBots = data => data?.features?.aiAssistants;
@@ -37,27 +40,6 @@ function RequestTime({ timestamp, formatter }) {
 }
 
 /* ── 主组件 ── */
-// AI 助手会话对象。
-// ⚠ 现状：AI 助手已下线（后端 .env 的 botId 为空 → /api/config 的 aiAssistants 返回 []），
-//   aiBots 恒为空数组，下面这个入口当前渲染不出来。保留并修正是因为重新配上 botId
-//   就会复活，缺 otherUser 的问题会立刻显形。
-// 必须带 otherUser，字段名与服务端 /api/messages/conversations
-// 返回的私聊会话一致（{ id, username, avatar }）——ChatWindow.startCall 用的是
-// conversation.otherUser?.id 当 remoteId，会话内「刷新对方资料」的 effect 同样依赖它。
-// 缺了它，从这个入口进来的会话点语音/视频通话会 emit call:request { to: undefined }，
-// 被服务端 guardId 拒掉并回 call:error，用户看到的是「通话打不通且报错」。
-// （同一类问题在 Home.handleReplyFromCall 的兜底对象上也出现过，一并修了。
-//  GlobalSearch / UserProfile / CallHistory 三处本来就带，这里是漏网的。）
-function aiBotConv(conversationId, bot) {
-  return {
-    id: conversationId,
-    type: 'private',
-    name: bot.name || bot.username,
-    avatar: bot.avatar || '',
-    otherUser: { id: bot.id, username: bot.name || bot.username, avatar: bot.avatar || '' },
-  };
-}
-
 export default function ContactList({ onStartChat, searchQuery = '', addFriendRequest = 0, onAddFriendConsumed, openFriendRequests = 0, onOpenFriendRequestsConsumed }) {
   const { t, lang } = useI18n();
   const requestTimeFormatter = useMemo(() => new Intl.DateTimeFormat(lang, {
@@ -86,6 +68,8 @@ export default function ContactList({ onStartChat, searchQuery = '', addFriendRe
   const [showAddFriend, setShowAddFriend] = useState(false);
   const [handlingReq, setHandlingReq] = useState(null); // 正在处理的申请 id，防连点重复提交
   const listRef = useRef(null);
+  const navigation = useOpenConversation(onStartChat, JSON.stringify([tab, normalizedQuery, viewProfile, showAddFriend]));
+  useDirectoryFocus(listRef, tab);
   const { socket } = useSocketCore();
 
   useEffect(() => {
@@ -203,7 +187,7 @@ export default function ContactList({ onStartChat, searchQuery = '', addFriendRe
   }, [contacts, normalizedQuery]);
 
   // 固定引用：传给 memo 的 ContactRow，避免每次渲染新建函数击穿 memo。
-  const openProfile = useCallback((id) => setViewProfile(id), []);
+  const openProfile = useCallback((id) => setViewProfile(id), [setViewProfile]);
 
   const scrollToLetter = (l) => {
     const el = listRef.current?.querySelector(`[data-letter="${l}"]`);
@@ -213,6 +197,7 @@ export default function ContactList({ onStartChat, searchQuery = '', addFriendRe
   return (
     <div className="cl-panel">
       <div className="wc-list" ref={listRef}>
+        <ConversationOpenFeedback navigation={navigation} />
 
         {/* 联系人主列表 */}
         {tab === 'contacts' && (
@@ -223,12 +208,12 @@ export default function ContactList({ onStartChat, searchQuery = '', addFriendRe
             <EntryRow
               icon={<IcoPersonAdd size="sm" />}
               color="var(--icon-bg-newfriend)" label={t('contacts.newFriends')} badge={requests.length}
-              onClick={() => setTab('requests')} testid="cl-new-friends-entry"
+              section="requests" onClick={() => setTab('requests')} testid="cl-new-friends-entry"
             />
             <EntryRow
               icon={<TouliaoIcon name="group" size="sm" />}
               color="var(--icon-bg-group)" label={t('contacts.groupChats')} badge={0}
-              onClick={() => setTab('groups')}
+              section="groups" onClick={() => setTab('groups')}
             />
             <EntryRow
               icon={<TouliaoIcon name="search" size="sm" />}
@@ -242,27 +227,23 @@ export default function ContactList({ onStartChat, searchQuery = '', addFriendRe
             <EntryRow
               icon={<TouliaoIcon name="blocked" size="sm" />}
               color="var(--icon-bg-neutral)" label={t('contacts.blacklist')} badge={0}
-              onClick={() => { fetchBlocked(); setTab('blocked'); }}
+              section="blocked" onClick={() => { fetchBlocked(); setTab('blocked'); }}
             />
             <EntryRow
               icon={<TouliaoIcon name="tag" size="sm" />}
               color="var(--icon-bg-label)" label={t('contacts.friendLabels')} badge={0}
-              onClick={() => { fetchLabels(); setTab('labels'); }}
+              section="labels" onClick={() => { fetchLabels(); setTab('labels'); }}
             />
             <EntryRow
               icon={<TouliaoIcon name="chat" size="sm" />}
               color="var(--brand-500)" label={t('contacts.aiAssistant')} badge={aiBots.length}
-              onClick={() => setTab('ai')}
+              section="ai" onClick={() => setTab('ai')}
             />
             <EntryRow
               icon={<TouliaoIcon name="fileContent" size="sm" />}
               color="var(--icon-bg-filehelper)" label={t('contacts.fileHelper')} badge={0}
-              onClick={async () => {
-                try {
-                  const { data } = await axios.get('/api/messages/file-helper');
-                  onStartChat({ id: data.conversationId, type: 'filehelper', name: t('contacts.fileHelper'), avatar: '' });
-                } catch { /* file-helper open failed; ignore */ }
-              }}
+              busy={navigation.openingKey === 'conversation:filehelper'}
+              onClick={() => navigation.openConversation({ type: 'filehelper', name: t('contacts.fileHelper'), avatar: '' })}
             />
 
               </div>
@@ -369,20 +350,10 @@ export default function ContactList({ onStartChat, searchQuery = '', addFriendRe
             )}
             {aiBots.map(b => (
               <div key={b.id} className="wc-contact-item"
-                onClick={async () => {
-                  try {
-                    const { data } = await axios.post('/api/messages/conversation/private', { userId: b.id });
-                    onStartChat(aiBotConv(data.conversationId, b));
-                  } catch { showToast(t('contacts.cannotCreateConvRetry'), 'error'); }
-                }}
-                role="button" tabIndex={0}
+                onClick={() => navigation.openContact(b)}
+                role="button" tabIndex={0} aria-busy={navigation.openingKey === `contact:${b.id}`} aria-disabled={navigation.openingKey === `contact:${b.id}`}
                 onKeyDown={e => {
-                  if (e.key === 'Enter' || e.key === ' ') {
-                    e.preventDefault();
-                    axios.post('/api/messages/conversation/private', { userId: b.id })
-                      .then(({ data }) => onStartChat(aiBotConv(data.conversationId, b)))
-                      .catch(() => showToast(t('contacts.cannotCreateConvRetry'), 'error'));
-                  }
+                  if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); navigation.openContact(b); }
                 }}>
                 <Avatar src={b.avatar || ''} name={b.name} size='md' className="cl-avatar-rounded" />
                 <div className="cl-contact-info">
@@ -434,9 +405,9 @@ export default function ContactList({ onStartChat, searchQuery = '', addFriendRe
             <DirectoryFeedback resource={groupResource} />
             {groups.map(g => (
               <div key={g.id} className="wc-contact-item"
-                onClick={() => onStartChat({ id: g.id, type: 'group', name: g.name, avatar: g.avatar || '', members: [] })}
+                onClick={() => navigation.openConversation({ id: g.id, type: 'group', name: g.name, avatar: g.avatar || '', members: g.members || [] })}
                 role="button" tabIndex={0}
-                onKeyDown={e => (e.key === 'Enter' || e.key === ' ') && (e.preventDefault(), onStartChat({ id: g.id, type: 'group', name: g.name, avatar: g.avatar || '', members: [] }))}>
+                onKeyDown={e => (e.key === 'Enter' || e.key === ' ') && (e.preventDefault(), navigation.openConversation({ id: g.id, type: 'group', name: g.name, avatar: g.avatar || '', members: g.members || [] }))}>
                 <GroupAvatar members={g.members || []} avatar={g.avatar} size='md' />
                   <div className="cl-contact-info">
                   <div className="wc-contact-item-name">{g.name}</div>
@@ -677,10 +648,10 @@ const ContactRow = memo(function ContactRow({ contact: c, online, onOpen }) {
   );
 });
 
-function EntryRow({ icon, color, label, badge, onClick, testid }) {
+function EntryRow({ icon, color, label, badge, onClick, testid, section, busy = false }) {
   return (
     <button type="button" className="wc-contact-item tl-contact-shortcut gi-cp" onClick={onClick}
-      data-testid={testid}>
+      data-testid={testid} data-directory-section={section} aria-busy={busy} aria-disabled={busy}>
       <div className="cl-entry-icon-box" style={{ background: color }}>
         {icon}
       </div>

@@ -1,6 +1,8 @@
 // 按需加载的语言包（首屏只打包简体中文，见 contexts/I18nContext.jsx 的 LOCALE_LOADERS）。
 export default {
-    'convSearch.hint': "輸入關鍵字，尋找目前的聊天記錄",
+    'gs.openingChat': '正在開啟聊天…',
+  'gs.openFailed': '暫時無法開啟聊天，請重試。',
+  'convSearch.hint': "輸入關鍵字，尋找目前的聊天記錄",
     'convSearch.failed': "搜尋暫時無法使用，請檢查網路後重試。",
     'convSearch.resultCount': "找到 {count} 則訊息，點選可定位",
     'chat.callOptions': '選擇通話方式',

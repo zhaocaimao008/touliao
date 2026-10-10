@@ -1,6 +1,8 @@
 // 按需加载的语言包（首屏只打包简体中文，见 contexts/I18nContext.jsx 的 LOCALE_LOADERS）。
 export default {
-    'convSearch.hint': "Enter a keyword to search this conversation",
+    'gs.openingChat': 'Opening chat…',
+  'gs.openFailed': 'Unable to open this chat. Please try again.',
+  'convSearch.hint': "Enter a keyword to search this conversation",
     'convSearch.failed': "Search is unavailable. Check your connection and retry.",
     'convSearch.resultCount': "{count} messages found. Select one to jump to it.",
     'chat.callOptions': 'Choose call type',
