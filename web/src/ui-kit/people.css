@@ -112,3 +112,24 @@ html.touliao-ui body .gs-time-filter button.active { color: var(--tl-primary); b
   html.touliao-ui body .gs-time-filter { display: flex; flex-wrap: wrap; gap: 4px; }
   html.touliao-ui body .gs-time-filter button { flex: 1 1 auto; min-width: 44px; }
 }
+
+
+/* Profile/search controls remain reachable with a keyboard and on narrow screens. */
+html.touliao-ui body .up-card { position: relative; }
+html.touliao-ui body .up-close-btn { z-index: 1; }
+html.touliao-ui body :is(.up-close-btn, .afm-close-btn, .afm-clear-btn) { min-width: 44px; min-height: 44px; flex-shrink: 0; justify-content: center; }
+html.touliao-ui body .afm-search-input { min-width: 0; min-height: 44px; font-size: 16px; }
+html.touliao-ui body .afm-search-text { min-width: 0; overflow-wrap: anywhere; }
+html.touliao-ui body .afm-search-wrap { padding-block: 2px; }
+html.touliao-ui body .afm-search-row { cursor: default; }
+html.touliao-ui body .afm-retry-btn { min-height: 44px; padding: 8px 18px; margin-top: 8px; background: var(--tl-primary-soft); color: var(--tl-primary); border: 1px solid var(--tl-border); border-radius: 10px; font: inherit; cursor: pointer; }
+html.touliao-ui body .up-state-header { position: relative; min-height: 64px; display: flex; align-items: center; padding: 12px 64px 12px 20px; font-weight: 600; }
+html.touliao-ui body .up-load-state { min-height: 170px; display: flex; align-items: center; justify-content: center; gap: 12px; color: var(--tl-readable-muted); }
+html.touliao-ui body .up-feedback:empty { display: none; }
+html.touliao-ui body .up-feedback { padding: 8px 18px; color: var(--tl-readable-muted); font-size: 13px; line-height: 1.6; }
+html.touliao-ui body :is(.up-remark-box, .up-verify-box) .tl-button { min-height: 44px; }
+html.touliao-ui body .up-actions .up-action-btn { min-height: 64px; }
+html.touliao-ui body .up-card :is(.up-name, .up-sub, .up-bio, .up-row-value, .up-err) { overflow-wrap: anywhere; min-width: 0; }
+html.touliao-ui body .up-card button:disabled { opacity: .55; cursor: default; transform: none; }
+html.touliao-ui body :is(.up-card, .afm-card) :is(button, [role="button"]):focus-visible { outline: 2px solid var(--tl-focus); outline-offset: -3px; }
+html.touliao-ui body .up-card .wc-state-retry { min-height: 44px; }

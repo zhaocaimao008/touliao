@@ -40,8 +40,8 @@ export function useDirectoryAction(viewKey) {
       commit?.(result);
       if (visible()) onSuccess?.(result);
       return true;
-    } catch {
-      if (visible()) setFailure({ view });
+    } catch (error) {
+      if (visible()) setFailure({ view, detail: typeof error.response?.data?.error === 'string' ? error.response.data.error.slice(0, 300) : '' });
       // A lost response may have reached the server. Read back instead of replaying the write.
       if (owned()) {
         try { await reconcile?.(); } catch { /* The resource owns read-back failure feedback. */ }
@@ -55,5 +55,6 @@ export function useDirectoryAction(viewKey) {
     }
   }, [view]);
   // The generation object also invalidates feedback after a leave-and-return round trip.
-  return { pendingKey, error: failure?.view === view && view.key === viewKey && !pendingKey, run };
+  const failed = failure?.view === view && view.key === viewKey && !pendingKey;
+  return { pendingKey, error: failed, errorDetail: failed ? failure.detail : '', run };
 }

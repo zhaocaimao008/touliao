@@ -1,5 +1,7 @@
 // 按需加载的语言包（首屏只打包简体中文，见 contexts/I18nContext.jsx 的 LOCALE_LOADERS）。
 export default {
+    'up.discardDraft': 'Your changes have not been saved. Discard them and leave?',
+    'up.actionUnconfirmed': 'Could not confirm the result. Check the current state before retrying.',
     'gs.openingChat': 'Opening chat…',
   'gs.openFailed': 'Unable to open this chat. Please try again.',
   'convSearch.hint': "Enter a keyword to search this conversation",

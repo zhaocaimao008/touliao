@@ -1,7 +1,7 @@
 import TouliaoIcon from '../ui-kit/Icon';
-import React, { useState, useCallback, useRef, useEffect } from 'react';
+import React, { useState, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import axios from 'axios';
+import { useFriendSearch } from '../hooks/useFriendSearch';
 import Avatar from './Avatar';
 import UserProfile from './UserProfile';
 import useFocusTrap from '../hooks/useFocusTrap';
@@ -11,10 +11,10 @@ import { IcoBack, IcoClose } from './Icons';
 
 const GREEN = 'var(--green)';
 
-function AfResultItem({ user: u, onClick }) {
+function AfResultItem({ user: u, onClick, resultRef }) {
   const { t } = useI18n();
   return (
-    <div className="afm-result-item" role="button" tabIndex={0} onClick={onClick} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClick(); } }}>
+    <div ref={resultRef} className="afm-result-item" role="button" tabIndex={0} onClick={onClick} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClick(); } }}>
       <Avatar src={u.avatar} name={u.username} size='lg'
         style={{ borderRadius: 'var(--radius-avatar-lg)', flexShrink: 0 }} />
       <div className="afm-result-info">
@@ -23,7 +23,7 @@ function AfResultItem({ user: u, onClick }) {
           <div className="afm-result-sub">
             {u.wechat_id
               ? t('profile.touliaoIdColonTemplate').replace('{id}', u.wechat_id)
-              : t('addFriend.phoneColonTemplate').replace('{phone}', `${u.phone.slice(0, 3)}****${u.phone.slice(-4)}`)}
+              : t('addFriend.phoneColonTemplate').replace('{phone}', `${String(u.phone).slice(0, 3)}****${String(u.phone).slice(-4)}`)}
           </div>
         )}
       </div>
@@ -34,69 +34,31 @@ function AfResultItem({ user: u, onClick }) {
 
 export default function AddFriendModal({ onClose, initialQuery = '', onStartChat }) {
   const { t } = useI18n();
-  const [query, setQuery] = useState(initialQuery);
-  const [results, setResults] = useState([]);
-  const [searching, setSearching] = useState(false);
-  const [searched, setSearched] = useState(false);
-  const [searchError, setSearchError] = useState(false); // 网络失败 ≠ 查无此人，分别提示
+  const { query, results, status, search } = useFriendSearch(initialQuery);
   const [focused, setFocused] = useState(false);
   const [viewId, setViewId] = useState(null);
+  const [selectedId, setSelectedId] = useState(null);
   const inputRef = useRef(null);
-  const timerRef = useRef(null);
-  const searchAcRef = useRef(null);
-  const trapRef = useFocusTrap(!viewId);
-
-  useEffect(() => { setTimeout(() => inputRef.current?.focus(), 80); }, []);
-
-  // 卸载时清理防抖定时器与进行中的搜索请求，避免关闭后仍触发（对已卸载组件 setState）
-  useEffect(() => () => { clearTimeout(timerRef.current); searchAcRef.current?.abort(); }, []);
-
-  const doSearch = useCallback((q) => {
-    if (!q.trim()) { setResults([]); setSearched(false); return; }
-    // 取消上一次未完成的搜索,防止慢响应覆盖新结果(旧数据竞态)
-    searchAcRef.current?.abort();
-    const ac = new AbortController();
-    searchAcRef.current = ac;
-    setSearching(true);
-    axios.get(`/api/users/search?q=${encodeURIComponent(q.trim())}`, { signal: ac.signal })
-      .then(({ data }) => { setResults(data); setSearched(true); setSearchError(false); })
-      .catch(err => {
-        if (axios.isCancel?.(err) || err.code === 'ERR_CANCELED') return;
-        setResults([]); setSearched(true); setSearchError(true);
-      })
-      .finally(() => { if (!ac.signal.aborted) setSearching(false); });
-  }, []);
-
-  // initialQuery 变化即发起搜索——这是正当的「随 prop 同步到外部系统（网络请求）」副作用，
-  // doSearch 内部的 setSearching 属于异步取数流程的一部分，非可派生的同步状态，故此处保留 effect。
-  useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- 见上：正当的取数副作用
-    if (initialQuery.trim()) doSearch(initialQuery);
-  }, [initialQuery, doSearch]);
-
-  useEffect(() => {
-    const onKey = (e) => { if (e.key === 'Escape') onClose(); };
-    document.addEventListener('keydown', onKey);
-    return () => document.removeEventListener('keydown', onKey);
-  }, [onClose]);
-
-  const onChange = (e) => {
-    const v = e.target.value;
-    setQuery(v);
-    if (!v.trim()) { setResults([]); setSearched(false); setSearchError(false); }
-    clearTimeout(timerRef.current);
-    timerRef.current = setTimeout(() => doSearch(v), 350);
+  const selectedRef = useRef(null);
+  const composing = useRef(false);
+  const trapRef = useFocusTrap(!viewId, { onEscape: onClose, lockScroll: true,
+    initialFocus: selectedId ? selectedRef : inputRef });
+  const doSearch = () => { if (!composing.current) search(query, { immediate: true }); };
+  const onChange = e => {
+    setSelectedId(null);
+    search(e.target.value, { composing: composing.current || e.nativeEvent?.isComposing });
   };
-
   const clearSearch = () => {
-    setQuery(''); setResults([]); setSearched(false); setSearchError(false);
+    composing.current = false;
+    setSelectedId(null);
+    search('');
     inputRef.current?.focus();
   };
-
-  // ── 全局遮罩 + Portal 逃逸 ──
-
-  const isIdle = !query;
-  const isSearchingState = query && (searching || (!searched && results.length === 0));
+  const isIdle = status === 'idle';
+  const searching = status === 'loading';
+  const searched = status === 'success';
+  const searchError = status === 'error';
+  const isSearchingState = searching || status === 'composing';
 
   return createPortal(
     <>
@@ -123,9 +85,11 @@ export default function AddFriendModal({ onClose, initialQuery = '', onStartChat
                 aria-label={t('addFriend.searchAriaLabel')}
                 value={query}
                 onChange={onChange}
+                onCompositionStart={() => { composing.current = true; search(query, { composing: true }); }}
+                onCompositionEnd={e => { composing.current = false; search(e.currentTarget.value); }}
                 onFocus={() => setFocused(true)}
                 onBlur={() => setFocused(false)}
-                onKeyDown={e => { if (e.nativeEvent?.isComposing || e.keyCode === 229) return; if (e.key === 'Enter') doSearch(query); }}
+                onKeyDown={e => { if (e.nativeEvent?.isComposing || e.keyCode === 229) return; if (e.key === 'Enter') { e.preventDefault(); doSearch(); } }}
                 className="afm-search-input"
               />
               {query && (
@@ -160,10 +124,7 @@ export default function AddFriendModal({ onClose, initialQuery = '', onStartChat
             {/* 动态搜索响应条 */}
             {isSearchingState && (
               <div
-                role="button"
-                tabIndex={0}
-                onClick={() => doSearch(query)}
-                onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); doSearch(query); } }}
+                role="status"
                 className="afm-search-row"
               >
                 <TouliaoIcon name="search" className="afm-search-icon" style={{color:GREEN}} size="sm" />
@@ -178,16 +139,16 @@ export default function AddFriendModal({ onClose, initialQuery = '', onStartChat
 
             {/* 搜索结果 */}
             {!searching && results.map(u => (
-              <AfResultItem key={u.id} user={u} onClick={() => setViewId(u.id)} />
+              <AfResultItem key={u.id} user={u} resultRef={u.id === selectedId ? selectedRef : undefined} onClick={() => { setSelectedId(u.id); setViewId(u.id); }} />
             ))}
 
             {/* 搜索失败（网络等）：与"查无此人"区分，给重试入口 */}
             {!searching && searchError && query && (
-              <div className="afm-not-found">
+              <div className="afm-not-found" role="alert">
                 <div className="afm-not-found-title">{t('addFriend.searchFailedTitle')}</div>
                 <div className="afm-not-found-sub">
-                  <button onClick={() => doSearch(query)}
-                    style={{ color: 'var(--green)', background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontSize: 'inherit' }}>
+                  <button onClick={() => doSearch()}
+                    className="afm-retry-btn">
                     {t('addFriend.retry')}
                   </button>
                 </div>
@@ -196,7 +157,7 @@ export default function AddFriendModal({ onClose, initialQuery = '', onStartChat
 
             {/* 未找到 */}
             {!searching && searched && !searchError && query && results.length === 0 && (
-              <div className="afm-not-found">
+              <div className="afm-not-found" role="status">
                 <div className="afm-not-found-title">{t('addFriend.notFoundTemplate').replace('{query}', query)}</div>
                 <div className="afm-not-found-sub">{t('addFriend.notFoundHint')}</div>
               </div>

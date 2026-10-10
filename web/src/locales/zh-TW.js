@@ -1,5 +1,7 @@
 // 按需加载的语言包（首屏只打包简体中文，见 contexts/I18nContext.jsx 的 LOCALE_LOADERS）。
 export default {
+    'up.discardDraft': '已編輯的內容尚未儲存，確定放棄並離開嗎？',
+    'up.actionUnconfirmed': '暫時無法確認操作結果，請核對目前狀態後重試。',
     'gs.openingChat': '正在開啟聊天…',
   'gs.openFailed': '暫時無法開啟聊天，請重試。',
   'convSearch.hint': "輸入關鍵字，尋找目前的聊天記錄",

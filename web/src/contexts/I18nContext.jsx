@@ -3,6 +3,8 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 
 const translations = {
   'zh-CN': {
+    'up.discardDraft': '已编辑的内容还没有保存，确定放弃并离开吗？',
+    'up.actionUnconfirmed': '暂时无法确认操作结果，请核对当前状态后重试。',
     'gs.openingChat': '正在打开聊天…',
     'gs.openFailed': '暂时无法打开聊天，请重试。',
     'convSearch.hint': "输入关键词，查找当前聊天记录",
