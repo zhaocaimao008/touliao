@@ -5,7 +5,7 @@ import TouliaoIcon from '../ui-kit/Icon';
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import axios from 'axios';
 import { mediaUrl, useMediaCredentials } from '../utils/url';
-import { downloadFile } from '../utils/download';
+import { useFilePreview } from '../contexts/FilePreviewContext';
 import { format } from '../utils/time';
 import Avatar from './Avatar';
 
@@ -31,6 +31,7 @@ const IcoFile = () => <TouliaoIcon name="fileContent" className="chatfiles-tab-i
 export default function ChatFiles({ convId, onClose }) {
   useMediaCredentials();
   const { t } = useI18n();
+  const openFilePreview = useFilePreview();
   const [tab, setTab] = useState('all');
   const [items, setItems] = useState([]);
   const [total, setTotal] = useState(0);
@@ -112,7 +113,8 @@ export default function ChatFiles({ convId, onClose }) {
     if (item.type === 'image' || item.type === 'video') {
       setPreview({ url: item.fileUrl, type: item.type, name: item.fileName });
     } else {
-      downloadFile(item.fileUrl, item.fileName || 'download');
+      openFilePreview?.({ fileUrl: item.fileUrl, filename: item.fileName,
+        mimeType: item.fileMime, fileSize: item.fileSize });
     }
   };
 

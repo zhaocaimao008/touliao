@@ -18,8 +18,9 @@ describe('chat file translations (DS-017)', () => {
     value: parseObject(`../locales/${code}.js`, ast => ast.program.body.find(n => n.type === 'ExportDefaultDeclaration').declaration),
   }));
   const dictionaries = { properties: [zhCN, ...lazy] };
-  const component = readFileSync(new URL('../components/ChatFiles.jsx', import.meta.url), 'utf8');
-  const keys = [...new Set([...component.matchAll(/'((?:chatFiles)\.[^']+)'/g)].map(m => m[1]))];
+  const component = ['ChatFiles.jsx', 'FilePreview.jsx', 'DocumentRenderers.jsx', 'GlobalSearch.jsx', 'ConvSearchBar.jsx']
+    .map(name => readFileSync(new URL(`../components/${name}`, import.meta.url), 'utf8')).join('\n');
+  const keys = [...new Set([...component.matchAll(/'((?:chatFiles|filePreview|gs|convSearch)\.[^']+)'/g)].map(m => m[1]))];
   for (const language of dictionaries.properties) {
     it(`provides visible labels in ${language.key.value || language.key.name}`, () => {
       for (const key of keys) {

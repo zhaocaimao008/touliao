@@ -1,12 +1,12 @@
 import TouliaoIcon, { iconForMessageType } from '../ui-kit/Icon';
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import axios from 'axios';
 import Avatar from './Avatar';
 import { EmptyState, ErrorState } from './StateViews';
 import { TextButton } from '../ui-kit/Button';
 import { GroupAvatar } from './GroupAvatar';
 import { useI18n } from '../contexts/I18nContext';
-import { startSearchTask } from '../utils/searchTask';
+import { startPagedSearchTask } from '../utils/pagedSearchTask';
 import { useOpenConversation } from '../hooks/useOpenConversation';
 import ConversationOpenFeedback from './ConversationOpenFeedback';
 import { matchesContact, normalizeContactQuery } from '../utils/contactSearch';
@@ -51,6 +51,7 @@ export default function GlobalSearch({ query, onSelectConv, onNetworkSearch }) {
   const [timeRange, setTimeRange] = useState('');
   const [senderId, setSenderId] = useState('');
   const [senderOptions, setSenderOptions] = useState([]);
+  const messageTask = useRef(null);
   const q = normalizeContactQuery(query);
   const hasQuery = !!q;
   const searchKey = JSON.stringify([q, typeFilter, timeRange, senderId]);
@@ -112,12 +113,13 @@ export default function GlobalSearch({ query, onSelectConv, onNetworkSearch }) {
   }, [conversations, q, t]);
 
   // The query and filters identify a result set, including while debouncing.
-  useEffect(() => startSearchTask({
+  useEffect(() => {
+    const params = buildMessageSearchParams({ query: q, type: typeFilter, timeRange, senderId });
+    const task = startPagedSearchTask({
     key: searchKey, query: q, delay: 300,
-    load: async (_query, signal) => {
-      const params = buildMessageSearchParams({ query: q, type: typeFilter, timeRange, senderId });
-      const { data } = await axios.get('/api/messages/search', { params, signal });
-      return data?.results;
+    load: async (_query, signal, offset, limit) => {
+      const { data } = await axios.get('/api/messages/search', { params: { ...params, offset, limit }, signal });
+      return data;
     },
     onState: next => {
       setMessageSearch(next);
@@ -129,7 +131,10 @@ export default function GlobalSearch({ query, onSelectConv, onNetworkSearch }) {
         return [...byId.values()].sort((a, b) => a.name.localeCompare(b.name));
       });
     },
-  }), [q, typeFilter, timeRange, senderId, retry, searchKey]);
+    });
+    messageTask.current = task;
+    return task.cancel;
+  }, [q, typeFilter, timeRange, senderId, retry, searchKey]);
 
   const openMessageLocation = (msg) => {
     // 定位到消息：打开会话 + 滚到消息位置
@@ -252,7 +257,9 @@ export default function GlobalSearch({ query, onSelectConv, onNetworkSearch }) {
       )}
       {msgResults.length > 0 && (
         <>
-          <div className="gs-cat">{t('gs.chatHistoryCategoryTemplate').replace('{count}', msgResults.length)}</div>
+          <div className="gs-cat">{messageSearch.total != null
+            ? t('gs.loadedResults').replace('{loaded}', msgResults.length).replace('{total}', messageSearch.total)
+            : t('gs.chatHistoryCategoryTemplate').replace('{count}', msgResults.length)}</div>
           {msgResults.map(m => (
             <div key={m.id} className="gs-row" onClick={() => openMessageLocation(m)}
               role="button" tabIndex={0}
@@ -271,6 +278,14 @@ export default function GlobalSearch({ query, onSelectConv, onNetworkSearch }) {
           ))}
         </>
       )}
+
+      {currentSearch && messageSearch.moreError && <div role="alert" className="gs-searching">{t('convSearch.failed')}</div>}
+      {currentSearch && messageSearch.hasMore && <div className="gs-searching">
+        <TextButton disabled={messageSearch.loadingMore} onClick={() => {
+          if (messageTask.current?.key === searchKey) messageTask.current.loadMore();
+        }}>{t(messageSearch.loadingMore ? 'common.loading' : messageSearch.moreError ? 'common.retry' : 'gs.loadMore')}</TextButton>
+      </div>}
+      {currentSearch && messageSearch.limited && <div role="status" className="gs-searching">{t('gs.narrowSearch')}</div>}
 
       {actualSearching && (
         <div role="status" className="gs-searching">{t('convSearch.searching')}</div>

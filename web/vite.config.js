@@ -56,7 +56,10 @@ export default defineConfig(({ mode }) => ({
         },
         chunkFileNames:  'assets/[name]-[hash].js',
         entryFileNames:  'assets/[name]-[hash].js',
-        assetFileNames:  'assets/[name]-[hash].[ext]',
+        // Module workers need a JavaScript MIME type under strict nosniff.
+        // Many static hosts do not map .mjs; .js is consistently served as JS.
+        assetFileNames: asset => asset.names.some(name => name.endsWith('.mjs'))
+          ? 'assets/[name]-[hash].js' : 'assets/[name]-[hash].[ext]',
       },
     },
     chunkSizeWarningLimit: 800,

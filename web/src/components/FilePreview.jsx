@@ -1,411 +1,79 @@
+import React, { useCallback, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import TouliaoIcon from '../ui-kit/Icon';
 import useFocusTrap from '../hooks/useFocusTrap';
-import React, { useEffect, useRef, useState } from 'react';
-import { mediaUrl, useMediaCredentials } from '../utils/url';
-import { startDownload, subscribe, cancelDownload, retryDownload } from '../utils/downloadManager';
+import usePreviewDownload from '../hooks/usePreviewDownload';
 import { shareMessage, canShare } from '../utils/share';
-import { humanFileSize as humanSize } from '../utils/fileSize';
-import { classify, extOf } from '../utils/attachmentType';
+import { humanFileSize } from '../utils/fileSize';
+import { classify } from '../utils/attachmentType';
 import { useI18n } from '../contexts/I18nContext';
+import { DocumentRenderer, PdfRenderer } from './DocumentRenderers';
+import './FilePreview.css';
 
-// ── 各格式子渲染器 ──────────────────────────────────────────────
-
-function PdfRenderer({ url, onLoaded, onError }) {
-  const { t } = useI18n();
-  const containerRef = useRef(null);
-  const [numPages, setNumPages] = useState(0);
-  const [scale, setScale] = useState(1);
-  const docRef = useRef(null);
-  const renderTokenRef = useRef(0);
-
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const pdfjsLib = await import('pdfjs-dist');
-        const workerUrl = (await import('pdfjs-dist/build/pdf.worker.min.mjs?url')).default;
-        pdfjsLib.GlobalWorkerOptions.workerSrc = workerUrl;
-        const doc = await pdfjsLib.getDocument({ url, withCredentials: true }).promise;
-        if (cancelled) return;
-        docRef.current = doc;
-        setNumPages(doc.numPages);
-        onLoaded?.();
-      } catch (e) {
-        if (!cancelled) onError?.(e?.message || t('filePreview.pdfParseFailed'));
-      }
-    })();
-    return () => { cancelled = true; };
-  // eslint-disable-next-line react-hooks/exhaustive-deps -- onLoaded/onError 是父组件每次渲染新建的内联回调，只应在 url 变化时重新执行
-  }, [url]);
-
-  useEffect(() => {
-    if (!docRef.current || !numPages) return;
-    const myToken = ++renderTokenRef.current;
-    (async () => {
-      const container = containerRef.current;
-      if (!container) return;
-      container.innerHTML = '';
-      // 逐页渲染到独立 canvas，支持滚动查看全部页；页数很多时可后续加虚拟化，
-      // 当前先保证正确性——聊天场景 PDF 页数通常有限，全渲染不是性能瓶颈。
-      for (let i = 1; i <= numPages; i++) {
-        if (renderTokenRef.current !== myToken) return; // 缩放触发了重渲染，放弃过期任务
-        const page = await docRef.current.getPage(i);
-        const viewport = page.getViewport({ scale });
-        const canvas = document.createElement('canvas');
-        canvas.width = viewport.width;
-        canvas.height = viewport.height;
-        canvas.style.cssText = 'display:block;margin:0 auto 12px;box-shadow:0 2px 12px rgba(0,0,0,.15);background:#fff;';
-        container.appendChild(canvas);
-        const ctx = canvas.getContext('2d');
-        await page.render({ canvasContext: ctx, viewport }).promise;
-      }
-    })();
-  }, [numPages, scale]);
-
-  return (
-    <div style={{ width: '100%', height: '100%', overflow: 'auto', padding: '16px 0' }}>
-      <div ref={containerRef} />
-      {/* 缩放控制 */}
-      <div style={{
-        position: 'fixed', bottom: 90, left: '50%', transform: 'translateX(-50%)',
-        display: 'flex', gap: 8, background: 'rgba(0,0,0,.6)', borderRadius: 20, padding: '6px 14px',
-      }}>
-        <button onClick={() => setScale(s => Math.max(0.5, s - 0.25))} style={zoomBtnStyle} aria-label={t('imagePreview.zoomOut')}><TouliaoIcon name="minimize" size="sm" /></button>
-        <span style={{ color: 'var(--icon-on-dark)', fontSize: 13, alignSelf: 'center' }}>{Math.round(scale * 100)}%</span>
-        <button onClick={() => setScale(s => Math.min(3, s + 0.25))} style={zoomBtnStyle} aria-label={t('imagePreview.zoomIn')}><TouliaoIcon name="add" size="sm" /></button>
-      </div>
-    </div>
-  );
-}
-const zoomBtnStyle = { border: 'none', background: 'transparent', color: 'var(--icon-on-dark)', fontSize: 18, cursor: 'pointer', width: 44, height: 44 };
-
-function DocxRenderer({ url, onLoaded, onError }) {
-  const { t } = useI18n();
-  const containerRef = useRef(null);
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const resp = await fetch(url, { credentials: 'include' });
-        if (!resp.ok) throw new Error('HTTP ' + resp.status);
-        const buf = await resp.arrayBuffer();
-        if (cancelled) return;
-        const { renderAsync } = await import('docx-preview');
-        if (containerRef.current) {
-          containerRef.current.innerHTML = '';
-          await renderAsync(buf, containerRef.current, undefined, {
-            className: 'wc-docx', inWrapper: true, ignoreWidth: false, ignoreHeight: false,
-          });
-        }
-        onLoaded?.();
-      } catch (e) {
-        if (!cancelled) onError?.(e?.message || t('filePreview.wordParseFailed'));
-      }
-    })();
-    return () => { cancelled = true; };
-  // eslint-disable-next-line react-hooks/exhaustive-deps -- onLoaded/onError 是父组件每次渲染新建的内联回调，只应在 url 变化时重新执行
-  }, [url]);
-  return <div ref={containerRef} style={{ width: '100%', height: '100%', overflow: 'auto', background: 'var(--bg-card)', padding: '20px 0' }} />;
+export default function FilePreview(props) {
+  return createPortal(<FileSession key={JSON.stringify([props.fileUrl, props.filename, props.mimeType])} {...props} />, document.body);
 }
 
-function XlsxRenderer({ url, onLoaded, onError }) {
+function FileSession({ fileUrl, filename, mimeType, fileSize, onClose }) {
   const { t } = useI18n();
-  const [sheets, setSheets] = useState(null);
-  const [activeSheet, setActiveSheet] = useState(0);
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const resp = await fetch(url, { credentials: 'include' });
-        if (!resp.ok) throw new Error('HTTP ' + resp.status);
-        const buf = await resp.arrayBuffer();
-        if (cancelled) return;
-        const [XLSX, { default: DOMPurify }] = await Promise.all([import('xlsx'), import('dompurify')]);
-        const wb = XLSX.read(buf, { type: 'array' });
-        // sheet_to_html 把单元格内容原样拼进 HTML：恶意 .xlsx（任意联系人发的文件都会走这条预览）
-        // 能在单元格里塞 <script>/onerror 之类的标签，不清洗就直接喂进 dangerouslySetInnerHTML
-        // 等于在预览者的已登录会话里执行任意脚本（存储型 XSS）。
-        const parsed = wb.SheetNames.map(name => ({
-          name,
-          html: DOMPurify.sanitize(XLSX.utils.sheet_to_html(wb.Sheets[name], { editable: false })),
-        }));
-        setSheets(parsed);
-        onLoaded?.();
-      } catch (e) {
-        if (!cancelled) onError?.(e?.message || t('filePreview.excelParseFailed'));
-      }
-    })();
-    return () => { cancelled = true; };
-  // eslint-disable-next-line react-hooks/exhaustive-deps -- onLoaded/onError 是父组件每次渲染新建的内联回调，只应在 url 变化时重新执行
-  }, [url]);
-
-  if (!sheets) return null;
-  return (
-    <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column', background: 'var(--bg-card)' }}>
-      {sheets.length > 1 && (
-        <div style={{ display: 'flex', gap: 4, padding: '8px 12px', overflowX: 'auto', borderBottom: '1px solid var(--border-medium)', flexShrink: 0 }}>
-          {sheets.map((s, i) => (
-            <button key={s.name} onClick={() => setActiveSheet(i)}
-              style={{
-                border: 'none', padding: '4px 12px', borderRadius: 6, cursor: 'pointer', whiteSpace: 'nowrap',
-                background: i === activeSheet ? 'var(--brand-primary)' : 'var(--bg-card-hover)',
-                color: i === activeSheet ? '#fff' : 'var(--text-primary)', fontSize: 13,
-              }}>{s.name}</button>
-          ))}
-        </div>
-      )}
-      <div
-        className="wc-xlsx-table-wrap"
-        style={{ flex: 1, overflow: 'auto', padding: 12 }}
-        dangerouslySetInnerHTML={{ __html: sheets[activeSheet]?.html || '' }}
-      />
-    </div>
-  );
-}
-
-function TextRenderer({ url, filename, onLoaded, onError }) {
-  const { t } = useI18n();
-  const [text, setText] = useState('');
-  const isMd = extOf(filename) === 'md' || extOf(filename) === 'markdown';
-  const isCsv = extOf(filename) === 'csv';
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const resp = await fetch(url, { credentials: 'include' });
-        if (!resp.ok) throw new Error('HTTP ' + resp.status);
-        const t = await resp.text();
-        if (!cancelled) { setText(t); onLoaded?.(); }
-      } catch (e) {
-        if (!cancelled) onError?.(e?.message || t('filePreview.fileReadFailed'));
-      }
-    })();
-    return () => { cancelled = true; };
-  // eslint-disable-next-line react-hooks/exhaustive-deps -- onLoaded/onError 是父组件每次渲染新建的内联回调，只应在 url 变化时重新执行
-  }, [url]);
-
-  if (isCsv) {
-    const rows = text.split(/\r?\n/).filter(r => r.length).map(r => r.split(','));
-    return (
-      <div style={{ width: '100%', height: '100%', overflow: 'auto', background: 'var(--bg-card)', padding: 16 }}>
-        <table style={{ borderCollapse: 'collapse', width: '100%' }}>
-          <tbody>
-            {rows.map((r, i) => (
-              <tr key={i}>{r.map((c, j) => (
-                <td key={j} style={{ border: '1px solid var(--border-medium)', padding: '4px 8px', fontSize: 13, color: 'var(--text-primary)' }}>{c}</td>
-              ))}</tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    );
-  }
-  return (
-    <pre style={{
-      width: '100%', height: '100%', overflow: 'auto', background: 'var(--bg-card)', margin: 0,
-      padding: 20, boxSizing: 'border-box', fontSize: 14, lineHeight: 1.6, whiteSpace: 'pre-wrap',
-      wordBreak: 'break-word', fontFamily: isMd ? 'inherit' : 'ui-monospace, monospace', color: 'var(--text-primary)',
-    }}>{text}</pre>
-  );
-}
-
-// PPTX：没有成熟稳定的纯前端高保真渲染方案（不使用会把私有文件传到第三方网站的在线转换服务）。
-// 退化为"逐张幻灯片文字内容提取预览"——用 jszip 直接读 pptx(本质是zip)里每张幻灯片 XML 的
-// 文本节点，不还原版式/图片，但至少能在 App 内看到每页写了什么，比完全不能预览、
-// 只能下载好。明确告知用户这是简化预览。
-function PptxRenderer({ url, onLoaded, onError }) {
-  const { t } = useI18n();
-  const [slides, setSlides] = useState(null);
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const resp = await fetch(url, { credentials: 'include' });
-        if (!resp.ok) throw new Error('HTTP ' + resp.status);
-        const buf = await resp.arrayBuffer();
-        if (cancelled) return;
-        const JSZip = (await import('jszip')).default;
-        const zip = await JSZip.loadAsync(buf);
-        const slideFiles = Object.keys(zip.files)
-          .filter(n => /^ppt\/slides\/slide\d+\.xml$/.test(n))
-          .sort((a, b) => {
-            const na = parseInt(a.match(/slide(\d+)\.xml/)[1], 10);
-            const nb = parseInt(b.match(/slide(\d+)\.xml/)[1], 10);
-            return na - nb;
-          });
-        const parser = new DOMParser();
-        const out = [];
-        for (const name of slideFiles) {
-          const xml = await zip.files[name].async('text');
-          const doc = parser.parseFromString(xml, 'application/xml');
-          const texts = Array.from(doc.getElementsByTagName('a:t')).map(n => n.textContent).filter(Boolean);
-          out.push(texts);
-        }
-        if (!cancelled) { setSlides(out); onLoaded?.(); }
-      } catch (e) {
-        if (!cancelled) onError?.(e?.message || t('filePreview.pptParseFailed'));
-      }
-    })();
-    return () => { cancelled = true; };
-  // eslint-disable-next-line react-hooks/exhaustive-deps -- onLoaded/onError 是父组件每次渲染新建的内联回调，只应在 url 变化时重新执行
-  }, [url]);
-
-  if (!slides) return null;
-  return (
-    <div style={{ width: '100%', height: '100%', overflow: 'auto', background: 'var(--bg-card)', padding: 16, color: 'var(--text-primary)' }}>
-      <div style={{
-        background: 'var(--color-warning-light)', border: '1px solid var(--color-warning)', borderRadius: 8,
-        padding: '8px 12px', fontSize: 12, color: 'var(--color-warning)', marginBottom: 16,
-      }}>
-        {t('filePreview.pptxSimplifiedNotice')}
-      </div>
-      {slides.map((texts, i) => (
-        <div key={i} style={{
-          border: '1px solid var(--border-medium)', borderRadius: 8, padding: 16, marginBottom: 12,
-          aspectRatio: '16/9', display: 'flex', flexDirection: 'column', justifyContent: 'center',
-        }}>
-          <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 8 }}>{t('filePreview.pageTemplate').replace('{n}', i + 1)}</div>
-          {texts.length ? texts.map((t, j) => <div key={j} style={{ fontSize: 15, marginBottom: 4 }}>{t}</div>)
-            : <div style={{ color: 'var(--text-muted)', fontSize: 13 }}>{t('filePreview.pptxNoTextContent')}</div>}
-        </div>
-      ))}
-    </div>
-  );
-}
-
-/**
- * 文档/文件全屏预览：PDF/Word/Excel/PPT/TXT/MD/CSV 走对应渲染器 App 内预览；
- * 其他不支持内部预览的格式（zip/rar/doc(旧)/ppt(旧)等二进制）进入"文件详情页"
- * ——只显示信息+下载/保存/分享/用其他应用打开，绝不自动跳浏览器。
- * 与 ImagePreview/VideoPreview 对齐的全屏遮罩交互：Esc 关闭、底部操作条。
- */
-export default function FilePreview({ fileUrl, filename, mimeType, fileSize, onClose }) {
-  useMediaCredentials();
-  const { t } = useI18n();
-  const url = mediaUrl(fileUrl);
   const kind = classify(mimeType, filename);
-  const [loadState, setLoadState] = useState('loading'); // loading | ready | error
-  const [errorMsg, setErrorMsg] = useState('');
-  const [dl, setDl] = useState(null);
-  const dlIdRef = useRef(null);
-
-  const modalRef = useFocusTrap(true, { onEscape: onClose, lockScroll: true });
-
-  useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- generic 类型无需异步加载，直接同步置为 ready
-    if (kind === 'generic') setLoadState('ready'); // 详情页不需要异步加载
-  }, [kind]);
-
-  const startSave = () => {
-    // generic(投聊内不支持预览的格式)：这就是规范要求的"用户主动选择用其他应用打开"
-    // 那个动作本身，此时才允许下载完成后自动调用系统默认程序；其余格式投聊自己能
-    // 预览，保存到本地只是要一份文件，不应该也跳去打开系统默认程序。
-    const id = startDownload({ fileUrl, filename, mimeType, autoOpen: kind === 'generic' });
-    dlIdRef.current = id;
-    subscribe(id, setDl);
+  const [status, setStatus] = useState(() => !fileUrl ? 'error' : kind === 'generic' ? 'ready' : 'loading');
+  const [attempt, setAttempt] = useState(0);
+  const retrying = useRef(false);
+  const closeRef = useRef(null);
+  const modalRef = useFocusTrap(true, { onEscape: onClose, lockScroll: true, initialFocus: '[data-testid="file-preview-close"]' });
+  const download = usePreviewDownload({ fileUrl, filename, mimeType, autoOpen: kind === 'generic' });
+  const dl = download.state;
+  const busy = dl && ['pending', 'downloading'].includes(dl.status);
+  const onLoaded = useCallback(() => { retrying.current = false; setStatus('ready'); }, []);
+  const onError = useCallback(() => { retrying.current = false; setStatus('error'); }, []);
+  const retry = () => {
+    if (retrying.current || !fileUrl) return;
+    retrying.current = true;
+    setAttempt(value => value + 1);
+    setStatus('loading');
+    closeRef.current?.focus({ preventScroll: true });
   };
-
-  const onLoaded = () => setLoadState('ready');
-  const onError = (msg) => { setLoadState('error'); setErrorMsg(msg); };
-
-  return (
-    <div
-      ref={modalRef} tabIndex={-1} className="tl-file-preview" role="dialog" aria-modal="true" aria-label={t('filePreview.title')} data-testid="file-preview"
-      style={{
-        position: 'fixed', inset: 0, zIndex: 'var(--z-top)', background: 'rgba(0,0,0,.85)',
-        display: 'flex', flexDirection: 'column', animation: 'fadeIn .18s ease-out',
-      }}
-    >
-      {/* 顶部栏：返回 + 文件名 + 更多(下载) */}
-      <div style={{
-        display: 'flex', alignItems: 'center', gap: 12, padding: '12px 16px',
-        background: 'rgba(0,0,0,.5)', color: 'var(--icon-on-dark)', flexShrink: 0,
-      }}>
-        <button onClick={onClose} aria-label={t('common.back')} data-testid="file-preview-close"
-          style={{ border: 'none', background: 'transparent', color: 'var(--icon-on-dark)', fontSize: 20, cursor: 'pointer', padding: 4 }}>
-          <TouliaoIcon name="back" size="md" />
-        </button>
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontSize: 15, fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{filename}</div>
-          {fileSize ? <div style={{ fontSize: 12, opacity: .7 }}>{humanSize(fileSize)}</div> : null}
-        </div>
-        {canShare() && (
-          <button onClick={() => shareMessage({ fileUrl, filename, title: filename })} aria-label={t('filePreview.share')}
-            style={{ border: 'none', background: 'transparent', color: 'var(--icon-on-dark)', fontSize: 14, cursor: 'pointer', padding: 4 }}>
-            {t('filePreview.share')}
-          </button>
-        )}
+  const Renderer = kind === 'pdf' ? PdfRenderer : DocumentRenderer;
+  const saveLabel = kind === 'generic' ? t('filePreview.downloadOpen') : t('filePreview.saveLocal');
+  return <div ref={modalRef} tabIndex={-1} className="tl-file-preview" role="dialog" aria-modal="true"
+    aria-label={t('filePreview.title')} data-testid="file-preview">
+    <header className="file-preview-header">
+      <button ref={closeRef} type="button" onClick={onClose} aria-label={t('common.back')} data-testid="file-preview-close"><TouliaoIcon name="back" size="md" /></button>
+      <div className="file-preview-heading"><div title={filename}>{filename || t('filePreview.title')}</div>
+        {fileSize != null && <small>{humanFileSize(fileSize)}</small>}
       </div>
-
-      {/* 主体 */}
-      <div className="tl-file-preview-body" style={{ background: kind === 'generic' ? 'transparent' : '#525659' }}>
-        {loadState === 'loading' && (
-          <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--icon-on-dark)' }}>
-            正在加载文档…
-          </div>
-        )}
-        {loadState === 'error' && (
-          <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', gap: 12, alignItems: 'center', justifyContent: 'center', color: 'var(--icon-on-dark)' }}>
-            <div>{t('filePreview.cannotPreviewTemplate').replace('{error}', errorMsg)}</div>
-            <button onClick={startSave} style={{ ...actionBtnStyle }}>{t('filePreview.downloadThenOpenElsewhere')}</button>
-          </div>
-        )}
-        <div style={{ display: loadState === 'ready' ? 'block' : 'none', width: '100%', height: '100%' }}>
-          {url && kind === 'pdf' && <PdfRenderer url={url} onLoaded={onLoaded} onError={onError} />}
-          {url && kind === 'docx' && <DocxRenderer url={url} onLoaded={onLoaded} onError={onError} />}
-          {url && kind === 'xlsx' && <XlsxRenderer url={url} onLoaded={onLoaded} onError={onError} />}
-          {url && kind === 'pptx' && <PptxRenderer url={url} onLoaded={onLoaded} onError={onError} />}
-          {url && kind === 'text' && <TextRenderer url={url} filename={filename} onLoaded={onLoaded} onError={onError} />}
-        </div>
-        {/* 提前触发不支持格式的 onLoaded 路径（kind==='generic' 已在 effect 里处理），这里渲染详情页内容 */}
-        {kind === 'generic' && loadState === 'ready' && (
-          <div className="tl-file-details" tabIndex={0} aria-label={filename}>
-            <TouliaoIcon name="fileContent" style={{color:'rgba(255,255,255,.85)'}} size="xl" />
-            <div className="tl-file-details-name">{filename}</div>
-            <div className="tl-file-details-meta">{humanSize(fileSize)}{mimeType ? ` · ${mimeType}` : ''}</div>
-            <div className="tl-file-details-description">
-              该文件格式暂不支持在投聊内直接预览，可以下载保存，或下载后选择用其他应用打开。
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* 底部操作条：下载/保存进度 */}
-      <div style={{
-        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12,
-        padding: '14px 16px', background: 'rgba(0,0,0,.5)', flexShrink: 0,
-      }}>
-        {!dl && (
-          <button onClick={startSave} data-testid="file-preview-download" style={actionBtnStyle}>
-            {kind === 'generic' ? '下载 / 用其他应用打开' : '保存到本地'}
-          </button>
-        )}
-        {dl && dl.status === 'downloading' && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, color: 'var(--icon-on-dark)', fontSize: 13 }}>
-            <div style={{ width: 140, height: 6, background: 'rgba(255,255,255,.25)', borderRadius: 3, overflow: 'hidden' }}>
-              <div style={{ width: `${dl.progress || 0}%`, height: '100%', background: 'var(--brand-primary)', transition: 'width .2s' }} />
-            </div>
-            <span>{dl.indeterminate ? '下载中…' : `${dl.progress || 0}%`}</span>
-            <button onClick={() => cancelDownload(dlIdRef.current)} style={linkBtnStyle}>{t('common.cancel')}</button>
-          </div>
-        )}
-        {dl && dl.status === 'completed' && <div style={{ color: 'var(--icon-on-dark)', fontSize: 13 }}>{t('filePreview.saved')}</div>}
-        {dl && dl.status === 'cancelled' && (
-          <button onClick={startSave} style={actionBtnStyle}>{t('filePreview.cancelledRedownload')}</button>
-        )}
-        {dl && dl.status === 'failed' && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, color: 'var(--icon-on-dark)', fontSize: 13 }}>
-            <span>{t('filePreview.downloadFailed')}</span>
-            <button onClick={() => retryDownload(dlIdRef.current)} style={linkBtnStyle}>{t('filePreview.retry')}</button>
-          </div>
-        )}
-      </div>
+      {fileUrl && canShare() && <button type="button" onClick={() => shareMessage({ fileUrl, filename, title: filename })}>{t('filePreview.share')}</button>}
+    </header>
+    <div className="tl-file-preview-body" aria-busy={status === 'loading'}>
+      {status === 'loading' && <div className="file-preview-status" role="status"><span className="file-preview-spinner" />{t('filePreview.loading')}</div>}
+      {status === 'error' && <div className="file-preview-status" role="alert">
+        <p>{t(fileUrl ? 'filePreview.loadFailed' : 'filePreview.unavailable')}</p>
+        {fileUrl && <button type="button" onClick={retry} data-testid="file-preview-retry">{t('filePreview.retry')}</button>}
+      </div>}
+      {fileUrl && kind !== 'generic' && status !== 'error' && <div className="file-preview-document"
+        style={{ visibility: status === 'ready' ? 'visible' : 'hidden' }} inert={status === 'ready' ? undefined : ''}>
+        <Renderer key={attempt} fileUrl={fileUrl} filename={filename} kind={kind} onLoaded={onLoaded} onError={onError} />
+      </div>}
+      {kind === 'generic' && status === 'ready' && <div className="tl-file-details" tabIndex={0} aria-label={filename}>
+        <TouliaoIcon name="fileContent" size="xl" />
+        <div className="tl-file-details-name">{filename}</div>
+        <div className="tl-file-details-meta">{humanFileSize(fileSize)}{mimeType ? ` · ${mimeType}` : ''}</div>
+        <div className="tl-file-details-description">{t('filePreview.unsupported')}</div>
+      </div>}
     </div>
-  );
+    <footer className="file-preview-footer">
+      {!dl && <button type="button" disabled={!fileUrl} onClick={download.start} data-testid="file-preview-download">{saveLabel}</button>}
+      {busy && <div className="file-download-progress" role="status" aria-live="polite">
+        <span>{t(dl.status === 'pending' ? 'filePreview.queued' : 'filePreview.downloading')}</span>
+        {dl.status === 'downloading' && <progress max="100" value={dl.indeterminate ? undefined : dl.progress || 0} aria-label={t('filePreview.downloading')} />}
+        {dl.status === 'downloading' && !dl.indeterminate && <span>{dl.progress || 0}%</span>}
+        <button type="button" onClick={download.cancel}>{t('common.cancel')}</button>
+      </div>}
+      {dl?.status === 'completed' && <span role="status">{t('filePreview.saved')}</span>}
+      {dl?.status === 'cancelled' && <button type="button" onClick={download.start}>{t('filePreview.cancelledRedownload')}</button>}
+      {dl?.status === 'failed' && <div className="file-download-progress" role="alert"><span>{t('filePreview.downloadFailed')}</span>
+        <button type="button" onClick={download.retry}>{t('filePreview.retry')}</button></div>}
+    </footer>
+  </div>;
 }
-
-const actionBtnStyle = {
-  border: 'none', cursor: 'pointer', color: 'var(--icon-on-dark)', fontSize: 14,
-  background: 'rgba(255,255,255,.18)', padding: '8px 20px', borderRadius: 20,
-};
-const linkBtnStyle = { border: 'none', background: 'transparent', color: 'var(--brand-primary)', cursor: 'pointer', fontSize: 13, textDecoration: 'underline' };

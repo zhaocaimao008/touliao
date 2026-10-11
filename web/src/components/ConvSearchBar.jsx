@@ -4,7 +4,7 @@ import axios from 'axios';
 import { format } from '../utils/time';
 import { useI18n } from '../contexts/I18nContext';
 import { IcoClose, IcoSearch } from './Icons';
-import { startSearchTask } from '../utils/searchTask';
+import { startPagedSearchTask } from '../utils/pagedSearchTask';
 import './ConvSearchBar.css';
 
 /**
@@ -20,6 +20,7 @@ export default function ConvSearchBar({ convId, onJump, onClose }) {
   const [search, setSearch] = useState({ status: 'idle', data: [] });
   const [retry, setRetry] = useState(0);
   const inputRef = useRef(null);
+  const searchTask = useRef(null);
   const statusId = useId();
   const key = JSON.stringify([convId, query.trim()]);
   const status = search.key === key ? search.status : query.trim() ? 'loading' : 'idle';
@@ -39,14 +40,18 @@ export default function ConvSearchBar({ convId, onJump, onClose }) {
     return () => document.removeEventListener('keydown', h);
   }, [onClose]);
 
-  useEffect(() => startSearchTask({
+  useEffect(() => {
+    const task = startPagedSearchTask({
     key, query,
-    load: async (q, signal) => {
-      const { data } = await axios.get(`/api/messages/conversation/${convId}/search`, { params: { q }, signal });
+    load: async (q, signal, offset, limit) => {
+      const { data } = await axios.get(`/api/messages/conversation/${convId}/search`, { params: { q, offset, limit }, signal });
       return data;
     },
     onState: setSearch,
-  }), [convId, key, query, retry]);
+    });
+    searchTask.current = task;
+    return task.cancel;
+  }, [convId, key, query, retry]);
 
   const handleJump = (msg) => {
     onJump(msg.id);
@@ -101,7 +106,7 @@ export default function ConvSearchBar({ convId, onJump, onClose }) {
         {status === 'idle' && t('convSearch.hint')}
         {status === 'loading' && t('convSearch.searching')}
         {status === 'error' && t('convSearch.failed')}
-        {status === 'success' && (results.length ? t('convSearch.resultCount').replace('{count}', results.length) : t('convSearch.noResults'))}
+        {status === 'success' && (results.length ? t(search.hasMore ? 'convSearch.loadedCount' : 'convSearch.resultCount').replace('{count}', results.length) : t('convSearch.noResults'))}
       </div>
       {status === 'error' && <button type="button" className="conv-search-retry" onClick={() => setRetry(value => value + 1)}>{t('common.retry')}</button>}
       {status === 'success' && results.length > 0 && (
@@ -124,6 +129,12 @@ export default function ConvSearchBar({ convId, onJump, onClose }) {
               </span>
             </button>
           ))}
+          {search.moreError && <div role="alert" className="conv-search-status">{t('convSearch.failed')}</div>}
+          {search.hasMore && <button type="button" className="conv-search-retry" disabled={search.loadingMore}
+            onClick={() => { if (searchTask.current?.key === key) searchTask.current.loadMore(); }}>
+            {t(search.loadingMore ? 'common.loading' : search.moreError ? 'common.retry' : 'gs.loadMore')}
+          </button>}
+          {search.limited && <div role="status" className="conv-search-status">{t('gs.narrowSearch')}</div>}
         </div>
       )}
     </section>
