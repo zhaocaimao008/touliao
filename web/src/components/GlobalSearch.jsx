@@ -270,7 +270,7 @@ export default function GlobalSearch({ query, onSelectConv, onNetworkSearch }) {
                   {m.senderName} {m.convType === 'group' ? t('gs.inGroupTemplate').replace('{name}', m.convName) : ''}
                 </div>
                 <div className="gs-msg-text">
-                  <span className="gs-msg-type-icon" aria-hidden="true"><TouliaoIcon name={iconForMessageType(m.type)} size="xs" /></span>
+                  <span className="gs-msg-type-icon" aria-hidden="true"><TouliaoIcon name={iconForMessageType(m.type || 'text')} size="xs" /></span>
                   {highlight(formatSearchMessageSummary(m, t), q)}
                 </div>
               </div>
