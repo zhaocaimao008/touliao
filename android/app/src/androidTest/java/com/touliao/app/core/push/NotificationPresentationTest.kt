@@ -49,15 +49,20 @@ class NotificationPresentationTest {
         assertEquals("touliao_messages_s0_v0", notification.channelId)
     }
 
-    @Test fun readingOneConversationPreservesOtherCardAndRemovesStaleSummary() {
+    @Test fun readingOneConversationPreservesOtherCardAndUpdatesSummary() {
         helper.showMessageNotification("One", "x", "one", unreadCount=7, messageId="a", sound=false)
         helper.showMessageNotification("Two", "y", "two", unreadCount=2, messageId="b", sound=false)
         settle()
         assertTrue(manager.activeNotifications.any { it.id == NotificationHelper.SUMMARY_NOTIFICATION_ID })
+        assertNotNull(card("two"))
         helper.clearConversationNotifications("one")
         settle()
         assertNull(card("one"))
         assertEquals(2, requireNotNull(card("two")).notification.number)
+        val summary = manager.activeNotifications.first { it.id == NotificationHelper.SUMMARY_NOTIFICATION_ID }.notification
+        assertEquals("2 条新消息", summary.extras.getCharSequence(android.app.Notification.EXTRA_TEXT)?.toString())
+        helper.clearConversationNotifications("two")
+        settle()
         assertFalse(manager.activeNotifications.any { it.id == NotificationHelper.SUMMARY_NOTIFICATION_ID })
     }
 

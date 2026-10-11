@@ -96,17 +96,21 @@ class NotificationHelper @Inject constructor(
         mgr.cancel(NotificationPolicy.tag(recipient, conversationId), MESSAGE_NOTIFICATION_ID)
         mgr.cancel(conversationId, 1000) // notifications created by previous releases
         mgr.cancel(NotificationPolicy.vendorId(recipient, conversationId))
-        showGroupSummary(mgr, NotificationPolicy.tag(recipient, conversationId))
+        showGroupSummary(mgr, setOf(NotificationPolicy.tag(recipient, conversationId), conversationId))
     }
 
-    private fun showGroupSummary(mgr: NotificationManagerCompat, removedTag: String? = null) {
+    private fun showGroupSummary(mgr: NotificationManagerCompat, removedTags: Set<String> = emptySet()) {
         val manager = context.getSystemService(NotificationManager::class.java) ?: return
-        val cards = manager.activeNotifications.filter { it.tag != removedTag && it.id == MESSAGE_NOTIFICATION_ID && it.notification.group == GROUP_KEY_MESSAGES }
+        val active = manager.activeNotifications
+        val cards = active.filter { it.tag !in removedTags && it.id != SUMMARY_NOTIFICATION_ID && it.notification.group == GROUP_KEY_MESSAGES }
         val counts = cards.associate { it.tag to it.notification.number.coerceAtLeast(1) }.toMutableMap()
         val now = android.os.SystemClock.elapsedRealtime()
         pendingCards.entries.removeAll { it.key !in counts && now - it.value.postedAt >= 2000 }
         pendingCards.forEach { (tag, card) -> counts[tag] = card.count }
-        if (counts.size < 2) { mgr.cancel(SUMMARY_NOTIFICATION_ID); return }
+        if (counts.isEmpty()) { mgr.cancel(SUMMARY_NOTIFICATION_ID); return }
+        // Android cancels a group's children when its summary is cancelled.
+        // Keep an existing summary current until the last conversation is read.
+        if (counts.size == 1 && active.none { it.id == SUMMARY_NOTIFICATION_ID }) return
         val total = counts.values.sum()
         val summary = NotificationCompat.Builder(context, NotificationPolicy.channel(false, false))
             .setSmallIcon(R.drawable.ic_notification).setContentTitle("投聊").setContentText("$total 条新消息")
