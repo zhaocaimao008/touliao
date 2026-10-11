@@ -138,15 +138,23 @@ async function startServer() {
     // 512KB 足够承载最大文件消息元数据与信令，同时防超大 payload 触发
     // 「1MB × 多房间广播放大」的内存/带宽滥用（socket 广播是扇出到所有成员）。
     maxHttpBufferSize: 512 * 1024,
-    // WebSocket 逐帧压缩：消息体积 -30~60%（文本聊天效果显著）
-    // threshold=512：小帧（<512B ack/typing/ping）跳过压缩，避免负优化
-    perMessageDeflate: {
-      zlibDeflateOptions: { chunkSize: 1024, level: 6 },
-      zlibInflateOptions: { chunkSize: 10 * 1024 },
-      clientNoContextTakeover: true,   // 客户端不保留压缩上下文（兼容性好）
-      serverNoContextTakeover: true,   // 服务端不保留（节省内存，代价是压缩率低 5%）
-      threshold: 512,                  // <512B 不压缩
-    },
+    // 2026-10-11：显式关闭 WebSocket 逐帧压缩（permessage-deflate，也是 Socket.IO/ws 的默认值）。
+    // 旧配置注释「serverNoContextTakeover 节省内存」不成立：ws 8.x 下 no_context_takeover 只是每帧后
+    // reset() 同一个 zlib 流，并不释放——每条连接首次收/发 ≥threshold 的帧后，就常驻一套 deflate
+    // （windowBits15/memLevel8 ≈256KB）+ inflate（≈40KB）原生内存直到断线；按 ecosystem.config.js
+    // 的设计目标（单进程 1000 条长连接）约 200~300MB 原生内存，全部计入 pm2 max_memory_restart
+    // 盯的 RSS（稳态约 200MB），外加大量 zlib 流的 RSS 碎片。另外：
+    //   · engine.io 只要开着 perMessageDeflate 就不走 wsPreEncodedFrame——房间广播本可「成帧一次、
+    //     各连接直接写」，开压缩后每个收件 socket 都单独成帧、单独排进 libuv 线程池压缩
+    //     （与 sharp 缩略图、fs 共用默认 4 线程）。
+    //   · 换来的带宽很少：聊天事件帧多在 0.3~1.5KB，压缩前后都装得下一个 TCP 段/TLS 记录，移动端
+    //     包数与射频唤醒次数不变；历史消息/会话列表/搜索等大块数据走 REST，已由 app.js 的
+    //     compression() gzip。只有少量多 KB 帧（超长文本、new_message_batch 突发、通话 SDP）会变大。
+    // 没选「调小 serverMaxWindowBits/memLevel 保留压缩」：仍逐 socket 压缩、预编码广播仍被禁用；
+    // 且 ws 在 clientMaxWindowBits 设为数字时，会对不带 client_max_window_bits 参数的报价（例如
+    // OkHttp 只发 "permessage-deflate"）直接以 400 拒绝握手。
+    // 关闭对所有客户端安全：扩展本就是可选协商，服务端不在 101 应答里回该扩展，客户端就按未压缩帧收发。
+    perMessageDeflate: false,
     cors: {
       origin: config.allowedOrigins,
       credentials: true,
