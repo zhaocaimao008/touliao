@@ -1344,6 +1344,7 @@ export default {
   'filePreview.cannotPreviewTemplate': "Can't preview: {error}",
   'filePreview.downloadThenOpenElsewhere': 'Download and open in another app',
   'filePreview.saved': 'Saved ✓',
+  'filePreview.browserDownloadStarted': 'Download started. Check your browser downloads.',
   'filePreview.cancelledRedownload': 'Cancelled, download again',
   'filePreview.downloadFailed': 'Download failed',
   'filePreview.retry': 'Retry',

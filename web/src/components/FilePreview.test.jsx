@@ -65,3 +65,14 @@ test('switching files removes the old download subscriber and resets its present
   act(() => oldUpdate({ status: 'completed' })); expect(text()).not.toContain('filePreview.saved');
   expect(byTest('file-preview-download')).toBeDefined();
 });
+
+test('unknown-size transfers show indeterminate progress and browser handoff does not claim a saved file', () => {
+  mount(); act(() => byTest('file-preview-download').props.onClick());
+  act(() => updateDownload({ id: 'download-1', status: 'downloading', indeterminate: true }));
+  expect(view.root.findByType('progress').props.value).toBeUndefined();
+  expect(text()).not.toContain('0%');
+  act(() => updateDownload({ id: 'download-1', status: 'completed', browserManaged: true }));
+  expect(text()).toContain('filePreview.browserDownloadStarted'); expect(text()).not.toContain('filePreview.saved');
+  act(() => updateDownload({ id: 'download-1', status: 'completed', browserManaged: false }));
+  expect(text()).toContain('filePreview.saved');
+});

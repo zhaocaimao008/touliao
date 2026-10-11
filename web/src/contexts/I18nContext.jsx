@@ -1363,6 +1363,7 @@ const translations = {
     'filePreview.cannotPreviewTemplate': '无法预览：{error}',
     'filePreview.downloadThenOpenElsewhere': '下载后用其他应用打开',
     'filePreview.saved': '已保存 ✓',
+    'filePreview.browserDownloadStarted': '已开始下载，请查看浏览器下载列表',
     'filePreview.cancelledRedownload': '已取消，重新下载',
     'filePreview.downloadFailed': '下载失败',
     'filePreview.retry': '重试',

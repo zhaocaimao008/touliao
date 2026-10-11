@@ -80,7 +80,7 @@ export default function VideoPreview({ url: fileUrl, name, onClose }) {
         </div>
         <span role="status" className="media-preview-download-state">
           {busy && (download.progress == null ? '' : download.progress + '%')}
-          {download?.status === 'completed' && t('videoPreview.saved') + (download.savePath ? ': ' + download.savePath : '')}
+          {download?.status === 'completed' && t(download.browserManaged ? 'filePreview.browserDownloadStarted' : 'videoPreview.saved') + (download.savePath ? ': ' + download.savePath : '')}
           {download?.status === 'failed' && t('filePreview.downloadFailed') + ': ' + (download.error || '')}
           {download?.status === 'cancelled' && t('filePreview.cancelledRedownload')}
         </span>

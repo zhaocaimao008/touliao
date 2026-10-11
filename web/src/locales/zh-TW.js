@@ -1343,6 +1343,7 @@ export default {
   'filePreview.cannotPreviewTemplate': '無法預覽：{error}',
   'filePreview.downloadThenOpenElsewhere': '下載後用其他應用程式開啟',
   'filePreview.saved': '已儲存 ✓',
+  'filePreview.browserDownloadStarted': '已開始下載，請查看瀏覽器下載清單',
   'filePreview.cancelledRedownload': '已取消，重新下載',
   'filePreview.downloadFailed': '下載失敗',
   'filePreview.retry': '重試',

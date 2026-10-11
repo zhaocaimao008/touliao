@@ -70,7 +70,7 @@ function FileSession({ fileUrl, filename, mimeType, fileSize, onClose }) {
         {dl.status === 'downloading' && !dl.indeterminate && <span>{dl.progress || 0}%</span>}
         <button type="button" onClick={download.cancel}>{t('common.cancel')}</button>
       </div>}
-      {dl?.status === 'completed' && <span role="status">{t('filePreview.saved')}</span>}
+      {dl?.status === 'completed' && <span role="status">{t(dl.browserManaged ? 'filePreview.browserDownloadStarted' : 'filePreview.saved')}</span>}
       {dl?.status === 'cancelled' && <button type="button" onClick={download.start}>{t('filePreview.cancelledRedownload')}</button>}
       {dl?.status === 'failed' && <div className="file-download-progress" role="alert"><span>{t('filePreview.downloadFailed')}</span>
         <button type="button" onClick={download.retry}>{t('filePreview.retry')}</button></div>}
