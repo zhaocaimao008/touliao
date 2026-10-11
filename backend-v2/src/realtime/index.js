@@ -34,19 +34,32 @@ const MAX_SOCKETS_PER_USER = 5;
 // 该用户收不到，预览延迟到手动打开会话才补订阅（typing.js 的 join_conversation）。
 // 抽成具名导出函数，便于直接单测排序/截断行为，不用为此起真实 socket 连接跑 500+ 房间。
 const AUTO_JOIN_MAX_ROOMS = 500;
+// 2026-10-11 性能：旧实现 LEFT JOIN 派生表 `SELECT conversation_id, MAX(created_at) FROM messages
+// WHERE deleted=0 GROUP BY conversation_id`，ON 条件引用 cm，SQLite 无法把它下推进聚合，
+// 每次 socket 连接都 MATERIALIZE 全站所有会话的 MAX（全量 SCAN messages 索引），成本随全站
+// 历史消息线性增长，重启后的重连潮会背靠背跑这条全表聚合。改为 ORDER BY 里的相关标量子查询：
+// 只对该用户自己的会话逐个取 MAX，走 idx_messages_conv_del_time 的 min/max 单次索引查找
+// （mx.deleted = 0 必须保持等值条件才能命中）。语义不变：会话无未删消息时 MAX 为 NULL，
+// 与旧 LEFT JOIN 未命中一致，照旧回落 c.created_at；置顶优先 + c.id DESC 兜底保持跟列表口径一致。
+// 函数以 db 为参数（单测传自己的连接），不能在模块顶层 prepare，按连接缓存语句免每次连接重编译。
+const autoJoinStmts = new WeakMap(); // db → Statement
 function autoJoinConversationIds(db, userId, limit = AUTO_JOIN_MAX_ROOMS) {
-  return db.prepare(`
-    SELECT cm.conversation_id AS conversation_id
-    FROM conversation_members cm
-    LEFT JOIN conversation_settings cs ON cs.conversation_id = cm.conversation_id AND cs.user_id = cm.user_id
-    LEFT JOIN conversations c ON c.id = cm.conversation_id
-    LEFT JOIN (
-      SELECT conversation_id, MAX(created_at) AS last_at FROM messages WHERE deleted=0 GROUP BY conversation_id
-    ) m ON m.conversation_id = cm.conversation_id
-    WHERE cm.user_id = ?
-    ORDER BY COALESCE(cs.pinned, 0) DESC, COALESCE(m.last_at, c.created_at) DESC, c.id DESC
-    LIMIT ?
-  `).all(userId, limit).map(c => c.conversation_id);
+  let stmt = autoJoinStmts.get(db);
+  if (!stmt) {
+    stmt = db.prepare(`
+      SELECT cm.conversation_id AS conversation_id
+      FROM conversation_members cm
+      LEFT JOIN conversation_settings cs ON cs.conversation_id = cm.conversation_id AND cs.user_id = cm.user_id
+      LEFT JOIN conversations c ON c.id = cm.conversation_id
+      WHERE cm.user_id = ?
+      ORDER BY COALESCE(cs.pinned, 0) DESC,
+        COALESCE((SELECT MAX(mx.created_at) FROM messages mx WHERE mx.conversation_id = cm.conversation_id AND mx.deleted = 0), c.created_at) DESC,
+        c.id DESC
+      LIMIT ?
+    `);
+    autoJoinStmts.set(db, stmt);
+  }
+  return stmt.all(userId, limit).map(c => c.conversation_id);
 }
 
 // P1-07 增强：per-IP 握手频率限制（防单 IP 换多个账号批量建连耗尽握手/DB 查询）。
