@@ -26,6 +26,7 @@ const dict = {
     'type.video':        '[视频]',
     'type.location':     '[位置]',
     'type.redPacket':    '[红包] 恭喜发财',
+    'type.transfer':     '[转账]',
     'type.contactCard':  '[名片]',
     'type.merged':       '[聊天记录]',
     // 来电
@@ -49,6 +50,7 @@ const dict = {
     'type.video':        '[Video]',
     'type.location':     '[Location]',
     'type.redPacket':    '[Red packet] Best wishes',
+    'type.transfer':     '[Transfer]',
     'type.contactCard':  '[Contact]',
     'type.merged':       '[Chat history]',
     'call.title':        'Incoming call',
@@ -69,6 +71,7 @@ const dict = {
     'type.video':        '[影片]',
     'type.location':     '[位置]',
     'type.redPacket':    '[紅包] 恭喜發財',
+    'type.transfer':     '[轉帳]',
     'type.contactCard':  '[名片]',
     'type.merged':       '[聊天記錄]',
     'call.title':        '來電',
@@ -107,6 +110,8 @@ function bodyForMessage(lang, type, content) {
     case 'file':         return `${t(lang, 'type.file')} ${(content || '').slice(0, 50)}`;
     case 'location':     return t(lang, 'type.location');
     case 'red_packet':   return t(lang, 'type.redPacket');
+    // 转账：content 是 {"amount","note","refId"} JSON，且金额不宜上锁屏，只给类型占位符
+    case 'transfer':     return t(lang, 'type.transfer');
     case 'contact_card': return t(lang, 'type.contactCard');
     // 合并转发：content 是透传 JSON，不能原文推出送（锁屏会显示一串乱码），用类型占位符
     case 'merged':       return t(lang, 'type.merged');
