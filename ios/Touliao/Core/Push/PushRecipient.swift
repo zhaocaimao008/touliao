@@ -10,13 +10,19 @@ enum PushRecipient {
         matches(info["recipientId"] as? String, currentUserId: AccountStore.shared.activeId(), loggedIn: KeychainStore.shared.isLoggedIn)
     }
 
-    /// App 在前台时收到推送的展示方式：正在查看的会话只响声音（消息已在页面上），
-    /// 来电由应用内来电界面接管、也只响声音；其余消息弹横幅并进通知中心。
+    static func belongsToConversation(_ info: [AnyHashable: Any], recipientId: String, conversationId: String) -> Bool {
+        info["recipientId"] as? String == recipientId && info["conversationId"] as? String == conversationId
+    }
+
+    /// Respect the notification sound preference, including when suppressing a visible-chat banner.
     static func foregroundOptions(_ info: [AnyHashable: Any], visibleConversationId: String?) -> UNNotificationPresentationOptions {
         let conversationId = info["conversationId"] as? String ?? ""
         let isCall = (info["callId"] as? String)?.isEmpty == false || info["type"] as? String == "call"
-        if isCall || conversationId.isEmpty { return [.sound] }
-        if conversationId == visibleConversationId { return [.sound] }
-        return [.banner, .list, .sound]
+        let silent = info["sound"] as? String == "false" || info["sound"] as? Bool == false
+        let sound: UNNotificationPresentationOptions = silent ? [] : [.sound]
+        if isCall || conversationId.isEmpty { return sound }
+        if conversationId == visibleConversationId { return sound }
+        let visible: UNNotificationPresentationOptions = [.banner, .list]
+        return visible.union(sound)
     }
 }

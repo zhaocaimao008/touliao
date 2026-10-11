@@ -11,6 +11,7 @@
  */
 const https = require('https');
 const pushI18n = require('./pushI18n');
+const { notificationId, messageChannel } = require('./notificationPresentation');
 
 const APP_ID = process.env.GETUI_APP_ID || '';
 const APP_KEY = process.env.GETUI_APP_KEY || '';
@@ -136,9 +137,15 @@ async function pushToCid(cid, { title, body, payload, isCurrent }) {
     conversationId: payload?.conversationId || '',
     senderId: payload?.senderId || '',
     recipientId: String(payload?.recipientId || ''),
+    messageId: payload?.messageId || '',
+    sound: payload?.sound !== false,
+    vibrate: payload?.vibrate === true,
+    detailPreview: payload?.detailPreview !== false,
+    conversationUnreadCount: payload?.conversationUnreadCount,
+    badge: payload?.badge,
   });
   const message = {
-    request_id: `${Date.now()}_${Math.random().toString(36).slice(2, 10)}`,
+    request_id: payload?.messageId ? sha256(`${cid}:${payload.recipientId}:${payload.messageId}`).slice(0, 32) : `${Date.now()}_${Math.random().toString(36).slice(2, 10)}`,
     settings: { ttl: 3600000 },   // 离线保留 1h
     audience: { cid: [cid] },
     // transmission 取代 notification：避免个推 SDK 用默认渠道展示通知，
@@ -155,18 +162,22 @@ async function pushToCid(cid, { title, body, payload, isCurrent }) {
       android: {
         ups: {
           notification: { title, body, click_type: 'intent',
+            notify_id: notificationId(payload?.recipientId, payload?.conversationId),
             intent: `intent:#Intent;action=android.intent.action.MAIN;category=android.intent.category.LAUNCHER;package=com.touliao.app;component=com.touliao.app/com.touliao.app.MainActivity;S.recipientId=${encodeURIComponent(payload?.recipientId || '')};${payload?.conversationId ? `S.conversationId=${encodeURIComponent(payload.conversationId)};` : ''}end` },
           // 各厂商离线厂商通道 options（保证锁屏送达）
           options: {
-            HW: { '/message/android/notification/importance': 'HIGH' },
+            HW: {
+              '/message/android/notification/importance': 'NORMAL',
+              '/message/android/notification/channel_id': messageChannel(payload?.sound !== false, payload?.vibrate === true),
+            },
             XM: { '/extra.notify_effect': '1' },
           },
         },
       },
     },
   };
-  const { status, json } = await sendPushWithRetry('/push/single/cid', token, message, { shouldSend: isCurrent });
-  return { status, json, cid };
+  const result = await sendPushWithRetry('/push/single/cid', token, message, { shouldSend: isCurrent });
+  return { ...result, cid };
 }
 
 /**

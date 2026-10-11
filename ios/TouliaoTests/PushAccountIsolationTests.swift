@@ -18,6 +18,22 @@ private actor PushTestEvents {
 }
 
 final class PushAccountIsolationTests: XCTestCase {
+    func testSilentPreferenceSurvivesForegroundPresentation() {
+        for value: Any in ["false", false] {
+            let info: [AnyHashable: Any] = ["conversationId": "c1", "sound": value]
+            XCTAssertEqual(PushRecipient.foregroundOptions(info, visibleConversationId: nil), [.banner, .list])
+            XCTAssertEqual(PushRecipient.foregroundOptions(info, visibleConversationId: "c1"), [])
+        }
+    }
+
+    func testReadCleanupCannotRemoveAnotherConversationOrAccount() {
+        let info: [AnyHashable: Any] = ["recipientId": "A", "conversationId": "c1"]
+        XCTAssertTrue(PushRecipient.belongsToConversation(info, recipientId: "A", conversationId: "c1"))
+        XCTAssertFalse(PushRecipient.belongsToConversation(info, recipientId: "A", conversationId: "c2"))
+        XCTAssertFalse(PushRecipient.belongsToConversation(info, recipientId: "B", conversationId: "c1"))
+        XCTAssertFalse(PushRecipient.belongsToConversation([:], recipientId: "A", conversationId: "c1"))
+    }
+
     func testStaleOwnedRequestCannotUseNextAccountOrABA() async {
         for aba in [false, true] {
             var token: String? = "A"

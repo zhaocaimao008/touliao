@@ -1,5 +1,6 @@
 'use strict';
 const deviceOwnership = require('./devicePushOwnership');
+const { notificationTag, messageChannel, messagePriority } = require('./notificationPresentation');
 /**
  * Android FCM 优化推送模块
  * 优化项:
@@ -47,15 +48,7 @@ function getAndroidTokens(userId) {
 
 // ── 智能优先级 ────────────────────────────────────────────────────
 function getPriority(messageType, isSilentHour = false) {
-  // 勿扰时间降低优先级
-  if (isSilentHour) return 'normal';
-  
-  // 关键消息保持 HIGH 优先级
-  if (['call', 'payment', 'message'].includes(messageType)) {
-    return 'high';
-  }
-  
-  return 'normal';
+  return messagePriority(messageType, isSilentHour);
 }
 
 // ── 消息大小控制 (确保不超过 4KB) ──────────────────────────────────
@@ -73,6 +66,11 @@ function compressData(data) {
     // 对应 VxinMessagingService.onMessageReceived 的 data["senderName"]/data["body"] 兜底读取。
     senderName: data.senderName || '',
     body: data.body || '',
+    messageId: String(data.messageId || ''),
+    conversationUnreadCount: String(data.conversationUnreadCount ?? data.badge ?? 1),
+    sound: String(data.sound !== false),
+    vibrate: String(data.vibrate === true),
+    detailPreview: String(data.detailPreview !== false),
   };
 }
 
@@ -99,7 +97,7 @@ function recordMetric(latency, success) {
 }
 
 // ── 批量发送 (核心优化) ────────────────────────────────────────────
-async function sendBatchAndroidNotifications(userId, payload) {
+async function sendBatchAndroidNotifications(userId, payload, destinations) {
   if (!firebaseAdmin) {
     console.warn('[FCM] Firebase 未配置，跳过发送');
     return null;
@@ -109,7 +107,8 @@ async function sendBatchAndroidNotifications(userId, payload) {
   
   try {
     // 1. 获取用户当前有效的 Android 设备 Token
-    const tokens = getAndroidTokens(userId);
+    const tokens = (destinations || getAndroidTokens(userId))
+      .filter(row => row.user_id === userId && row.platform === 'android' && deviceOwnership.isCurrent(row));
     if (tokens.length === 0) {
       console.debug(`[FCM] 用户 ${userId} 无 Android 设备`);
       return null;
@@ -137,25 +136,21 @@ async function sendBatchAndroidNotifications(userId, payload) {
         badge: payload.badge,
         senderName: payload.senderName,
         body: payload.body,
+        messageId: payload.messageId, conversationUnreadCount: payload.conversationUnreadCount,
+        sound: payload.sound, vibrate: payload.vibrate, detailPreview: payload.detailPreview,
       }),
       android: {
         priority: getPriority(payload.type, payload.isSilentHour),
         ttl: 3600000, // 1 小时后过期
         notification: {
-          channelId: 'vxin_messages_v3', // 与 NotificationHelper.CHANNEL_ID 一致：锁屏可见+高优先级
-        },
-      },
-      apns: {
-        headers: {
-          'apns-push-type': 'alert',
-          'apns-priority': '10',
-        },
-        payload: {
-          aps: {
-            alert: { title: payload.senderName, body: payload.body },
-            sound: 'default',
-            badge: payload.badge || 1,
-          },
+          channelId: messageChannel(payload.sound !== false, payload.vibrate === true),
+          tag: notificationTag(userId, payload.conversationId),
+          notificationCount: Math.max(0, Number(payload.conversationUnreadCount ?? payload.badge) || 0),
+          defaultSound: payload.sound !== false,
+          ...(payload.sound !== false ? { sound: 'default' } : {}),
+          defaultVibrateTimings: payload.vibrate === true,
+          ...(payload.vibrate === true ? {} : { vibrateTimingsMillis: [0] }),
+          visibility: 'private',
         },
       },
     };

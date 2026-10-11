@@ -44,7 +44,8 @@ class TouliaoMessagingService : FirebaseMessagingService() {
         if (MessageNotificationBridge.appForeground) return
         // badge 为后端 SQL COUNT(未读)>last_read_at 算出的真实未读数（见 push.js pushNewMessage），
         // 用它做角标而非本地聚合条数（本地最多只缓存 5 条摘要，不能代表真实未读）。
-        val badge = data["badge"]?.toIntOrNull()
-        notificationHelper.showMessageNotification(title, body, data["conversationId"], badge, data["recipientId"])
+        val badge = (data["conversationUnreadCount"] ?: data["badge"])?.toIntOrNull()
+        notificationHelper.showMessageNotification(title, body, data["conversationId"], badge, data["recipientId"],
+            messageId = data["messageId"], sound = data["sound"] != "false", vibrate = data["vibrate"] == "true", detailPreview = data["detailPreview"] != "false")
     }
 }

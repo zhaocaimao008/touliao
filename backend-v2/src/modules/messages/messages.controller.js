@@ -138,6 +138,7 @@ exports.uploadHandle = asyncHandler(async (req, res) => {
   });
 
   pushNewMessage({
+    messageId: msg.id,
     conversationId, senderId: req.user.id, senderName: msg.senderName,
     content: msg.burn_after ? '[阅后即焚消息]' : safeOriginalName, type, timestamp: msg.created_at,
     onlineUserIds: req.app.get('onlineUsers') || new Set(),

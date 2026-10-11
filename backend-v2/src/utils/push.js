@@ -14,6 +14,7 @@ const getuiPush = require('./getuiPush');
 const pushI18n = require('./pushI18n');
 const fcmOptimized = require('./fcmOptimized');  // 新增：Android FCM 优化模块
 const deviceOwnership = require('./devicePushOwnership');
+const { notificationTag } = require('./notificationPresentation');
 
 // Web Push endpoint 只可能来自浏览器推送服务(FCM/Mozilla/Apple/WNS)。限制到已知服务域名，
 // 防 SSRF——攻击者若把订阅 endpoint 指向内网/云元数据地址(如 http://169.254.169.254、
@@ -129,12 +130,16 @@ async function pushToUser(userId, payload) {
           senderId: payload.senderId || '',
           timestamp: String(payload.timestamp || Date.now()),
           type: payload.type || 'message',
+          messageId: String(payload.messageId || ''),
+          sound: String(payload.sound !== false),
         },
         apns: {
           headers: { 'apns-push-type': 'alert', 'apns-priority': '10' },
           payload: { aps: {
             alert: { title: payload.senderName, body: payload.body },
-            sound: 'default', badge: payload.badge || 1,
+            ...(payload.sound !== false ? { sound: 'default' } : {}),
+            badge: payload.badge ?? 1,
+            'thread-id': notificationTag(userId, payload.conversationId),
           } },
         },
       });
@@ -148,9 +153,10 @@ async function pushToUser(userId, payload) {
   // Pair FCM/APNs only within the same login session, never across a user's devices.
   for (const row of iosApnsTokens) {
     promises.push(sendIosPush(row.token, {
-      title: payload.senderName, body: payload.body, badge: payload.badge || 1,
+      title: payload.senderName, body: payload.body, badge: payload.badge ?? 1,
       recipientId: userId, conversationId: payload.conversationId,
       senderId: payload.senderId, timestamp: payload.timestamp, type: payload.type,
+      sound: payload.sound, messageId: payload.messageId,
       destination: row,
     }).then(async result => {
       if (result?.ok || !row.session_id) return;
@@ -162,41 +168,43 @@ async function pushToUser(userId, payload) {
     if (!row.session_id || !nativeSessions.has(row.session_id)) promises.push(sendIosFcm(row));
   }
 
-  if (firebaseAdmin && tokensOf('android').length) {
-    promises.push(fcmOptimized.sendBatchAndroidNotifications(userId, {
-      senderName: payload.senderName, body: payload.body,
-      conversationId: payload.conversationId, senderId: payload.senderId,
-      type: payload.type, timestamp: payload.timestamp, badge: payload.badge,
-    }).catch(error => console.warn('[push] Android FCM failed:', error.message)));
-  }
-
-  const results = await Promise.allSettled(promises);
-  for (const r of results) {
-    if (r.status === 'rejected') console.warn('[push] 推送失败:', r.reason?.message || r.reason);
-  }
-
-  // ── 个推（国产 ROM 覆盖，与 FCM 并行互不干扰）──────────────
-  if (getuiPush.isEnabled()) {
-    const getuiTokens = tokensOf('getui');
-    for (const row of getuiTokens) {
-      if (!deviceOwnership.isCurrent(row)) continue;
-      getuiPush.pushToCid(row.token, {
+  // Route per login session: GeTui covers domestic ROMs, FCM is a failure
+  // fallback for that same device, never a reason to suppress other devices.
+  const getuiTokens = getuiPush.isEnabled() ? tokensOf('getui').filter(deviceOwnership.isCurrent) : [];
+  const primarySessions = new Set(getuiTokens.map(row => row.session_id).filter(Boolean));
+  const androidTokens = tokensOf('android');
+  const sendAndroid = rows => rows.length && firebaseAdmin
+    ? fcmOptimized.sendBatchAndroidNotifications(userId, payload, rows) : Promise.resolve();
+  promises.push(sendAndroid(androidTokens.filter(row => !row.session_id || !primarySessions.has(row.session_id))));
+  // One active CID per session. Legacy destinations without session IDs stay
+  // independent, because they cannot safely be assumed to be the same device.
+  const routedSessions = new Set();
+  for (const row of getuiTokens) {
+    if (row.session_id && routedSessions.has(row.session_id)) continue;
+    if (row.session_id) routedSessions.add(row.session_id);
+    promises.push((async () => {
+      try {
+        const result = await getuiPush.pushToCid(row.token, {
         isCurrent: () => deviceOwnership.isCurrent(row),
         title: payload.senderName || pushI18n.t(payload.lang, 'push.newMessage'),
         body: payload.body || pushI18n.t(payload.lang, 'push.oneNewMessage'),
-        payload: { recipientId: userId, type: payload.type || 'message', conversationId: payload.conversationId || '', senderId: payload.senderId || '' },
-      }).then(({ json }) => {
-        if (json.code !== 0) {
-          console.warn(`[push] 个推失败 user=${userId} code=${json.code} msg=${json.msg}`);
-          // CID 失效时清除，避免无效推送积累
-          if (json.code === 10001 || json.code === 10002) {
-            deviceOwnership.forget(row);
-          }
-        } else {
-          console.debug(`[push] 个推成功 user=${userId}`);
+        payload: { ...payload, recipientId: userId },
+        });
+        if (result?.skipped) return;
+        if (result?.json?.code === 0 && (!result.status || result.status === 200)) return;
+        if ([10001, 10002].includes(result?.json?.code)) deviceOwnership.forget(row);
+        throw new Error('GeTui rejected the notification');
+      } catch (error) {
+        console.warn('[push] GeTui failed; retrying paired FCM:', error.message);
+        if (row.session_id) {
+          await sendAndroid(androidTokens.filter(token => token.session_id === row.session_id));
         }
-      }).catch(e => console.warn(`[push] 个推异常: ${e.message}`));
-    }
+      }
+    })());
+  }
+  const results = await Promise.allSettled(promises);
+  for (const r of results) {
+    if (r.status === 'rejected') console.warn('[push] 推送失败:', r.reason?.message || r.reason);
   }
 }
 
@@ -241,7 +249,8 @@ function buildBody(type, content, lang) {
   return pushI18n.bodyForMessage(lang, type, content);
 }
 
-async function pushNewMessage({ conversationId, senderId, senderName, content, type, timestamp, onlineUserIds, members: cachedMembers }) {
+async function pushNewMessage({ conversationId, senderId, senderName, content, type, timestamp, messageId, onlineUserIds, members: cachedMembers }) {
+  if (type === 'system') return;
   const members = cachedMembers ||
     db.prepare('SELECT user_id FROM conversation_members WHERE conversation_id=?').all(conversationId);
 
@@ -297,18 +306,32 @@ async function pushNewMessage({ conversationId, senderId, senderName, content, t
   const unreadRows = db.prepare(`
     SELECT cm.user_id AS uid,
       (SELECT COUNT(*) FROM (SELECT 1 FROM messages m
-       WHERE m.conversation_id = cm.conversation_id
-         AND m.deleted = 0
-         AND m.sender_id != ?
+       WHERE m.conversation_id = cm.conversation_id AND m.deleted=0 AND m.type!='system'
+         AND m.sender_id != cm.user_id
          AND m.created_at > COALESCE(
            (SELECT cs.last_read_at FROM conversation_settings cs
             WHERE cs.user_id = cm.user_id AND cs.conversation_id = cm.conversation_id), 0)
+         AND m.rowid > COALESCE((SELECT cleared_rowid FROM conversation_clears
+           WHERE user_id=cm.user_id AND conversation_id=cm.conversation_id),0)
        LIMIT 100)
       ) AS cnt
     FROM conversation_members cm
     WHERE cm.conversation_id = ? AND cm.user_id IN (${ph})
-  `).all(senderId, conversationId, ...targetUids);
+  `).all(conversationId, ...targetUids);
   const unreadMap = new Map(unreadRows.map(r => [r.uid, Math.min(Number(r.cnt) || 0, 99)]));
+  // App badge = all unmuted, unarchived conversations; message card count stays
+  // per-conversation. Bound the query to 99 rows per recipient.
+  const badgeRows = db.prepare(`SELECT u.id AS uid, (SELECT COUNT(*) FROM (
+    SELECT 1 FROM conversation_members cm
+    JOIN messages m ON m.conversation_id=cm.conversation_id
+    LEFT JOIN conversation_settings cs ON cs.user_id=cm.user_id AND cs.conversation_id=cm.conversation_id
+    WHERE cm.user_id=u.id AND m.sender_id!=u.id AND m.deleted=0 AND m.type!='system'
+      AND COALESCE(cs.muted,0)=0 AND COALESCE(cs.archived,0)=0
+      AND m.created_at>COALESCE(cs.last_read_at,0)
+      AND m.rowid>COALESCE((SELECT cleared_rowid FROM conversation_clears WHERE user_id=u.id AND conversation_id=cm.conversation_id),0)
+    LIMIT 99)) AS cnt FROM users u WHERE u.id IN (${ph})`).all(...targetUids);
+  const badges = new Map(badgeRows.map(row => [row.uid, row.cnt]));
+  const conversation = db.prepare('SELECT type,name FROM conversations WHERE id=?').get(conversationId);
 
   const pushPromises = targetUids.map(uid => {
     const settings = settingsMap.get(uid) || defaultSettings;
@@ -318,14 +341,17 @@ async function pushNewMessage({ conversationId, senderId, senderName, content, t
     if (Number(settings.quiet_enabled) && isInQuietHours(settings.quiet_start, settings.quiet_end, new Date(), settings.timezone || DEFAULT_TIMEZONE)) return null;
     const unread = unreadMap.get(uid) || 1;
     const lang = pushI18n.normalizeLang(settings.lang);
+    const preview = !!Number(settings.detail_preview);
+    const title = preview ? (conversation?.type === 'group' ? conversation.name || senderName : senderName) : pushI18n.t(lang, 'push.newMessage');
+    const body = preview ? buildBody(type, content, lang) : pushI18n.t(lang, 'push.oneNewMessage');
     return pushToUser(uid, {
-      title:   senderName,
-      body:    Number(settings.detail_preview)
-        ? buildBody(type, content, lang)
-        : pushI18n.t(lang, 'push.oneNewMessage'),
+      title,
+      body: preview && conversation?.type === 'group' ? `${senderName}: ${body}` : body,
       lang,
-      senderName, senderId, conversationId, type, timestamp,
-      badge:   unread,
+      senderName: title, senderId, conversationId, type, timestamp, messageId,
+      detailPreview: preview,
+      badge: badges.get(uid) ?? unread,
+      conversationUnreadCount: unread,
       sound:   !!Number(settings.sound),
       vibrate: !!Number(settings.vibrate),
     });
@@ -344,7 +370,7 @@ const APNS_TOPIC = 'com.touliao.app';
 const APNS_HOST = 'https://api.push.apple.com:443';   // 生产环境(TestFlight/App Store)
 // const APNS_HOST = 'https://api.sandbox.push.apple.com:443'; // 开发环境(debug 真机)
 
-function sendIosPush(deviceToken, { title, body, badge, conversationId, senderId, timestamp, type, collapseId, recipientId, destination }) {
+function sendIosPush(deviceToken, { title, body, badge, conversationId, senderId, timestamp, type, collapseId, recipientId, destination, sound = true, messageId }) {
   return new Promise((resolve) => {
     let settled = false;
     const finish = (result) => {
@@ -361,8 +387,9 @@ function sendIosPush(deviceToken, { title, body, badge, conversationId, senderId
     const payload = {
       aps: {
         alert: { title: String(title || ''), body: String(body || '') },
-        sound: 'default',
-        badge: Number(badge) || 1,
+        ...(sound !== false ? { sound: 'default' } : {}),
+        badge: Number.isFinite(Number(badge)) ? Math.max(0, Number(badge)) : 1,
+        'thread-id': notificationTag(recipientId, conversationId),
         'mutable-content': 1,
       },
       recipientId: String(recipientId || ''),
@@ -370,6 +397,8 @@ function sendIosPush(deviceToken, { title, body, badge, conversationId, senderId
       senderId: String(senderId || ''),
       timestamp: String(timestamp || Date.now()),
       type: type || 'message',
+      messageId: String(messageId || ''),
+      sound: String(sound !== false),
     };
     let client;
     try {

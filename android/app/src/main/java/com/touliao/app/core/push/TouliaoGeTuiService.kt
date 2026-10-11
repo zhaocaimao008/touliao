@@ -64,6 +64,11 @@ class TouliaoGeTuiService : GTIntentService() {
                 title = json.optString("title", "新消息"),
                 body = json.optString("body", "收到一条新消息"),
                 conversationId = json.optString("conversationId", null),
+                unreadCount = if (json.has("conversationUnreadCount")) json.optInt("conversationUnreadCount") else null,
+                messageId = json.optString("messageId"),
+                sound = json.optBoolean("sound", true),
+                vibrate = json.optBoolean("vibrate", false),
+                detailPreview = json.optBoolean("detailPreview", true),
                 recipientId = recipient,
             )
         }.onFailure { Log.w(TAG, "透传解析失败: ${it.message}") }
