@@ -78,10 +78,11 @@ const { _electron: electron } = require('playwright');
         overflow: document.documentElement.scrollWidth > innerWidth,
         stylesheet: [...document.styleSheets].some(sheet => sheet.href?.includes('windows-desktop')),
       }));
+      fs.writeFileSync(path.join(updateEvidence, `login-layout-${apps.indexOf(app)}.json`), JSON.stringify(layout, null, 2));
+      await page.screenshot({ path: path.join(updateEvidence, `windows-login-${apps.indexOf(app)}.png`) });
       assert.equal(layout.stylesheet, true, 'packaged Windows stylesheet loaded');
       assert.equal(layout.overflow, false, 'minimum Windows window does not overflow');
       assert.ok(layout.bottom <= layout.height, 'login actions fit minimum Windows window');
-      await page.screenshot({ path: path.join(temp, `windows-login-${apps.indexOf(app)}.png`) });
     }
     return { app, page, state };
   };
