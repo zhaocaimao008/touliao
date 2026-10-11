@@ -78,14 +78,19 @@ function normalizeIp(value) {
   const high = parseInt(mapped[1], 16), low = parseInt(mapped[2], 16);
   return [high >> 8, high & 255, low >> 8, low & 255].join('.');
 }
-function handshakeIp(socket) {
-  const peer = normalizeIp(socket.handshake.address);
+// 2026-10-11：拆出 (address, headers) 版本，engine.io allowRequest（只有原始 req）与 io.use
+// （socket.handshake）共用同一套归一化 + 回环信任规则，两条路径算出的限流 key 必须一致。
+function clientIp(address, headers) {
+  const peer = normalizeIp(address);
   // Deployed nginx connects over loopback and overwrites X-Real-IP with $remote_addr.
   // Do not trust XFF, arbitrary LAN peers, or client-supplied lists of addresses.
   if (peer === '127.0.0.1' || peer === '::1') {
-    return normalizeIp(socket.handshake.headers?.['x-real-ip']) || peer;
+    return normalizeIp(headers?.['x-real-ip']) || peer;
   }
   return peer || 'unknown';
+}
+function handshakeIp(socket) {
+  return clientIp(socket.handshake.address, socket.handshake.headers);
 }
 function checkGlobalHandshake() {
   const now = Date.now();
@@ -115,6 +120,71 @@ function pruneIpHandshake() {
   }
 }
 
+// 2026-10-11：限流判定收成一处，engine.io allowRequest 与 io.use 兜底共用同一套计数与顺序。
+// 先 per-IP 再全局（短路）：被单 IP 限流拒掉的请求不消耗全局预算（原 io.use 内的既有约定）。
+// 返回 null 表示放行，否则返回拒绝原因文案。
+function throttleHandshake(ip) {
+  if (!checkIpHandshake(ip)) return '连接过于频繁，请稍后再试';
+  pruneIpHandshake();
+  if (!checkGlobalHandshake()) return '服务繁忙，请稍后再试';
+  return null;
+}
+
+// 2026-10-11：限流拒绝此前不留任何痕迹（prodMetrics 只有 connFail 总数），线上无法判断是否触发过。
+// 限频日志：每 60s 至多一行，带自上次记录以来的累计次数；重连潮 / CGNAT 下被拒客户端会按退避
+// 反复重试，逐条打会刷屏。
+let throttleLogAt = 0;
+let throttleRejects = 0;
+function logHandshakeThrottled(reason, ip) {
+  throttleRejects += 1;
+  const now = Date.now();
+  if (now - throttleLogAt < IP_HANDSHAKE_WINDOW_MS) return;
+  console.warn(`[realtime] 握手限流拒绝 ${throttleRejects} 次（最近一次：${reason} ip=${ip}）`);
+  throttleLogAt = now;
+  throttleRejects = 0;
+}
+
+// 2026-10-11：握手限流前移到 engine.io 的 allowRequest。
+// 旧实现在 io.use 里 next(new Error('…请稍后再试')) 拒绝——那是命名空间级 CONNECT_ERROR，
+// socket.io-client v4 收到后直接 socket.destroy()（清掉 Manager 订阅，不再自动重连），
+// 而 Web/桌面/Android/iOS 的 connect_error 处理只对鉴权类文案重连；结果限流一旦命中，
+// 前台常驻的窗口就一直离线（收不到消息/来电），直到切 tab、网络变化或重启 App。
+// allowRequest 拒绝发生在 HTTP 层（websocket upgrade 直接回 4xx 并断开；polling 回 403），
+// 客户端视为 transport error，Manager 按既有退避（1~10s、无限次）自动重试；被拒的请求不计
+// per-IP 次数，窗口滚动后自然放行。限额与计数逻辑不变（同一个 throttleHandshake）。
+// allowRequest 只在新握手（无 sid）时调用，一个 engine 连接计一次——本项目只用默认命名空间，
+// 与原「每次命名空间握手计一次」等价。放行的 req 打上一次性标记，io.use 里首个 CONNECT 抵扣、
+// 避免同一握手被计两次（同连接上后续 CONNECT 照旧计数）；
+// 拿不到 io.engine 的测试桩（假 io 对象）不打标记，照旧在 io.use 里限流（兜底路径）。
+const ENGINE_THROTTLE_MARK = Symbol('touliao.engineHandshakeThrottle');
+function installEngineHandshakeThrottle(io) {
+  const engine = io && io.engine;
+  if (!engine || !engine.opts) return false;
+  const prior = engine.opts.allowRequest;
+  if (prior && prior[ENGINE_THROTTLE_MARK]) return true; // 同一 io 重复 setup 不重复包装（否则一次握手计两次）
+  const allowRequest = (req, callback) => {
+    const throttle = () => {
+      const ip = clientIp(req.socket?.remoteAddress, req.headers);
+      const reason = throttleHandshake(ip);
+      if (reason) {
+        // 与 io.use 路径口径一致：被限流的握手同样计一次尝试 + 一次失败
+        prodMetrics.recordConnAttempt();
+        prodMetrics.recordConnResult(false);
+        logHandshakeThrottled(reason, ip);
+        return callback(reason, false);
+      }
+      req[ENGINE_THROTTLE_MARK] = true;
+      callback(null, true);
+    };
+    // 已有的 allowRequest（如有）先跑：被它拒掉的请求不该消耗限流预算，与旧顺序（engine 放行后才进 io.use）一致
+    if (typeof prior !== 'function') return throttle();
+    prior(req, (message, success) => (success ? throttle() : callback(message, false)));
+  };
+  allowRequest[ENGINE_THROTTLE_MARK] = true;
+  engine.opts.allowRequest = allowRequest;
+  return true;
+}
+
 module.exports = function setupRealtime(io, app) {
   broadcaster.setIo(io); // 广播调度器绑定 io 实例（分片削峰派发）
   const callRegistry = createCallSessionRegistry({
@@ -125,20 +195,28 @@ module.exports = function setupRealtime(io, app) {
     },
   });
 
+  // 握手限流挂到 engine.io allowRequest（拒绝可被客户端自动重试，见 installEngineHandshakeThrottle）
+  installEngineHandshakeThrottle(io);
+
   // ── 握手鉴权（Cookie 优先，Electron 降级到 auth.token）──────
   io.use(async (socket, next) => {
     prodMetrics.recordConnAttempt(); // 监控：连接/重连成功率（每次握手即一次尝试）
     // P1-07 增强：per-IP 握手频率限制（先于 JWT 验证，挡住廉价批量握手风暴）
-    const ip = handshakeIp(socket);
-    if (!checkIpHandshake(ip)) {
-      prodMetrics.recordConnResult(false);
-      return next(new Error('连接过于频繁，请稍后再试'));
-    }
-    pruneIpHandshake();
-    // Rejected single-IP traffic must not drain the independent global budget.
-    if (!checkGlobalHandshake()) {
-      prodMetrics.recordConnResult(false);
-      return next(new Error('服务繁忙，请稍后再试'));
+    // 2026-10-11：engine.io allowRequest 已对本次握手计数放行时跳过（不重复计数）；
+    // 没挂上 engine 层（假 io 测试桩）时仍在此限流兜底。标记只抵扣一次：同一条 engine 连接上
+    // 可以反复发 CONNECT 包（每次都跑一遍 JWT/黑名单/DB 校验），从第二次起照旧在这里计数限流，
+    // 不能让一次 allowRequest 放行变成无限次免检握手。
+    // Rejected single-IP traffic must not drain the independent global budget（顺序见 throttleHandshake）。
+    if (socket.request?.[ENGINE_THROTTLE_MARK]) {
+      socket.request[ENGINE_THROTTLE_MARK] = false;
+    } else {
+      const ip = handshakeIp(socket);
+      const reason = throttleHandshake(ip);
+      if (reason) {
+        prodMetrics.recordConnResult(false);
+        logHandshakeThrottled(reason, ip);
+        return next(new Error(reason));
+      }
     }
     try {
       const cookieHeader = socket.handshake.headers.cookie || '';

@@ -262,8 +262,7 @@ async function listConversations(uid, { includeArchived = false, offset = 0, lim
           AND  mu.deleted         = 0
           AND  mu.type           != 'system'
           AND  mu.created_at      > COALESCE(cs.last_read_at, 0)
-          AND  mu.rowid > COALESCE((SELECT cleared_rowid FROM conversation_clears
-                                              WHERE user_id=? AND conversation_id=c.id), 0)
+          AND  mu.rowid > COALESCE(cc.cleared_rowid, 0)
         LIMIT 99
       )) AS unreadCount,
       (SELECT COUNT(*) FROM (
@@ -274,9 +273,7 @@ async function listConversations(uid, { includeArchived = false, offset = 0, lim
           AND  mm.type           != 'system'  -- 改群名为「@所有人…」之类不能误判成被@
           AND  mm.created_at      > COALESCE(cs.last_read_at, 0)
           -- 2026-10-11：同 unreadCount 补个人清空水位，否则「清空全部聊天记录」后已清掉的 @ 仍点亮「有人@我」。
-          -- 用 cm.user_id（即当前用户）而非新增占位符，避免挪动下方 .all() 的位置参数
-          AND  mm.rowid > COALESCE((SELECT cleared_rowid FROM conversation_clears
-                                              WHERE user_id=cm.user_id AND conversation_id=c.id), 0)
+          AND  mm.rowid > COALESCE(cc.cleared_rowid, 0)
           AND  c.type             = 'group'
           AND  ? != ''
           AND  ( instr(mm.content, '@' || ?) > 0
@@ -294,11 +291,16 @@ async function listConversations(uid, { includeArchived = false, offset = 0, lim
       ct.remark   AS ou_remark
     FROM conversations c
     JOIN conversation_members cm ON cm.conversation_id = c.id AND cm.user_id = ?
+    -- 2026-10-11：个人清空水位只 JOIN 一次（与 unreadCounts 同写法），三处 rowid 比较都引用 cc.cleared_rowid。
+    -- 原来三处各是一个相关子查询，在消息扫描里逐行重算（每行一次 conversation_clears 主键查找，且排在 NOT EXISTS
+    -- 等需要回表的条件之后求值）；改成列引用后 rowid 过滤在索引项上就能完成，清空/删除聊天前的旧消息不再回表。
+    -- 删除聊天(hide)后无新消息、「清空全部」后仍有清空前未读积压的会话，每次列表重算的开销实测降到约 1/8，结果逐行不变。
+    -- 必须放在 LEFT JOIN messages m 之前：其 ON 子查询要引用 cc。
+    LEFT JOIN conversation_clears cc ON cc.user_id = cm.user_id AND cc.conversation_id = c.id
     LEFT JOIN messages m ON m.id = (
       SELECT mm.id FROM messages mm WHERE mm.conversation_id = c.id AND mm.deleted = 0
         AND NOT EXISTS (SELECT 1 FROM user_message_deletions d WHERE d.message_id = mm.id AND d.user_id = ?)
-        AND mm.rowid > COALESCE((SELECT cleared_rowid FROM conversation_clears
-                                   WHERE user_id=? AND conversation_id=c.id), 0)
+        AND mm.rowid > COALESCE(cc.cleared_rowid, 0)
       ORDER BY mm.created_at DESC LIMIT 1
     )
     LEFT JOIN users su ON su.id = m.sender_id
@@ -317,7 +319,7 @@ async function listConversations(uid, { includeArchived = false, offset = 0, lim
     ${includeArchived ? '' : 'AND COALESCE(cs.archived, 0) = 0'}
     ORDER BY COALESCE(cs.pinned, 0) DESC, COALESCE(m.created_at, c.created_at) DESC, c.id DESC
     LIMIT ? OFFSET ?
-  `).all(uid, uid, uid, uid, meUsername, meUsername, uid, uid, uid, uid, uid, uid, lim, off);
+  `).all(uid, uid, uid, meUsername, meUsername, uid, uid, uid, uid, uid, lim, off);
 
   const memberMap = new Map();
   if (rows.some(r => r.type === 'group')) {
@@ -457,6 +459,36 @@ async function setBackground(userId, convId, background) {
 }
 
 // ── 标记已读（io 用于已读回执 + 多端同步清零）────────────────────
+// 2026-10-11：/read 是调用最频繁的接口（聊天窗口打开期间每来一条消息就调一次），原来每次都把私聊「全部历史」重新
+// INSERT OR IGNORE 进 message_reads（逐行回表 + 主键探测，并在主线程拿写锁），再让 burn recordRead 开 IMMEDIATE 事务
+// 把整个会话扫一遍，开销随聊天长度线性增长。现在以「上一次已读水位」为下界：
+//   上次 markRead 已对 rowid ≤ 上次水位 的消息做完同样的回填与焚毁计时（条件相同；rowid 单调，水位消息仍在时不会有
+//   新消息插到它下面；deleted/清空水位/个人删除只朝排除方向变），所以本次只需处理 (上次水位, 本次 rowid]，结果逐行不变。
+// 只信任「仍在本会话、未删除」的水位消息：messageId 当时没找到（已删/他会话/不存在）时那次根本没回填，或水位消息后来
+// 被撤回/清空，都查不到 → 退回原全会话路径（与改动前完全一致），下一次已读写入新水位后自然恢复有界。
+const _prevReadRowid = db.prepare(`
+  SELECT m.rowid AS rid FROM conversation_settings cs
+  JOIN messages m ON m.id = cs.last_read_message_id
+  WHERE cs.user_id = ? AND cs.conversation_id = ? AND m.conversation_id = cs.conversation_id AND m.deleted = 0
+`);
+// (prevRowid, readRowid] 区间内是全库消息（含其他会话），跨度小走 rowid 主键区间（+conversation_id/+deleted 屏蔽会话索引，
+// 否则无 sqlite_stat1 时规划器仍选 idx_messages_conv_del_time 全会话扫）；跨度大时仍走会话索引，但 +rowid>? 在索引项上
+// 先过滤，水位以下的旧消息不回表、不探测 message_reads 主键。阈值与 burn.service 的 ROWID_RANGE_SCAN_MAX 同口径。
+const ROWID_RANGE_SCAN_MAX = 4096;
+const _backfillReadsAll = db.prepare(`INSERT OR IGNORE INTO message_reads (message_id, user_id, read_at)
+  SELECT id, ?, ? FROM messages WHERE conversation_id=? AND rowid <= ? AND deleted=0`);
+const _backfillReadsRange = db.prepare(`INSERT OR IGNORE INTO message_reads (message_id, user_id, read_at)
+  SELECT id, ?, ? FROM messages WHERE rowid > ? AND rowid <= ? AND +conversation_id=? AND +deleted=0`);
+const _backfillReadsAfter = db.prepare(`INSERT OR IGNORE INTO message_reads (message_id, user_id, read_at)
+  SELECT id, ?, ? FROM messages WHERE conversation_id=? AND rowid <= ? AND deleted=0 AND +rowid > ?`);
+function backfillMessageReads(userId, convId, readAt, readRowid, prevRowid) {
+  if (prevRowid == null) return _backfillReadsAll.run(userId, readAt, convId, readRowid);
+  // 区间为空（重复上报同一条/回读更早的消息）：直接跳过，主线程不再为一次空写拿写锁
+  if (prevRowid >= readRowid) return null;
+  if (readRowid - prevRowid <= ROWID_RANGE_SCAN_MAX) return _backfillReadsRange.run(userId, readAt, prevRowid, readRowid, convId);
+  return _backfillReadsAfter.run(userId, readAt, convId, readRowid, prevRowid);
+}
+
 async function markRead(io, userId, convId, messageId) {
   if (!isMember(convId, userId)) return { readAt: 0, lastReadMessageId: null };
   let readAt = Math.floor(Date.now() / 1000);
@@ -470,6 +502,8 @@ async function markRead(io, userId, convId, messageId) {
     const last = db.prepare('SELECT id, created_at, rowid AS rid FROM messages WHERE conversation_id=? AND deleted=0 ORDER BY created_at DESC LIMIT 1').get(convId);
     if (last) { readAt = last.created_at; readMsgId = last.id; readRowid = last.rid; }
   }
+  // 必须在下方 upsert 之前读：读到的才是「上一次」的水位。并发的两次 /read 若读到同一个旧水位，各自补自己的区间，并集不变。
+  const prevRowid = readRowid != null ? (_prevReadRowid.get(userId, convId)?.rid ?? null) : null;
 
   // 等已读位置落库再失效缓存、再通知其他端（写队列约 8ms 一批，代价很小）。原先 fire-and-forget、
   // 提交前就失效缓存并立即返回：提交前到达的列表请求（客户端收到新消息/已读同步后常会立刻刷新列表）
@@ -498,15 +532,13 @@ async function markRead(io, userId, convId, messageId) {
   // 字典序跟发送顺序毫无关系，一条更晚发送、字典序更小的新消息会被一起标成已读。
   // 改用 rowid（单调递增，插入顺序=时间顺序，无同秒歧义），跟本文件 clearConversation
   // 和 messages.service.js 分页用的边界口径一致。
+  // 2026-10-11：以上次水位为下界只补新区间（见 backfillMessageReads 上方说明）
   if (readMsgId && readRowid != null) {
     const convType = db.prepare('SELECT type FROM conversations WHERE id=?').get(convId)?.type;
-    if (convType === 'private') {
-      db.prepare(`INSERT OR IGNORE INTO message_reads (message_id, user_id, read_at)
-        SELECT id, ?, ? FROM messages WHERE conversation_id=? AND rowid <= ? AND deleted=0`)
-        .run(userId, readAt, convId, readRowid);
-    }
+    if (convType === 'private') backfillMessageReads(userId, convId, readAt, readRowid, prevRowid);
   }
-  if (readRowid != null) require('../messages/burn.service').recordRead(io, userId, convId, readRowid);
+  // 焚毁计时同样只看 (上次水位, readRowid]；区间为空或无候选时 recordRead 不开 IMMEDIATE 事务
+  if (readRowid != null) require('../messages/burn.service').recordRead(io, userId, convId, readRowid, null, prevRowid);
   return { readAt, lastReadMessageId: readMsgId };
 }
 
