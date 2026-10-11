@@ -126,8 +126,8 @@ async function waitFor(check, timeout) {
         assert.equal(crypto.createHash('sha256').update(bytes).digest('hex'), spec.files[name]);
         return bytes;
       }),
-      app.evaluate(({ app }) => require('node:fs').readFileSync(
-        require('node:path').join(app.getAppPath(), 'src', 'update-public-key.pem'), 'utf8')),
+      app.evaluate(({ app }) => process.getBuiltinModule('fs').readFileSync(
+        process.getBuiltinModule('path').join(app.getAppPath(), 'src', 'update-public-key.pem'), 'utf8')),
     ]);
     assert.ok(crypto.verify(null, manifestBytes, installedKey, signatureBytes));
     report.installedClientKeyVerified = true;
