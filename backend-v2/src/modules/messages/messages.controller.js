@@ -4,7 +4,6 @@ const config = require('../../config');
 const { asyncHandler, badRequest } = require('../../utils/http');
 const { makeChatUploader, makeImageUploader, makeUploadGuard, sanitizeFilename, decodeMultipartName, thumbUrlIfExists } = require('../../utils/upload');
 const { isMember, privateSendGuard } = require('./shared');
-const { pushNewMessage } = require('../../utils/push');
 const { registerFile } = require('../../utils/fileRegistry');
 const svc = require('./messages.service');
 const syncSvc = require('./sync.service');
@@ -132,17 +131,11 @@ exports.uploadHandle = asyncHandler(async (req, res) => {
   let duration = parseInt(req.body.duration, 10);
   if (!Number.isFinite(duration) || duration < 0 || duration > 86400) duration = 0;
 
+  // 离线推送已收口到 saveUploadedFile 内（2026-10-11，同时覆盖表情/分片上传），这里不能再推，否则重复通知
   const msg = await svc.saveUploadedFile(io(req), conversationId, req.user.id, {
     type, content: safeOriginalName, fileUrl: url, reply_to_id: req.body.reply_to_id,
     fileMime: mime, fileSize: req.file.size, duration,
   });
-
-  pushNewMessage({
-    messageId: msg.id,
-    conversationId, senderId: req.user.id, senderName: msg.senderName,
-    content: msg.burn_after ? '[阅后即焚消息]' : safeOriginalName, type, timestamp: msg.created_at,
-    onlineUserIds: req.app.get('onlineUsers') || new Set(),
-  }).catch(() => {});
 
   res.json(msg);
 });

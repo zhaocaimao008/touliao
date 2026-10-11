@@ -326,15 +326,8 @@ async function pushNewMessage({ conversationId, senderId, senderName, content, t
   const unreadMap = new Map(unreadRows.map(r => [r.uid, Math.min(Number(r.cnt) || 0, 99)]));
   // App badge = all unmuted, unarchived conversations; message card count stays
   // per-conversation. Bound the query to 99 rows per recipient.
-  const badgeRows = db.prepare(`SELECT u.id AS uid, (SELECT COUNT(*) FROM (
-    SELECT 1 FROM conversation_members cm
-    JOIN messages m ON m.conversation_id=cm.conversation_id
-    LEFT JOIN conversation_settings cs ON cs.user_id=cm.user_id AND cs.conversation_id=cm.conversation_id
-    WHERE cm.user_id=u.id AND m.sender_id!=u.id AND m.deleted=0 AND m.type!='system'
-      AND COALESCE(cs.muted,0)=0 AND COALESCE(cs.archived,0)=0
-      AND m.created_at>COALESCE(cs.last_read_at,0)
-      AND m.rowid>COALESCE((SELECT cleared_rowid FROM conversation_clears WHERE user_id=u.id AND conversation_id=cm.conversation_id),0)
-    LIMIT 99)) AS cnt FROM users u WHERE u.id IN (${ph})`).all(...targetUids);
+  // 2026-10-11：SQL 挪到 badgeCountSql()（见下），这里只是调用，结果不变。
+  const badgeRows = db.prepare(badgeCountSql(targetUids.length)).all(...targetUids);
   const badges = new Map(badgeRows.map(row => [row.uid, row.cnt]));
   const conversation = db.prepare('SELECT type,name FROM conversations WHERE id=?').get(conversationId);
 
@@ -363,6 +356,25 @@ async function pushNewMessage({ conversationId, senderId, senderName, content, t
   }).filter(Boolean);
 
   await Promise.allSettled(pushPromises);
+}
+
+// App 角标 SQL，n = 目标用户数（IN 占位符个数）；导出仅供 test/perf-push-badge.test.js 跑 EXPLAIN。
+// 2026-10-11：原写法 cm JOIN m LEFT JOIN cs，cs 是 LEFT JOIN 右表只能排在 m 之后，
+// created_at>last_read_at 用不上索引，m 从会话第一条消息扫起（已读完的人 LIMIT 99 也提前不了），
+// 每条消息都把每个收件人所有会话的全部历史同步扫一遍。改为先 LEFT JOIN cs 再 JOIN m、下界放进
+// m 的 ON 子句，m 走 (conversation_id, deleted, created_at>?) 区间只碰未读；免打扰/归档也放进 ON，
+// 在 cs 层就判掉。m 是内连接，ON 与 WHERE 等价，计数与原写法完全一致；clears 水位条件原样保留。
+function badgeCountSql(n) {
+  const ph = Array.from({ length: n }, () => '?').join(',');
+  return `SELECT u.id AS uid, (SELECT COUNT(*) FROM (
+    SELECT 1 FROM conversation_members cm
+    LEFT JOIN conversation_settings cs ON cs.user_id=cm.user_id AND cs.conversation_id=cm.conversation_id
+    JOIN messages m ON m.conversation_id=cm.conversation_id AND m.deleted=0
+      AND COALESCE(cs.muted,0)=0 AND COALESCE(cs.archived,0)=0
+      AND m.created_at>COALESCE(cs.last_read_at,0)
+    WHERE cm.user_id=u.id AND m.sender_id!=u.id AND m.type!='system'
+      AND m.rowid>COALESCE((SELECT cleared_rowid FROM conversation_clears WHERE user_id=u.id AND conversation_id=cm.conversation_id),0)
+    LIMIT 99)) AS cnt FROM users u WHERE u.id IN (${ph})`;
 }
 
 
@@ -786,4 +798,4 @@ async function pushCallInvite({ toUserId, fromUserId, callerName, callType, call
   await Promise.allSettled(promises);
 }
 
-module.exports = { pushToUser, pushNewMessage, pushCallInvite, sendIosPush, isAllowedPushEndpoint, isInQuietHours, DEFAULT_TIMEZONE, langOf };
+module.exports = { pushToUser, pushNewMessage, pushCallInvite, sendIosPush, isAllowedPushEndpoint, isInQuietHours, DEFAULT_TIMEZONE, langOf, badgeCountSql };

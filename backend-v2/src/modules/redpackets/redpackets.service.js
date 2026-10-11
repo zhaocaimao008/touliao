@@ -8,6 +8,7 @@ const broadcaster = require('../../realtime/broadcaster');
 const { runFinancialOperation } = require('../wallet/financialIdempotency');
 const { appendConversationEventTx, emitSyncAvailable } = require('../messages/sync.service');
 const moderation = require('../moderation/moderation.service');
+const { schedulePushNewMessage } = require('../messages/messagePush');
 
 // ── 发红包（扣款 + 建红包 + 发一条 red_packet 类型消息，单事务原子）──
 // ⚠ 与 claim 同理：扣余额是「读余额→判断够不够→扣→写」的读-判-写闭环，
@@ -69,6 +70,9 @@ async function send(io, userId, { conversationId, totalAmount, totalCount, greet
   if (!outcome.replayed) {
     broadcaster.broadcastMessage(conversationId, outcome.result.message);
     emitSyncAvailable(io, conversationId, serverSequence);
+    // 2026-10-11：红包此前只广播不推送，收件人在后台收不到通知。幂等回放(replayed)不推，避免重复通知；
+    // 正文由 pushI18n 按 red_packet 类型渲染为本地化「[红包] 恭喜发财」，content 不会原样外露 JSON。
+    schedulePushNewMessage(outcome.result.message, greet);
   }
   return outcome.result;
 }

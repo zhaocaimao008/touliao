@@ -19,6 +19,8 @@ const convSvc = require('../conversations/conversations.service');
 const { canReferenceFile, fileShareOp } = require('../../utils/fileRegistry');
 const { appendConversationEvent, emitSyncAvailable } = require('./sync.service');
 const moderation = require('../moderation/moderation.service');
+// 2026-10-11：HTTP 发送/转发/文件消息此前只广播不推送，后台/被杀的收件人收不到离线通知，见 messagePush.js
+const { schedulePushNewMessage } = require('./messagePush');
 
 const MAX = config.limits.maxMsgLength;
 
@@ -294,6 +296,9 @@ async function send(io, convId, userId, { content, type, reply_to_id, clientMsgI
   const msg = buildMessage(id);
   broadcaster.broadcastMessage(convId, msg);
   emitSyncAvailable(io, convId, sequenced.server_sequence);
+  // 2026-10-11：离线推送（与 socket send_message 一致）。只在新落库分支推：上面 clientMsgId 去重 /
+  // 撞唯一约束回放两处 return 都不推——Web 合并转发重试会复用同一 clientMsgId，否则会重复通知。
+  schedulePushNewMessage(msg, content);
 
   // AI 助手：私聊发给 AI 账号 → 异步转 OpenClaw 生成回复（不阻塞主链路）
   const aiAssistant = require('../ai-assistant/assistant.service');
@@ -334,6 +339,9 @@ async function saveUploadedFile(io, convId, userId, { type, content, fileUrl, re
   const msg = buildMessage(id);
   broadcaster.broadcastMessage(convId, msg);
   emitSyncAvailable(io, convId, sequenced.server_sequence);
+  // 2026-10-11：文件类消息的离线推送收口在这里，直传(messages.controller)、表情(stickers)、
+  // 分片上传 finish(upload/chunk.js) 三个调用方一并覆盖；调用方不要再自己推，否则重复通知。
+  schedulePushNewMessage(msg, content);
 
   // AI 助手：图片发到 AI 账号 → 视觉识别 + 大脑回复（与文本 send() 路径一致）
   if (type === 'image') {
@@ -481,13 +489,18 @@ async function forward(io, userId, { msgId, msgIds, conversationIds, client_batc
   }
 
   const selectStmt = db.prepare("SELECT m.*, COALESCE(u.username, '') as senderName, COALESCE(u.avatar, '') as senderAvatar FROM messages m LEFT JOIN users u ON u.id=m.sender_id WHERE m.id=?");
+  // 2026-10-11：离线推送按目标会话合并为一条（取该会话最后一条转发消息）。单次最多 30 条 × 20 个会话
+  // = 600 条消息，逐条推会造成通知风暴，且每次推送都要跑多条同步未读数查询。
+  const lastForwardedByConv = new Map();
   targets.forEach(({ convId, id, serverSequence }) => {
     const newMsg = selectStmt.get(id);
     if (!newMsg) return;
     newMsg.reactions = [];
     broadcaster.broadcastMessage(convId, newMsg);
     emitSyncAvailable(io, convId, serverSequence);
+    lastForwardedByConv.set(convId, newMsg);
   });
+  lastForwardedByConv.forEach(newMsg => schedulePushNewMessage(newMsg, newMsg.content));
   return {
     batch_id: batchId, client_batch_id: clientBatchId, status,
     total: ids.length, success_count: successCount, failed_count: uniqueFailedIds.length,

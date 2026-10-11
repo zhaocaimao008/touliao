@@ -22,22 +22,36 @@ let redisClient = null;
 let useRedis = false;
 
 // ── 干净 token 进程内短期缓存（30s TTL）──────────────────────────
+// 2026-10-11：防御纵深（主修复是 auth/adminAuth 先验签再查黑名单）。
+//   1) 键改为 sha256(token)（与 credentialKey 同一哈希）：cookie-parser / slice(7) 得到的是 V8 sliced string，
+//      以原串为键会把整条请求头（最多 ~8KB）钉在堆上；哈希键固定 64 字节。
+//   2) 条目上限 CLEAN_MAX，超出淘汰最早写入者（TTL 相同，即最早过期者），Map 有硬上界，
+//      不再依赖 5 分钟一次的清扫来控内存。
 const CLEAN_TTL_MS = 30_000;
-const cleanCache = new Map(); // token → expiresAtMs
+const CLEAN_MAX = 10_000;
+const cleanCache = new Map(); // sha256(token) → expiresAtMs（插入序 == 过期序）
+function _cleanKey(token) {
+  return createHash('sha256').update(token).digest('hex');
+}
 function _cleanGet(token) {
-  const exp = cleanCache.get(token);
+  const key = _cleanKey(token);
+  const exp = cleanCache.get(key);
   if (exp === undefined) return false;
   if (Date.now() < exp) return true;
-  cleanCache.delete(token);
+  cleanCache.delete(key);
   return false;
 }
 function _cleanSet(token) {
-  cleanCache.set(token, Date.now() + CLEAN_TTL_MS);
+  const key = _cleanKey(token);
+  // 先删再插：重复写入的键移到末尾，保证迭代首项始终是最早过期的条目
+  cleanCache.delete(key);
+  if (cleanCache.size >= CLEAN_MAX) cleanCache.delete(cleanCache.keys().next().value);
+  cleanCache.set(key, Date.now() + CLEAN_TTL_MS);
 }
 function _cleanDel(token) {
-  cleanCache.delete(token);
+  cleanCache.delete(_cleanKey(token));
 }
-// 每5分钟清理过期条目，防止 Map 随 token 无限增长
+// 每5分钟清理过期条目（容量上限由 CLEAN_MAX 兜底，这里只负责回收过期项）
 setInterval(() => {
   const now = Date.now();
   for (const [k, exp] of cleanCache) if (now >= exp) cleanCache.delete(k);
@@ -196,4 +210,5 @@ async function close() {
   if (redisClient?.isOpen) await redisClient.quit().catch(() => redisClient.disconnect?.());
 }
 
-module.exports = { addToBlacklist, isBlacklisted, credentialKey, clear, close };
+// _cleanCache 仅供测试观察容量上限/键形态（2026-10-11），业务代码勿用
+module.exports = { addToBlacklist, isBlacklisted, credentialKey, clear, close, _cleanCache: cleanCache };

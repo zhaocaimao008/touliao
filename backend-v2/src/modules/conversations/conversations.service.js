@@ -273,6 +273,10 @@ async function listConversations(uid, { includeArchived = false, offset = 0, lim
           AND  mm.deleted         = 0
           AND  mm.type           != 'system'  -- 改群名为「@所有人…」之类不能误判成被@
           AND  mm.created_at      > COALESCE(cs.last_read_at, 0)
+          -- 2026-10-11：同 unreadCount 补个人清空水位，否则「清空全部聊天记录」后已清掉的 @ 仍点亮「有人@我」。
+          -- 用 cm.user_id（即当前用户）而非新增占位符，避免挪动下方 .all() 的位置参数
+          AND  mm.rowid > COALESCE((SELECT cleared_rowid FROM conversation_clears
+                                              WHERE user_id=cm.user_id AND conversation_id=c.id), 0)
           AND  c.type             = 'group'
           AND  ? != ''
           AND  ( instr(mm.content, '@' || ?) > 0
@@ -367,6 +371,10 @@ function listMembers(convId, userId) {
 }
 
 // ── 批量未读数（correlated subquery + LIMIT 99 早停）────────────
+// 2026-10-11：补个人清空水位（rowid > cleared_rowid），与 listConversations 的 unreadCount、push.js 角标同口径。
+// 删除聊天(hide)/清空全部只写 conversation_clears、不动 last_read_at（动它会让对方看到已读回执），
+// 此前这里不看水位，已删会话的旧未读一直留在角标里。只用 rowid 精确划界、不加 cleared_at 时间下界
+// （写队列卡顿/时钟跳变时会漏算清空后的新消息）；隐藏会话无新消息时计数为 0 自然不返回，无需另判 hidden。
 function unreadCounts(userId) {
   const rows = db.prepare(`
     SELECT cm.conversation_id,
@@ -377,11 +385,14 @@ function unreadCounts(userId) {
           AND  deleted         = 0
           AND  type           != 'system'  -- 群系统提示不计未读
           AND  created_at      > COALESCE(cs.last_read_at, 0)
+          AND  messages.rowid  > COALESCE(cc.cleared_rowid, 0)  -- 个人清空/删除聊天水位
         LIMIT 99
       )) AS unread_count
     FROM conversation_members cm
     LEFT JOIN conversation_settings cs
            ON cs.user_id = cm.user_id AND cs.conversation_id = cm.conversation_id
+    LEFT JOIN conversation_clears cc
+           ON cc.user_id = cm.user_id AND cc.conversation_id = cm.conversation_id
     WHERE cm.user_id = ? AND COALESCE(cs.archived, 0) = 0
   `).all(userId, userId);
   const result = {};

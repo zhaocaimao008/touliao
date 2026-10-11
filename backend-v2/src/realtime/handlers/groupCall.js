@@ -51,6 +51,37 @@ function groupCallAllowed(type) {
 // registry.callForUser(userId)。
 const groupCalls = new Map();
 
+// 2026-10-11：发起频率限制（审计：group_call:start 此前没有任何每用户冷却，start→leave 循环
+// 每轮都全群响铃 invite + 写 group_call_logs + endCall 落一条 sequenced 通话消息，单个客户端可无限放大）。
+// 固定窗口计数：每用户每 GROUP_START_WINDOW_MS 内最多成功发起 GROUP_START_LIMIT 次。
+// 只在 registry.createGroup 成功后计数——busy / active_call / not_group 等失败后的合法重试不受影响。
+// start handler 全程同步（无 await），检查与计数之间没有并发窗口。
+// 状态按 registry 实例分桶：生产只有 realtime/index.js 建的那一个 registry（单进程 fork），
+// 等价于进程级按用户计数；单测每个用例各建 registry，计数随之隔离、互不串扰。
+const GROUP_START_LIMIT = 5;
+const GROUP_START_WINDOW_MS = 60 * 1000;
+const startLimiters = new WeakMap(); // registry → { counts: Map<userId, {count, reset}>, lastSweepAt }
+
+// 命中上限返回还需等待的毫秒数，未命中返回 0
+function startRetryAfterMs(registry, userId, now) {
+  const r = startLimiters.get(registry)?.counts.get(userId);
+  if (!r || now >= r.reset || r.count < GROUP_START_LIMIT) return 0;
+  return Math.max(1, r.reset - now);
+}
+
+function recordStart(registry, userId, now) {
+  let lim = startLimiters.get(registry);
+  if (!lim) { lim = { counts: new Map(), lastSweepAt: now }; startLimiters.set(registry, lim); }
+  // 惰性清扫过期窗口（不挂定时器），Map 规模只取决于最近一个窗口内发起过群通话的人数
+  if (now - lim.lastSweepAt >= GROUP_START_WINDOW_MS) {
+    lim.lastSweepAt = now;
+    for (const [uid, r] of lim.counts) if (now >= r.reset) lim.counts.delete(uid);
+  }
+  const r = lim.counts.get(userId);
+  if (!r || now >= r.reset) lim.counts.set(userId, { count: 1, reset: now + GROUP_START_WINDOW_MS });
+  else r.count++;
+}
+
 function endCall(io, registry, callId, reason = 'ended') {
   const call = groupCalls.get(callId);
   if (!call) return;
@@ -121,6 +152,14 @@ module.exports = function registerGroupCallHandler(io, socket, registry) {
       return;
     }
     const type = rawType == null ? 'audio' : rawType;
+    // 2026-10-11：发起频率限制（见 GROUP_START_LIMIT 注释）。先于成员/会话等 DB 查询快速失败；
+    // reason 沿用 group_call:error 词汇表，retryAfterMs 为附加字段，旧端忽略即可。
+    const now = Date.now();
+    const retryAfterMs = startRetryAfterMs(registry, userId, now);
+    if (retryAfterMs) {
+      socket.emit('group_call:error', { reason: 'rate_limited', retryAfterMs, ...requestMeta });
+      return;
+    }
     if (!isMember(conversationId, userId)) return;
     // 提前用 registry 查一次忙线（含私聊，跟群聊共用同一份 userSessions），省一次无谓的DB查询；
     // 真正原子的忙线判定在下面 registry.createGroup() 内部，这里只是快速失败路径。
@@ -140,6 +179,7 @@ module.exports = function registerGroupCallHandler(io, socket, registry) {
     const callId = uuidv4();
     const created = registry.createGroup({ callId, conversationId, startedBy: userId, socketId: socket.id, type: t });
     if (!created.ok) { emitStartError(reasonForCode(created.code)); return; }
+    recordStart(registry, userId, now); // 2026-10-11：只有真正建成的通话才计入发起频率
     const call = { conversationId, type: t, startedBy: userId, members: new Set([userId]), peak: 1, startedAt: nowSec(), timer: null };
     call.timer = setTimeout(() => {
       const c = groupCalls.get(callId);
@@ -266,3 +306,4 @@ module.exports = function registerGroupCallHandler(io, socket, registry) {
 
 module.exports.handleGraceExpired = handleGraceExpired;
 module.exports._state = { groupCalls, MAX_PARTICIPANTS }; // 供测试/监控（userCall 已移除，改用 registry.callForUser）
+module.exports.startRateLimit = { GROUP_START_LIMIT, GROUP_START_WINDOW_MS }; // 供测试（2026-10-11，见 test/perf-nudge.test.js）

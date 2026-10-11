@@ -20,8 +20,19 @@ module.exports = async function auth(req, res, next) {
     (bearerHeader?.startsWith('Bearer ') ? bearerHeader.slice(7) : null);
   if (!token) return res.status(401).json({ error: '未授权' });
 
+  // 2026-10-11：先验签、再查黑名单（与 /uploads、socket 握手一致）。
+  // 旧顺序下任意未签名的垃圾 cookie/Bearer 都会触发一次 SQLite 查询并以原串写入 cleanCache，
+  // 匿名请求即可撑大进程内存、反复触发 pm2 600M 重启（断开全部 socket）。
+  // 验签单独 try → 401；黑名单查询仍留在外层 try → 失败返回 503（H2：不降级放行）。
+  let payload;
   try {
-    // 异步检查 token 是否在黑名单中（logout 后）
+    payload = jwt.verify(token, config.jwtSecret, { algorithms: ['HS256'] });
+  } catch {
+    return res.status(401).json({ error: 'Token无效或已过期' });
+  }
+
+  try {
+    // 异步检查 token 是否在黑名单中（logout 后）；仅验签通过的 token 才会走到这里
     const blacklisted = await isBlacklisted(token);
     if (blacklisted) {
       // P1-b 修复：这里命中"黑名单"不一定是真的被盗/主动登出——并发刷新场景下，
@@ -36,7 +47,6 @@ module.exports = async function auth(req, res, next) {
     }
 
     try {
-      const payload = jwt.verify(token, config.jwtSecret, { algorithms: ['HS256'] });
       const denied = await userAuthorizationError(payload);
       if (denied) return res.status(denied.status).json({ error: denied.error });
       req.user = payload;
