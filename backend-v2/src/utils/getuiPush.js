@@ -176,7 +176,14 @@ async function pushToCid(cid, { title, body, payload, isCurrent }) {
       },
     },
   };
-  const result = await sendPushWithRetry('/push/single/cid', token, message, { shouldSend: isCurrent });
+  let result = await sendPushWithRetry('/push/single/cid', token, message, { shouldSend: isCurrent });
+  // The provider auth token can expire before our cache does. Refresh once,
+  // keeping the request_id and ownership guard; never discard the device CID.
+  if (result?.json?.code === 10001 && (!isCurrent || isCurrent())) {
+    if (_cachedToken === token) { _cachedToken = null; _tokenExpireAt = 0; }
+    const refreshed = await getToken();
+    result = await sendPushWithRetry('/push/single/cid', refreshed, message, { shouldSend: isCurrent });
+  }
   return { ...result, cid };
 }
 

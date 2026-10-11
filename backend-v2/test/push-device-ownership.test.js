@@ -178,3 +178,11 @@ test('FCM fallback cannot deliver after the GeTui token changes ownership', asyn
   await pushToUser(user.userId, message);
   expect(getui.pushToCid).not.toHaveBeenCalled();
 });
+
+test.each([10001, 10002, 20001])('provider error %s must not delete a valid CID', async code => {
+  getui.isEnabled.mockReturnValue(true);
+  getui.pushToCid.mockResolvedValue({ status:401, json:{code,msg:'provider configuration error'} });
+  device('getui-A', 'getui', session());
+  await pushToUser(user.userId, message);
+  expect(db.prepare('SELECT token FROM device_tokens WHERE token=?').get('getui-A')).toBeDefined();
+});

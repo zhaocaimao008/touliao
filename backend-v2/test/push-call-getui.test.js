@@ -27,6 +27,17 @@ const https = require('https');
 
 // 捕获个推 HTTP 请求体（/auth + /push/single/cid）
 const getuiRequests = [];
+let mockExpiredAuthOnce = false;
+
+test('expired provider auth refreshes once without changing the message identity', async () => {
+  getuiRequests.length = 0;
+  mockExpiredAuthOnce = true;
+  await require('../src/utils/getuiPush').pushToCid('fixture-cid', { title:'Fixture',body:'Fixture',payload:{messageId:'retry-message',recipientId:'fixture',conversationId:'chat'} });
+  const pushes=getuiRequests.filter(r=>r.url.includes('/push/single/cid'));
+  expect(pushes).toHaveLength(2);
+  expect(pushes[0].body.request_id).toBe(pushes[1].body.request_id);
+  expect(getuiRequests.some(r=>r.url.endsWith('/auth'))).toBe(true);
+});
 
 test('message payload carries silent preferences and stable per-conversation identity', async () => {
   getuiRequests.length = 0;
@@ -51,7 +62,9 @@ jest.mock('https', () => {
     request: (url, options, cb) => {
       const fakeRes = new Readable({ read() {} });
       fakeRes.statusCode = 200;
-      const body = JSON.stringify({ code: 0, data: { token: 'gt-token' } });
+      const expires = mockExpiredAuthOnce && String(url).includes('/push/single/cid');
+      if (expires) mockExpiredAuthOnce = false;
+      const body = JSON.stringify(expires ? { code:10001, msg:'token invalid' } : { code: 0, data: { token: 'gt-token' } });
       process.nextTick(() => {
         fakeRes.push(Buffer.from(body));
         fakeRes.push(null);

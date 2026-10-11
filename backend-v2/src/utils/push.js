@@ -190,7 +190,9 @@ async function pushToUser(userId, payload) {
         payload: { ...payload, recipientId: userId },
       });
       if (result?.skipped || (result?.json?.code === 0 && result.status === 200)) return;
-      if ([10001, 10002].includes(result?.json?.code)) deviceOwnership.forget(row);
+      // 10001 is a provider auth token failure; 10002 is app/IP blocking.
+      // Neither invalidates a device CID. 20001 is also used for field errors.
+      if (result?.json?.code === 20001 && result.json.msg === 'target user is invalid') deviceOwnership.forget(row);
       console.warn('[push] GeTui rejected notification:', result?.json?.code);
     } catch (error) { console.warn('[push] GeTui failed:', error.message); }
   };
