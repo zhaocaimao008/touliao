@@ -14,7 +14,8 @@ function notificationId(recipientId, conversationId) {
 function messageChannel(sound = true, vibrate = false) {
   return `touliao_messages_s${sound ? 1 : 0}_v${vibrate ? 1 : 0}`;
 }
-const CHAT_TYPES = new Set(['message', 'text', 'image', 'voice', 'video', 'file', 'location', 'sticker', 'red_packet', 'contact_card', 'merged']);
+// 2026-10-11：transfer 加入——转账消息现在也会推送，不在表里会被降成 FCM normal，Doze 中延迟送达
+const CHAT_TYPES = new Set(['message', 'text', 'image', 'voice', 'video', 'file', 'location', 'sticker', 'red_packet', 'transfer', 'contact_card', 'merged']);
 function messagePriority(type, quiet = false) {
   return !quiet && (CHAT_TYPES.has(type) || type === 'call' || type === 'payment') ? 'high' : 'normal';
 }
