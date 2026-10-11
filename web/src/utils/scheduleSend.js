@@ -24,10 +24,31 @@ export function validateScheduleTime(sendAt, nowSec = Math.floor(Date.now() / 10
  * @returns {number|null}
  */
 export function datetimeLocalToUnix(localValue) {
-  if (typeof localValue !== 'string' || !localValue) return null;
-  const ms = new Date(localValue).getTime();
-  if (!Number.isFinite(ms)) return null;
-  return Math.floor(ms / 1000);
+  if (typeof localValue !== 'string' || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(localValue)) return null;
+  const date = new Date(localValue);
+  if (!Number.isFinite(date.getTime()) || toScheduleLocal(date) !== localValue) return null;
+  return Math.floor(date.getTime() / 1000);
+}
+
+export function toScheduleLocal(date) {
+  const pad = n => String(n).padStart(2, '0');
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
+
+// Round the visible minimum up; a minute input cannot represent the current seconds.
+export function scheduleBounds(now = Date.now()) {
+  return {
+    min: toScheduleLocal(new Date(Math.ceil((now + SCHEDULE_MIN_DELTA * 1000) / 60000) * 60000)),
+    max: toScheduleLocal(new Date(Math.floor((now + SCHEDULE_MAX_DELTA * 1000) / 60000) * 60000)),
+  };
+}
+
+export function scheduleTimeError(value, nowSec = Math.floor(Date.now() / 1000)) {
+  const time = datetimeLocalToUnix(value);
+  if (time === null) return 'ss.errInvalidTime';
+  if (time - nowSec < SCHEDULE_MIN_DELTA) return 'ss.errTooSoon';
+  if (time - nowSec > SCHEDULE_MAX_DELTA) return 'ss.errTooFar';
+  return '';
 }
 
 /**
@@ -37,6 +58,5 @@ export function datetimeLocalToUnix(localValue) {
  */
 export function defaultScheduleLocal(now = new Date()) {
   const d = new Date(now.getTime() + 60 * 60 * 1000);
-  const pad = n => String(n).padStart(2, '0');
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  return toScheduleLocal(d);
 }

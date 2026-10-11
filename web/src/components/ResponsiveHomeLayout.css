@@ -1,0 +1,3 @@
+.home-mobile-workspace { display: flex; flex-direction: column; flex: 1; min-height: 0; min-width: 0; }
+/* Existing flex styles must not expose the offscreen mobile panel to keyboard navigation. */
+.home-responsive-shell [hidden] { display: none !important; }

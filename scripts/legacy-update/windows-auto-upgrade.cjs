@@ -8,7 +8,7 @@ assert.equal(process.platform, 'win32');
 const out = path.resolve('windows-auto-evidence'); fs.mkdirSync(out, { recursive: true });
 const exe = process.env.LEGACY_EXE;
 const approval = process.env.WINDOWS_UPDATE_APPROVAL || '8127';
-assert.ok(['8127', '8129', '8130', '8131', '8132'].includes(approval));
+assert.ok(['8127', '8129', '8130', '8131', '8132', '8157'].includes(approval));
 const spec = require(`../windows-${approval}-publication.json`);
 const oldVersion = spec.previousVersion, targetVersion = spec.version;
 const candidateFeed = process.env.WINDOWS_CANDIDATE_FEED || '';
@@ -114,7 +114,23 @@ async function waitFor(check, timeout) {
     await waitFor(() => page.locator('.wc-update-banner').innerText().then(t => /重启.*安装/.test(t)), 240000);
     await page.screenshot({ path: path.join(out, '03-update-downloaded-and-verified.png') });
     const log = fs.readFileSync(logFile, 'utf8');
-    assert.ok(log.includes(targetVersion) && log.includes('元数据签名校验通过'));
+    assert.ok(log.includes(targetVersion) && log.includes('更新已下载:'));
+    // Successful-update log wording changed after 8.1.32. Verify signed bytes
+    // directly with the actual installed client's key instead of a log phrase.
+    const feed = candidateFeed || 'https://touliao.cc/downloads/updates';
+    const [manifestBytes, signatureBytes, installedKey] = await Promise.all([
+      ...['latest.yml', 'latest.yml.sig'].map(async name => {
+        const response = await fetch(`${feed}/${name}`);
+        assert.equal(response.status, 200);
+        const bytes = Buffer.from(await response.arrayBuffer());
+        assert.equal(crypto.createHash('sha256').update(bytes).digest('hex'), spec.files[name]);
+        return bytes;
+      }),
+      app.evaluate(({ app }) => process.getBuiltinModule('fs').readFileSync(
+        process.getBuiltinModule('path').join(app.getAppPath(), 'src', 'update-public-key.pem'), 'utf8')),
+    ]);
+    assert.ok(crypto.verify(null, manifestBytes, installedKey, signatureBytes));
+    report.installedClientKeyVerified = true;
     const pending = path.join(process.env.LOCALAPPDATA, 'touliao-desktop-updater', 'pending');
     const candidates = fs.readdirSync(pending).filter(n => n.endsWith('.exe'));
     assert.equal(candidates.length, 1);

@@ -19,6 +19,8 @@ const convSvc = require('../conversations/conversations.service');
 const { canReferenceFile, fileShareOp } = require('../../utils/fileRegistry');
 const { appendConversationEvent, emitSyncAvailable } = require('./sync.service');
 const moderation = require('../moderation/moderation.service');
+// 2026-10-11：HTTP 发送/转发/文件消息此前只广播不推送，后台/被杀的收件人收不到离线通知，见 messagePush.js
+const { schedulePushNewMessage } = require('./messagePush');
 
 const MAX = config.limits.maxMsgLength;
 
@@ -294,6 +296,9 @@ async function send(io, convId, userId, { content, type, reply_to_id, clientMsgI
   const msg = buildMessage(id);
   broadcaster.broadcastMessage(convId, msg);
   emitSyncAvailable(io, convId, sequenced.server_sequence);
+  // 2026-10-11：离线推送（与 socket send_message 一致）。只在新落库分支推：上面 clientMsgId 去重 /
+  // 撞唯一约束回放两处 return 都不推——Web 合并转发重试会复用同一 clientMsgId，否则会重复通知。
+  schedulePushNewMessage(msg, content);
 
   // AI 助手：私聊发给 AI 账号 → 异步转 OpenClaw 生成回复（不阻塞主链路）
   const aiAssistant = require('../ai-assistant/assistant.service');
@@ -334,6 +339,9 @@ async function saveUploadedFile(io, convId, userId, { type, content, fileUrl, re
   const msg = buildMessage(id);
   broadcaster.broadcastMessage(convId, msg);
   emitSyncAvailable(io, convId, sequenced.server_sequence);
+  // 2026-10-11：文件类消息的离线推送收口在这里，直传(messages.controller)、表情(stickers)、
+  // 分片上传 finish(upload/chunk.js) 三个调用方一并覆盖；调用方不要再自己推，否则重复通知。
+  schedulePushNewMessage(msg, content);
 
   // AI 助手：图片发到 AI 账号 → 视觉识别 + 大脑回复（与文本 send() 路径一致）
   if (type === 'image') {
@@ -481,13 +489,18 @@ async function forward(io, userId, { msgId, msgIds, conversationIds, client_batc
   }
 
   const selectStmt = db.prepare("SELECT m.*, COALESCE(u.username, '') as senderName, COALESCE(u.avatar, '') as senderAvatar FROM messages m LEFT JOIN users u ON u.id=m.sender_id WHERE m.id=?");
+  // 2026-10-11：离线推送按目标会话合并为一条（取该会话最后一条转发消息）。单次最多 30 条 × 20 个会话
+  // = 600 条消息，逐条推会造成通知风暴，且每次推送都要跑多条同步未读数查询。
+  const lastForwardedByConv = new Map();
   targets.forEach(({ convId, id, serverSequence }) => {
     const newMsg = selectStmt.get(id);
     if (!newMsg) return;
     newMsg.reactions = [];
     broadcaster.broadcastMessage(convId, newMsg);
     emitSyncAvailable(io, convId, serverSequence);
+    lastForwardedByConv.set(convId, newMsg);
   });
+  lastForwardedByConv.forEach(newMsg => schedulePushNewMessage(newMsg, newMsg.content));
   return {
     batch_id: batchId, client_batch_id: clientBatchId, status,
     total: ids.length, success_count: successCount, failed_count: uniqueFailedIds.length,
@@ -802,7 +815,7 @@ async function searchGlobal(userId, { q, limit = 20, offset = 0, type, from, to,
              ou.id AS ou_id, ou.username AS ou_username, ou.avatar AS ou_avatar, ou.status AS ou_status
       ${joins}
       WHERE ${whereSql}
-      ORDER BY m.created_at DESC LIMIT ? OFFSET ?
+      ORDER BY m.created_at DESC, m.rowid DESC LIMIT ? OFFSET ?
     `).all(...joinParams, ...condParams, safeLimit, safeOffset);
 
     const results = rows.map(({ ou_id, ou_username, ou_avatar, ou_status, ...msg }) => {
@@ -815,7 +828,7 @@ async function searchGlobal(userId, { q, limit = 20, offset = 0, type, from, to,
     return { results, total, limit: safeLimit, offset: safeOffset };
   }
 
-  const cacheKey = `search:${userId}:${q}:${safeLimit}:${safeOffset}`;
+  const cacheKey = `search:${userId}:v2:${q}:${safeLimit}:${safeOffset}`;
   const cachedResult = await cache.get(cacheKey);
   if (cachedResult && canUseMessageCache(cachedResult.results, userId)) return cachedResult;
 
@@ -858,7 +871,7 @@ async function searchGlobal(userId, { q, limit = 20, offset = 0, type, from, to,
         AND NOT EXISTS (SELECT 1 FROM user_message_deletions d WHERE d.message_id=m.id AND d.user_id=?)
         AND m.rowid > COALESCE((SELECT cleared_rowid FROM conversation_clears
                                      WHERE user_id=? AND conversation_id=m.conversation_id), 0)
-      ORDER BY m.created_at DESC LIMIT ? OFFSET ?
+      ORDER BY m.created_at DESC, m.rowid DESC LIMIT ? OFFSET ?
     `).all(userId, userId, like, userId, userId, safeLimit, safeOffset);
   } else {
     // FTS5 phrase query: double-quote wrap 防止特殊字符被解析为 FTS5 语法
@@ -897,7 +910,7 @@ async function searchGlobal(userId, { q, limit = 20, offset = 0, type, from, to,
         AND NOT EXISTS (SELECT 1 FROM user_message_deletions d WHERE d.message_id=m.id AND d.user_id=?)
         AND m.rowid > COALESCE((SELECT cleared_rowid FROM conversation_clears
                                      WHERE user_id=? AND conversation_id=m.conversation_id), 0)
-      ORDER BY m.created_at DESC LIMIT ? OFFSET ?
+      ORDER BY m.created_at DESC, m.rowid DESC LIMIT ? OFFSET ?
     `).all(userId, userId, ftsQuery, userId, userId, safeLimit, safeOffset);
   }
 
@@ -927,6 +940,8 @@ async function searchInConversation(convId, userId, q, filters = {}) {
   if ((!q || !q.trim()) && !hasFilters) return [];
   if (q && q.length > 100) throw badRequest('搜索词过长');
   requireMember(convId, userId);
+  const { limit: safeLimit, offset: validOffset } = pagination({ limit: filters.limit ?? (hasFilters ? 50 : 30), offset: filters.offset ?? 0 }, 50);
+  const safeOffset = Math.min(validOffset, 10000);
 
   if (hasFilters) {
     const typeList = type ? String(type).split(',').map(s => s.trim()).filter(Boolean).slice(0, 10) : null;
@@ -955,12 +970,12 @@ async function searchInConversation(convId, userId, q, filters = {}) {
       SELECT m.*, COALESCE(u.username, '') AS senderName, COALESCE(u.avatar, '') AS senderAvatar
       FROM messages m LEFT JOIN users u ON u.id = m.sender_id
       WHERE ${conds.join(' AND ')}
-      ORDER BY m.created_at DESC LIMIT 50
-    `).all(...params);
+      ORDER BY m.created_at DESC, m.rowid DESC LIMIT ? OFFSET ?
+    `).all(...params, safeLimit, safeOffset);
   }
 
   // P2 优化：尝试从缓存获取搜索结果（TTL: 10 分钟）
-  const cacheKey = `search:${convId}:${userId}:${q}`;
+  const cacheKey = `search:${convId}:${userId}:v2:${q}:${safeLimit}:${safeOffset}`;
   let cachedResult = await cache.get(cacheKey);
   if (cachedResult && canUseMessageCache(cachedResult, userId)) {
     return cachedResult;
@@ -984,8 +999,8 @@ async function searchInConversation(convId, userId, q, filters = {}) {
         AND m.content LIKE ? ESCAPE '\\'
         AND NOT EXISTS (SELECT 1 FROM user_message_deletions d WHERE d.message_id=m.id AND d.user_id=?)
         AND m.rowid > COALESCE((SELECT cleared_rowid FROM conversation_clears WHERE user_id=? AND conversation_id=m.conversation_id), 0)
-      ORDER BY m.created_at DESC LIMIT 30
-    `).all(convId, like, userId, userId);
+      ORDER BY m.created_at DESC, m.rowid DESC LIMIT ? OFFSET ?
+    `).all(convId, like, userId, userId, safeLimit, safeOffset);
   } else {
     const ftsQuery = tokens.map(t => `"${t.replace(/"/g, '""')}"`).join(' OR ');
     result = db.prepare(`
@@ -996,8 +1011,8 @@ async function searchInConversation(convId, userId, q, filters = {}) {
       WHERE messages_fts MATCH ? AND messages_fts.conversation_id = ?
         AND NOT EXISTS (SELECT 1 FROM user_message_deletions d WHERE d.message_id=m.id AND d.user_id=?)
         AND m.rowid > COALESCE((SELECT cleared_rowid FROM conversation_clears WHERE user_id=? AND conversation_id=m.conversation_id), 0)
-      ORDER BY m.created_at DESC LIMIT 30
-    `).all(ftsQuery, convId, userId, userId);
+      ORDER BY m.created_at DESC, m.rowid DESC LIMIT ? OFFSET ?
+    `).all(ftsQuery, convId, userId, userId, safeLimit, safeOffset);
   }
 
   // 写入缓存（TTL: 10 分钟）
@@ -1233,18 +1248,22 @@ function getConversationFiles(convId, userId, { type = 'all', offset = 0, limit 
            COALESCE(u.username, '') AS sender_name, COALESCE(u.avatar, '') AS sender_avatar
     FROM messages m
     LEFT JOIN users u ON u.id = m.sender_id
-    WHERE m.conversation_id = ? AND m.deleted = 0
+    WHERE m.conversation_id = ? AND m.deleted = 0 AND m.burn_after = 0
       AND m.type IN (${ph})
+      AND NOT EXISTS (SELECT 1 FROM user_message_deletions d WHERE d.message_id=m.id AND d.user_id=?)
+      AND m.rowid > COALESCE((SELECT cleared_rowid FROM conversation_clears WHERE user_id=? AND conversation_id=m.conversation_id), 0)
     ORDER BY m.created_at DESC, m.rowid DESC
     LIMIT ? OFFSET ?
-  `).all(convId, ...types, safeLimit, safeOffset);
+  `).all(convId, ...types, userId, userId, safeLimit, safeOffset);
 
   const { cnt: total } = db.prepare(`
     SELECT COUNT(*) AS cnt
     FROM messages m
-    WHERE m.conversation_id = ? AND m.deleted = 0
+    WHERE m.conversation_id = ? AND m.deleted = 0 AND m.burn_after = 0
       AND m.type IN (${ph})
-  `).get(convId, ...types);
+      AND NOT EXISTS (SELECT 1 FROM user_message_deletions d WHERE d.message_id=m.id AND d.user_id=?)
+      AND m.rowid > COALESCE((SELECT cleared_rowid FROM conversation_clears WHERE user_id=? AND conversation_id=m.conversation_id), 0)
+  `).get(convId, ...types, userId, userId);
 
   return {
     items: rows.map(r => ({
@@ -1252,6 +1271,8 @@ function getConversationFiles(convId, userId, { type = 'all', offset = 0, limit 
       type:         r.type,
       fileName:     r.content || '',   // file/image 消息的 content = 原始文件名
       fileUrl:      r.file_url || '',
+      fileMime:     r.file_mime || '',
+      fileSize:     r.file_size ?? null,
       createdAt:    r.created_at,
       senderName:   r.sender_name,
       senderAvatar: r.sender_avatar,

@@ -11,16 +11,10 @@ import androidx.core.app.NotificationManagerCompat
 import com.touliao.app.MainActivity
 import com.touliao.app.R
 import dagger.hilt.android.qualifiers.ApplicationContext
-import java.util.concurrent.ConcurrentHashMap
 import javax.inject.Inject
 import javax.inject.Singleton
 
-/**
- * 通知渠道 + 展示。渠道 id 与后端 FCM android.notification.channelId 一致（vxin_messages_v3）。
- *
- * 通知聚合：同一会话短时间内多条消息折叠为 InboxStyle（最多显示 5 条预览 + 未读总数），
- * 并用 Android 7+ NotificationGroup 汇总，避免同会话连发多条互相覆盖只留最后一条。
- */
+/** Account-scoped message aggregation, preference channels and read cleanup. */
 @Singleton
 class NotificationHelper @Inject constructor(
     @ApplicationContext private val context: Context,
@@ -29,109 +23,99 @@ class NotificationHelper @Inject constructor(
 ) {
     init { createChannel() }
 
-    // convId -> 累计未读消息摘要列表（最新在前，最多保留 5 条）。
-    // ArrayDeque 本身非线程安全，复合操作（addFirst/removeLast/size 判断/遍历）一律在
-    // synchronized(lines) 内完成，防止并发消息到达时互相打断导致丢行/状态错乱/CME。
-    private val pendingLines = ConcurrentHashMap<String, ArrayDeque<String>>()
+    private val seen = context.getSharedPreferences("push_seen_messages", Context.MODE_PRIVATE)
+    private data class PendingCard(val lines: List<String>, val count: Int, val postedAt: Long)
+    private val pendingCards = mutableMapOf<String, PendingCard>()
 
     fun acceptsRecipient(recipientId: String?) = PushRecipient.matches(recipientId, accountStore.activeId(), tokenStore.isLoggedIn)
 
+    @Synchronized
     fun clearAccountNotifications() {
-        pendingLines.clear()
+        seen.edit().clear().apply()
+        pendingCards.clear()
         NotificationManagerCompat.from(context).cancelAll()
         com.touliao.app.navigation.PendingConversationHolder.conversationId.value = null
     }
 
-    fun showMessageNotification(title: String, body: String, conversationId: String?, unreadCount: Int? = null, recipientId: String? = accountStore.activeId()) {
+    @Synchronized
+    fun showMessageNotification(title: String, body: String, conversationId: String?, unreadCount: Int? = null,
+        recipientId: String? = accountStore.activeId(), messageId: String? = null,
+        sound: Boolean = true, vibrate: Boolean = false, detailPreview: Boolean = true) {
         if (!acceptsRecipient(recipientId)) return
-        val convId = conversationId ?: "global"
-        val lines = pendingLines.getOrPut(convId) { ArrayDeque() }
-
-        // 聚合摘要列表 + 出通知：整段读-改-notify 序列在同一把（每会话独立的）锁内完成，
-        // 保证并发到达的消息严格按处理顺序落进通知（不会出现旧快照 notify 覆盖新快照）。
-        var notifyMgrForSummary: NotificationManagerCompat? = null
-        synchronized(lines) {
-            lines.addFirst(body)
-            if (lines.size > 5) lines.removeLast()
-
-            val intent = Intent(context, MainActivity::class.java).apply {
-                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
-                conversationId?.let { putExtra(EXTRA_CONVERSATION_ID, it) }
-                putExtra(EXTRA_RECIPIENT_ID, recipientId)
-                data = android.net.Uri.Builder().scheme("touliao").authority("notification").appendPath(recipientId).appendPath(convId).build()
-            }
-            // requestCode 仅用于区分 PendingIntent 身份（不同会话点击后带不同 extra），
-            // 与下面 notify() 的 tray 身份无关，取 convId.hashCode() 足够。
-            val pending = PendingIntent.getActivity(
-                context, convId.hashCode(), intent,
-                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
-            )
-            val builder = NotificationCompat.Builder(context, CHANNEL_ID)
-                .setSmallIcon(R.drawable.ic_notification)
-                .setContentTitle(title)
-                .setContentText(body)
-                .setAutoCancel(true)
-                .setPriority(NotificationCompat.PRIORITY_HIGH)
-                // MESSAGE 类别 + 声音/震动/呼吸灯：Android 7 及以下靠此决定 heads-up 弹出与提醒
-                .setCategory(NotificationCompat.CATEGORY_MESSAGE)
-                .setDefaults(NotificationCompat.DEFAULT_ALL)
-                // 锁屏完整展示标题与内容（PRIVATE 只显示"有新通知"，会导致锁屏看不到提醒内容）
-                .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
-                .setContentIntent(pending)
-                // ── 通知分组（Android 7+）──────────────────────────
-                .setGroup(GROUP_KEY_MESSAGES)
-                .setGroupAlertBehavior(NotificationCompat.GROUP_ALERT_CHILDREN)
-
-            // 角标数字：优先用后端真实未读数（FCM data.badge，SQL COUNT>last_read_at），
-            // 本地聚合列表最多只缓存 5 条，不能代表真实未读；没有 badge 时（如个推透传兜底）
-            // 退回本地聚合条数估算。
-            val badgeCount = unreadCount?.takeIf { it > 0 } ?: lines.size
-            if (badgeCount > 0) builder.setNumber(badgeCount)
-
-            // 多条消息时展开 InboxStyle（折叠展示多行摘要）
-            if (lines.size > 1) {
-                val style = NotificationCompat.InboxStyle()
-                    .setBigContentTitle(title)
-                    .setSummaryText("$badgeCount 条新消息")
-                lines.forEach { style.addLine(it) }
-                builder.setStyle(style)
-            }
-
-            // Android 13+ 无 POST_NOTIFICATIONS 权限时 notify 会被忽略（不抛异常）
-            // tag=convId + 固定 id：通知 tray 身份不再依赖进程内计数器，跨进程重启也不会
-            // 因为 id 复位而让新会话覆盖/顶掉另一个仍在展示的会话通知。
-            try {
-                val mgr = NotificationManagerCompat.from(context)
-                mgr.notify(convId, MESSAGE_NOTIFICATION_ID, builder.build())
-                notifyMgrForSummary = mgr
-            } catch (_: SecurityException) { /* 无权限，忽略 */ }
+        val recipient = recipientId ?: return
+        val convId = conversationId?.takeIf { it.isNotBlank() } ?: "global"
+        val tag = NotificationPolicy.tag(recipient, convId)
+        val recent = seen.getString("ids:$recipient", "").orEmpty().split('\n').filter { it.isNotEmpty() }.toMutableList()
+        val identity = messageId?.takeIf { it.isNotBlank() }?.let { "$convId:$it" }
+        if (identity != null && identity in recent) return
+        val manager = context.getSystemService(NotificationManager::class.java) ?: return
+        val previous = manager.activeNotifications.firstOrNull { it.tag == tag && it.id == MESSAGE_NOTIFICATION_ID }?.notification
+        // notify() is queued by Android: the just-posted card may not yet be in activeNotifications.
+        val cached = pendingCards[tag]?.takeIf { previous != null || android.os.SystemClock.elapsedRealtime() - it.postedAt < 2000 }
+        val lines = if (detailPreview) (cached?.lines ?: previous?.extras?.getCharSequenceArray(android.app.Notification.EXTRA_TEXT_LINES)?.map { it.toString() }).orEmpty().toMutableList() else mutableListOf()
+        lines.add(0, body)
+        val count = unreadCount?.coerceAtLeast(0) ?: ((cached?.count ?: previous?.number ?: 0) + 1)
+        val intent = Intent(context, MainActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+            conversationId?.let { putExtra(EXTRA_CONVERSATION_ID, it) }
+            putExtra(EXTRA_RECIPIENT_ID, recipient)
+            data = android.net.Uri.Builder().scheme("touliao").authority("notification").appendPath(recipient).appendPath(convId).build()
         }
-        // 群组汇总通知移出 synchronized(lines) 块之外调用：showGroupSummary 内部会遍历并
-        // 获取其它会话各自的锁，若在持有当前会话锁时嵌套获取，并发到达的不同会话消息
-        // 互相等待对方释放锁时理论上会 ABBA 死锁（当前回调虽跑主线程串行未触发，仍应避免）。
-        notifyMgrForSummary?.let { showGroupSummary(it) }
+        val pending = PendingIntent.getActivity(context, tag.hashCode(), intent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
+        val publicVersion = NotificationCompat.Builder(context, NotificationPolicy.channel(sound, vibrate))
+            .setSmallIcon(R.drawable.ic_notification).setContentTitle("投聊").setContentText("收到新消息").build()
+        val builder = NotificationCompat.Builder(context, NotificationPolicy.channel(sound, vibrate))
+            .setSmallIcon(R.drawable.ic_notification).setContentTitle(title).setContentText(body)
+            .setAutoCancel(true).setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setCategory(NotificationCompat.CATEGORY_MESSAGE)
+            .setDefaults((if (sound) NotificationCompat.DEFAULT_SOUND else 0) or (if (vibrate) NotificationCompat.DEFAULT_VIBRATE else 0))
+            .setVisibility(NotificationCompat.VISIBILITY_PRIVATE).setPublicVersion(publicVersion)
+            .setContentIntent(pending).setNumber(count)
+            .setGroup(GROUP_KEY_MESSAGES).setGroupAlertBehavior(NotificationCompat.GROUP_ALERT_CHILDREN)
+        val style = NotificationCompat.InboxStyle().setBigContentTitle(title).setSummaryText("$count 条新消息")
+        lines.take(5).forEach { style.addLine(it) }
+        builder.setStyle(style)
+        if (!acceptsRecipient(recipient)) return
+        try {
+            val mgr = NotificationManagerCompat.from(context)
+            mgr.notify(tag, MESSAGE_NOTIFICATION_ID, builder.build())
+            pendingCards[tag] = PendingCard(lines.take(5), count, android.os.SystemClock.elapsedRealtime())
+            if (identity != null) {
+                recent.add(identity)
+                seen.edit().putString("ids:$recipient", recent.takeLast(128).joinToString("\n")).apply()
+            }
+            showGroupSummary(mgr)
+        } catch (_: SecurityException) { /* Permission may be revoked while delivering. */ }
     }
 
-    /** 清除某会话的聚合缓存（进入聊天时调用） */
+    @Synchronized
     fun clearConversationNotifications(conversationId: String) {
-        pendingLines.remove(conversationId)
-        NotificationManagerCompat.from(context).cancel(conversationId, MESSAGE_NOTIFICATION_ID)
+        val recipient = accountStore.activeId() ?: return
+        val mgr = NotificationManagerCompat.from(context)
+        pendingCards.remove(NotificationPolicy.tag(recipient, conversationId))
+        mgr.cancel(NotificationPolicy.tag(recipient, conversationId), MESSAGE_NOTIFICATION_ID)
+        mgr.cancel(conversationId, 1000) // notifications created by previous releases
+        mgr.cancel(NotificationPolicy.vendorId(recipient, conversationId))
+        showGroupSummary(mgr, setOf(NotificationPolicy.tag(recipient, conversationId), conversationId))
     }
 
-    /** 群组汇总通知（Android 7+ 多通知折叠）*/
-    private fun showGroupSummary(mgr: NotificationManagerCompat) {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.N) return
-        val totalUnread = pendingLines.values.sumOf { synchronized(it) { it.size } }
-        if (totalUnread < 2) return   // 只有 1 条时不显示汇总
-        val summary = NotificationCompat.Builder(context, CHANNEL_ID)
-            .setSmallIcon(R.drawable.ic_notification)
-            .setContentTitle("投聊")
-            .setContentText("${totalUnread} 条新消息")
-            .setGroup(GROUP_KEY_MESSAGES)
-            .setGroupSummary(true)
-            .setAutoCancel(true)
-            .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
-            .build()
+    private fun showGroupSummary(mgr: NotificationManagerCompat, removedTags: Set<String> = emptySet()) {
+        val manager = context.getSystemService(NotificationManager::class.java) ?: return
+        val active = manager.activeNotifications
+        val cards = active.filter { it.tag !in removedTags && it.id != SUMMARY_NOTIFICATION_ID && it.notification.group == GROUP_KEY_MESSAGES }
+        val counts = cards.associate { it.tag to it.notification.number.coerceAtLeast(1) }.toMutableMap()
+        val now = android.os.SystemClock.elapsedRealtime()
+        pendingCards.entries.removeAll { it.key !in counts && now - it.value.postedAt >= 2000 }
+        pendingCards.forEach { (tag, card) -> counts[tag] = card.count }
+        if (counts.isEmpty()) { mgr.cancel(SUMMARY_NOTIFICATION_ID); return }
+        // Android cancels a group's children when its summary is cancelled.
+        // Keep an existing summary current until the last conversation is read.
+        if (counts.size == 1 && active.none { it.id == SUMMARY_NOTIFICATION_ID }) return
+        val total = counts.values.sum()
+        val summary = NotificationCompat.Builder(context, NotificationPolicy.channel(false, false))
+            .setSmallIcon(R.drawable.ic_notification).setContentTitle("投聊").setContentText("$total 条新消息")
+            .setGroup(GROUP_KEY_MESSAGES).setGroupSummary(true).setGroupAlertBehavior(NotificationCompat.GROUP_ALERT_CHILDREN)
+            .setSilent(true).setAutoCancel(true).setVisibility(NotificationCompat.VISIBILITY_PRIVATE).build()
         try { mgr.notify(SUMMARY_NOTIFICATION_ID, summary) } catch (_: SecurityException) {}
     }
 
@@ -193,13 +177,27 @@ class NotificationHelper @Inject constructor(
                 CHANNEL_ID, "消息通知", NotificationManager.IMPORTANCE_HIGH,
             ).apply {
                 description = "新消息与提及"
-                // 锁屏可见性：Android 8+ 由渠道决定。PUBLIC = 锁屏完整显示内容，
-                // 否则锁屏收到消息时用户看不到任何提醒（本次问题根因之一）。
+                // Legacy baseline only; new preference channels use PRIVATE visibility.
                 lockscreenVisibility = android.app.Notification.VISIBILITY_PUBLIC
                 enableVibration(true)
                 enableLights(true)
             }
             mgr.createNotificationChannel(messages)
+            // Inherit existing system controls. Never delete/recreate channels to reset a user's choice.
+            val legacy = mgr.getNotificationChannel(CHANNEL_ID)
+            for (sound in listOf(false, true)) for (vibrate in listOf(false, true)) {
+                val id = NotificationPolicy.channel(sound, vibrate)
+                if (mgr.getNotificationChannel(id) != null) continue
+                val label = when { sound && vibrate -> "消息 · 声音与振动"; sound -> "消息 · 声音"; vibrate -> "消息 · 振动"; else -> "消息 · 静音" }
+                val channel = NotificationChannel(id, label, legacy?.importance ?: NotificationManager.IMPORTANCE_HIGH).apply {
+                    description = "遵循投聊通知设置及系统通知设置"
+                    lockscreenVisibility = if (legacy?.lockscreenVisibility == android.app.Notification.VISIBILITY_SECRET) android.app.Notification.VISIBILITY_SECRET else android.app.Notification.VISIBILITY_PRIVATE
+                    setSound(if (sound) legacy?.sound else null, legacy?.audioAttributes)
+                    enableVibration(vibrate && legacy?.shouldVibrate() != false)
+                    setShowBadge(legacy?.canShowBadge() != false)
+                }
+                mgr.createNotificationChannel(channel)
+            }
             // 来电渠道：最高优先级 + 绕过勿扰，为后续 fullScreenIntent 来电通知预留（拉起 CallScreen）。
             val calls = NotificationChannel(
                 CALL_CHANNEL_ID, "来电", NotificationManager.IMPORTANCE_HIGH,
@@ -214,16 +212,13 @@ class NotificationHelper @Inject constructor(
     }
 
     companion object {
-        // 渠道 id 带版本后缀：已存在渠道无法改锁屏可见性/震动（Android 保护用户既有设置），
-        // 需换新 id 才能让新配置对老用户生效。改动这些渠道属性时同步 bump 版本号。
-        // 注意：后端 FCM android.notification.channelId 也须同步为此值（见 backend push.js）。
+        // Preserve the legacy channel as the migration baseline for user controls.
         const val CHANNEL_ID = "vxin_messages_v3"
         const val CALL_CHANNEL_ID = "vxin_calls"
         const val EXTRA_CONVERSATION_ID = "conversationId"
         const val EXTRA_RECIPIENT_ID = "recipientId"
-        // 消息通知固定 id：配合 notify(tag=convId, id=...) 使用，身份由 tag 区分，
-        // 不依赖进程内计数器，跨进程重启保持稳定（见 F4 修复说明）。
-        const val MESSAGE_NOTIFICATION_ID = 1000
+        // Firebase's OS-displayed notification uses id=0 with the same account/chat tag.
+        const val MESSAGE_NOTIFICATION_ID = 0
         const val CALL_NOTIFICATION_ID = 424242
         const val SUMMARY_NOTIFICATION_ID = 424200        // 群组汇总通知 ID（固定，更新时覆盖）
         const val GROUP_KEY_MESSAGES = "com.touliao.app.MESSAGES"   // 消息通知分组键

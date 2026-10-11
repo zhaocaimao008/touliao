@@ -1,15 +1,20 @@
 import TouliaoIcon from '../ui-kit/Icon';
-import { clientStorage as localStorage, isIsolatedWindow } from '../utils/clientStorage';
+import { isIsolatedWindow } from '../utils/clientStorage';
 
-import React, { useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo, useReducer, Suspense } from 'react';
+import React, { useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo, Suspense } from 'react';
 import { createPortal } from 'react-dom';
-import { composeReducer, initialComposeState } from '../reducers/composeReducer';
+import { insertComposeText } from '../reducers/composeReducer';
+import { useChatComposer } from '../hooks/useChatComposer';
+import { useMessageEdit } from '../hooks/useMessageEdit';
 import { showToast, showConfirm } from '../utils/toast';
 import axios from 'axios';
 import Avatar from './Avatar';
 import ImagePreview from './ImagePreview';
 import { prewarmAudio } from '../utils/callTones';
-import { createVoiceRecorder, recordedVoice } from '../utils/voiceRecording';
+import { useVoiceCapture } from '../hooks/useVoiceCapture';
+import VoiceRecordButton from './VoiceRecordButton';
+import { uploadBlob } from '../utils/uploadBlob';
+import { sendVoiceMessage } from '../utils/sendVoiceMessage';
 import VideoPreview from './VideoPreview';
 import { useFilePreview } from '../contexts/FilePreviewContext';
 import VirtualMessageList from './VirtualMessageList';
@@ -19,6 +24,9 @@ import PinnedBanner from './PinnedBanner';
 import UploadProgressBar from './UploadProgressBar';
 import ComposeContextBar from './ComposeContextBar';
 import MultiSelectBar from './MultiSelectBar';
+import useBatchRecall from '../hooks/useBatchRecall';
+import useReadStatus from '../hooks/useReadStatus';
+import { applyConversationSettings, subscribeConversationSettings } from '../utils/conversationSettings';
 import { loadOutbox, upsertOutbox, removeFromOutbox } from '../utils/outbox';
 import { captureSession, isSessionCurrent } from '../utils/sessionContext';
 import { sendOwnedText } from '../utils/outboxSender';
@@ -68,7 +76,7 @@ import { copyToClipboard, copyImageToClipboard } from '../utils/clipboard';
 import { downloadFile } from '../utils/download';
 import { shareMessage, canShare } from '../utils/share';
 import { isForwardableMessage } from '../utils/mergedForward';
-import { canViewReadStatus, readUserIdsForMessage } from '../utils/readStatus';
+import { canViewReadStatus } from '../utils/readStatus';
 import './ChatWindow.css';
 import { IcoImage, IcoFile, IcoVideo, IcoContacts } from './Icons';
 
@@ -170,19 +178,20 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
   useMediaCredentials();
   const { t } = useI18n();
   const [conversation, setConversation] = useState(initialConv);
+  useEffect(() => subscribeConversationSettings(change => {
+    setConversation(previous => applyConversationSettings(previous, change));
+  }), []);
   const [messages, setMessages] = useState([]);
   // 首屏加载态：消息为空且数据仍在途（无缓存/缓存为空）时显示骨架，避免纯空白
   const [initialLoading, setInitialLoading] = useState(true);
-  // 输入区（compose）状态收敛进 useReducer：input / voiceMode / editingMsg /
-  // replyTo 四者有真实协同转换（开始编辑=载入文本+清回复；发送=清文本+清回复；
-  // 切换会话=全清），改为原子 dispatch，杜绝散落 setState 的不一致。见
-  // reducers/composeReducer.js（已 vitest 穷举测试）。recording 由 MediaRecorder
-  // 副作用驱动，仍用独立 useState。
-  // 首页以 key={会话id} 渲染本组件，切换会话即重新挂载：草稿必须在初始化时载入
-  // （下方「conversation.id 变化」分支在重新挂载时不会触发，原先草稿存了却从不回填输入框）
-  const [compose, dispatchCompose] = useReducer(composeReducer, conversation.id,
-    id => composeReducer(initialComposeState, { type: 'RESET', draft: localStorage.getItem(`draft_${id}`) || '' }));
+  const { user, outboxScope } = useAuth();
+  const [compose, dispatchCompose, draftStorageFailed] = useChatComposer(conversation.id, outboxScope);
   const { input, mode: composerMode, editingMsg, replyTo, fromDraft } = compose;
+  const messageEdit = useMessageEdit(editingMsg, outboxScope, ({ editor, content }) => {
+    setMessages(previous => previous.map(message => message.id === editor.id ? { ...message, content, edited: 1 } : message));
+    dispatchCompose({ type: 'EDIT_SAVED', editor, content });
+    requestAnimationFrame(() => textareaRef.current?.focus());
+  });
   const voiceMode = composerMode === 'VOICE';
   const [typingName, setTypingName] = useState('');
   // A single presentation mode owns voice, keyboard and all attachment panels.
@@ -190,7 +199,7 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
   const showEmoji = activePanel === 'emoji';
   const showStickers = activePanel === 'stickers';
   const showMore = activePanel === 'more';
-  const closePanels = useCallback(() => dispatchCompose({ type: 'CLOSE_PANEL' }), []);
+  const closePanels = useCallback(() => dispatchCompose({ type: 'CLOSE_PANEL' }), [dispatchCompose]);
   const togglePanel = (panel) => {
     if (activePanel === panel) {
       dispatchCompose({ type: 'TOGGLE_PANEL', panel });
@@ -200,7 +209,6 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
       dispatchCompose({ type: 'TOGGLE_PANEL', panel });
     }
   };
-  const [recording, setRecording] = useState(false);
   const [showGroupInfo, setShowGroupInfo] = useState(false);
   const [members, setMembers] = useState([]);
   const [myGroupRole, setMyGroupRole] = useState('member'); // 'owner'|'admin'|'member'
@@ -215,7 +223,6 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
   const [showRedPacket, setShowRedPacket] = useState(false);
   const [showTransfer,  setShowTransfer]  = useState(false);
   const [ctxMenu, setCtxMenu] = useState(null);
-  const [readStatus, setReadStatus] = useState(null);
   // 多选模式
   const [multiSelect, setMultiSelect] = useState(false);
   const [selectedMsgs, setSelectedMsgs] = useState(new Set());
@@ -248,7 +255,7 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
   // 通话状态
   // 文件上传进度：null | { name, progress:0-100, status:'uploading'|'error', retryFn? }
   const [uploadState, setUploadState] = useState(null);
-  // 跳转到指定消息（供撤回定位、引用点击等）——非搜索，保留
+  // 跳转到指定消息（搜索结果、引用点击等）
   const [highlightedMsgId, setHighlightedMsgId] = useState(null);
   const [pendingScrollId, setPendingScrollId] = useState(null);
   // 红包：详情弹窗 { packet, claims, myClaim, justClaimed } | null
@@ -285,15 +292,14 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
   // 期间收到 onHeightSettle 才补贴底,避免每帧盲滚导致最新消息抖动。
   const stickPendingRef = useRef(false);
   const stickWorkRef = useRef({ raf: null, timer: null });
+  const messageJumpRef = useRef({ request: 0, positioning: false, raf: null, settleRaf: null, highlightTimer: null });
   // Item cache for flatItems - preserve object identity for unchanged messages
   const itemCacheRef = useRef(new Map());
   const fileInputRef = useRef(null);
+  const imageInputRef = useRef(null);
   const typingTimer = useRef(null);
   const typingClearTimer = useRef(null); // 接收侧兜底：stop_typing 丢包时自动收起"正在输入"
-  const recorderRef = useRef(null);
-  const recordingLockRef = useRef(false); // 同步锁：防触摸设备补发合成鼠标事件导致重复开麦（麦克风流泄漏）
-  const lastTouchRef = useRef(0);         // 最近触摸时间：据此让鼠标事件忽略触摸设备补发的合成鼠标事件
-  const streamRef = useRef(null);
+  const voiceUploadRef = useRef(null);
   const textareaRef = useRef(null);
   // 输入框单行起步、随内容增高（上限与 CSS max-height 一致）。支持 CSS field-sizing 的浏览器由样式处理。
   useLayoutEffect(() => {
@@ -304,7 +310,7 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
   }, [input]);
   const inputAreaRef = useRef(null);
   const { socket, reconnectCount, registerDelivered } = useSocket();
-  const { user, outboxScope } = useAuth();
+  const { state: readStatus, load: loadReadStatus, close: closeReadStatus } = useReadStatus(conversation.id, user.id);
   const [renderOwner, setRenderOwner] = useState(outboxScope);
   if (renderOwner !== outboxScope) {
     setRenderOwner(outboxScope);
@@ -534,8 +540,6 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
     // 快照 ref 指向的 Map，避免 cleanup 运行时 ref.current 已被后续渲染替换（react-hooks/exhaustive-deps）
     const burnTimers = burnTimersRef.current;
     return () => {
-      if (recorderRef.current) stopRecording();
-      if (streamRef.current) streamRef.current.getTracks().forEach(t => t.stop());
       clearTimeout(typingTimer.current);
       // 切换会话时取消所有阅后即焚定时器，防止旧会话定时器影响新会话消息状态
       burnTimers.forEach(handle => clearTimeout(handle));
@@ -631,10 +635,8 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
     setMessages([]);
     setPrevConvId(conversation.id);
     setInitialLoading(true);
-    // compose 全清 + 载入新会话草稿（replyTo/editingMsg/voiceMode/input 原子重置）
-    dispatchCompose({ type: 'RESET', draft: localStorage.getItem(`draft_${conversation.id}`) || '' });
+    // useChatComposer resets and restores the draft for this conversation and owner.
     setMention(null); // 清 @ 提及态,避免跨会话残留下拉
-    closePanels();  // 关闭 emoji/stickers/more 任一展开面板
     setHasMore(true);
     setShowGroupInfo(false);
     setMultiSelect(false);
@@ -843,12 +845,18 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
   // A fast ACK/error must not cancel the first frame that reveals the new row.
   useEffect(() => {
     const work = stickWorkRef.current;
+    const jump = messageJumpRef.current;
     return () => {
       cancelAnimationFrame(work.raf);
       clearTimeout(work.timer);
       stickPendingRef.current = false;
       autoScrollingRef.current = false;
       lastStickSigRef.current = '';
+      jump.request += 1;
+      jump.positioning = false;
+      cancelAnimationFrame(jump.raf);
+      cancelAnimationFrame(jump.settleRaf);
+      clearTimeout(jump.highlightTimer);
     };
   }, []);
 
@@ -859,7 +867,7 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
   //   修复"在上方查看历史时发消息看不到自己刚发的消息"。收到他人消息仍只在接近底部时跟随。
   useEffect(() => {
     const outer = listOuterRef.current;
-    if (!outer) return;
+    if (!outer || messageJumpRef.current.positioning) return;
     const force = forceScrollRef.current;
     forceScrollRef.current = false;
     // force(自己发消息)无条件贴底;否则看持久贴底意图。
@@ -905,7 +913,7 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
   // A status row can settle after the initial 500ms window (e.g. a failed send).
   // Reading history clears stickBottomRef, so late measurements cannot pull it down.
   const handleHeightSettle = useCallback(() => {
-    if (!stickBottomRef.current) return;
+    if (!stickBottomRef.current || messageJumpRef.current.positioning) return;
     const o = listOuterRef.current;
     if (!o) return;
     virtListRef.current?.scrollToLast();
@@ -967,6 +975,9 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
     if (scrollRafRef.current) return;
     scrollRafRef.current = requestAnimationFrame(async () => {
       scrollRafRef.current = null;
+      // Replacing a history window can clamp the old offset to its new bottom.
+      // That layout scroll must not restore bottom-following or load another page.
+      if (messageJumpRef.current.positioning) return;
       const container = listOuterRef.current;
       if (!container) return;
       const distFromBottom = container.scrollHeight - container.scrollTop - container.clientHeight;
@@ -1576,20 +1587,15 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
     // 保留换行（Shift+Enter / 粘贴多行），仅把 Windows 的 \r\n 统一成 \n。
     const text = input.replace(/\r\n?/g, '\n').trim();
     if (!text) return;
-    // 防 Enter 连击：500ms 内相同内容只发一次
+    // Editing has its own request lock and view ownership; retries are not text sends.
+    if (editingMsg) {
+      if (text === editingMsg.content) { cancelEdit(); return; }
+      await messageEdit.save(text);
+      return;
+    }
     const now = Date.now();
     if (text === lastSendRef.current.text && now - lastSendRef.current.time < 500) return;
     lastSendRef.current = { text, time: now };
-
-    // ── 编辑模式 ──
-    if (editingMsg) {
-      if (text === editingMsg.content) { cancelEdit(); return; }
-      try {
-        await axios.put(`/api/messages/${editingMsg.id}/edit`, { content: text });
-        cancelEdit();
-      } catch (e) { showToast(e.response?.data?.error || t('chat.editFailed'), 'error'); }
-      return;
-    }
 
     // 停在跳转后的历史窗口里发消息：先回到最新，发出的消息才会接在最新消息后面
     if (hasNewerRef.current) jumpToLatestRef.current?.();
@@ -1619,8 +1625,6 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
     forceScrollRef.current = true; // 自己发消息：无条件滚到底(多帧贴底 effect 接管)
     setMessages(prev => [...prev, optimistic]);
     dispatchCompose({ type: 'SENT' });   // 清输入 + 清回复（原子）
-    localStorage.removeItem(`draft_${conversation.id}`);
-    window.dispatchEvent(new CustomEvent('draft-changed', { detail: { convId: conversation.id, text: '' } }));
     closePanels();
     clearTimeout(typingTimer.current); lastTypingEmitRef.current = 0;
     socket?.emit('stop_typing', { conversationId: conversation.id });
@@ -1643,7 +1647,8 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
   const closeSearchBar = useCallback(() => setShowSearchBar(false), []);
   const handleSearchJump = useCallback((msgId) => {
     setShowSearchBar(false);
-    setPendingScrollId(String(msgId));
+    // Search can return a message outside the currently loaded history window.
+    callbacksRef.current?.scrollToMsg?.(String(msgId));
   }, []);
 
   // 打开聊天文件聚合视图（同时收起信息面板，避免抽屉叠加）
@@ -1706,15 +1711,16 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
   };
 
   const startEdit = (msg) => {
+    if (!msg || msg._tempId || msg.deleted || msg.type !== 'text' || msg.sender_id !== user.id) return;
     dispatchCompose({ type: 'START_EDIT', msg }); // 载入原文 + 进编辑态 + 清回复（原子）
     setTimeout(() => { textareaRef.current?.focus(); textareaRef.current?.select(); }, 50);
   };
 
   const cancelEdit = useCallback(() => {
-    dispatchCompose({ type: 'CANCEL_EDIT' });     // 退编辑 + 清输入（原子）
-    textareaRef.current?.focus();
-  }, []);
-  const cancelReply = useCallback(() => dispatchCompose({ type: 'CLEAR_REPLY' }), []);
+    dispatchCompose({ type: 'CANCEL_EDIT' });     // Restore the original draft and reply.
+    requestAnimationFrame(() => textareaRef.current?.focus());
+  }, [dispatchCompose]);
+  const cancelReply = useCallback(() => dispatchCompose({ type: 'CLEAR_REPLY' }), [dispatchCompose]);
 
   // 当前 @ 候选：按已输入的 atQuery 过滤成员（大小写不敏感），排除自己
   const atCandidates = useMemo(() => {
@@ -1768,7 +1774,7 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
     if (e.key === 'ArrowUp' && !input && !editingMsg) {
       for (let i = messages.length - 1; i >= 0; i--) {
         const m = messages[i];
-        if (m.sender_id === user.id && m.type === 'text' && !m.deleted) {
+        if (m.sender_id === user.id && m.type === 'text' && !m.deleted && !m._tempId) {
           e.preventDefault();
           startEdit(m);
           return;
@@ -1795,6 +1801,17 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
     typingTimer.current = setTimeout(() => { lastTypingEmitRef.current = 0; socket.emit('stop_typing', { conversationId: conversation.id }); }, 2000);
   };
 
+  const insertEmoji = text => {
+    if (messageEdit.saving) return;
+    const element = textareaRef.current;
+    const start = element?.selectionStart ?? input.length;
+    const end = element?.selectionEnd ?? start;
+    const insertion = insertComposeText(input, text, start, end);
+    dispatchCompose({ type: 'INSERT_INPUT', text, start, end });
+    notifyTyping(insertion.value);
+    requestAnimationFrame(() => { element?.focus(); element?.setSelectionRange(insertion.caret, insertion.caret); });
+  };
+
   const insertAtMention = (member) => {
     const el = textareaRef.current;
     const caret = el?.selectionStart ?? input.length;
@@ -1802,33 +1819,23 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
     const start = mention ? mention.start : input.length;
     const end = mention ? caret : input.length;
     const inserted = member.isAll ? '@所有人 ' : `@${member.username} `;
-    const next = input.slice(0, start) + inserted + input.slice(end);
-    const pos = start + inserted.length;
-    dispatchCompose({ type: 'REPLACE_INPUT', value: next });
+    const insertion = insertComposeText(input, inserted, start, end);
+    const pos = insertion.caret;
+    dispatchCompose({ type: 'INSERT_INPUT', text: inserted, start, end });
+    notifyTyping(insertion.value);
     setMention(null);
     setTimeout(() => { el?.focus(); el?.setSelectionRange(pos, pos); }, 0);
   };
 
   // ── 云存储直传（XHR 支持进度回调）─────────────────────────────
-  const uploadToCloud = useCallback(async (fileOrBlob, contentType, filename, onProgress) => {
+  const uploadToCloud = useCallback(async (fileOrBlob, contentType, filename, onProgress, request = {}) => {
     const { data } = await axios.post('/api/upload/credential', {
       filename, contentType, conversationId: conversation.id,
       fileSize: fileOrBlob?.size,   // 后端据此校验上限（1GB）；不传则不校验
-    });
-    await new Promise((resolve, reject) => {
-      const xhr = new XMLHttpRequest();
-      xhr.upload.addEventListener('progress', (e) => {
-        if (e.lengthComputable) onProgress?.(Math.round(e.loaded / e.total * 100));
-      });
-      xhr.addEventListener('load', () => {
-        if (xhr.status >= 200 && xhr.status < 300) resolve();
-        else reject(new Error(t('chat.uploadFailedCorsTemplate').replace('{status}', xhr.status)));
-      });
-      xhr.addEventListener('error', () => reject(new Error(t('chat.uploadNetworkError'))));
-      xhr.addEventListener('abort', () => reject(new Error(t('chat.uploadCancelled'))));
-      xhr.open('PUT', data.uploadUrl);
-      xhr.setRequestHeader('Content-Type', contentType);
-      xhr.send(fileOrBlob);
+    }, request);
+    await uploadBlob(data.uploadUrl, fileOrBlob, contentType, {
+      signal: request.signal, onProgress,
+      errorText: status => status ? t('chat.uploadFailedCorsTemplate').replace('{status}', status) : t('chat.uploadNetworkError'),
     });
     // thumbUploadUrl 仅图片扩展名(jpg/jpeg/png/webp)才有：云直传路径服务器不经手字节，
     // 无法像本地上传那样自己用 sharp 生成缩略图，由调用方在图片场景下画布生成后传上去。
@@ -1880,16 +1887,17 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
   }, [uploadToCloud, setChatBackground, conversation.id, t]);
 
   // ── 本地上传回退：云存储未配置(503)时，直传后端 /upload（入库+广播由后端完成）──
-  const uploadLocal = useCallback(async (file, onProgress) => {
+  const uploadLocal = useCallback(async (file, onProgress, request = {}) => {
     const form = new FormData();
     form.append('file', file);
-    if (replyTo?.id) form.append('reply_to_id', replyTo.id);
+    if (replyTo?.id && !request.skipReply) form.append('reply_to_id', replyTo.id);
     const { data } = await axios.post(`/api/messages/${conversation.id}/upload`, form, {
       headers: { 'Content-Type': 'multipart/form-data' },
       onUploadProgress: (e) => { if (e.total) onProgress?.(Math.round(e.loaded / e.total * 100)); },
       // 直传路径没有大小上限（后端 MAX_UPLOAD_BYTES 默认 200MB），全局 20s 默认对大文件/慢网络
       // 明显不够，给一个远大于正常场景的兜底值，而不是完全不设超时（那样又回到"可能永久挂起"）。
       timeout: 600000, // 10 分钟
+      signal: request.signal, _sessionContext: request._sessionContext,
     });
     return data.file_url;
   }, [conversation.id, replyTo]);
@@ -2099,7 +2107,7 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
       }
     };
     await doUpload();
-  }, [uploadToCloud, uploadLocal, uploadChunked, socket, conversation.id, replyTo, t, user.id, user.username, user.avatar]);
+  }, [uploadToCloud, uploadLocal, uploadChunked, socket, conversation.id, replyTo, t, user.id, user.username, user.avatar, dispatchCompose]);
 
   // 多文件发送队列：多选/拖入/粘贴的文件按顺序逐个上传发送（handleFileSelect 会 await 到
   // 上传结束）；上传中再加入的文件排到队尾，而不是被「请等待上传完成」拒掉。
@@ -2202,95 +2210,71 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
     enqueueFiles(e.dataTransfer.files);
   };
 
-  // Voice recording
-  const startRecording = async () => {
-    if (recordingLockRef.current) return; // 已在录音/正在开麦，忽略重复触发
-    recordingLockRef.current = true;
-    let stream;
+  const sendRecordedVoice = async ({ blob, mimeType, filename }, operation) => {
+    const { isCurrent } = operation;
+    if (!isCurrent()) return;
+    if (isUploadingRef.current) { showToast(t('chat.voiceUploadBusy'), 'info'); return; }
+    const upload = {};
+    voiceUploadRef.current = upload;
+    isUploadingRef.current = filename;
+    const tempId = 'tmp_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8);
+    const localPreviewUrl = URL.createObjectURL(blob);
+    const optimistic = {
+      id: tempId, conversation_id: conversation.id, sender_id: user.id,
+      senderName: user.username, senderAvatar: user.avatar,
+      content: filename, type: 'voice', file_url: localPreviewUrl,
+      created_at: Math.floor(Date.now() / 1000),
+      reply_to_id: null, replyTo: null, deleted: 0, edited: 0, reactions: [],
+      _status: 'sending', _tempId: tempId,
+    };
+    forceScrollRef.current = true;
+    setMessages(prev => [...prev, optimistic]);
+    setUploadState({ name: t('chat.voiceUploadName'), progress: 0, status: 'uploading' });
+    const dropOptimistic = () => {
+      if (isCurrent()) setMessages(prev => prev.filter(message => message._tempId !== tempId));
+    };
+    const onProgress = progress => {
+      if (isCurrent()) setUploadState(state => state ? { ...state, progress } : null);
+    };
     try {
-      stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      streamRef.current = stream;
-      const recorder = createVoiceRecorder(stream);
-      const chunks = [];
-      recorder.ondataavailable = e => chunks.push(e.data);
-      recorder.onstop = async () => {
-        stream.getTracks().forEach(t => t.stop());
-        let recording;
-        try { recording = recordedVoice(chunks, recorder); }
-        catch { showToast(t('chat.voiceSendFailed'), 'error'); return; }
-        const { blob, mimeType, filename } = recording;
-        if (blob.size < 1000) { stream.getTracks().forEach(t => t.stop()); return; } // too short
-        setUploadState({ name: t('chat.voiceUploadName'), progress: 0, status: 'uploading' });
-        const onProg = (p) => setUploadState(s => s ? { ...s, progress: p } : null);
-        // 乐观占位:同图片/文件修复,点发送瞬间就显示这条语音消息并贴底,不等上传+广播一整趟
-        // 网络往返才第一次出现,也避免广播延迟到达时的强制贴底打断用户正在翻看的历史。
-        const tempId = `tmp_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-        const localPreviewUrl = URL.createObjectURL(blob);
-        const optimistic = {
-          id: tempId, conversation_id: conversation.id, sender_id: user.id,
-          senderName: user.username, senderAvatar: user.avatar,
-          content: filename, type: 'voice', file_url: localPreviewUrl,
-          created_at: Math.floor(Date.now() / 1000),
-          reply_to_id: null, replyTo: null, deleted: 0, edited: 0, reactions: [],
-          _status: 'sending', _tempId: tempId,
-        };
-        forceScrollRef.current = true;
-        setMessages(prev => [...prev, optimistic]);
-        const dropOptimistic = () => {
-          setMessages(prev => prev.filter(m => m._tempId !== tempId));
-          URL.revokeObjectURL(localPreviewUrl);
-        };
-        try {
-          let publicUrl;
-          try {
-            ({ publicUrl } = await uploadToCloud(blob, mimeType, filename, onProg));
-          } catch (cloudErr) {
-            // 与图片/文件一致:云直传失败(非400/403)回退本地上传(走后端/upload,CSP必放行)。
-            // 修复"未配置云存储/Electron CSP拦截时语音消息100%失败"。
-            const status = cloudErr.response?.status;
-            if (status === 400 || status === 403) throw cloudErr;
-            const voiceFile = new File([blob], filename, { type: mimeType });
-            await uploadLocal(voiceFile, onProg); // 后端入库+广播,无需再 emit
-            setUploadState(null);
-            // 这条兜底路径没有 clientMsgId 回执可对上占位消息,先摘掉,真实消息到达后作为新行插入。
-            dropOptimistic();
-            stream.getTracks().forEach(t => t.stop());
-            return;
-          }
-          setUploadState(null);
-          socket?.emit('send_file_message', {
-            conversationId: conversation.id,
-            type:     'voice',
-            file_url: publicUrl,
-            content:  filename,
-            clientMsgId: tempId, // 与占位消息用同一个 id:onMsg 按 client_msg_id 原地替换占位,不重复
-          }, (res) => {
-            if (!res?.success) { showToast(res?.error || t('chat.voiceSendFailed'), 'error'); dropOptimistic(); }
-            else setTimeout(() => URL.revokeObjectURL(localPreviewUrl), 5000);
-          });
-        } catch {
-          setUploadState({ name: t('chat.voiceUploadName'), progress: 0, status: 'error', errorMsg: t('chat.sendFailed') });
-          dropOptimistic();
-        }
-        stream.getTracks().forEach(t => t.stop());
-      };
-      try {
-        recorder.start();
-      } catch (e) {
-        stream.getTracks().forEach(t => t.stop());
-        throw e;
+      const result = await sendVoiceMessage({
+        recording: { blob, mimeType, filename }, conversationId: conversation.id,
+        clientMsgId: tempId, operation, socket, uploadCloud: uploadToCloud, uploadLocal, onProgress, t,
+      });
+      if (!isCurrent()) return;
+      setUploadState(null);
+      if (result?.message) {
+        setMessages(previous => {
+          const withoutPending = previous.filter(message => message._tempId !== tempId);
+          if (!withoutPending.some(message => message.id === result.message.id)) insertBySeq(withoutPending, result.message);
+          return withoutPending;
+        });
+      } else { dropOptimistic(); }
+    } catch (error) {
+      if (isCurrent()) {
+        setUploadState({ name: t('chat.voiceUploadName'), progress: 0, status: 'error', errorMsg: error.message || t('chat.voiceSendFailed') });
+        dropOptimistic();
       }
-      recorderRef.current = recorder;
-      setRecording(true);
-    } catch { stream?.getTracks().forEach(t => t.stop()); showToast(t('chat.micAccessDenied'), 'error'); recordingLockRef.current = false; }
+    } finally {
+      URL.revokeObjectURL(localPreviewUrl);
+      if (voiceUploadRef.current === upload) {
+        voiceUploadRef.current = null; isUploadingRef.current = false;
+        if (mountedRef.current && syncViewRef.current === syncView) {
+          setUploadState(state => state?.status === 'uploading' ? null : state);
+          if (!isCurrent()) setMessages(previous => previous.filter(message => message._tempId !== tempId));
+        }
+      }
+    }
   };
-
-  const stopRecording = () => {
-    recorderRef.current?.stop();
-    recorderRef.current = null;
-    setRecording(false);
-    recordingLockRef.current = false;
-  };
+  const voiceCapture = useVoiceCapture({
+    conversationId: conversation.id, owner: outboxScope,
+    enabled: voiceMode && !multiSelect && !showMore && !(conversation.type === 'group' && groupSettings.mute_all && myGroupRole === 'member'),
+    canStart: () => {
+      if (!isUploadingRef.current) return true;
+      showToast(t('chat.voiceUploadBusy'), 'info'); return false;
+    },
+    onReady: sendRecordedVoice, onError: key => showToast(t(key), 'error'),
+  });
 
   const handleContextMenu = (e, msg) => {
     if (msg.deleted) return;
@@ -2305,6 +2289,7 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
     setCtxMenu({
       msg,
       anchor: {
+        element: bubble,
         top: r.top, bottom: r.bottom, left: r.left, right: r.right,
         width: r.width, height: r.height,
       },
@@ -2312,24 +2297,6 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
   };
 
   const closeCtx = () => setCtxMenu(null);
-
-  const loadReadStatus = async (msg) => {
-    if (!canViewReadStatus(msg, user.id)) return;
-    const messageId = String(msg.id);
-    setReadStatus({ message: msg, readUserIds: [], loading: true, error: false });
-    try {
-      const { data } = await axios.get(`/api/messages/conversation/${conversation.id}/read-states`, {
-        params: { msgIds: messageId },
-      });
-      setReadStatus(current => current && String(current.message.id) === messageId
-        ? { ...current, readUserIds: readUserIdsForMessage(data, messageId), loading: false }
-        : current);
-    } catch {
-      setReadStatus(current => current && String(current.message.id) === messageId
-        ? { ...current, loading: false, error: true }
-        : current);
-    }
-  };
 
   // 🔥 点击外部关闭菜单
   useEffect(() => {
@@ -2410,8 +2377,12 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
         break;
 
       case 'multiselect':
+        clearRecallError();
         setMultiSelect(true);
         setSelectedMsgs(new Set([msg.id]));
+        dispatchCompose({ type: 'CLOSE_PANEL' });
+        textareaRef.current?.blur();
+        requestAnimationFrame(() => document.getElementById(`msg-${msg.id}`)?.focus({ preventScroll: true }));
         break;
 
       case 'readStatus':
@@ -2480,7 +2451,28 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
 
   // 多选辅助（toggleMsgSelect 经 callbacksRef 注入，见下方）
   const exitMultiSelect = useCallback(() => { setMultiSelect(false); setSelectedMsgs(new Set()); }, []);
+  const restoreComposerFocus = useCallback(() => {
+    requestAnimationFrame(() => (textareaRef.current || inputAreaRef.current?.querySelector('button'))?.focus({ preventScroll: true }));
+  }, []);
+  const completeBatchRecall = useCallback(ids => {
+    const removed = new Set(ids);
+    setMessages(previous => previous.filter(message => !removed.has(message.id)).map(message =>
+      removed.has(message.replyTo?.id) ? { ...message, replyTo: { ...message.replyTo, deleted: 1 } } : message));
+    ids.forEach(id => removeFromCache(conversation.id, id).catch(() => {}));
+    exitMultiSelect();
+    restoreComposerFocus();
+  }, [conversation.id, exitMultiSelect, restoreComposerFocus]);
+  const reconcileBatchRecall = useCallback(() => { catchUp().catch(() => {}); }, [catchUp]);
+  const batchRecall = useBatchRecall({ conversationId: conversation.id, t, onComplete: completeBatchRecall, onReconcile: reconcileBatchRecall });
+  const { busy: selectionBusy, isPending: isRecallPending, clearError: clearRecallError } = batchRecall;
+  const cancelMultiSelect = useCallback(() => {
+    if (isRecallPending()) return;
+    clearRecallError();
+    exitMultiSelect();
+    restoreComposerFocus();
+  }, [exitMultiSelect, restoreComposerFocus, isRecallPending, clearRecallError]);
   const multiForward = useCallback(() => {
+    if (isRecallPending()) return;
     // 保持选中消息的时间顺序（messages 已按时间升序）
     const msgs = messages.filter(m => selectedMsgs.has(m.id));
     if (msgs.length === 0) return;
@@ -2491,12 +2483,8 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
     if (valid.length === 1) setForwardMsg(valid[0]);
     else setForwardMsgs(valid);
     exitMultiSelect();
-  }, [messages, selectedMsgs, exitMultiSelect, t]);
-  const multiDelete = useCallback(async () => {
-    if (!await showConfirm(t('chat.confirmBatchRecallDeleteTemplate').replace('{count}', selectedMsgs.size), { variant: 'DANGER' })) return;
-    await axios.post('/api/messages/batch-delete', { msgIds: [...selectedMsgs], conversationId: conversation.id }).catch(e => showToast(e.response?.data?.error || t('chat.operationFailed'), 'error'));
-    exitMultiSelect();
-  }, [selectedMsgs, conversation.id, exitMultiSelect, t]);
+  }, [messages, selectedMsgs, exitMultiSelect, t, isRecallPending]);
+  const multiDelete = () => batchRecall.run(selectedMsgs);
 
   // Precompute the last mine message id to avoid O(n) per message in flatItems
   const lastMineId = useMemo(() => {
@@ -2560,6 +2548,7 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
         && cached.isSelected === isSelected
         && cached.isHighlighted === isHighlighted
         && cached.multiSelect === multiSelect
+        && cached.selectionBusy === selectionBusy
         && cached.convType === conversation.type
         && cached.groupSettings === groupSettings
         && cached.myGroupRole === myGroupRole
@@ -2581,6 +2570,7 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
           isSelected,
           isHighlighted,
           multiSelect,
+          selectionBusy,
           convType: conversation.type,
           convId: conversation.id,
           userId: user.id,
@@ -2599,7 +2589,7 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
 
     itemCacheRef.current = newCache;
     return items;
-  }, [messages, multiSelect, selectedMsgs, highlightedMsgId, conversation.id,
+  }, [messages, multiSelect, selectionBusy, selectedMsgs, highlightedMsgId, conversation.id,
       conversation.type, pinnedMessages, myGroupRole, members, groupSettings,
       user.id, user.username, claiming, lastMineId]);
 
@@ -2608,13 +2598,23 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
     if (!pendingScrollId) return;
     const idx = flatItems.findIndex(it => it.type === 'message' && it.msg?.id === pendingScrollId);
     if (idx >= 0) {
-      // 在 rAF 回调中消费一次性触发（清 pendingScrollId），避免 effect 体内同步 setState
-      requestAnimationFrame(() => {
+      const jump = messageJumpRef.current;
+      jump.raf = requestAnimationFrame(() => {
         virtListRef.current?.scrollToItem(idx, 'center');
-        setHighlightedMsgId(String(pendingScrollId));
-        setPendingScrollId(null);
-        setTimeout(() => setHighlightedMsgId(null), 2000);
+        // The first frame mounts/measures the destination rows. Align once more
+        // with their measured heights before accepting scroll events again.
+        jump.settleRaf = requestAnimationFrame(() => {
+          virtListRef.current?.scrollToItem(idx, 'center');
+          jump.positioning = false;
+          setHighlightedMsgId(String(pendingScrollId));
+          setPendingScrollId(null);
+          jump.highlightTimer = setTimeout(() => setHighlightedMsgId(null), 2000);
+        });
       });
+      return () => {
+        cancelAnimationFrame(jump.raf);
+        cancelAnimationFrame(jump.settleRaf);
+      };
     }
   }, [pendingScrollId, flatItems]);
 
@@ -2622,8 +2622,11 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
   const callbacksRef = useRef(null);
   if (!callbacksRef.current) callbacksRef.current = {};
   callbacksRef.current.handleContextMenu = handleContextMenu;
-  callbacksRef.current.toggleMsgSelect = (msgId) =>
+  callbacksRef.current.cancelMultiSelect = cancelMultiSelect;
+  callbacksRef.current.toggleMsgSelect = (msgId) => {
+    if (isRecallPending()) return;
     setSelectedMsgs(prev => { const s = new Set(prev); s.has(msgId) ? s.delete(msgId) : s.add(msgId); return s; });
+  };
   callbacksRef.current.retryMessage = retryMessage;
   callbacksRef.current.setLightboxUrl = (clickedUrl) => {
     // 收集会话内所有图片做画廊左右切换。flatItems 的项 type 是 'message'/'divider',
@@ -2662,24 +2665,34 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
       outer.scrollTo({ top: outer.scrollHeight, behavior: 'smooth' });
   };
   callbacksRef.current.scrollToMsg = async (msgId) => {
+    const jump = messageJumpRef.current;
+    const request = ++jump.request;
+    const snapConvId = convIdRef.current;
+    jump.positioning = true;
+    cancelAnimationFrame(jump.raf);
+    cancelAnimationFrame(jump.settleRaf);
+    clearTimeout(jump.highlightTimer);
+    cancelAnimationFrame(stickWorkRef.current.raf);
+    clearTimeout(stickWorkRef.current.timer);
+    autoScrollingRef.current = false;
+    forceScrollRef.current = false;
     // 跳转是明确的「离开底部」：结束贴底跟随，否则内容高度稳定后贴底循环会把视图拽回底部
     stickBottomRef.current = false;
     stickPendingRef.current = false;
     const idx = flatItems.findIndex(it => it.type === 'message' && it.msg?.id === msgId);
     if (idx >= 0) {
-      virtListRef.current?.scrollToItem(idx, 'center');
-      setHighlightedMsgId(String(msgId));
-      setTimeout(() => setHighlightedMsgId(null), 2000);
+      setPendingScrollId(msgId);
       return;
     }
-    const el = document.getElementById(`msg-${msgId}`);
-    if (el) { el.scrollIntoView({ behavior: 'smooth', block: 'center' }); return; }
     // 消息不在当前窗口，从服务端加载上下文
-    const snapConvId = conversation.id;
     try {
       const { data } = await axios.get(`/api/messages/${snapConvId}/around/${msgId}`);
-      if (conversation.id !== snapConvId) return; // 用户已切换对话
-      if (!data?.messages?.length) { showToast(t('chat.cannotLocateMessage'), 'info'); return; }
+      if (convIdRef.current !== snapConvId || jump.request !== request) return;
+      if (!data?.messages?.some(msg => msg.id === msgId)) {
+        jump.positioning = false;
+        showToast(t('chat.cannotLocateMessage'), 'info');
+        return;
+      }
       setMessages(data.messages);
       setHasMore(data.hasMore);
       newerBlockUntilRef.current = Date.now() + 1500;
@@ -2688,6 +2701,8 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
       markHasNewer(!!data.hasNewer);
       setPendingScrollId(msgId);
     } catch {
+      if (convIdRef.current !== snapConvId || jump.request !== request) return;
+      jump.positioning = false;
       showToast(t('chat.cannotLocateMessage'), 'info');
     }
   };
@@ -2752,13 +2767,13 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
         conversation={conversation}
         memberCount={memberCount}
         features={features}
-        showGroupInfo={showGroupInfo}
+        showGroupInfo={conversation.type === 'filehelper' ? showChatFiles : showGroupInfo}
         showSearch={showSearchBar}
         onClose={onClose}
         onOpenUserProfile={openUserProfile}
         onStartCall={startCall}
         onStartGroupCall={startGroupCall}
-        onToggleGroupInfo={toggleGroupInfo}
+        onToggleGroupInfo={conversation.type === 'filehelper' ? openChatFiles : toggleGroupInfo}
         onToggleSearch={toggleSearchBar}
         typingName={typingName}
       />
@@ -2937,23 +2952,31 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
       <UploadProgressBar uploadState={uploadState} onCancel={cancelUpload} />
 
       {/* ── 编辑/回复上下文条（抽离为 memo 化 ComposeContextBar，编辑优先）── */}
-      <ComposeContextBar
+      {!multiSelect && <ComposeContextBar
         editingMsg={editingMsg}
         replyTo={replyTo}
         onCancelEdit={cancelEdit}
         onCancelReply={cancelReply}
-      />
+      />}
+      {!multiSelect && messageEdit.error && <div className="wc-compose-feedback wc-compose-feedback-error" role="alert">{messageEdit.detail || t('chat.editSaveFailed')}</div>}
+      {!multiSelect && draftStorageFailed && <div className="wc-compose-feedback" role="status">{t('chat.draftLocalOnly')}</div>}
 
       {/* ── 转发弹窗（单条）── */}
       {forwardMsg && (
         <Suspense fallback={null}>
-        <ForwardModal message={forwardMsg} sourceConversationName={conversation.name} onClose={() => setForwardMsg(null)} />
+        <ForwardModal message={forwardMsg} sourceConversationName={conversation.name} onClose={() => {
+          setForwardMsg(null);
+          restoreComposerFocus();
+        }} />
         </Suspense>
       )}
       {/* ── 转发弹窗（多条逐条转发）── */}
       {forwardMsgs && (
         <Suspense fallback={null}>
-        <ForwardModal messages={forwardMsgs} sourceConversationName={conversation.name} onClose={() => setForwardMsgs(null)} />
+        <ForwardModal messages={forwardMsgs} sourceConversationName={conversation.name} onClose={() => {
+          setForwardMsgs(null);
+          restoreComposerFocus();
+        }} />
         </Suspense>
       )}
 
@@ -2961,9 +2984,12 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
       {multiSelect && (
         <MultiSelectBar
           selectedCount={selectedMsgs.size}
+          busy={selectionBusy}
+          phase={batchRecall.phase}
+          error={batchRecall.error}
           onForward={multiForward}
           onDelete={multiDelete}
-          onCancel={exitMultiSelect}
+          onCancel={cancelMultiSelect}
         />
       )}
 
@@ -2974,7 +3000,7 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
         </div>
       ) : (
       /* ── Input area ── */
-      <div className="wc-input-area" ref={inputAreaRef} data-composer-mode={composerMode}>
+      <div className="wc-input-area" ref={inputAreaRef} data-composer-mode={composerMode} style={multiSelect ? { display: 'none' } : undefined}>
         {/* Toolbar */}
         <div className="wc-input-toolbar">
           <button data-tool="emoji"
@@ -2998,7 +3024,7 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
 
           <label data-tool="image" className="wc-tool-btn wc-tool-label" title={t('chat.image')} aria-label={t('chat.sendImage')}>
             <IcoImage />
-            <input type="file" multiple data-testid="chat-attach-image" accept="image/jpeg,image/png,image/gif,image/webp" className="wc-hidden-input" onChange={handleFileUpload} />
+            <input type="file" multiple ref={imageInputRef} data-testid="chat-attach-image" accept="image/jpeg,image/png,image/gif,image/webp" className="wc-hidden-input" onChange={handleFileUpload} />
           </label>
 
           <label data-tool="file" className="wc-tool-btn wc-tool-label" title={t('chat.file')} aria-label={t('chat.sendFile')}>
@@ -3040,8 +3066,9 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
 
         {/* More panel */}
         {showMore && (
-          <div className="wc-more-panel">
+          <div className="wc-more-panel" role="group" aria-label={t('chat.more')}>
             {[
+              { bg:'var(--icon-bg-neutral)', testid:'chat-gallery-btn', svg:<IcoImage tone="onDark" size="md" />, label:t('chat.image'), action:()=>imageInputRef.current?.click() },
               { bg:'var(--icon-bg-neutral)', svg:<TouliaoIcon name="camera" tone="onDark" size="md" />, label:t('chat.camera'), action: async () => {
                 closePanels();
                 // Capacitor 移动端通过 window.__takePhoto__ 调用原生相机
@@ -3056,15 +3083,17 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
                     handleFileUpload({ target: { files: [file] } });
                   } catch { /* clipboard image read failed; ignore */ }
                 } else {
-                  document.querySelector('input[accept*="image"]')?.click();
+                  imageInputRef.current?.click();
                 }
               } },
               { bg:'var(--icon-bg-neutral)', svg:<TouliaoIcon name="file" tone="onDark" size="md" />, label:t('chat.file'), action:()=>fileInputRef.current?.click() },
+              { bg:'var(--icon-bg-neutral)', testid:'chat-stickers-btn', svg:<TouliaoIcon name="stickers" tone="onDark" size="md" />, label:t('chat.stickers'), action:()=>togglePanel('stickers') },
               { bg:'var(--icon-bg-neutral)', svg:<IcoVideo tone="onDark" size="md" />, label:t('chat.videoCall'), testid:'chat-call-video-btn', action:()=>{ closePanels(); startCall('video'); } },
               { bg:'var(--green)', svg:<TouliaoIcon name="voiceCall" tone="onDark" size="md" />, label:t('chat.voiceCall'), testid:'chat-call-audio-btn', action:()=>{ closePanels(); startCall('audio'); } },
               { bg:'var(--icon-bg-neutral)', svg:<IcoContacts tone="onDark" size="md" />, label:t('chat.contactCard'), action: openCardPicker },
               // 定时发送：把输入框当前文本设为定时消息，到点自动发出
               { bg:'var(--color-primary)', testid:'chat-schedule-btn', svg:<TouliaoIcon name="schedule" tone="onDark" size="md" />, label:t('chat.scheduleSend'), action: () => { closePanels(); openScheduleModal(); } },
+              { bg:'var(--color-badge)', testid:'chat-redpacket-btn', svg:<TouliaoIcon name="redPacket" tone="onDark" size="md" />, label:t('chat.sendRedPacket'), action: () => { setShowRedPacket(true); closePanels(); } },
               // 对端账号已注销（管理员删号后，服务端 listConversations 返回 otherUser: null）
               // 时不给通话入口：startCall 用的是 conversation.otherUser?.id 当 remoteId，
               // 点了必然 emit call:request { to: undefined }，被服务端 guardId 拒掉并回
@@ -3083,25 +3112,13 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
         )}
 
         {/* Emoji panel */}
-        {showEmoji && <Suspense fallback={null}><EmojiPicker onSelect={e => { dispatchCompose({ type: 'APPEND_INPUT', text: e }); textareaRef.current?.focus(); }} /></Suspense>}
+        {showEmoji && <Suspense fallback={null}><EmojiPicker onSelect={insertEmoji} /></Suspense>}
         {showStickers && <Suspense fallback={null}><StickerPanel onSend={sendSticker} /></Suspense>}
 
         {/* Text / Voice input — 始终显示 */}
-        {!showMore && (
           <>
             {voiceMode ? (
-              <div className="wc-voice-container">
-                <button
-                  data-testid="chat-voice-btn"
-                  className={`wc-voice-btn${recording ? ' recording' : ''}`}
-                  onMouseDown={() => { if (Date.now() - lastTouchRef.current < 700) return; startRecording(); }}
-                  onMouseUp={() => { if (Date.now() - lastTouchRef.current < 700) return; stopRecording(); }}
-                  onTouchStart={() => { lastTouchRef.current = Date.now(); startRecording(); }}
-                  onTouchEnd={() => { lastTouchRef.current = Date.now(); stopRecording(); }}
-                >
-                  {recording ? t('chat.releaseToSend') : t('chat.holdToTalk')}
-                </button>
-              </div>
+              <VoiceRecordButton capture={voiceCapture} />
             ) : (
               <div className="wc-input-box wc-input-box-relative">
                 {/* 草稿提示：从草稿恢复时右上角显示 */}
@@ -3133,6 +3150,7 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
                   aria-label={t('chat.inputAriaLabel')}
                   maxLength={30000}   /* 与后端 config.limits.maxMsgLength 一致，避免超长发送后才被静默拒绝 */
                   value={input}
+                  disabled={messageEdit.saving}
                   onChange={e => {
                     const val = e.target.value;
                     dispatchCompose({ type: 'SET_INPUT', value: val });
@@ -3147,12 +3165,7 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
                     } else if (atList) {
                       closeMention();
                     }
-                    // 编辑态复用同一输入框：此时不写草稿，避免编辑文本污染并覆盖真实草稿
-                    if (conversation.id && !editingMsg) {
-                      if (val) localStorage.setItem(`draft_${conversation.id}`, val);
-                      else localStorage.removeItem(`draft_${conversation.id}`);
-                      window.dispatchEvent(new CustomEvent('draft-changed', { detail: { convId: conversation.id, text: val } }));
-                    }
+
                   }}
                   onKeyDown={handleKeyDown}
                   onPaste={handlePaste}
@@ -3174,12 +3187,12 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
                   data-testid="chat-send-btn"
                   className={`wc-send-btn${input.trim() ? ' active' : ''}`}
                   onClick={sendMessage}
-                  disabled={!input.trim()}
-                ><TouliaoIcon name="send" size="sm" />{t('chat.send')}</button>
+                  disabled={!input.trim() || messageEdit.saving}
+                  aria-busy={messageEdit.saving || undefined}
+                ><TouliaoIcon name={editingMsg ? 'selected' : 'send'} size="sm" />{t(editingMsg ? (messageEdit.saving ? 'up.saving' : 'common.save') : 'chat.send')}</button>
               </div>
             )}
           </>
-        )}
       </div>
       )} {/* end mute_all conditional */}
 
@@ -3220,7 +3233,7 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
           {/* 编辑：仅限自己的文字消息，不限时间 */}
           {ctxMenu.msg.sender_id === user.id &&
            ctxMenu.msg.type === 'text' &&
-           !ctxMenu.msg.deleted && (
+           !ctxMenu.msg.deleted && !ctxMenu.msg._tempId && (
             <div className="wc-ctx-item" role="menuitem" tabIndex={0} data-testid="ctx-edit" onClick={() => ctxAction('edit')} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); ctxAction('edit'); } }}><TouliaoIcon name="edit" size="sm" />{t('chat.edit')}</div>
           )}
           {/* 下载视频/文件：视频和文件消息显示下载按钮 */}
@@ -3264,7 +3277,7 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
         <RedPacketModal
           conversation={conversation}
           onClose={() => setShowRedPacket(false)}
-          onSent={() => { dispatchCompose({ type: 'SET_INPUT', value: '' }); }}
+          onSent={() => {}}
         />
         </Suspense>
       )}
@@ -3280,11 +3293,12 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
       {readStatus && (
         <Suspense fallback={null}>
           <ReadStatusModal
+            key={readStatus.message.id}
             state={readStatus}
             conversation={conversation}
             members={members}
             currentUserId={user.id}
-            onClose={() => setReadStatus(null)}
+            onClose={() => { closeReadStatus(); restoreComposerFocus(); }}
             onRetry={loadReadStatus}
           />
         </Suspense>
@@ -3296,11 +3310,12 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
         <ScheduleSendModal
           convId={conversation.id}
           defaultContent={input}
-          onClose={() => setShowScheduleSend(false)}
-          onScheduled={(_content) => {
+          onClose={() => { setShowScheduleSend(false); restoreComposerFocus(); }}
+          onScheduled={(content) => {
             showToast(t('chat.scheduleSetSuccess'), 'success');
-            dispatchCompose({ type: 'SET_INPUT', value: '' });
+            dispatchCompose({ type: 'CONSUMED_DRAFT', content });
             setShowScheduleSend(false);
+            restoreComposerFocus();
           }}
         />
         </Suspense>

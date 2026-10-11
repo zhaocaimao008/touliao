@@ -1,3 +1,5 @@
+import AuthBrand from '../components/AuthBrand';
+import AuthDownloads from '../components/AuthDownloads';
 import TouliaoField from '../ui-kit/Field';
 import { PrimaryButton } from '../ui-kit/Button';
 import TouliaoIcon from '../ui-kit/Icon';
@@ -157,17 +159,7 @@ export default function Login() {
       <div className="auth-bg-circle auth-bg-circle-3" />
 
       <div className="auth-container">
-        {/* Logo区域 */}
-        <div className="auth-brand">
-          <div className="auth-brand-icon" style={{background:'none',boxShadow:'none',padding:0,overflow:'hidden'}}>
-            <picture>
-              <source srcSet={`${import.meta.env.BASE_URL}icon.webp`} type="image/webp" />
-              <img src={`${import.meta.env.BASE_URL}icon.png`} alt={t('common.appName')} width="68" height="68" style={{borderRadius:'var(--radius-2xl)',display:'block',objectFit:'cover'}} />
-            </picture>
-          </div>
-          <h1 className="auth-brand-name auth-brand-name--brand">{t('common.appName')}</h1>
-          <p className="auth-brand-desc">{t('auth.slogan')}</p>
-        </div>
+        <AuthBrand home title={t('common.appName')} description={t('auth.slogan')} />
 
         {/* 最近登录：点击仅回填手机号。 */}
         {accounts.length > 0 && (
@@ -277,26 +269,7 @@ export default function Login() {
           {t('auth.noAccountYet')}<Link to="/register" className="auth-link">{t('auth.registerNew')}</Link>
         </p>
 
-        {/* 下载客户端 — 仅网页端显示 */}
-        {!isElectron && (
-          <div className="auth-download">
-            <p className="auth-download-label">{t('auth.downloadClient')}</p>
-            <div className="auth-download-row">
-              <a href="/downloads/touliao-windows-latest-setup.exe" download className="auth-download-btn">
-                <svg viewBox="0 0 24 24" width="15" height="15" fill="currentColor">
-                  <path d="M3 5.48l7.2-.98v6.96H3V5.48zm0 13.04l7.2.98v-6.86H3v5.88zm8.04 1.09L21 21V12.6h-9.96v6.0zM11.04 3L21 3.6V11.4h-9.96V3z"/>
-                </svg>
-                {t('auth.windowsVersion')}
-              </a>
-              <a href="/downloads/touliao-android-latest.apk" download className="auth-download-btn">
-                <svg viewBox="0 0 24 24" width="15" height="15" fill="currentColor">
-                  <path d="M17.6 9.48l1.84-3.18a.39.39 0 00-.14-.53.39.39 0 00-.53.14l-1.86 3.22a11.46 11.46 0 00-9.82 0L5.23 5.91a.39.39 0 00-.53-.14.39.39 0 00-.14.53L6.4 9.48A10.78 10.78 0 001 18h22a10.78 10.78 0 00-5.4-8.52zM7 15.25a1.25 1.25 0 110-2.5 1.25 1.25 0 010 2.5zm10 0a1.25 1.25 0 110-2.5 1.25 1.25 0 010 2.5z"/>
-                </svg>
-                {t('auth.androidVersion')}
-              </a>
-            </div>
-          </div>
-        )}
+        {!isElectron && <AuthDownloads />}
 
         {/* 服务器切换 — 登录前即可用：网页端和桌面端都能填企业代码；
             手动填完整地址目前仍只对桌面端开放（网页端正常都是同域相对路径，不需要）。 */}
@@ -335,7 +308,7 @@ export default function Login() {
                   {tenantResult.msg}
                 </div>
               )}
-              <div className="auth-server-hint">{t('profile.tenantCodeHint')}</div>
+              <div className="auth-server-hint">{t(isElectron ? 'profile.tenantCodeHint' : 'auth.tenantCodeWebHint')}</div>
 
               {isElectron && (
                 <>

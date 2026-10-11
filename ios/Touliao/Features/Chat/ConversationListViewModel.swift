@@ -3,7 +3,9 @@ import Combine
 
 @MainActor
 final class ConversationListViewModel: ObservableObject {
-    @Published var conversations: [Conversation] = ConversationCache.load()
+    @Published var conversations: [Conversation] = ConversationCache.load() {
+        didSet { PushManager.shared.updateBadge(tabUnreadTotal, recipientId: myId) }
+    }
     @Published var drafts: [String: String] = [:]   // convId → 未发送草稿(用于「[草稿]」前缀)
     @Published var loading = false
     @Published var error: String?
@@ -192,6 +194,7 @@ final class ConversationListViewModel: ObservableObject {
     }
 
     private func clearUnread(_ conversationId: String) {
+        PushManager.shared.clearConversationNotifications(conversationId, recipientId: myId)
         guard let idx = conversations.firstIndex(where: { $0.id == conversationId }),
               conversations[idx].unreadCount != 0 else { return }
         conversations[idx].unreadCount = 0

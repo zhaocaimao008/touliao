@@ -13,6 +13,7 @@ const broadcaster = require('../../realtime/broadcaster');
 const { runFinancialOperation } = require('./financialIdempotency');
 const { appendConversationEventTx, emitSyncAvailable } = require('../messages/sync.service');
 const moderation = require('../moderation/moderation.service');
+const { schedulePushNewMessage } = require('../messages/messagePush');
 
 const strictInteger = require('../../utils/strictInteger');
 const { pagination } = require('../../utils/pagination');
@@ -130,6 +131,10 @@ async function transfer(senderId, { to_user_id, amount, note }, io = null, idemp
   if (!outcome.replayed) {
     broadcaster.broadcastMessage(conv.id, outcome.result.message);
     emitSyncAvailable(io, conv.id, serverSequence);
+    // 2026-10-11：转账此前只广播不推送，收款人在后台收不到通知。幂等回放(replayed)不推，避免重复通知。
+    // 正文由 pushI18n 按收件人语言给 transfer 占位符（不含金额，防锁屏泄露）；这里的 content
+    // 只是兜底，避免把 {"amount","note","refId"} JSON 原样推出去。
+    schedulePushNewMessage(outcome.result.message, '[转账]');
   }
   return outcome.result;
 }

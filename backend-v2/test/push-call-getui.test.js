@@ -27,6 +27,33 @@ const https = require('https');
 
 // 捕获个推 HTTP 请求体（/auth + /push/single/cid）
 const getuiRequests = [];
+let mockExpiredAuthOnce = false;
+
+test('expired provider auth refreshes once without changing the message identity', async () => {
+  getuiRequests.length = 0;
+  mockExpiredAuthOnce = true;
+  await require('../src/utils/getuiPush').pushToCid('fixture-cid', { title:'Fixture',body:'Fixture',payload:{messageId:'retry-message',recipientId:'fixture',conversationId:'chat'} });
+  const pushes=getuiRequests.filter(r=>r.url.includes('/push/single/cid'));
+  expect(pushes).toHaveLength(2);
+  expect(pushes[0].body.request_id).toBe(pushes[1].body.request_id);
+  expect(getuiRequests.some(r=>r.url.endsWith('/auth'))).toBe(true);
+});
+
+test('message payload carries silent preferences and stable per-conversation identity', async () => {
+  getuiRequests.length = 0;
+  const { pushToCid } = require('../src/utils/getuiPush');
+  const { notificationId } = require('../src/utils/notificationPresentation');
+  const payload = { recipientId:'fixture-recipient', conversationId:'fixture-chat', messageId:'fixture-message', sound:false, vibrate:false, detailPreview:false, conversationUnreadCount:7 };
+  await pushToCid('fixture-cid', {title:'New message',body:'You have a new message',payload});
+  await pushToCid('fixture-cid', {title:'New message',body:'You have a new message',payload});
+  const requests = getuiRequests.filter(r => r.url.includes('/push/single/cid')).map(r => r.body);
+  expect(requests).toHaveLength(2);
+  expect(requests[0].request_id).toBe(requests[1].request_id);
+  expect(requests[0].request_id).toHaveLength(32);
+  expect(JSON.parse(requests[0].push_message.transmission)).toMatchObject(payload);
+  expect(requests[0].push_channel.android.ups.notification.notify_id).toBe(notificationId(payload.recipientId,payload.conversationId));
+  expect(requests[0].push_channel.android.ups.options.HW['/message/android/notification/channel_id']).toBe('touliao_messages_s0_v0');
+});
 jest.mock('https', () => {
   const { Readable } = require('stream');
   const real = jest.requireActual('https');
@@ -35,7 +62,9 @@ jest.mock('https', () => {
     request: (url, options, cb) => {
       const fakeRes = new Readable({ read() {} });
       fakeRes.statusCode = 200;
-      const body = JSON.stringify({ code: 0, data: { token: 'gt-token' } });
+      const expires = mockExpiredAuthOnce && String(url).includes('/push/single/cid');
+      if (expires) mockExpiredAuthOnce = false;
+      const body = JSON.stringify(expires ? { code:10001, msg:'token invalid' } : { code: 0, data: { token: 'gt-token' } });
       process.nextTick(() => {
         fakeRes.push(Buffer.from(body));
         fakeRes.push(null);

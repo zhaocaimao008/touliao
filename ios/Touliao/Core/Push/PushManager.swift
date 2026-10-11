@@ -75,4 +75,26 @@ final class PushManager {
         UNUserNotificationCenter.current().removeAllPendingNotificationRequests()
         _ = PendingConversation.shared.take()
     }
+
+    func clearConversationNotifications(_ conversationId: String, recipientId: String) {
+        let owner = KeychainStore.shared.snapshot()
+        let readAt = Date()
+        guard PushRecipient.matches(recipientId, currentUserId: AccountStore.shared.activeId(), loggedIn: KeychainStore.shared.isLoggedIn) else { return }
+        let center = UNUserNotificationCenter.current()
+        center.getDeliveredNotifications { notifications in
+            KeychainStore.shared.withCurrent(owner) {
+                let identifiers = notifications.filter {
+                    $0.date <= readAt && PushRecipient.belongsToConversation($0.request.content.userInfo, recipientId: recipientId, conversationId: conversationId)
+                }.map { $0.request.identifier }
+                center.removeDeliveredNotifications(withIdentifiers: identifiers)
+            }
+        }
+    }
+
+    @MainActor
+    func updateBadge(_ count: Int, recipientId: String) {
+        guard PushRecipient.matches(recipientId, currentUserId: AccountStore.shared.activeId(), loggedIn: KeychainStore.shared.isLoggedIn) else { return }
+        // Synchronous on MainActor: an older async badge request cannot overwrite a newer read.
+        UIApplication.shared.applicationIconBadgeNumber = min(99, max(0, count))
+    }
 }

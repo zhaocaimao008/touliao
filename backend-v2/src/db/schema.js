@@ -751,54 +751,115 @@ function applySchema(db) {
 }
 
 // ── FTS5 trigram 全文索引 + 同步触发器 ───────────────────────────
+// 2026-10-11：FTS 行的 rowid 与 messages.rowid 对齐，触发器改为按 rowid 删除。
+//   旧布局里 FTS 行 rowid 由 FTS5 自增分配，触发器只能 `DELETE ... WHERE message_id = OLD.id`；
+//   而 message_id 是 UNINDEXED 列，FTS5 只有 MATCH 与 rowid 能走索引，其余等值过滤一律全表
+//   扫描（EXPLAIN: SCAN messages_fts VIRTUAL TABLE INDEX 0:）。撤回/编辑/焚毁每条一次全扫，
+//   clearConversation 一条 UPDATE 命中 N 行就是 N 次全扫（N × FTS 总行数），且都在主线程
+//   .immediate() 事务里：5 万行 FTS 清空 1000 条实测 4~8 s，事件循环和写锁一起被卡住。
+//   对齐后 `WHERE rowid = OLD.rowid` 是 rowid 点查（INDEX 0:=），同场景约 10 ms。
+//   message_id / conversation_id 两列原样保留：所有读路径（JOIN m.id = fts.message_id、
+//   fts.conversation_id 过滤）一行不用改；继续按 message_id 连接还保证万一有残留 FTS 行、
+//   其 rowid 又被新消息复用时，不会把旧正文错配到新消息上。
+//   ⚠ messages 是隐式 rowid 表（id TEXT PRIMARY KEY），VACUUM 可能重排其 rowid（cleared_rowid
+//   水位线同样依赖 rowid 稳定，不要对生产库跑 VACUUM）。万一发生，下方启动抽查会发现错位并自动重建。
+const FTS_TABLE_SQL = `
+  CREATE VIRTUAL TABLE IF NOT EXISTS messages_fts USING fts5(
+    message_id      UNINDEXED,
+    conversation_id UNINDEXED,
+    content,
+    tokenize        = 'trigram'
+  )`;
+
+// 以 messages 为唯一事实来源回填（过滤条件与旧版「空表回填」、insert 触发器一致），显式写 rowid。
+const FTS_BACKFILL_SQL = `
+  INSERT INTO messages_fts (rowid, message_id, conversation_id, content)
+  SELECT rowid, id, conversation_id, content
+  FROM   messages
+  WHERE  type = 'text' AND deleted = 0
+  ORDER  BY rowid`;
+
+// 触发器每次启动 DROP + CREATE，条件改动对存量库立即生效。
+//   insert 用 INSERT OR REPLACE：rowid 现在是「一条消息一行」的键，若该 rowid 上已有残留行
+//   （如补录工具 ftsSearch.indexMessage 不带 rowid 插入、被 FTS5 自增分到了 max+1；或硬删消息后
+//   rowid 被复用），普通 INSERT 会报 constraint failed 并连带让消息本身的 INSERT 失败——
+//   发消息失败远比替换掉一行陈旧索引严重。（所有 messages 写入都是普通 INSERT，外层不会覆盖此冲突策略）
+//   delete 收紧为 OLD.deleted=0 AND OLD.type='text'：只有这类行才可能有 FTS 行（insert/edit/回填
+//   都只收 type='text' AND deleted=0），图片/文件/系统消息与重复撤回直接跳过。
+const FTS_TRIGGERS_SQL = `
+  DROP TRIGGER IF EXISTS fts_messages_insert;
+  DROP TRIGGER IF EXISTS fts_messages_delete;
+  DROP TRIGGER IF EXISTS fts_messages_edit;
+
+  CREATE TRIGGER fts_messages_insert
+  AFTER INSERT ON messages WHEN NEW.type='text' AND NEW.deleted=0
+  BEGIN
+    INSERT OR REPLACE INTO messages_fts(rowid, message_id, conversation_id, content)
+    VALUES (NEW.rowid, NEW.id, NEW.conversation_id, NEW.content);
+  END;
+
+  CREATE TRIGGER fts_messages_delete
+  AFTER UPDATE OF deleted ON messages WHEN OLD.deleted=0 AND NEW.deleted != 0 AND OLD.type='text'
+  BEGIN
+    DELETE FROM messages_fts WHERE rowid = OLD.rowid;
+  END;
+
+  CREATE TRIGGER fts_messages_edit
+  AFTER UPDATE OF content ON messages WHEN NEW.type='text' AND NEW.deleted=0
+  BEGIN
+    DELETE FROM messages_fts WHERE rowid = OLD.rowid;
+    INSERT INTO messages_fts(rowid, message_id, conversation_id, content)
+    VALUES (NEW.rowid, NEW.id, NEW.conversation_id, NEW.content);
+  END;
+`;
+
+// 判定 messages_fts 是否需要按 rowid 对齐布局（重）建；返回原因，无需重建返回 null。
+//   'empty' ：FTS 为空——保留原「空表即从 messages 回填」行为（新库 / 被清空过），不必 DROP；
+//   'legacy'：insert 触发器不是 rowid 版本——旧布局（FTS rowid 自增，与 messages.rowid 无关），
+//             或曾回滚到旧代码跑过一段（期间旧触发器写入的行又是自增 rowid）。
+//             以触发器定义而非 schema_migrations 序号作标记，正是为了「回滚→再升级」时能再次重建；
+//             也不占用 migrations 数组的 idx，不引入序号漂移风险。
+//   'drift' ：抽查 rowid 最大的 64 行，message_id 与同 rowid 的 messages.id 不一致（VACUUM 重排、
+//             不带 rowid 的补录行、硬删后残留）——自愈重建。FTS5 按 rowid 倒序扫 64 行 + messages
+//             rowid 点查，启动开销恒定，与库大小无关。
+function ftsRebuildReason(db) {
+  if (!db.prepare('SELECT 1 FROM messages_fts LIMIT 1').get()) return 'empty';
+  const trigger = db.prepare("SELECT sql FROM sqlite_master WHERE type='trigger' AND name='fts_messages_insert'").get();
+  if (!trigger || !/NEW\.rowid/i.test(trigger.sql)) return 'legacy';
+  const drift = db.prepare(`
+    SELECT 1
+    FROM (SELECT rowid AS rid, message_id FROM messages_fts ORDER BY rowid DESC LIMIT 64) f
+    LEFT JOIN messages m ON m.rowid = f.rid
+    WHERE m.id IS NOT f.message_id
+    LIMIT 1`).get();
+  return drift ? 'drift' : null;
+}
+
 function applyFts(db) {
   try {
-    db.prepare(`
-      CREATE VIRTUAL TABLE IF NOT EXISTS messages_fts USING fts5(
-        message_id      UNINDEXED,
-        conversation_id UNINDEXED,
-        content,
-        tokenize        = 'trigram'
-      )
-    `).run();
-
-    const ftsEmpty = db.prepare('SELECT COUNT(*) AS n FROM messages_fts').get().n === 0;
-    if (ftsEmpty) {
-      db.prepare(`
-        INSERT INTO messages_fts (message_id, conversation_id, content)
-        SELECT id, conversation_id, content
-        FROM   messages
-        WHERE  type = 'text' AND deleted = 0
-      `).run();
-    }
-
-    // Drop and recreate triggers so condition changes take effect on existing DBs
-    db.exec(`
-      DROP TRIGGER IF EXISTS fts_messages_insert;
-      DROP TRIGGER IF EXISTS fts_messages_delete;
-      DROP TRIGGER IF EXISTS fts_messages_edit;
-
-      CREATE TRIGGER fts_messages_insert
-      AFTER INSERT ON messages WHEN NEW.type='text' AND NEW.deleted=0
-      BEGIN
-        INSERT INTO messages_fts(message_id, conversation_id, content)
-        VALUES (NEW.id, NEW.conversation_id, NEW.content);
-      END;
-
-      CREATE TRIGGER fts_messages_delete
-      AFTER UPDATE OF deleted ON messages WHEN NEW.deleted != 0
-      BEGIN
-        DELETE FROM messages_fts WHERE message_id = OLD.id;
-      END;
-
-      CREATE TRIGGER fts_messages_edit
-      AFTER UPDATE OF content ON messages WHEN NEW.type='text' AND NEW.deleted=0
-      BEGIN
-        DELETE FROM messages_fts WHERE message_id = OLD.id;
-        INSERT INTO messages_fts(message_id, conversation_id, content)
-        VALUES (NEW.id, NEW.conversation_id, NEW.content);
-      END;
-    `);
+    // 建表、判定、重建、换触发器在同一个 IMMEDIATE 事务里：任一步失败整体回滚，库保持原布局 +
+    // 原触发器（搜索照常可用，只是删除仍是旧的全扫代价），不会出现「表已按 rowid 重建但触发器
+    // 仍按 message_id 删」或反之的半成品。启动期同步执行，早于 readDb 打开与 writer worker
+    // 首次写入；IMMEDIATE 先拿写锁，避免与仍在退出的旧进程交错写入。
+    db.transaction(() => {
+      db.prepare(FTS_TABLE_SQL).run();
+      const reason = ftsRebuildReason(db);
+      if (reason) {
+        const startedAt = Date.now();
+        if (reason !== 'empty') {
+          // 整表重建：DROP + CREATE 远快于逐行 DELETE（FTS5 普通表删一行要重新分词）。
+          // 回填源是 messages 本身，现有可搜索内容（type='text' AND deleted=0）原样保留。
+          db.exec('DROP TABLE messages_fts');
+          db.prepare(FTS_TABLE_SQL).run();
+        }
+        const rows = db.prepare(FTS_BACKFILL_SQL).run().changes;
+        if (reason !== 'empty') {
+          const msg = `[db] messages_fts 已按 messages.rowid 重建（${reason}）：${rows} 行，${Date.now() - startedAt} ms`;
+          if (reason === 'drift') console.warn(msg); else console.log(msg);
+        }
+      }
+      db.exec(FTS_TRIGGERS_SQL);
+    }).immediate();
   } catch (e) {
     console.warn('[db] FTS5 setup skipped:', e.message);
   }

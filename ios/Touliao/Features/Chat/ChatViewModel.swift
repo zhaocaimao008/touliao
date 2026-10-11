@@ -990,7 +990,6 @@ final class ChatViewModel: ObservableObject {
             }
             reachedStart = list.count < 50
             markReadLatest()   // 打开会话即标记已读
-            try? await UNUserNotificationCenter.current().setBadgeCount(0)   // 打开会话即清零角标，避免残留
             guard currentAttempt(credential) else { return }
             healFailedMessages(announce: announceHeal)   // 连线且有失败气泡 → 进会话/重连自动重发
         } catch { if currentAttempt(credential) { self.error = (error as? LocalizedError)?.errorDescription ?? "加载消息失败" } }

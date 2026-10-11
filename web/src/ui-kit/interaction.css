@@ -1,0 +1,34 @@
+/* Direct touch tracking and restrained feedback for the most-used controls. */
+html.touliao-ui body :is(.wc-tool-btn, .wc-voice-toggle-btn, .wc-more-btn, .wc-send-btn, .m-topbar-back, .wc-sidebar-btn) {
+  -webkit-tap-highlight-color: transparent;
+  transition: background var(--tl-duration-fast), color var(--tl-duration-fast),
+    box-shadow var(--tl-duration-fast), transform var(--tl-duration-fast) var(--tl-easing-standard);
+}
+html.touliao-ui body :is(.wc-tool-btn, .wc-voice-toggle-btn, .wc-more-btn, .m-topbar-back, .wc-sidebar-btn):not(:disabled):active {
+  transform: scale(.94);
+  background: var(--tl-primary-soft);
+}
+html.touliao-ui body .wc-input-area {
+  transition: border-color var(--tl-duration-fast), box-shadow var(--tl-duration-fast);
+}
+html.touliao-ui body:is(body, [data-skin]) .wc-input-area:focus-within {
+  border-color: color-mix(in srgb, var(--tl-focus) 35%, var(--tl-border));
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--tl-focus) 8%, transparent), var(--tl-shadow-card);
+}
+html.touliao-ui body .tl-message-menu {
+  scrollbar-width: thin;
+  scrollbar-color: var(--tl-border-strong) transparent;
+  scroll-padding-block: 4px;
+}
+html.touliao-ui body .tl-message-menu .wc-ctx-item {
+  flex-shrink: 0;
+  min-height: max(44px, var(--tl-control-height));
+  line-height: 1.4;
+  transition: background var(--tl-duration-fast), color var(--tl-duration-fast);
+}
+html.touliao-ui body .tl-message-menu .wc-ctx-item:active { background: var(--tl-primary-soft); }
+html.touliao-ui body .tl-message-menu .wc-ctx-item.danger:active { background: var(--tl-danger-soft); }
+html.touliao-ui body .tl-message-menu .wc-ctx-item:focus:not(:focus-visible) { outline: none; }
+@media (prefers-reduced-motion: reduce) {
+  html.touliao-ui body :is(.wc-tool-btn, .wc-voice-toggle-btn, .wc-more-btn, .wc-send-btn, .m-topbar-back, .wc-sidebar-btn):active { transform: none; }
+}

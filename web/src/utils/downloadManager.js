@@ -60,6 +60,45 @@ function anchorDownload(href, name) {
   document.body.appendChild(a); a.click(); a.remove();
 }
 
+function checkCancelled(signal) {
+  if (signal.aborted) throw new DOMException('Download cancelled', 'AbortError');
+}
+
+function failAttempt(id, error, signal) {
+  const cancelled = signal.aborted || error?.name === 'AbortError';
+  setState(id, { status: cancelled ? 'cancelled' : 'failed', error: cancelled ? null : error?.message || '下载失败' });
+}
+
+function responseSize(response) {
+  const size = Number(response.headers.get('Content-Length'));
+  return Number.isFinite(size) && size > 0 ? size : 0;
+}
+
+async function checkResponse(response, signal) {
+  if (response.ok && !signal.aborted) return;
+  try { await response.body?.cancel(); } catch { /* Already aborted. */ }
+  checkCancelled(signal);
+  throw new Error('HTTP ' + response.status);
+}
+
+function reportBytes(id, received, total) {
+  setState(id, { downloadedBytes: received, totalBytes: total, indeterminate: !total,
+    progress: total ? Math.min(99, Math.round(received / total * 100)) : undefined });
+}
+
+async function releaseReader(reader, finished) {
+  if (!reader) return;
+  if (!finished) { try { await reader.cancel(); } catch { /* Already closed or aborted. */ } }
+  reader.releaseLock();
+}
+
+function handToBrowser(id, url, name, signal) {
+  checkCancelled(signal);
+  anchorDownload(url, name);
+  // The browser does not expose whether the user actually saved the file.
+  setState(id, { status: 'completed', progress: 100, browserManaged: true });
+}
+
 async function runNext() {
   if (activeCount >= MAX_CONCURRENT || queue.length === 0) return;
   const id = queue.shift();
@@ -77,14 +116,15 @@ async function runNext() {
 async function execute(id) {
   const t = tasks.get(id);
   if (!t) return;
-  setState(id, { status: 'downloading', progress: 0, downloadedBytes: 0 });
+  const signal = t.abortController.signal;
+  setState(id, { status: 'downloading', progress: 0, downloadedBytes: 0, totalBytes: 0, indeterminate: false, browserManaged: false });
 
   let url;
   try {
     url = t.url = await resolveMediaUrl(t.fileUrl);
-    if (t.abortController.signal.aborted) { setState(id, { status: 'cancelled' }); return; }
+    checkCancelled(signal);
   } catch (e) {
-    setState(id, { status: t.abortController.signal.aborted ? 'cancelled' : 'failed', error: e.message });
+    failAttempt(id, e, signal);
     return;
   }
   const name = t.filename;
@@ -119,9 +159,10 @@ async function execute(id) {
   // 原生 App 兜底（当前未随出货客户端启用，出货Android/iOS走各自原生DownloadManager/PHPhotoLibrary）
   if (isNativeApp()) {
     try {
-      const resp = await fetch(url, { credentials: 'include' });
-      if (!resp.ok) throw new Error('HTTP ' + resp.status);
+      const resp = await fetch(url, { credentials: 'include', signal });
+      await checkResponse(resp, signal);
       const blob = await resp.blob();
+      checkCancelled(signal);
       const reader = new FileReader();
       const base64 = await new Promise((resolve, reject) => {
         reader.onload = () => resolve(String(reader.result).split(',')[1] || '');
@@ -129,87 +170,112 @@ async function execute(id) {
         reader.readAsDataURL(blob);
       });
       const { Filesystem, Directory } = await import('@capacitor/filesystem');
+      checkCancelled(signal);
       await Filesystem.writeFile({ path: name, data: base64, directory: Directory.Documents, recursive: true });
       setState(id, { status: 'completed', progress: 100 });
     } catch (e) {
-      setState(id, { status: 'failed', error: e?.message || '下载失败' });
+      failAttempt(id, e, signal);
     }
     return;
   }
 
   // Web：优先 File System Access API 流式直写磁盘（真实进度、任意大小不占内存）
   if (typeof window.showSaveFilePicker === 'function') {
+    let handle;
     try {
-      await streamToDisk(id, url, name);
-      return;
+      handle = await window.showSaveFilePicker({ suggestedName: name });
+      checkCancelled(signal);
     } catch (e) {
-      if (e?.name === 'AbortError') { setState(id, { status: 'cancelled' }); return; }
-      // 用户拒绝了保存对话框，或该次调用失败：退回到下面的兜底路径，不直接判失败
-      console.warn('[download] File System Access 保存失败，退回兜底方案:', e?.message);
+      // Fall back only if the picker API cannot be used in this context.
+      // Dismissal, denied destinations and disk errors must not start another download.
+      if (signal.aborted || !['SecurityError', 'NotSupportedError'].includes(e?.name)) {
+        failAttempt(id, e, signal);
+        return;
+      }
+    }
+    if (handle) {
+      try { await streamToDisk(id, url, handle, signal); }
+      catch (e) { failAttempt(id, e, signal); }
+      return;
     }
   }
 
   // 兜底：fetch 累积 + 边读边报进度；超过内存软上限则退化为原生 <a download> 直接导航
+  let reader, finished = false;
   try {
-    const resp = await fetch(url, { credentials: 'include', signal: t.abortController.signal });
-    if (!resp.ok) throw new Error('HTTP ' + resp.status);
-    const total = Number(resp.headers.get('Content-Length')) || 0;
+    checkCancelled(signal);
+    const resp = await fetch(url, { credentials: 'include', signal });
+    await checkResponse(resp, signal);
+    const total = responseSize(resp);
+    reportBytes(id, 0, total);
     if (total > SOFT_MEMORY_LIMIT || !resp.body) {
       // 大文件且没有磁盘直写能力：交回浏览器自己流式下载，不经过JS内存，只是没有进度条
-      anchorDownload(url, name);
-      setState(id, { status: 'completed', progress: 100, indeterminate: true });
+      try { await resp.body?.cancel(); } catch { /* Request already aborted. */ }
+      handToBrowser(id, url, name, signal);
       return;
     }
-    const reader = resp.body.getReader();
+    reader = resp.body.getReader();
     const chunks = [];
     let received = 0;
     for (;;) {
+      checkCancelled(signal);
       const { done, value } = await reader.read();
-      if (done) break;
+      checkCancelled(signal);
+      if (done) { finished = true; break; }
+      received += value.byteLength;
+      // Content-Length may be missing or inaccurate. Bound actual buffered data too.
+      if (received > SOFT_MEMORY_LIMIT) {
+        chunks.length = 0;
+        await releaseReader(reader, false); reader = null;
+        handToBrowser(id, url, name, signal);
+        return;
+      }
       chunks.push(value);
-      received += value.length;
-      setState(id, {
-        downloadedBytes: received,
-        progress: total ? Math.round((received / total) * 100) : undefined,
-      });
+      reportBytes(id, received, total);
     }
+    checkCancelled(signal);
     const blob = new Blob(chunks);
     const obj = URL.createObjectURL(blob);
-    anchorDownload(obj, name);
-    setTimeout(() => URL.revokeObjectURL(obj), 15000);
-    setState(id, { status: 'completed', progress: 100 });
+    try { handToBrowser(id, obj, name, signal); }
+    finally { setTimeout(() => URL.revokeObjectURL(obj), 15000); }
   } catch (e) {
-    if (e?.name === 'AbortError') { setState(id, { status: 'cancelled' }); return; }
-    setState(id, { status: 'failed', error: e?.message || '网络错误' });
+    failAttempt(id, e, signal);
+  } finally {
+    await releaseReader(reader, finished);
   }
 }
 
-async function streamToDisk(id, url, name) {
-  const t = tasks.get(id);
-  const handle = await window.showSaveFilePicker({ suggestedName: name });
-  const writable = await handle.createWritable();
+async function streamToDisk(id, url, handle, signal) {
+  let writable, reader, finished = false;
   try {
-    const resp = await fetch(url, { credentials: 'include', signal: t.abortController.signal });
-    if (!resp.ok) throw new Error('HTTP ' + resp.status);
-    const total = Number(resp.headers.get('Content-Length')) || 0;
+    checkCancelled(signal);
+    writable = await handle.createWritable();
+    checkCancelled(signal);
+    const resp = await fetch(url, { credentials: 'include', signal });
+    await checkResponse(resp, signal);
+    const total = responseSize(resp);
+    reportBytes(id, 0, total);
     if (!resp.body) throw new Error('浏览器不支持流式响应');
-    const reader = resp.body.getReader();
+    reader = resp.body.getReader();
     let received = 0;
     for (;;) {
+      checkCancelled(signal);
       const { done, value } = await reader.read();
-      if (done) break;
+      checkCancelled(signal);
+      if (done) { finished = true; break; }
       await writable.write(value);
-      received += value.length;
-      setState(id, {
-        downloadedBytes: received,
-        progress: total ? Math.round((received / total) * 100) : undefined,
-      });
+      checkCancelled(signal);
+      received += value.byteLength;
+      reportBytes(id, received, total);
     }
+    checkCancelled(signal);
     await writable.close();
     setState(id, { status: 'completed', progress: 100 });
   } catch (e) {
-    try { await writable.abort(); } catch { /* 忽略 */ }
+    try { await writable?.abort(); } catch { /* 忽略 */ }
     throw e;
+  } finally {
+    await releaseReader(reader, finished);
   }
 }
 
@@ -226,7 +292,7 @@ export function startDownload({ id, fileUrl, filename, mimeType, autoOpen = fals
   const resolvedName = filename || filenameFromUrl(resolvedUrl);
   tasks.set(taskId, {
     id: taskId, fileUrl, url: resolvedUrl, filename: resolvedName, mimeType: mimeType || '', autoOpen: !!autoOpen,
-    status: 'pending', progress: 0, downloadedBytes: 0, totalBytes: 0,
+    status: 'pending', progress: 0, downloadedBytes: 0, totalBytes: 0, indeterminate: false, browserManaged: false,
     error: null, abortController: new AbortController(),
   });
   emit(taskId);
@@ -259,7 +325,7 @@ export function retryDownload(id) {
   const t = tasks.get(id);
   if (!t || !['failed', 'cancelled'].includes(t.status)) return;
   t.abortController = new AbortController();
-  setState(id, { status: 'pending', progress: 0, downloadedBytes: 0, totalBytes: 0, savePath: null, error: null });
+  setState(id, { status: 'pending', progress: 0, downloadedBytes: 0, totalBytes: 0, indeterminate: false, browserManaged: false, savePath: null, error: null });
   queue.push(id);
   runNext();
 }

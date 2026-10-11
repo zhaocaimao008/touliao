@@ -173,6 +173,7 @@ module.exports = function registerFileHandler(io, socket) {
           io.to(`user_${userId}`).emit('message_delivered', { messageId: id, conversationId, deliveredCount: onlineRecipients.length });
         }
         pushNewMessage({
+          messageId: id,
           conversationId, senderId: userId, senderName: msg.senderName,
           content: msg.burn_after ? '[阅后即焚消息]' : safeContent || TYPE_FALLBACK[type] || '[文件]', type,
           timestamp: created_at, onlineUserIds: presence.onlineUserIdSet(), members,

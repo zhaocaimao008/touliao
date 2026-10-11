@@ -1,5 +1,5 @@
 import { describe, test, expect } from 'vitest';
-import { validateScheduleTime, datetimeLocalToUnix, defaultScheduleLocal, SCHEDULE_MIN_DELTA, SCHEDULE_MAX_DELTA } from './scheduleSend';
+import { validateScheduleTime, datetimeLocalToUnix, defaultScheduleLocal, scheduleBounds, scheduleTimeError, SCHEDULE_MIN_DELTA, SCHEDULE_MAX_DELTA } from './scheduleSend';
 
 const NOW = 1700000000; // 固定基准秒
 
@@ -54,4 +54,15 @@ describe('defaultScheduleLocal', () => {
     const diff = ms - (now.getTime() + 60 * 60 * 1000);
     expect(Math.abs(diff)).toBeLessThan(5 * 60 * 1000);
   });
+});
+
+test.each(['2025-02-29T10:00','2024-02-31T10:00','2026-13-01T10:00','2026-01-01T25:00','2026-01-01T10:00:30'])('rejects normalized or non-minute date %s',value=>{
+  expect(datetimeLocalToUnix(value)).toBeNull();
+});
+test('minute bounds stay within the backend range without mutating the input date',()=>{
+  const now=new Date('2030-06-01T10:00:59Z').getTime();const bounds=scheduleBounds(now);
+  expect(datetimeLocalToUnix(bounds.min)-Math.floor(now/1000)).toBeGreaterThanOrEqual(SCHEDULE_MIN_DELTA);
+  expect(datetimeLocalToUnix(bounds.max)-Math.floor(now/1000)).toBeLessThanOrEqual(SCHEDULE_MAX_DELTA);
+  expect(scheduleTimeError(bounds.min,Math.floor(now/1000))).toBe('');
+  expect(scheduleTimeError('',Math.floor(now/1000))).toBe('ss.errInvalidTime');
 });

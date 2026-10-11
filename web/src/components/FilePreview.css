@@ -1,0 +1,37 @@
+.tl-file-preview { position: fixed; inset: 0; z-index: var(--z-top); display: flex; flex-direction: column; overflow: hidden; color: #fff; background: #202124; }
+.file-preview-header, .file-preview-footer { display: flex; align-items: center; gap: 12px; flex-shrink: 0; padding: 12px max(12px, env(safe-area-inset-right)) 12px max(12px, env(safe-area-inset-left)); background: rgba(0,0,0,.5); }
+.file-preview-header { padding-top: max(12px, env(safe-area-inset-top)); }
+.file-preview-footer { justify-content: center; flex-wrap: wrap; padding-bottom: max(12px, env(safe-area-inset-bottom)); font-size: 14px; }
+.file-preview-heading { min-width: 0; flex: 1; font-size: 15px; }
+.file-preview-heading > div { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.file-preview-heading small { color: rgba(255,255,255,.72); }
+.tl-file-preview button { display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; min-height: 44px; min-width: 44px; max-width: 100%; padding: 8px 14px; border: 1px solid rgba(255,255,255,.3); border-radius: 12px; background: rgba(255,255,255,.14); color: #fff; font: inherit; font-size: 14px; cursor: pointer; }
+.tl-file-preview button:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
+.tl-file-preview button:disabled { opacity: .45; cursor: default; }
+.file-preview-document { height: 100%; width: 100%; }
+.file-preview-status { position: absolute; inset: 0; overflow: auto; display: flex; flex-direction: column; justify-content: center; align-items: center; gap: 16px; padding: 20px; text-align: center; }
+.file-preview-status p { margin: 0; max-width: 36ch; overflow-wrap: anywhere; line-height: 1.6; }
+.file-preview-spinner { width: 28px; height: 28px; border: 3px solid rgba(255,255,255,.3); border-top-color: #fff; border-radius: 50%; animation: wc-spin 1s linear infinite; }
+.file-download-progress { display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 8px; max-width: 100%; }
+.file-download-progress progress { width: 96px; max-width: 30vw; accent-color: var(--brand-primary); }
+.file-document-scroll { width: 100%; height: 100%; min-height: 0; min-width: 0; overflow: auto; box-sizing: border-box; background: var(--bg-card); color: var(--text-primary); overscroll-behavior: contain; }
+.file-document-text { margin: 0; padding: 20px; font: 14px/1.6 ui-monospace, monospace; white-space: pre-wrap; overflow-wrap: anywhere; }
+.file-document-word { padding: 12px 0; }
+.file-document-word .wc-docx-wrapper { padding: 12px; min-width: max-content; }
+.file-document-workbook, .file-document-pdf { height: 100%; display: flex; flex-direction: column; min-height: 0; }
+.file-sheet-tabs { display: flex; gap: 6px; padding: 8px; overflow-x: auto; flex-shrink: 0; }
+.file-sheet-tabs button { white-space: nowrap; }
+.file-sheet-tabs button[aria-pressed='true'] { background: var(--brand-primary); }
+.wc-xlsx-table-wrap, .file-document-csv, .file-document-slides { padding: 12px; }
+.file-document-csv table { border-collapse: collapse; min-width: 100%; font-size: 14px; }
+.file-document-csv td { padding: 8px; border: 1px solid var(--border-medium); white-space: pre-wrap; }
+.file-document-notice { font-size: 13px; line-height: 1.6; }
+.file-document-slide { border: 1px solid var(--border-medium); border-radius: 12px; margin: 12px 0; padding: 16px; overflow-wrap: anywhere; }
+.file-document-slide h3 { font-size: 13px; color: var(--text-secondary); }
+.file-document-slide p { margin: 8px 0; }
+.file-pdf-pages { background: #525659; flex: 1; padding: 12px; }
+.file-pdf-page { min-height: 400px; margin-bottom: 12px; width: max-content; min-width: 100%; text-align: center; }
+.file-pdf-page canvas { display: block; margin: 0 auto; background: #fff; box-shadow: 0 2px 12px rgba(0,0,0,.18); }
+.file-pdf-zoom { display: flex; justify-content: center; align-items: center; gap: 8px; padding: 6px; flex-shrink: 0; }
+@media (max-height: 500px) { .file-preview-header, .file-preview-footer { padding-top: 4px; padding-bottom: 4px; } .file-pdf-zoom { padding: 2px; } }
+@media (prefers-reduced-motion: reduce) { .file-preview-spinner { animation: none; } }

@@ -119,7 +119,7 @@ async function sendDueMessages(io = null) {
       broadcaster.broadcastMessage(sched.conversation_id,msg);
       emitSyncAvailable(io,sched.conversation_id,sequence);
       const sender=db.prepare('SELECT username FROM users WHERE id=?').get(sched.sender_id);
-      await pushNewMessage({conversationId:sched.conversation_id,senderId:sched.sender_id,senderName:sender?.username||'',
+      await pushNewMessage({messageId:msg.id,conversationId:sched.conversation_id,senderId:sched.sender_id,senderName:sender?.username||'',
         content:msg.burn_after ? '[阅后即焚消息]' : sched.content,type:sched.type,timestamp:msg.created_at,onlineUserIds:new Set()});
     } catch (error) { console.error('[scheduled] committed; notification failed:', id, error.message); }
   }

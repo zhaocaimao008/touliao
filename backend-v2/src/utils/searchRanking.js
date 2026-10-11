@@ -5,7 +5,28 @@
  */
 
 const { redis } = require('./redis');
-const DAY = 86400000; // 1 天毫秒数
+const DAY = 86400000; // 1 天毫秒数（只用于 calcRecencyScore 的时间差计算）
+// 2026-10-11：Redis EXPIRE 的单位是秒。之前直接传 7 * DAY / 30 * DAY（毫秒数），
+// TTL 实际变成约 19 年 / 82 年，用户搜索历史 key 等于永不过期（生产 Redis 无 maxmemory、noeviction）。
+const DAY_S = 86400; // 1 天秒数（只用于 Redis EXPIRE）
+const SCAN_COUNT = 200; // SCAN 每批建议遍历的 key 数
+
+/**
+ * 2026-10-11：用 SCAN 游标分批遍历代替 KEYS。KEYS 是 O(全库 key 数) 的单条阻塞命令，
+ * 且 db5 与其他缓存共用，每次取搜索建议都会把整库扫一遍。SCAN 可能返回重复 key，这里去重。
+ * 测试环境的内存 mock / 无 Redis 时的 no-op 降级对象没有 scan，退回原来的 keys，行为不变。
+ */
+async function scanKeys(pattern) {
+  if (typeof redis.scan !== 'function') return redis.keys(pattern);
+  const found = new Set();
+  let cursor = '0';
+  do {
+    const [next, batch] = await redis.scan(cursor, 'MATCH', pattern, 'COUNT', SCAN_COUNT);
+    for (const key of batch) found.add(key);
+    cursor = String(next);
+  } while (cursor !== '0');
+  return Array.from(found);
+}
 
 class SearchRanking {
   constructor(options = {}) {
@@ -171,7 +192,7 @@ class SearchRanking {
       
       const key = `search:query:${query.toLowerCase()}`;
       await redis.incr(key);
-      await redis.expire(key, 7 * DAY);
+      await redis.expire(key, 7 * DAY_S); // 2026-10-11：EXPIRE 取秒，原来传的是毫秒数
     } catch (err) {
       console.error('[Ranking] 记录搜索失败:', err.message);
     }
@@ -186,7 +207,7 @@ class SearchRanking {
     try {
       // 用户搜索历史
       const userPattern = `user:search:${userId}:*`;
-      const userKeys = await redis.keys(userPattern);
+      const userKeys = await scanKeys(userPattern); // 2026-10-11：SCAN 代替阻塞的 KEYS
       
       const suggestions = [];
       for (const key of userKeys) {
@@ -213,7 +234,7 @@ class SearchRanking {
     try {
       const key = `user:search:${userId}:${query.toLowerCase()}`;
       await redis.incr(key);
-      await redis.expire(key, 30 * DAY);
+      await redis.expire(key, 30 * DAY_S); // 2026-10-11：EXPIRE 取秒，原来传的是毫秒数（≈82 年）
     } catch (err) {
       console.error('[Ranking] 记录用户搜索失败:', err.message);
     }

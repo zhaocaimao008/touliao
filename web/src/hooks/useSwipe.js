@@ -1,4 +1,4 @@
-import { useRef, useState, useCallback } from 'react';
+import { useRef, useState, useCallback, useEffect } from 'react';
 
 /**
  * useSwipe — 水平滑动手势检测（移动端左滑快捷操作）
@@ -9,32 +9,48 @@ import { useRef, useState, useCallback } from 'react';
  * - 返回 { swipeOffset, swipeHandlers, resetSwipe }：
  *   swipeOffset 为当前横向偏移（px，左滑为负），swipeHandlers 绑定到目标元素
  */
-export function useSwipe({ threshold = 30, maxOffset = 160, onSwipeLeft, onSwipeRight, allowRight = true } = {}) {
+export function useSwipe({ threshold = 30, maxOffset = 160, onSwipeLeft, onSwipeRight, allowRight = true, disabled = false } = {}) {
   const [swipeOffset, setSwipeOffset] = useState(0);
+  const [isSwiping, setIsSwiping] = useState(false);
   const startRef = useRef(null);
   const trackingRef = useRef(false);
   const rafRef = useRef(null);
   const pendingOffsetRef = useRef(0);
-  const enabled = typeof window !== 'undefined' && 'ontouchstart' in window;
+  const suppressClickRef = useRef(0);
+  const enabled = !disabled && typeof window !== 'undefined' && 'ontouchstart' in window;
 
   const resetSwipe = useCallback(() => {
-    if (rafRef.current) cancelAnimationFrame(rafRef.current);
+    if (rafRef.current != null) cancelAnimationFrame(rafRef.current);
     rafRef.current = null;
     setSwipeOffset(0);
+    setIsSwiping(false);
     pendingOffsetRef.current = 0;
     trackingRef.current = false;
     startRef.current = null;
   }, []);
 
+  useEffect(() => () => {
+    if (rafRef.current != null) cancelAnimationFrame(rafRef.current);
+  }, []);
+
+  useEffect(() => {
+    // Selection mode ends any active gesture, including its queued animation.
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- Cancel the external touch/animation lifecycle when interaction is disabled.
+    if (disabled) resetSwipe();
+  }, [disabled, resetSwipe]);
+
   const handleTouchStart = useCallback(e => {
     if (!enabled) return;
+    suppressClickRef.current = 0;
+    if (e.touches.length !== 1) { resetSwipe(); return; }
+    if (e.target?.closest?.('input,textarea,select,[contenteditable="true"],[role="slider"],audio,video,[data-swipe-action]')) return;
+    if (rafRef.current != null) cancelAnimationFrame(rafRef.current);
+    rafRef.current = null;
     const t = e.touches[0];
-    startRef.current = { x: t.clientX, y: t.clientY };
-    // 每次按下从零计：否则上次滑开后的偏移会残留，轻点（无 touchmove）时
-    // touchend 读到旧值又把行弹开，点会话进不去聊天。
-    pendingOffsetRef.current = 0;
+    startRef.current = { x: t.clientX, y: t.clientY, origin: swipeOffset, dragging: false, dx: 0 };
+    pendingOffsetRef.current = swipeOffset;
     trackingRef.current = true;
-  }, [enabled]);
+  }, [enabled, resetSwipe, swipeOffset]);
 
   // rAF 节流：touchmove 高频触发，只在下一帧提交一次 setState
   const flushOffset = useCallback(() => {
@@ -44,30 +60,42 @@ export function useSwipe({ threshold = 30, maxOffset = 160, onSwipeLeft, onSwipe
 
   const handleTouchMove = useCallback(e => {
     if (!enabled || !trackingRef.current || !startRef.current) return;
+    if (e.touches.length !== 1) { resetSwipe(); return; }
     const t = e.touches[0];
     const dx = t.clientX - startRef.current.x;
     const dy = t.clientY - startRef.current.y;
-    // 垂直位移主导 → 视为滚动，不拦截
-    if (Math.abs(dy) > Math.abs(dx) * 1.5) {
-      trackingRef.current = false;
+    const start = startRef.current;
+    // Wait through small finger jitter. A diagonal/vertical start belongs to
+    // scrolling and must never turn into a reply/delete gesture later.
+    if ((!start.dragging && Math.abs(dy) > 10 && Math.abs(dx) <= Math.abs(dy) * 1.5) ||
+        Math.abs(dy) > Math.max(10, Math.abs(dx) * 1.5)) {
+      resetSwipe();
       return;
     }
-    // 水平滑动：跟随手指（限制范围），阻止垂直滚动抢夺手势
-    if (Math.abs(dx) > 10) {
-      pendingOffsetRef.current = Math.max(-maxOffset, Math.min(allowRight ? maxOffset : 0, dx));
+    if (!start.dragging && (Math.abs(dx) <= 10 || Math.abs(dx) <= Math.abs(dy) * 1.5)) return;
+    if (!start.dragging) { start.dragging = true; setIsSwiping(true); }
+    start.dx = dx;
+    if (start.dragging) {
+      pendingOffsetRef.current = Math.max(-maxOffset, Math.min(allowRight ? maxOffset : 0, start.origin + dx));
       if (rafRef.current == null) {
         rafRef.current = requestAnimationFrame(flushOffset);
       }
     }
-  }, [enabled, maxOffset, allowRight, flushOffset]);
+  }, [enabled, maxOffset, allowRight, flushOffset, resetSwipe]);
 
   const handleTouchEnd = useCallback(() => {
     if (!enabled || !trackingRef.current) return;
     trackingRef.current = false;
-    if (rafRef.current) cancelAnimationFrame(rafRef.current);
+    setIsSwiping(false);
+    if (rafRef.current != null) cancelAnimationFrame(rafRef.current);
     rafRef.current = null;
     const finalOffset = pendingOffsetRef.current;
-    if (finalOffset <= -threshold) {
+    const start = startRef.current;
+    if (start?.dragging || start?.origin) suppressClickRef.current = Date.now() + 500;
+    const closing = !start?.dragging || (start.origin < 0 && start.dx >= threshold) || (start.origin > 0 && start.dx <= -threshold);
+    if (closing) {
+      setSwipeOffset(0); pendingOffsetRef.current = 0;
+    } else if (finalOffset <= -threshold) {
       // 左滑达阈值：吸附到最大偏移，显示快捷按钮
       setSwipeOffset(-maxOffset);
       onSwipeLeft?.();
@@ -80,14 +108,24 @@ export function useSwipe({ threshold = 30, maxOffset = 160, onSwipeLeft, onSwipe
     startRef.current = null;
   }, [enabled, threshold, maxOffset, onSwipeLeft, onSwipeRight]);
 
+  const handleClickCapture = useCallback(event => {
+    // Consume only the pointer click synthesized by this gesture, not keyboard
+    // activation or a later deliberate tap on the revealed action.
+    if (event.detail !== 0 && Date.now() < suppressClickRef.current) {
+      suppressClickRef.current = 0;
+      event.preventDefault(); event.stopPropagation();
+    }
+  }, []);
+
   const swipeHandlers = enabled
     ? {
         onTouchStart: handleTouchStart,
         onTouchMove: handleTouchMove,
         onTouchEnd: handleTouchEnd,
         onTouchCancel: resetSwipe,
+        onClickCapture: handleClickCapture,
       }
     : {};
 
-  return { swipeOffset, swipeHandlers, resetSwipe, swipeEnabled: enabled };
+  return { swipeOffset, isSwiping, swipeHandlers, resetSwipe, swipeEnabled: enabled };
 }

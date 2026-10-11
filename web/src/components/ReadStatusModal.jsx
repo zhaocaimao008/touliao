@@ -1,5 +1,6 @@
 import TouliaoIcon from '../ui-kit/Icon';
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useId, useMemo, useState } from 'react';
+import { createPortal } from 'react-dom';
 import Avatar from './Avatar';
 import useFocusTrap from '../hooks/useFocusTrap';
 import { useI18n } from '../contexts/I18nContext';
@@ -7,7 +8,8 @@ import { createReadStatusModel } from '../utils/readStatus';
 
 export default function ReadStatusModal({ state, conversation, members, currentUserId, onClose, onRetry }) {
   const { t } = useI18n();
-  const trapRef = useFocusTrap();
+  const trapRef = useFocusTrap(true, { onEscape: onClose, lockScroll: true, initialFocus: '.wc-modal-close' });
+  const titleId = useId();
   const [expanded, setExpanded] = useState(false);
   const model = useMemo(() => createReadStatusModel({
     conversation,
@@ -17,23 +19,15 @@ export default function ReadStatusModal({ state, conversation, members, currentU
     readUserIds: state.readUserIds,
   }), [conversation, members, currentUserId, state.message, state.readUserIds]);
 
-  useEffect(() => {
-    const onKeyDown = (event) => {
-      if (event.key === 'Escape') onClose();
-    };
-    document.addEventListener('keydown', onKeyDown);
-    return () => document.removeEventListener('keydown', onKeyDown);
-  }, [onClose]);
-
   const groupCount = model.type === 'group' && model.recipientCount > 0
     ? t('readStatus.groupCountTemplate').replace('{read}', model.readCount).replace('{total}', model.recipientCount)
     : t('readStatus.groupReadTemplate').replace('{count}', model.readCount || 0);
 
-  return (
+  return createPortal(
     <div className="wc-modal-overlay read-status-overlay" ref={trapRef} onClick={onClose}>
-      <div className="wc-modal read-status-modal" role="dialog" aria-modal="true" aria-labelledby="read-status-title" onClick={event => event.stopPropagation()}>
+      <div className="wc-modal read-status-modal" role="dialog" aria-modal="true" aria-labelledby={titleId} onClick={event => event.stopPropagation()}>
         <div className="wc-modal-header">
-          <h2 id="read-status-title" className="wc-modal-title">{t('readStatus.title')}</h2>
+          <h2 id={titleId} className="wc-modal-title">{t('readStatus.title')}</h2>
           <button type="button" className="wc-modal-close" onClick={onClose} aria-label={t('common.close')}><TouliaoIcon name="close" size="sm" /></button>
         </div>
         <div className="wc-modal-body read-status-body">
@@ -79,6 +73,6 @@ export default function ReadStatusModal({ state, conversation, members, currentU
           )}
         </div>
       </div>
-    </div>
+    </div>, document.body
   );
 }

@@ -287,8 +287,10 @@ describe('P1-07 Socket 连接洪泛保护（SOCKET-004）', () => {
     }
     await tick();
     // 前 30 次为未授权（过 IP 检查），第 31 次被 IP 限流拒绝
-    const ipRejected = results.filter(r => r === '连接过于频繁，请稍后再试');
-    expect(ipRejected.length).toBeGreaterThanOrEqual(1);
+    // 2026-10-11：握手限流前移到 engine.io allowRequest，第 31 次在 HTTP upgrade 层被拒
+    // （transport error，客户端按退避自动重连），不再是命名空间级 CONNECT_ERROR 文案
+    expect(results.slice(0, 30)).not.toContain('websocket error');
+    expect(results[30]).toMatch(/websocket error/);
     realtimeModule._resetIpHandshake();
   });
 

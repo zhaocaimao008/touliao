@@ -1,7 +1,6 @@
 import { EmptyState } from './StateViews';
 import TouliaoIcon from '../ui-kit/Icon';
 import React, { useState, useEffect, useCallback, useRef, useMemo, memo, Suspense } from 'react';
-import axios from 'axios';
 import Avatar from './Avatar';
 
 import UserProfile from './UserProfile';
@@ -10,12 +9,24 @@ import { GroupAvatar } from './GroupAvatar';
 import { useSocketCore } from '../contexts/SocketContext'; // 只订阅 socket，重连不触发无关 re-render
 // 懒加载：AddFriendModal 仅在点「添加朋友」时才渲染，避免打进 ContactList/Home 首屏 chunk
 const AddFriendModal = lazyWithRetry(() => import('./AddFriendModal'));
-import { showToast, showConfirm } from '../utils/toast';
+import { showConfirm } from '../utils/toast';
 import { firstLetter, comparePinyin } from '../utils/pinyin';
 import { formatLastOnline } from '../utils/time';
 import { useI18n } from '../contexts/I18nContext';
 import { IcoBack, IcoCheck, IcoPersonAdd } from './Icons';
 import { lazyWithRetry } from '../utils/lazyWithRetry';
+import { useDirectoryResource } from '../hooks/useDirectoryResource';
+import DirectoryFeedback from './DirectoryFeedback';
+import ConversationOpenFeedback from './ConversationOpenFeedback';
+import { useOpenConversation } from '../hooks/useOpenConversation';
+import { useDirectoryFocus } from '../hooks/useDirectoryFocus';
+import { matchesContact, normalizeContactQuery } from '../utils/contactSearch';
+import { useDirectoryAction } from '../hooks/useDirectoryAction';
+import DirectoryActionFeedback from './DirectoryActionFeedback';
+import { handleFriendRequest, unblockContact, saveFriendLabel, deleteFriendLabel, changeLabelMember } from '../utils/directoryActions';
+import { keepSettingFocus } from '../utils/settingFocus';
+
+const selectAiBots = data => data?.features?.aiAssistants;
 
 function formatRequestTime(timestamp, formatter) {
   const seconds = Number(timestamp);
@@ -32,69 +43,37 @@ function RequestTime({ timestamp, formatter }) {
 }
 
 /* ── 主组件 ── */
-// AI 助手会话对象。
-// ⚠ 现状：AI 助手已下线（后端 .env 的 botId 为空 → /api/config 的 aiAssistants 返回 []），
-//   aiBots 恒为空数组，下面这个入口当前渲染不出来。保留并修正是因为重新配上 botId
-//   就会复活，缺 otherUser 的问题会立刻显形。
-// 必须带 otherUser，字段名与服务端 /api/messages/conversations
-// 返回的私聊会话一致（{ id, username, avatar }）——ChatWindow.startCall 用的是
-// conversation.otherUser?.id 当 remoteId，会话内「刷新对方资料」的 effect 同样依赖它。
-// 缺了它，从这个入口进来的会话点语音/视频通话会 emit call:request { to: undefined }，
-// 被服务端 guardId 拒掉并回 call:error，用户看到的是「通话打不通且报错」。
-// （同一类问题在 Home.handleReplyFromCall 的兜底对象上也出现过，一并修了。
-//  GlobalSearch / UserProfile / CallHistory 三处本来就带，这里是漏网的。）
-function aiBotConv(conversationId, bot) {
-  return {
-    id: conversationId,
-    type: 'private',
-    name: bot.name || bot.username,
-    avatar: bot.avatar || '',
-    otherUser: { id: bot.id, username: bot.name || bot.username, avatar: bot.avatar || '' },
-  };
-}
-
 export default function ContactList({ onStartChat, searchQuery = '', addFriendRequest = 0, onAddFriendConsumed, openFriendRequests = 0, onOpenFriendRequestsConsumed }) {
   const { t, lang } = useI18n();
   const requestTimeFormatter = useMemo(() => new Intl.DateTimeFormat(lang, {
     month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit',
   }), [lang]);
-  const [contacts, setContacts] = useState([]);
-  const [requests, setRequests] = useState([]);
-  const [sentRequests, setSentRequests] = useState([]);
-  const [blockedUsers, setBlockedUsers] = useState([]);
-  const [groups, setGroups] = useState([]);
-  const [labels, setLabels] = useState([]);
+  const contactResource = useDirectoryResource('/api/users/contacts');
+  const requestResource = useDirectoryResource('/api/users/friend-requests');
+  const sentResource = useDirectoryResource('/api/users/friend-requests/sent');
+  const blockedResource = useDirectoryResource('/api/users/me/blocked');
+  const groupResource = useDirectoryResource('/api/messages/my-groups');
+  const labelResource = useDirectoryResource('/api/friend-labels');
+  const aiResource = useDirectoryResource('/api/config', selectAiBots);
+  const { data: contacts, setData: setContacts, reload: fetchContacts } = contactResource;
+  const { data: requests, commitData: setRequests, reload: fetchRequests } = requestResource;
+  const { data: sentRequests, reload: fetchSent } = sentResource;
+  const { data: blockedUsers, commitData: setBlockedUsers, reload: fetchBlocked } = blockedResource;
+  const { data: groups, reload: fetchGroups } = groupResource;
+  const { data: labels, reload: fetchLabels } = labelResource;
+  const { data: aiBots, reload: fetchAiBots } = aiResource;
+  const normalizedQuery = normalizeContactQuery(searchQuery);
   const [tab, setTab] = useState('contacts');
   const [requestsSubTab, setRequestsSubTab] = useState('received');
   const [onlineIds, setOnlineIds] = useState(new Set());
   const [activeChar, setActiveChar] = useState(null);
   const [viewProfile, setViewProfile] = useState(null);
   const [showAddFriend, setShowAddFriend] = useState(false);
-  const [handlingReq, setHandlingReq] = useState(null); // 正在处理的申请 id，防连点重复提交
-  const [contactsLoaded, setContactsLoaded] = useState(false); // 首屏是否已拉过：未拉完显示骨架，避免闪「暂无联系人」
-  const [aiBots, setAiBots] = useState([]); // AI 助手入口列表（GET /api/config → features.aiAssistants）
+  const directoryAction = useDirectoryAction(JSON.stringify([tab, requestsSubTab, viewProfile, showAddFriend]));
   const listRef = useRef(null);
+  const navigation = useOpenConversation(onStartChat, JSON.stringify([tab, normalizedQuery, viewProfile, showAddFriend]));
+  useDirectoryFocus(listRef, tab);
   const { socket } = useSocketCore();
-
-  // 统一兜底成数组：若接口异常返回非数组，避免下方 .filter/.map 抛错导致整页白屏
-  const fetchContacts = useCallback(() =>
-    axios.get('/api/users/contacts').then(r => setContacts(Array.isArray(r.data) ? r.data : [])).catch(() => setContacts([]))
-      .finally(() => setContactsLoaded(true)), []);
-  const fetchRequests = useCallback(() =>
-    axios.get('/api/users/friend-requests').then(r => setRequests(Array.isArray(r.data) ? r.data : [])).catch(() => setRequests([])), []);
-  const fetchSent = useCallback(() =>
-    axios.get('/api/users/friend-requests/sent').then(r => setSentRequests(Array.isArray(r.data) ? r.data : [])).catch(() => setSentRequests([])), []);
-  const fetchBlocked = useCallback(() =>
-    axios.get('/api/users/me/blocked').then(r => setBlockedUsers(Array.isArray(r.data) ? r.data : [])).catch(() => setBlockedUsers([])), []);
-  const fetchGroups = useCallback(() =>
-    axios.get('/api/messages/my-groups').then(r => setGroups(Array.isArray(r.data) ? r.data : [])).catch(() => setGroups([])), []);
-  const fetchLabels = useCallback(() =>
-    axios.get('/api/friend-labels').then(r => setLabels(Array.isArray(r.data) ? r.data : [])).catch(() => setLabels([])), []);
-  // AI 助手入口列表：来自 /api/config（后端 .env botId 联动），拉取失败静默隐藏分组
-  const fetchAiBots = useCallback(() =>
-    axios.get('/api/config')
-      .then(r => setAiBots(Array.isArray(r.data?.features?.aiAssistants) ? r.data.features.aiAssistants : []))
-      .catch(() => setAiBots([])), []);
 
   useEffect(() => {
     fetchContacts(); fetchRequests(); fetchSent(); fetchGroups(); fetchLabels(); fetchAiBots();
@@ -104,7 +83,7 @@ export default function ContactList({ onStartChat, searchQuery = '', addFriendRe
     if (!socket) return;
     const onOnline = ({ userId }) => setOnlineIds(prev => new Set([...prev, userId]));
     const onOffline = ({ userId }) => setOnlineIds(prev => { const s = new Set(prev); s.delete(userId); return s; });
-    const onFriendReq = (req) => setRequests(prev => [req, ...prev]);
+    const onFriendReq = () => fetchRequests();
     const onAccepted = () => { fetchContacts(); fetchRequests(); fetchSent(); };
     const onProfile = () => fetchContacts(); // 好友改了昵称/头像
     socket.on('user_profile_updated', onProfile);
@@ -139,7 +118,7 @@ export default function ContactList({ onStartChat, searchQuery = '', addFriendRe
     };
     window.addEventListener('touliao:remark-changed', handler);
     return () => window.removeEventListener('touliao:remark-changed', handler);
-  }, [fetchContacts]);
+  }, [fetchContacts, setContacts]);
 
   // 从顶栏"添加朋友"入口触发（addFriendRequest 为递增触发信号）——
   // 用 render 期上一次值比较替代 effect，避免 effect 内同步 setState。
@@ -171,36 +150,27 @@ export default function ContactList({ onStartChat, searchQuery = '', addFriendRe
     if (openFriendRequests && openFriendRequests === seenOpenReq) onOpenFriendRequestsConsumed?.();
   }, [openFriendRequests, seenOpenReq, onOpenFriendRequestsConsumed]);
 
-  const handleRequest = async (id, action) => {
-    if (handlingReq) return; // 防连点：上一次处理未结束时忽略
-    setHandlingReq(id);
-    try {
-      await axios.post(`/api/users/friend-request/${id}/handle`, { action });
+  const handleRequest = (id, action) => keepSettingFocus(() => directoryAction.run({
+    key: `request:${id}:${action}`,
+    request: config => handleFriendRequest(id, action, config),
+    commit: () => {
       setRequests(prev => prev.filter(r => r.id !== id));
       if (action === 'accepted') fetchContacts();
-    } catch (err) {
-      showToast(err.response?.data?.error || t('common.actionFailed'), 'error');
-    }
-    setHandlingReq(null);
-  };
+    },
+    reconcile: () => Promise.all([fetchRequests(), fetchContacts()]),
+  }));
 
-  const unblock = async (userId) => {
-    try {
-      await axios.delete(`/api/users/block/${userId}`);
-      setBlockedUsers(prev => prev.filter(u => u.id !== userId));
-    } catch (e) {
-      showToast(e.response?.data?.error || t('common.actionFailed'), 'error');
-    }
-  };
+  const unblock = userId => keepSettingFocus(() => directoryAction.run({
+    key: `unblock:${userId}`,
+    request: config => unblockContact(userId, config),
+    commit: () => setBlockedUsers(prev => prev.filter(u => u.id !== userId)),
+    reconcile: fetchBlocked,
+  }));
 
   // 按首字母分组联系人（含拼音排序，较贵；仅 contacts/搜索词变化时重算，避免每次渲染都跑）
   const { grouped, filtered, letters } = useMemo(() => {
     const grouped = {};
-    const filtered = contacts.filter(c => {
-      if (!searchQuery) return true;
-      const q = searchQuery.toLowerCase();
-      return (c.remark || c.username || '').toLowerCase().includes(q) || (c.phone || '').includes(q);
-    });
+    const filtered = contacts.filter(c => matchesContact(c, normalizedQuery));
     filtered.forEach(c => {
       const name = c.remark || c.username || '';
       const letter = firstLetter(name); // 汉字按拼音首字母归组（张→Z），而非全部落入 #
@@ -212,10 +182,10 @@ export default function ContactList({ onStartChat, searchQuery = '', addFriendRe
       arr.sort((a, b) => comparePinyin(a.remark || a.username || '', b.remark || b.username || '')));
     const letters = Object.keys(grouped).sort((a, b) => a === '#' ? 1 : b === '#' ? -1 : a.localeCompare(b));
     return { grouped, filtered, letters };
-  }, [contacts, searchQuery]);
+  }, [contacts, normalizedQuery]);
 
   // 固定引用：传给 memo 的 ContactRow，避免每次渲染新建函数击穿 memo。
-  const openProfile = useCallback((id) => setViewProfile(id), []);
+  const openProfile = useCallback((id) => setViewProfile(id), [setViewProfile]);
 
   const scrollToLetter = (l) => {
     const el = listRef.current?.querySelector(`[data-letter="${l}"]`);
@@ -225,56 +195,61 @@ export default function ContactList({ onStartChat, searchQuery = '', addFriendRe
   return (
     <div className="cl-panel">
       <div className="wc-list" ref={listRef}>
+        <ConversationOpenFeedback navigation={navigation} />
 
         {/* 联系人主列表 */}
         {tab === 'contacts' && (
           <>
             {/* 功能入口：真实功能保持原有处理函数 */}
-            <div className="tl-contact-shortcuts">
+            {!normalizedQuery && <div className="tl-contact-actions">
+            <div className="tl-contact-shortcuts tl-contact-primary">
             <EntryRow
               icon={<IcoPersonAdd size="sm" />}
               color="var(--icon-bg-newfriend)" label={t('contacts.newFriends')} badge={requests.length}
-              onClick={() => setTab('requests')} testid="cl-new-friends-entry"
+              section="requests" onClick={() => setTab('requests')} testid="cl-new-friends-entry"
             />
             <EntryRow
               icon={<TouliaoIcon name="group" size="sm" />}
               color="var(--icon-bg-group)" label={t('contacts.groupChats')} badge={0}
-              onClick={() => setTab('groups')}
+              section="groups" onClick={() => setTab('groups')}
             />
             <EntryRow
               icon={<TouliaoIcon name="search" size="sm" />}
               color="var(--brand-500)" label={t('contacts.addFriend')} badge={0}
               onClick={() => setShowAddFriend(true)}
             />
+            </div>
+            <details className="tl-contact-more">
+              <summary>{t('contacts.moreTools')}<TouliaoIcon name="back" size="xs" /></summary>
+              <div className="tl-contact-shortcuts tl-contact-secondary">
             <EntryRow
               icon={<TouliaoIcon name="blocked" size="sm" />}
               color="var(--icon-bg-neutral)" label={t('contacts.blacklist')} badge={0}
-              onClick={() => { fetchBlocked(); setTab('blocked'); }}
+              section="blocked" onClick={() => { fetchBlocked(); setTab('blocked'); }}
             />
             <EntryRow
               icon={<TouliaoIcon name="tag" size="sm" />}
               color="var(--icon-bg-label)" label={t('contacts.friendLabels')} badge={0}
-              onClick={() => { fetchLabels(); setTab('labels'); }}
+              section="labels" onClick={() => { fetchLabels(); setTab('labels'); }}
             />
             <EntryRow
               icon={<TouliaoIcon name="chat" size="sm" />}
               color="var(--brand-500)" label={t('contacts.aiAssistant')} badge={aiBots.length}
-              onClick={() => setTab('ai')}
+              section="ai" onClick={() => setTab('ai')}
             />
             <EntryRow
               icon={<TouliaoIcon name="fileContent" size="sm" />}
               color="var(--icon-bg-filehelper)" label={t('contacts.fileHelper')} badge={0}
-              onClick={async () => {
-                try {
-                  const { data } = await axios.get('/api/messages/file-helper');
-                  onStartChat({ id: data.conversationId, type: 'filehelper', name: t('contacts.fileHelper'), avatar: '' });
-                } catch { /* file-helper open failed; ignore */ }
-              }}
+              busy={navigation.openingKey === 'conversation:filehelper'}
+              onClick={() => navigation.openConversation({ type: 'filehelper', name: t('contacts.fileHelper'), avatar: '' })}
             />
 
-            </div>
+              </div>
+            </details>
+            </div>}
             <div className="cl-divider" />
 
+            <DirectoryFeedback resource={contactResource} />
             {/* 字母分组联系人 */}
             {letters.map(letter => (
               <div key={letter}>
@@ -285,24 +260,14 @@ export default function ContactList({ onStartChat, searchQuery = '', addFriendRe
               </div>
             ))}
 
-            {!contactsLoaded && contacts.length === 0 && !searchQuery && (
-              <div aria-hidden="true" className="cl-skeleton-pad">
-                {Array.from({ length: 8 }).map((_, i) => (
-                  <div key={i} className="wc-contact-item cl-skeleton-item">
-                    <div className="wc-skel wc-skel-avatar cl-skel-avatar-gap" />
-                    <div className="wc-skel wc-skel-line" style={{ width: '38%' }} />
-                  </div>
-                ))}
-              </div>
-            )}
-            {contactsLoaded && contacts.length === 0 && !searchQuery && (
+            {contactResource.emptyReady && contacts.length === 0 && !normalizedQuery && (
               <EmptyState className="cl-empty" icon={<svg viewBox="0 0 48 48" width="48" height="48" fill="none" className="cl-empty-icon">
                   <circle cx="24" cy="20" r="10" fill="#E8ECF0"/>
                   <path d="M8 40c0-8.84 7.16-16 16-16s16 7.16 16 16" stroke="#D0D7E3" strokeWidth="2" strokeLinecap="round"/>
                 </svg>} title={<>{t('contacts.noContacts')}</>} desc={<>{t('contacts.searchToAddFriend')}</>} />
             )}
-            {searchQuery && filtered.length === 0 && (
-              <EmptyState className="cl-empty" illustration="search" title={<>{t('contacts.notFoundTemplate').replace('{query}', searchQuery)}</>} />
+            {normalizedQuery && contactResource.emptyReady && filtered.length === 0 && (
+              <EmptyState className="cl-empty" illustration="search" title={<>{t('contacts.notFoundTemplate').replace('{query}', searchQuery.trim())}</>} />
             )}
           </>
         )}
@@ -311,20 +276,22 @@ export default function ContactList({ onStartChat, searchQuery = '', addFriendRe
         {tab === 'requests' && (
           <>
             <SectionHeader title={t('contacts.newFriends')} onBack={() => setTab('contacts')} />
-            <div className="cl-subtabs">
+            <div className="cl-subtabs" role="group" aria-label={t('contacts.newFriends')}>
               <button className={`cl-subtab${requestsSubTab === 'received' ? ' active' : ''}`}
-                onClick={() => setRequestsSubTab('received')}>
+                aria-pressed={requestsSubTab === 'received'} onClick={() => setRequestsSubTab('received')}>
                 {t('contacts.received')}{requests.length > 0 ? ` (${requests.length})` : ''}
               </button>
               <button className={`cl-subtab${requestsSubTab === 'sent' ? ' active' : ''}`}
-                onClick={() => { setRequestsSubTab('sent'); fetchSent(); }}>
+                aria-pressed={requestsSubTab === 'sent'} onClick={() => { setRequestsSubTab('sent'); fetchSent(); }}>
                 {t('contacts.sent')}
               </button>
             </div>
 
             {requestsSubTab === 'received' && (
               <>
-                {requests.length === 0 && (
+                <DirectoryFeedback resource={requestResource} />
+                <DirectoryActionFeedback action={directoryAction} />
+                {requestResource.emptyReady && requests.length === 0 && (
                   <EmptyState className="cl-empty" icon={<TouliaoIcon name="contact" className="cl-empty-icon" tone="secondary" size="xl" />} title={<>{t('contacts.noNewRequests')}</>} />
                 )}
                 {requests.map(r => (
@@ -338,8 +305,8 @@ export default function ContactList({ onStartChat, searchQuery = '', addFriendRe
                       <div className="req-msg">{r.message || t('contacts.defaultFriendRequestMsg')}</div>
                     </div>
                     <div className="req-btns">
-                      <button className="req-accept" data-testid="friend-request-accept" disabled={handlingReq === r.id} onClick={() => handleRequest(r.id, 'accepted')}>{t('contacts.accept')}</button>
-                      <button className="req-reject" data-testid="friend-request-reject" disabled={handlingReq === r.id} onClick={() => handleRequest(r.id, 'rejected')}>{t('contacts.reject')}</button>
+                      <button className="req-accept" data-testid="friend-request-accept" disabled={!!directoryAction.pendingKey} aria-busy={directoryAction.pendingKey === `request:${r.id}:accepted`} onClick={() => handleRequest(r.id, 'accepted')}>{t('contacts.accept')}</button>
+                      <button className="req-reject" data-testid="friend-request-reject" disabled={!!directoryAction.pendingKey} aria-busy={directoryAction.pendingKey === `request:${r.id}:rejected`} onClick={() => handleRequest(r.id, 'rejected')}>{t('contacts.reject')}</button>
                     </div>
                   </div>
                 ))}
@@ -348,7 +315,8 @@ export default function ContactList({ onStartChat, searchQuery = '', addFriendRe
 
             {requestsSubTab === 'sent' && (
               <>
-                {sentRequests.length === 0 && (
+                <DirectoryFeedback resource={sentResource} />
+                {sentResource.emptyReady && sentRequests.length === 0 && (
                   <EmptyState className="cl-empty" illustration="contacts" title={<>{t('contacts.noSentRequests')}</>} />
                 )}
                 {sentRequests.map(r => (
@@ -375,25 +343,16 @@ export default function ContactList({ onStartChat, searchQuery = '', addFriendRe
         {tab === 'ai' && (
           <>
             <SectionHeader title={t('contacts.aiAssistant')} onBack={() => setTab('contacts')} />
-            {aiBots.length === 0 && (
+            <DirectoryFeedback resource={aiResource} />
+            {aiResource.emptyReady && aiBots.length === 0 && (
               <EmptyState className="cl-empty" illustration="chat" title={<>{t('contacts.noAiAssistants')}</>} />
             )}
             {aiBots.map(b => (
               <div key={b.id} className="wc-contact-item"
-                onClick={async () => {
-                  try {
-                    const { data } = await axios.post('/api/messages/conversation/private', { userId: b.id });
-                    onStartChat(aiBotConv(data.conversationId, b));
-                  } catch { showToast(t('contacts.cannotCreateConvRetry'), 'error'); }
-                }}
-                role="button" tabIndex={0}
+                onClick={() => navigation.openContact(b)}
+                role="button" tabIndex={0} aria-busy={navigation.openingKey === `contact:${b.id}`} aria-disabled={navigation.openingKey === `contact:${b.id}`}
                 onKeyDown={e => {
-                  if (e.key === 'Enter' || e.key === ' ') {
-                    e.preventDefault();
-                    axios.post('/api/messages/conversation/private', { userId: b.id })
-                      .then(({ data }) => onStartChat(aiBotConv(data.conversationId, b)))
-                      .catch(() => showToast(t('contacts.cannotCreateConvRetry'), 'error'));
-                  }
+                  if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); navigation.openContact(b); }
                 }}>
                 <Avatar src={b.avatar || ''} name={b.name} size='md' className="cl-avatar-rounded" />
                 <div className="cl-contact-info">
@@ -410,7 +369,9 @@ export default function ContactList({ onStartChat, searchQuery = '', addFriendRe
         {tab === 'blocked' && (
           <>
             <SectionHeader title={t('contacts.blacklist')} onBack={() => setTab('contacts')} />
-            {blockedUsers.length === 0 && (
+            <DirectoryFeedback resource={blockedResource} />
+            <DirectoryActionFeedback action={directoryAction} />
+            {blockedResource.emptyReady && blockedUsers.length === 0 && (
               <EmptyState className="cl-empty" illustration="contacts" title={<>{t('contacts.blacklistEmpty')}</>} />
             )}
             {blockedUsers.map(u => (
@@ -419,7 +380,7 @@ export default function ContactList({ onStartChat, searchQuery = '', addFriendRe
                 <div className="req-info">
                   <div className="req-name">{u.username}</div>
                 </div>
-                <button className="req-reject" onClick={() => unblock(u.id)}>{t('contacts.remove')}</button>
+                <button className="req-reject" disabled={!!directoryAction.pendingKey} aria-busy={directoryAction.pendingKey === `unblock:${u.id}`} onClick={() => unblock(u.id)}>{t('contacts.remove')}</button>
               </div>
             ))}
           </>
@@ -431,7 +392,8 @@ export default function ContactList({ onStartChat, searchQuery = '', addFriendRe
             labels={labels}
             contacts={contacts}
             onBack={() => setTab('contacts')}
-            onUpdate={fetchLabels}
+            resource={labelResource}
+            contactResource={contactResource}
           />
         )}
 
@@ -439,11 +401,12 @@ export default function ContactList({ onStartChat, searchQuery = '', addFriendRe
         {tab === 'groups' && (
           <>
             <SectionHeader title={t('contacts.groupsCountTemplate').replace('{count}', groups.length)} onBack={() => setTab('contacts')} />
+            <DirectoryFeedback resource={groupResource} />
             {groups.map(g => (
               <div key={g.id} className="wc-contact-item"
-                onClick={() => onStartChat({ id: g.id, type: 'group', name: g.name, avatar: g.avatar || '', members: [] })}
+                onClick={() => navigation.openConversation({ id: g.id, type: 'group', name: g.name, avatar: g.avatar || '', members: g.members || [] })}
                 role="button" tabIndex={0}
-                onKeyDown={e => (e.key === 'Enter' || e.key === ' ') && (e.preventDefault(), onStartChat({ id: g.id, type: 'group', name: g.name, avatar: g.avatar || '', members: [] }))}>
+                onKeyDown={e => (e.key === 'Enter' || e.key === ' ') && (e.preventDefault(), navigation.openConversation({ id: g.id, type: 'group', name: g.name, avatar: g.avatar || '', members: g.members || [] }))}>
                 <GroupAvatar members={g.members || []} avatar={g.avatar} size='md' />
                   <div className="cl-contact-info">
                   <div className="wc-contact-item-name">{g.name}</div>
@@ -452,7 +415,7 @@ export default function ContactList({ onStartChat, searchQuery = '', addFriendRe
                 <IcoBack style={{color:"var(--text-tertiary)"}} size="xs" />
               </div>
             ))}
-            {groups.length === 0 && (
+            {groupResource.emptyReady && groups.length === 0 && (
               <EmptyState className="cl-empty" illustration="contacts" title={<>{t('contacts.noGroups')}</>} />
             )}
           </>
@@ -497,159 +460,142 @@ const getBrandHex = () => {
     return getComputedStyle(document.documentElement).getPropertyValue('--color-primary').trim() || '#6D5AE6';
   } catch { return '#6D5AE6'; }
 };
-function LabelsTab({ labels, contacts, onBack, onUpdate }) {
+const LABEL_COLORS = ['#6D5AE6', '#FA5151', '#17B8A6', '#FF9A00', '#FF6B35', '#8A93A6', '#5B7BF0', '#7D4BF0'];
+
+export function LabelsTab({ labels, contacts, onBack, resource, contactResource }) {
   const { t } = useI18n();
-  const [editLabel, setEditLabel] = useState(null); // null | 'new' | labelObject
+  const [editLabel, setEditLabel] = useState(null);
   const [nameInput, setNameInput] = useState('');
   const [colorInput, setColorInput] = useState(getBrandHex);
-  const [showMembers, setShowMembers] = useState(null); // labelId
-  const [saving, setSaving] = useState(false);
+  const [showMembers, setShowMembers] = useState(null);
+  const panelRef = useRef(null);
+  const view = editLabel ? `edit:${editLabel === 'new' ? 'new' : editLabel.id}` : showMembers ? `members:${showMembers}` : 'list';
+  const action = useDirectoryAction(view);
+  const busy = !!action.pendingKey;
+  useDirectoryFocus(panelRef, view, 'list');
 
-  const COLORS = ['#6D5AE6', '#FA5151', '#17B8A6', '#FF9A00', '#FF6B35', '#8A93A6', '#5B7BF0', '#7D4BF0'];
-
-  const startCreate = () => {
-    setEditLabel('new');
-    setNameInput('');
-    setColorInput(getBrandHex());
+  const startCreate = () => { setEditLabel('new'); setNameInput(''); setColorInput(getBrandHex()); };
+  const startEdit = label => { setEditLabel(label); setNameInput(label.name); setColorInput(label.color || getBrandHex()); };
+  const saveLabel = event => {
+    event.preventDefault();
+    if (!nameInput.trim() || !editLabel) return;
+    const id = editLabel === 'new' ? null : editLabel.id;
+    const values = { name: nameInput.trim(), color: colorInput };
+    return keepSettingFocus(() => action.run({
+      key: 'save',
+      request: config => saveFriendLabel(id, values, config),
+      commit: saved => resource.commitData(previous => id
+        ? previous.map(label => label.id === id ? { ...label, ...saved, members: label.members || [] } : label)
+        : [...previous.filter(label => label.id !== saved.id), saved]),
+      onSuccess: () => setEditLabel(null),
+      reconcile: resource.reload,
+    }));
   };
+  const deleteLabel = id => keepSettingFocus(() => action.run({
+    key: `delete:${id}`,
+    confirm: () => showConfirm(t('contacts.confirmDeleteLabel')),
+    request: config => deleteFriendLabel(id, config),
+    commit: () => resource.commitData(previous => previous.filter(label => label.id !== id)),
+    reconcile: resource.reload,
+  }));
+  const toggleMember = (labelId, friendId, remove) => keepSettingFocus(() => action.run({
+    key: `member:${friendId}`,
+    request: config => changeLabelMember(labelId, friendId, remove, config),
+    commit: member => resource.commitData(previous => previous.map(label => label.id !== labelId ? label : {
+      ...label,
+      members: remove ? (label.members || []).filter(item => item.id !== friendId)
+        : [...(label.members || []).filter(item => item.id !== friendId), member],
+    })),
+    reconcile: resource.reload,
+  }));
 
-  const startEdit = (label) => {
-    setEditLabel(label);
-    setNameInput(label.name);
-    setColorInput(label.color || getBrandHex());
-  };
-
-  const saveLabel = async () => {
-    if (!nameInput.trim()) return;
-    setSaving(true);
-    try {
-      if (editLabel === 'new') {
-        await axios.post('/api/friend-labels', { name: nameInput.trim(), color: colorInput });
-      } else {
-        await axios.put(`/api/friend-labels/${editLabel.id}`, { name: nameInput.trim(), color: colorInput });
-      }
-      onUpdate();
-      setEditLabel(null);
-    } catch (e) {
-      showToast(e.response?.data?.error || t('common.saveFailed'), 'error');
-    }
-    setSaving(false);
-  };
-
-  const deleteLabel = async (id) => {
-    if (!await showConfirm(t('contacts.confirmDeleteLabel'))) return;
-    try {
-      await axios.delete(`/api/friend-labels/${id}`);
-      onUpdate();
-    } catch (e) {
-      showToast(e.response?.data?.error || t('chat.deleteFailedRetry'), 'error');
-    }
-  };
-
-  const toggleMember = async (labelId, friendId, isMember) => {
-    try {
-      if (isMember) {
-        await axios.delete(`/api/friend-labels/${labelId}/members/${friendId}`);
-      } else {
-        await axios.post(`/api/friend-labels/${labelId}/members`, { friendId });
-      }
-      onUpdate();
-    } catch (e) {
-      showToast(e.response?.data?.error || t('common.actionFailed'), 'error');
-    }
-  };
-
+  let content;
   if (editLabel) {
-    return (
-      <>
-        <SectionHeader title={editLabel === 'new' ? t('contacts.newLabel') : t('contacts.editLabel')} onBack={() => setEditLabel(null)} />
-        <div className="lt-edit-pad">
-          <input
-            value={nameInput}
-            onChange={e => setNameInput(e.target.value)}
-            placeholder={t('contacts.labelName')}
-            maxLength={20}
-            aria-label={t('contacts.labelName')}
-            className="lt-edit-input"
-          />
-          <div className="lt-edit-label">{t('contacts.color')}</div>
-          <div role="radiogroup" aria-label={t('contacts.labelColorAriaLabel')} className="lt-color-grid">
-            {COLORS.map(c => (
-              <div key={c} role="radio" tabIndex={0} aria-checked={colorInput === c} aria-label={t('contacts.colorAriaLabelTemplate').replace('{color}', c)}
-                onClick={() => setColorInput(c)}
-                onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setColorInput(c); } }}
-                className={`lt-color-swatch${colorInput === c ? ' lt-color-selected' : ''}`}
-                style={{ background: c }} />
-            ))}
+    const colors = LABEL_COLORS.some(color => color.toLowerCase() === colorInput.toLowerCase())
+      ? LABEL_COLORS : [colorInput, ...LABEL_COLORS];
+    content = <>
+      <SectionHeader title={editLabel === 'new' ? t('contacts.newLabel') : t('contacts.editLabel')} onBack={() => setEditLabel(null)} />
+      <DirectoryActionFeedback action={action} />
+      {resource.error && <DirectoryFeedback resource={resource} />}
+      <form className="lt-edit-pad" onSubmit={saveLabel} aria-busy={busy}>
+        <label className="lt-name-label" htmlFor="friend-label-name">{t('contacts.labelName')}</label>
+        <input id="friend-label-name" value={nameInput} disabled={busy} data-directory-initial-focus
+          onChange={event => setNameInput(event.target.value)} placeholder={t('contacts.labelName')}
+          maxLength={20} className="lt-edit-input" autoComplete="off" />
+        <div className="lt-name-count" aria-hidden="true">{nameInput.length}/20</div>
+        <fieldset className="lt-color-fieldset" disabled={busy}>
+          <legend className="lt-edit-label">{t('contacts.color')}</legend>
+          <div className="lt-color-grid">
+            {colors.map(color => <label className="lt-color-option" key={color}>
+              <input type="radio" name="friend-label-color" value={color}
+                checked={colorInput.toLowerCase() === color.toLowerCase()}
+                aria-label={t('contacts.colorAriaLabelTemplate').replace('{color}', color)}
+                onChange={() => setColorInput(color)} />
+              <span className="lt-color-swatch" style={{ background: color }} aria-hidden="true">
+                {colorInput.toLowerCase() === color.toLowerCase() && <IcoCheck tone="onDark" size="xs" />}
+              </span>
+            </label>)}
           </div>
-          <button onClick={saveLabel} disabled={saving || !nameInput.trim()}
-            className="lt-save-btn">
-            {saving ? t('common.saving') : t('common.save')}
-          </button>
-        </div>
-      </>
-    );
-  }
-
-  if (showMembers) {
-    const label = labels.find(l => l.id === showMembers);
-    if (!label) return null;
-    const memberIds = new Set((label.members || []).map(m => m.id));
-    return (
-      <>
-        <SectionHeader title={t('contacts.labelMembersTitleTemplate').replace('{name}', label.name)} onBack={() => setShowMembers(null)} />
+        </fieldset>
+        <button type="submit" disabled={busy || !nameInput.trim()} className="lt-save-btn">
+          {action.pendingKey === 'save' ? t('common.saving') : t('common.save')}
+        </button>
+      </form>
+    </>;
+  } else if (showMembers) {
+    const label = labels.find(item => item.id === showMembers);
+    const memberIds = new Set((label?.members || []).map(member => member.id));
+    content = <>
+      <SectionHeader title={label ? t('contacts.labelMembersTitleTemplate').replace('{name}', label.name) : t('contacts.friendLabels')} onBack={() => setShowMembers(null)} />
+      <DirectoryFeedback resource={resource} />
+      <DirectoryActionFeedback action={action} />
+      {label ? <>
+        <DirectoryFeedback resource={contactResource} />
         <div className="lt-members-pad">
-          {contacts.map(c => {
-            const inLabel = memberIds.has(c.id);
-            return (
-              <div key={c.id} className="wc-contact-item" role="checkbox" tabIndex={0} aria-checked={inLabel}
-                onClick={() => { toggleMember(label.id, c.id, inLabel); memberIds[inLabel ? 'delete' : 'add'](c.id); }}
-                onKeyDown={e => (e.key === 'Enter' || e.key === ' ') && (toggleMember(label.id, c.id, inLabel), memberIds[inLabel ? 'delete' : 'add'](c.id))}>
-                <Avatar src={c.avatar} name={c.remark || c.username} size='md' style={{ borderRadius: 'var(--radius-sm)' }} />
-                <div className="cl-contact-info">
-                  <div className="wc-contact-item-name">{c.remark || c.username}</div>
-                </div>
-                <div className="lt-member-checkbox" style={{ border: `2px solid ${inLabel ? 'var(--green)' : 'var(--divider)'}`, background: inLabel ? 'var(--green)' : 'transparent' }}>
-                  {inLabel && <IcoCheck tone="onDark" size="xs" />}
-                </div>
-              </div>
-            );
+          {contacts.map(contact => {
+            const inLabel = memberIds.has(contact.id);
+            return <button type="button" key={contact.id} className="wc-contact-item lt-member-row" role="checkbox"
+              aria-checked={inLabel} disabled={busy} aria-busy={action.pendingKey === `member:${contact.id}`}
+              onClick={() => toggleMember(label.id, contact.id, inLabel)}>
+              <Avatar src={contact.avatar} name={contact.remark || contact.username} size="md" />
+              <span className="cl-contact-info"><span className="wc-contact-item-name">{contact.remark || contact.username}</span></span>
+              <span className={`lt-member-checkbox${inLabel ? ' is-selected' : ''}`} aria-hidden="true">
+                {inLabel && <IcoCheck tone="onDark" size="xs" />}
+              </span>
+            </button>;
           })}
-          {contacts.length === 0 && <EmptyState className="cl-empty" illustration="contacts" title={<>{t('contacts.noContacts')}</>} />}
+          {contactResource.emptyReady && contacts.length === 0 && <EmptyState className="cl-empty" illustration="contacts" title={t('contacts.noContacts')} />}
         </div>
-      </>
-    );
-  }
-
-  return (
-    <>
+      </> : resource.emptyReady && <EmptyState className="cl-empty" illustration="contacts" title={t('contacts.labelUnavailable')} />}
+    </>;
+  } else {
+    content = <>
       <SectionHeader title={t('contacts.friendLabels')} onBack={onBack} />
+      <DirectoryFeedback resource={resource} />
+      <DirectoryActionFeedback action={action} />
       <div className="lt-list-header">
-        <button onClick={startCreate}
-          className="lt-create-btn">
+        <button type="button" onClick={startCreate} disabled={busy || !resource.loaded} data-directory-section="edit:new" className="lt-create-btn">
           <TouliaoIcon name="add" size="sm" /> {t('contacts.newLabel')}
         </button>
       </div>
-      {labels.length === 0 && (
-        <EmptyState className="cl-empty" illustration="contacts" title={<>{t('contacts.noLabels')}</>} desc={<>{t('contacts.noLabelsSub')}</>} />
-      )}
-      {labels.map(label => (
-        <div key={label.id} className="wc-contact-item">
-          <div className="lt-label-icon-box" style={{ background: label.color || 'var(--color-primary)' }}>
-            <TouliaoIcon name="tag" size="sm" />
-          </div>
-          <div className="cl-contact-info">
-            <div className="wc-contact-item-name">{label.name}</div>
-            <div className="wc-contact-item-sub">{t('contacts.memberCountTemplate').replace('{count}', (label.members || []).length)}</div>
-          </div>
-          <button onClick={() => setShowMembers(label.id)} className="lt-action-btn" style={{ marginRight: 8 }}>{t('contacts.members')}</button>
-          <button onClick={() => startEdit(label)} className="lt-action-btn" style={{ marginRight: 4 }}>{t('contacts.edit')}</button>
-          <button onClick={() => deleteLabel(label.id)} className="lt-delete-btn">{t('contacts.delete')}</button>
+      {resource.emptyReady && labels.length === 0 && <EmptyState className="cl-empty" illustration="contacts" title={t('contacts.noLabels')} desc={t('contacts.noLabelsSub')} />}
+      {labels.map(label => <div key={label.id} className="wc-contact-item lt-label-row">
+        <div className="lt-label-icon-box" style={{ background: label.color || 'var(--color-primary)' }}><TouliaoIcon name="tag" size="sm" /></div>
+        <div className="cl-contact-info">
+          <div className="wc-contact-item-name">{label.name}</div>
+          <div className="wc-contact-item-sub">{t('contacts.memberCountTemplate').replace('{count}', (label.members || []).length)}</div>
         </div>
-      ))}
-    </>
-  );
+        <div className="lt-label-actions" role="group" aria-label={label.name}>
+          <button type="button" disabled={busy} onClick={() => setShowMembers(label.id)} data-directory-section={`members:${label.id}`} className="lt-action-btn">{t('contacts.members')}</button>
+          <button type="button" disabled={busy} onClick={() => startEdit(label)} data-directory-section={`edit:${label.id}`} className="lt-action-btn">{t('contacts.edit')}</button>
+          <button type="button" disabled={busy} aria-busy={action.pendingKey === `delete:${label.id}`} onClick={() => deleteLabel(label.id)} className="lt-delete-btn">{t('contacts.delete')}</button>
+        </div>
+      </div>)}
+    </>;
+  }
+  return <div ref={panelRef} className="lt-panel">{content}</div>;
 }
+
 
 // 单条联系人行：memo 隔离在线状态抖动。presence(user_online/offline) 事件会频繁改 onlineIds
 // 触发 ContactList 整体重渲染——若行不 memo，几百个好友的 vnode 每次都全量 reconcile。
@@ -681,11 +627,10 @@ const ContactRow = memo(function ContactRow({ contact: c, online, onOpen }) {
   );
 });
 
-function EntryRow({ icon, color, label, badge, onClick, testid }) {
+function EntryRow({ icon, color, label, badge, onClick, testid, section, busy = false }) {
   return (
-    <div className="wc-contact-item tl-contact-shortcut gi-cp" onClick={onClick}
-      role="button" tabIndex={0} data-testid={testid}
-      onKeyDown={e => (e.key === 'Enter' || e.key === ' ') && (e.preventDefault(), onClick?.(e))}>
+    <button type="button" className="wc-contact-item tl-contact-shortcut gi-cp" onClick={onClick}
+      data-testid={testid} data-directory-section={section} aria-busy={busy} aria-disabled={busy}>
       <div className="cl-entry-icon-box" style={{ background: color }}>
         {icon}
       </div>
@@ -698,7 +643,7 @@ function EntryRow({ icon, color, label, badge, onClick, testid }) {
         </span>
       )}
       <IcoBack className="cl-entry-arrow" style={{color:"var(--text-tertiary)"}} size="xs" />
-    </div>
+    </button>
   );
 }
 

@@ -1,0 +1,16 @@
+.conv-search { flex-shrink: 0; min-width: 0; background: var(--tl-surface); border-bottom: 1px solid var(--tl-border); }
+.conv-search-row { display: flex; align-items: center; gap: 4px; padding: 8px 8px 0 12px; }
+.conv-search-row .tl-field { flex: 1; min-width: 0; margin: 0; }
+.conv-search-row .tl-field-control { min-height: 44px; }
+.conv-search-close { display: grid; place-items: center; width: 44px; height: 44px; flex: 0 0 44px; border: 0; border-radius: 12px; color: var(--tl-readable-muted); background: transparent; cursor: pointer; }
+.conv-search-close:hover, .conv-search-result:hover { background: var(--tl-surface-hover); }
+.conv-search-status { padding: 8px 16px 10px; min-height: 36px; font-size: 13px; line-height: 1.5; color: var(--tl-readable-muted); overflow-wrap: anywhere; }
+.conv-search-results { max-height: min(280px, 32dvh); overflow-y: auto; border-top: 1px solid var(--tl-border); }
+.conv-search-result { display: flex; flex-direction: column; gap: 4px; width: 100%; min-height: 64px; padding: 10px 16px; border: 0; border-bottom: 1px solid var(--tl-border); text-align: start; background: transparent; color: var(--tl-text); font: inherit; cursor: pointer; }
+.conv-search-meta { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-width: 0; width: 100%; color: var(--tl-readable-muted); font-size: 12px; }
+.conv-search-sender { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
+.conv-search-time { flex-shrink: 0; }
+.conv-search-preview { width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 14px; line-height: 1.5; }
+.conv-search-highlight { background: var(--tl-primary-soft); color: var(--tl-primary-text); border-radius: 3px; padding: 0 1px; }
+.conv-search-retry { display: block; min-height: 44px; margin: 0 16px 10px; padding: 8px 16px; border: 1px solid var(--tl-border); border-radius: 10px; background: var(--tl-surface); color: var(--tl-primary-text); font: inherit; cursor: pointer; }
+.conv-search :is(button, input):focus-visible { outline: 2px solid var(--tl-focus); outline-offset: -2px; }

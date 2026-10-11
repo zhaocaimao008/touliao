@@ -1,3 +1,4 @@
+import AuthBrand from '../components/AuthBrand';
 import TouliaoIcon from '../ui-kit/Icon';
 
 import './auth.css';
@@ -18,19 +19,24 @@ export default function ForgotPassword() {
       <div className="auth-bg-circle auth-bg-circle-2" />
       <div className="auth-bg-circle auth-bg-circle-3" />
 
-      <div className="auth-container" style={{ width: 400 }}>
-        <div className="auth-brand">
-          <div className="auth-brand-icon">
-            <TouliaoIcon name="passwordReset" size="lg" />
-          </div>
-          <h1 className="auth-brand-name">{t('auth.forgotTitle')}</h1>
-          <p className="auth-brand-desc">{t('auth.forgotUnavailable')}</p>
-        </div>
+      <div className="auth-container">
+        <AuthBrand title={t('auth.forgotTitle')} description={t('auth.recoverySubtitle')} />
 
-        <div className="auth-note" style={{ marginBottom: 20, lineHeight: 1.7 }}>
-          {t('auth.forgotBody1')}<br />
-          {t('auth.forgotBody2')}
-        </div>
+        <section className="auth-form auth-recovery" aria-label={t('auth.recoveryHelp')}>
+          <p className="auth-recovery-intro">{t('auth.forgotBody1')}</p>
+          <ol className="auth-recovery-steps">
+            <li>{t('auth.recoveryStep1')}</li>
+            <li>{t('auth.recoveryStep2')}</li>
+          </ol>
+          <p className="auth-recovery-privacy">{t('auth.recoveryPrivacy')}</p>
+          <a className="auth-recovery-mail" href={`mailto:support@touliao.cc?subject=${encodeURIComponent(t('auth.recoverySubject'))}`}>
+            <TouliaoIcon name="help" size="sm" />{t('auth.contactSupport')}
+          </a>
+          <p className="auth-support-address">support@touliao.cc</p>
+          <a className="auth-link" href="https://touliao.cc/support.html" target="_blank" rel="noopener noreferrer">
+            {t('auth.supportDetails')}<TouliaoIcon name="externalLink" size="xs" />
+          </a>
+        </section>
 
         <p className="auth-footer">
           <Link to="/login" className="auth-link">{t('auth.backToLogin')}</Link>

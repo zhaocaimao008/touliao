@@ -1,5 +1,5 @@
 import TouliaoIcon from '../ui-kit/Icon';
-import { clientStorage as localStorage } from '../utils/clientStorage';
+import { useChatDrafts } from '../hooks/useChatDrafts';
 import React, { useState, useEffect, useCallback, useRef, memo, useMemo } from 'react';
 import axios from 'axios';
 import Avatar from './Avatar';
@@ -17,6 +17,8 @@ import { useSwipe } from '../hooks/useSwipe';
 import { EmptyState } from './StateViews';
 import designTokens from '../ui-kit/tokens.json';
 import { groupSystemPreview } from '../utils/groupSystemText';
+import { applyConversationSettings, publishConversationSettings, subscribeConversationSettings } from '../utils/conversationSettings';
+import { captureSession, isSessionCurrent } from '../utils/sessionContext';
 
 const rowHeight = () => window.innerWidth < designTokens.layout.breakpoints.compactDesktopMin
   ? designTokens.components.listRow.mobileMinimum : designTokens.components.listRow.desktopMinimum;
@@ -34,7 +36,7 @@ const ConvRow = memo(function ConvRow({ index, style, data }) {
   const draft = (drafts && drafts[conv.id]) || '';
   // 左滑快捷操作（仅触屏）：置顶 / 删除。桌面端走右键菜单，不在 hover 时平移整行
   // （平移会遮住名字/时间，还把「删除」按钮常驻暴露在鼠标下）。
-  const { swipeOffset, swipeHandlers, resetSwipe, swipeEnabled } = useSwipe({ maxOffset: 144, allowRight: false });
+  const { swipeOffset, isSwiping, swipeHandlers, resetSwipe, swipeEnabled } = useSwipe({ maxOffset: 144, allowRight: false });
   const revealed = swipeOffset !== 0;
   const handleSwipePin = () => { resetSwipe(); onPin?.(conv, !conv.pinned); };
   const handleSwipeDelete = () => { resetSwipe(); onDelete?.(conv); };
@@ -70,6 +72,8 @@ const ConvRow = memo(function ConvRow({ index, style, data }) {
         }}
         style={{
           background: conv.pinned && conv.id !== activeConvId ? 'var(--bg-pinned)' : undefined,
+          touchAction: swipeEnabled ? 'pan-y pinch-zoom' : undefined,
+          transition: isSwiping ? 'none' : undefined,
           ...(revealed ? { transform: `translateX(${swipeOffset}px)` } : {}),
         }}
         {...(swipeEnabled ? swipeHandlers : {})}
@@ -137,21 +141,6 @@ function previewMsg(conv, user, t) {
   return conv.lastMessage;
 }
 
-// 扫描 localStorage 里的所有草稿（键形如 draft_<convId>），供会话列表显示「[草稿]」标记
-function readAllDrafts() {
-  const out = {};
-  try {
-    for (let i = 0; i < localStorage.length; i++) {
-      const k = localStorage.key(i);
-      if (k && k.startsWith('draft_')) {
-        const v = localStorage.getItem(k);
-        if (v) out[k.slice(6)] = v;
-      }
-    }
-  } catch { /* localStorage 不可用时忽略 */ }
-  return out;
-}
-
 // 首屏骨架：8 行占位（头像 + 两行文本），shimmer 微光，避免加载时闪「暂无聊天」
 function ChatListSkeleton() {
   return (
@@ -191,9 +180,9 @@ export default function ChatList({ onSelectConv, activeConvId, unread = {}, sear
   const [loaded, setLoaded] = useState(false);   // 首屏是否已拉过一次：未拉完显示骨架，避免闪「暂无聊天」
   const [ctxMenu, setCtxMenu] = useState(null);
   const [showArchived, setShowArchived] = useState(false);
-  const [drafts, setDrafts] = useState(readAllDrafts);
   const { socket, reconnectCount } = useSocket();
-  const { user } = useAuth();
+  const { user, outboxScope } = useAuth();
+  const drafts = useChatDrafts(outboxScope);
 
   // 右键菜单打开时：Esc 关闭 + 滚动/窗口失焦自动收起(避免菜单悬浮在错位处)
   useEffect(() => {
@@ -209,22 +198,6 @@ export default function ChatList({ onSelectConv, activeConvId, unread = {}, sear
       window.removeEventListener('resize', close);
     };
   }, [ctxMenu]);
-
-  // 监听 ChatWindow 派发的草稿变更事件，实时刷新列表里的「[草稿]」标记
-  useEffect(() => {
-    const onDraftChanged = (e) => {
-      const { convId, text } = e.detail || {};
-      if (convId == null) return;
-      setDrafts(prev => {
-        const has = !!prev[convId];
-        if (text) { if (prev[convId] === text) return prev; return { ...prev, [convId]: text }; }
-        if (!has) return prev;
-        const next = { ...prev }; delete next[convId]; return next;
-      });
-    };
-    window.addEventListener('draft-changed', onDraftChanged);
-    return () => window.removeEventListener('draft-changed', onDraftChanged);
-  }, []);
 
   const fetchConvs = useCallback(async () => {
     try {
@@ -381,6 +354,10 @@ export default function ChatList({ onSelectConv, activeConvId, unread = {}, sear
     return () => { clearTimeout(timer); socket.off('user_profile_updated', onProfile); };
   }, [socket, fetchConvs]);
 
+  useEffect(() => subscribeConversationSettings(change => {
+    setConversations(previous => previous.map(conversation => applyConversationSettings(conversation, change)).sort(byPinnedThenTime));
+  }), []);
+
   // 备注变更后刷新会话列表
   useEffect(() => {
     const handler = () => fetchConvs();
@@ -390,19 +367,20 @@ export default function ChatList({ onSelectConv, activeConvId, unread = {}, sear
 
   const pin = useCallback(async (conv, pinned) => {
     setCtxMenu(null);
+    const scope = captureSession();
     try {
-      await axios.post(`/api/messages/conversation/${conv.id}/pin`, { pinned });
-      setConversations(prev => prev.map(c => c.id === conv.id ? { ...c, pinned: pinned ? 1 : 0 } : c)
-        .sort(byPinnedThenTime));
-    } catch { showToast(t('common.actionFailed'), 'error'); }
+      await axios.post(`/api/messages/conversation/${conv.id}/pin`, { pinned }, { _sessionContext: scope });
+      publishConversationSettings(conv.id, { pinned: pinned ? 1 : 0 }, scope);
+    } catch { if (isSessionCurrent(scope)) showToast(t('common.actionFailed'), 'error'); }
   }, [t]);
 
   const mute = async (conv, muted) => {
     setCtxMenu(null);
+    const scope = captureSession();
     try {
-      await axios.post(`/api/messages/conversation/${conv.id}/mute`, { muted });
-      setConversations(prev => prev.map(c => c.id === conv.id ? { ...c, muted: muted ? 1 : 0 } : c));
-    } catch { showToast(t('common.actionFailed'), 'error'); }
+      await axios.post(`/api/messages/conversation/${conv.id}/mute`, { muted }, { _sessionContext: scope });
+      publishConversationSettings(conv.id, { muted: muted ? 1 : 0 }, scope);
+    } catch { if (isSessionCurrent(scope)) showToast(t('common.actionFailed'), 'error'); }
   };
 
   const archive = async (conv, archived) => {

@@ -169,3 +169,104 @@ body.dark-mode .wc-me-qr-btn:hover { background: rgba(255,255,255,.08); }
 .auth-tenant-row .auth-server-input { flex: 1; }
 .auth-tenant-row .auth-server-btn { flex: 0 0 auto; padding: 10px 16px; }
 
+
+/* Authentication appearance is owned by this file. */
+/* Authentication retains real password/captcha/server/account flows. */
+html.touliao-ui body .auth-page { background: var(--tl-background); padding: 32px 16px; color: var(--tl-text); }
+html.touliao-ui body .auth-bg-circle { display: none; }
+html.touliao-ui body .auth-container { width: 400px; max-width: 100%; }
+html.touliao-ui body .auth-brand { margin-bottom: 24px; }
+html.touliao-ui body .auth-brand-name { color: var(--tl-text); font-size: 28px; font-weight: 600; }
+html.touliao-ui body :is(.auth-brand-desc, .auth-footer, .auth-remember, .auth-download-label, .auth-server-toggle, .auth-server-hint, .auth-accounts-title, .auth-accounts-count, .auth-account-id) { color: var(--tl-readable-muted); font-size: 12px; }
+html.touliao-ui body .auth-form { background: var(--tl-surface); border: 1px solid var(--tl-border); border-radius: 20px; padding: 24px; box-shadow: var(--tl-shadow-card); backdrop-filter: none; }
+html.touliao-ui body .auth-field-label { position: static; width: auto; height: auto; margin: 0 0 8px; overflow: visible; clip: auto; white-space: normal; display: block; color: var(--tl-readable-muted); font-size: 12px; }
+html.touliao-ui body .auth-field-input-wrap { min-height: 44px; height: 44px; padding: 0 12px; background: var(--tl-surface-secondary); border: 1px solid var(--tl-border-strong); border-radius: 12px; }
+html.touliao-ui body .auth-field.focused .auth-field-input-wrap { border-color: var(--tl-primary); box-shadow: 0 0 0 2px var(--tl-primary-soft); background: var(--tl-surface); }
+html.touliao-ui body :is(.auth-field-icon, .auth-pwd-toggle) { color: var(--tl-readable-muted); }
+html.touliao-ui body :is(.auth-field-input, .auth-account-name, .auth-server-title) { color: var(--tl-text); }
+html.touliao-ui body .auth-error { color: var(--tl-readable-danger); background: var(--tl-danger-soft); border-color: var(--tl-readable-danger); }
+html.touliao-ui body :is(.auth-link, .auth-server-cancel) { color: var(--tl-primary); }
+html.touliao-ui body :is(.auth-server-panel, .auth-accounts, .auth-accounts-header) { background: var(--tl-surface); border-color: var(--tl-border); }
+html.touliao-ui body .auth-server-input { background: var(--tl-surface-secondary); color: var(--tl-text); border: 1px solid var(--tl-border-strong); border-radius: 12px; min-height: 44px; }
+html.touliao-ui body .auth-download-btn { color: var(--tl-text); background: var(--tl-surface); border-color: var(--tl-border); border-radius: 8px; }
+html.touliao-ui body .auth-captcha-input { min-width: 0; color: var(--tl-text); border: 1px solid var(--tl-border-strong); border-radius: 12px; padding: 8px; background: var(--tl-surface-secondary); }
+html.touliao-ui body .auth-note { color: var(--tl-readable-muted); background: var(--tl-surface); border: 1px solid var(--tl-border); border-radius: 12px; padding: 16px; }
+html.touliao-ui body .auth-brand-icon { background: var(--tl-primary); color: var(--tl-primary-foreground); box-shadow: none; border-radius: 12px; }
+@media (max-width: 767px) {
+  html.touliao-ui body .auth-page { padding: 24px 16px; align-items: flex-start; }
+  html.touliao-ui body .auth-form { padding: 20px; }
+  html.touliao-ui body .auth-field-input-wrap { min-height: 48px; }
+  html.touliao-ui body :is(.auth-field-input, .auth-server-input) { font-size: 16px; }
+}
+@media (max-height: 700px) {
+  html.touliao-ui body .auth-page { align-items: flex-start; padding-block: 16px; }
+  html.touliao-ui body .auth-brand { margin-bottom: 12px; }
+  html.touliao-ui body .auth-brand-icon { width: 44px; height: 44px; margin-bottom: 8px; }
+  html.touliao-ui body .auth-brand-icon img { width: 44px; height: 44px; }
+  html.touliao-ui body .auth-form { padding: 16px 24px; }
+  html.touliao-ui body .auth-field { margin-bottom: 12px; }
+}
+/* ── 登录 / 注册 ─────────────────────────────────────────────── */
+html.touliao-ui body:not([data-skin="wechat"]):not([data-skin="wecom"]):has(.auth-container) { background: var(--v4-canvas); background-attachment: fixed; }
+html.touliao-ui body:not([data-skin="wechat"]):not([data-skin="wecom"]) :is(.auth-page, .auth-container) { background: transparent; }
+html.touliao-ui body:not([data-skin="wechat"]):not([data-skin="wecom"]) .auth-form {
+  background: var(--v4-glass-strong);
+  border: 1px solid var(--v4-glass-border);
+  border-radius: 28px;
+  box-shadow: var(--v4-shadow-float);
+}
+html.touliao-ui body:not([data-skin="wechat"]):not([data-skin="wecom"]) .auth-form .tl-field-control {
+  min-height: 52px;
+  background: var(--v4-fill);
+  border: 0;
+  border-radius: 14px;
+}
+html.touliao-ui body:not([data-skin="wechat"]):not([data-skin="wecom"]) .auth-form .tl-field-control:focus-within {
+  background: var(--tl-surface);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--tl-primary) 28%, transparent);
+}
+html.touliao-ui body:not([data-skin="wechat"]):not([data-skin="wecom"]) .auth-submit { min-height: 52px; border-radius: 999px; font-size: 16px; font-weight: 600; }
+
+html.touliao-ui body:not([data-skin="wechat"]):not([data-skin="wecom"]) .auth-form { backdrop-filter: var(--v4-blur); -webkit-backdrop-filter: var(--v4-blur); }
+
+/* Shared authentication identity and comfortable auxiliary controls. */
+html.touliao-ui body .auth-brand .auth-brand-logo {
+  background: none; box-shadow: none; padding: 0; overflow: hidden;
+  border-radius: var(--tl-radius-card); line-height: 0;
+}
+.auth-brand-logo img { display: block; width: 100%; height: 100%; object-fit: cover; }
+html.touliao-ui body .auth-page :is(.auth-brand-desc, .auth-footer, .auth-remember, .auth-download-label, .auth-server-toggle, .auth-server-hint) {
+  font-size: .8125rem; line-height: 1.6;
+}
+html.touliao-ui body .auth-page :is(.auth-link, .auth-server-toggle, .auth-server-cancel) {
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  min-height: 44px; padding: 8px 6px; max-width: 100%;
+  color: var(--tl-primary-text); border-radius: 8px; overflow-wrap: anywhere;
+}
+html.touliao-ui body .auth-page .auth-server-toggle { color: var(--tl-readable-muted); flex-wrap: wrap; }
+html.touliao-ui body .auth-page .auth-remember { min-height: 44px; }
+html.touliao-ui body .auth-page .auth-remember-row { flex-wrap: wrap; gap: 0 8px; margin-bottom: 8px; }
+html.touliao-ui body .auth-page .auth-footer { display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 0 4px; margin-top: 12px; }
+html.touliao-ui body .auth-page .tl-field-description { font-size: .8125rem; line-height: 1.6; margin-top: 8px; overflow-wrap: anywhere; }
+html.touliao-ui body .auth-page .auth-download { margin-top: 12px; padding-top: 16px; border-color: var(--tl-border); }
+html.touliao-ui body .auth-page .auth-download-label { margin-bottom: 8px; }
+html.touliao-ui body .auth-page .auth-download-row { flex-wrap: wrap; gap: 8px; }
+html.touliao-ui body .auth-page .auth-download-btn { justify-content: center; min-height: 44px; font-size: .875rem; padding: 10px 16px; border-radius: var(--tl-radius-control); }
+html.touliao-ui body .auth-page .auth-download-preferred { width: 100%; background: var(--tl-primary-soft); color: var(--tl-primary-text); border-color: transparent; }
+.auth-other-downloads summary { display: flex; align-items: center; justify-content: center; gap: 6px; min-height: 44px; padding: 8px; color: var(--tl-readable-muted); font-size: .8125rem; cursor: pointer; list-style: none; border-radius: 8px; }
+.auth-other-downloads summary::-webkit-details-marker { display: none; }
+.auth-other-downloads summary::after { content: '+'; font-size: 18px; line-height: 1; }
+.auth-other-downloads[open] summary::after { content: '−'; }
+html.touliao-ui body .auth-page :is(a, button, summary):focus-visible { outline: 2px solid var(--tl-focus); outline-offset: 3px; }
+html.touliao-ui body .auth-page .auth-server { margin-top: 8px; }
+.auth-tenant-row .auth-server-input { min-width: 0; }
+html.touliao-ui body .auth-page .auth-recovery { text-align: left; }
+.auth-recovery-intro { color: var(--tl-text); font-size: .9375rem; line-height: 1.7; }
+.auth-recovery-steps { padding-left: 20px; margin: 16px 0; color: var(--tl-text); font-size: .875rem; line-height: 1.7; }
+.auth-recovery-steps li + li { margin-top: 8px; }
+.auth-recovery-privacy { font-size: .8125rem; line-height: 1.6; color: var(--tl-readable-muted); margin-bottom: 20px; }
+.auth-recovery-mail { display: flex; justify-content: center; align-items: center; gap: 8px; width: 100%; min-height: 48px; padding: 12px 16px; border-radius: var(--tl-radius-control); font-size: .9375rem; font-weight: 600; color: var(--tl-primary-foreground); background: var(--tl-primary); text-decoration: none; }
+.auth-recovery-mail:hover { background: var(--tl-primary-hover); }
+.auth-support-address { font-size: .875rem; color: var(--tl-text); user-select: text; overflow-wrap: anywhere; margin-top: 12px; }
+html.touliao-ui body .auth-page .auth-recovery > .auth-link { margin-top: 4px; padding-left: 0; font-size: .8125rem; }
+@media (prefers-reduced-motion: reduce) { .auth-container { animation: none; } }

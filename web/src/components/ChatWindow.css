@@ -346,7 +346,16 @@
   align-items: center;
   justify-content: space-between;
   flex-shrink: 0;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding-bottom: max(10px, env(safe-area-inset-bottom, 0px));
 }
+.wc-multiselect-bar button { min-width: 44px; min-height: 44px; }
+.wc-multiselect-bar button[aria-disabled="true"] { opacity: .55; cursor: wait; }
+.wc-ms-feedback { flex-basis: 100%; font-size: var(--text-sm); color: var(--text-secondary); overflow-wrap: anywhere; }
+.wc-ms-feedback.is-error { color: var(--text-danger); }
+.wc-msg-row.multiselect-row:focus-visible { outline: 2px solid var(--green); outline-offset: -2px; border-radius: var(--radius-sm); }
+.wc-msg-bubble[aria-haspopup="menu"]:focus-visible { outline: 2px solid var(--green); outline-offset: 3px; }
 .wc-ms-btn {
   font-size: var(--text-base);
   padding: 6px 14px;
@@ -365,17 +374,17 @@
   opacity: 0.5;
 }
 .wc-ms-btn-forward {
-  background: linear-gradient(135deg, var(--brand-400), var(--brand-600));
-  box-shadow: 0 2px 8px rgba(var(--color-primary-rgb), .3);
+  background: var(--color-primary-solid);
+  box-shadow: none;
 }
-.wc-ms-btn-forward:hover:not(:disabled) { background: linear-gradient(135deg, var(--brand-300), var(--brand-500)); }
+.wc-ms-btn-forward:hover:not(:disabled) { background: var(--brand-600); }
 .wc-ms-btn-forward:active:not(:disabled) { transform: scale(.96); }
 .wc-ms-btn-delete {
   background: var(--color-badge);
 }
 .wc-ms-count {
   font-size: var(--text-sm2);
-  color: var(--text-tertiary);
+  color: var(--text-secondary);
 }
 .wc-ms-btn-group {
   display: flex;
@@ -1033,4 +1042,20 @@
   cursor: pointer;
   font-size: var(--text-xl);
   line-height: var(--lh-none);
+}
+
+.wc-compose-feedback { flex-shrink: 0; padding: 8px 16px; color: var(--text-secondary); background: var(--bg-panel); font-size: var(--text-sm); line-height: 1.5; overflow-wrap: anywhere; }
+.wc-compose-feedback-error { color: var(--tl-readable-danger); }
+.wc-textarea:disabled { opacity: .7; cursor: wait; }
+html.touliao-ui body :is(.wc-edit-cancel-btn, .wc-reply-bar-close) { min-width: 44px; min-height: 44px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+
+/* Hold-to-talk uses one pointer stream across mouse, touch and pen. */
+html.touliao-ui body .wc-voice-container { padding: 0; }
+.wc-voice-container .wc-voice-btn { touch-action: none; user-select: none; -webkit-touch-callout: none; min-height: 48px; width: 100%; margin: 0; padding: 8px 12px; font-size: 15px; font-weight: 500; }
+html.touliao-ui body .wc-voice-container .wc-voice-btn:not(.recording) { background: var(--tl-primary-soft); color: var(--tl-primary-text); border-color: var(--tl-border-strong); border-radius: 16px; }
+.wc-voice-container .wc-voice-btn[aria-disabled='true'] { cursor: wait; opacity: .65; }
+.wc-voice-hint { order: 10; flex: 0 0 100%; padding: 4px 8px 8px; font-size: 12px; line-height: 1.5; text-align: center; color: var(--tl-readable-muted, var(--text-secondary)); overflow-wrap: anywhere; }
+@media (max-width: 767px) {
+  .wc-voice-hint { padding-bottom: 2px; }
+  .wc-voice-keyboard-hint { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 }

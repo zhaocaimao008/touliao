@@ -56,8 +56,16 @@ function cacheProfile(userId) {
     console.error('[presence] cacheProfile error:', err);
   }
 }
-function getProfile(userId) { return userProfiles.get(userId) || {}; }
-// 资料更新时只清缓存，不影响限流计数
+// 2026-10-11：未命中时对在线用户懒回填。原先缓存只在 connection 时填一次，
+// 改名/换头像后 dropProfile 清掉缓存，之后该用户所有 socket 消息的 senderName/senderAvatar
+// 都是空串（推送标题也跟着空），直到重新建连。只回填在线用户，Map 仍由 cleanupUser 收敛；
+// 离线用户维持旧行为返回 {}（不缓存，防 Map 随历史用户增长）。命中路径仍只有一次 Map.get。
+function getProfile(userId) {
+  let p = userProfiles.get(userId);
+  if (!p && isOnline(userId)) { cacheProfile(userId); p = userProfiles.get(userId); }
+  return p || {};
+}
+// 资料更新时只清缓存，不影响限流计数；下次 getProfile 会按新资料懒回填（见上）
 function dropProfile(userId) { userProfiles.delete(userId); }
 // 最后一台设备断开时全量清理：资料缓存 + 限流计数（防 Map 随历史用户无限增长）
 function cleanupUser(userId) { userProfiles.delete(userId); msgRateLimiter.delete(userId); }

@@ -1,0 +1,26 @@
+import React from 'react';
+import { act, create } from 'react-test-renderer';
+import { afterEach, expect, test, vi } from 'vitest';
+import axios from 'axios';
+import ChatFiles from './ChatFiles';
+const { openPreview } = vi.hoisted(() => ({ openPreview: vi.fn() }));
+vi.mock('axios', () => ({ default: { get: vi.fn() } }));
+vi.mock('../contexts/FilePreviewContext', () => ({ useFilePreview: () => openPreview }));
+vi.mock('../hooks/useFocusTrap', () => ({ default: () => null }));
+vi.mock('../contexts/I18nContext', () => ({ useI18n: () => ({ t: key => key }) }));
+vi.mock('../utils/url', () => ({ mediaUrl: value => value, useMediaCredentials: () => {} }));
+vi.mock('./Avatar', () => ({ default: () => null }));
+vi.mock('./ImagePreview', () => ({ default: () => null }));
+vi.mock('./VideoPreview', () => ({ default: () => null }));
+let view;
+afterEach(()=>{ if(view) act(()=>view.unmount()); view=null; vi.clearAllMocks(); });
+test('a document in chat files opens the app preview through click and keyboard', async()=>{
+  const file={id:'doc',type:'file',fileUrl:'/report.csv',fileName:'report.csv',fileMime:'text/csv',fileSize:100,createdAt:1};
+  axios.get.mockResolvedValue({data:{items:[file],total:1}});
+  await act(async()=>{ view=create(<ChatFiles convId="chat" onClose={()=>{}} />); });
+  const item=view.root.findByProps({className:'chatfiles-item'});
+  act(()=>item.props.onClick());
+  expect(openPreview).toHaveBeenCalledWith({fileUrl:'/report.csv',filename:'report.csv',mimeType:'text/csv',fileSize:100});
+  const preventDefault=vi.fn(); act(()=>item.props.onKeyDown({key:'Enter',preventDefault}));
+  expect(preventDefault).toHaveBeenCalled(); expect(openPreview).toHaveBeenCalledTimes(2);
+});
