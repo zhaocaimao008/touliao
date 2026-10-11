@@ -1,0 +1,18 @@
+{
+  "version": "8.1.57",
+  "previousVersion": "8.1.56",
+  "buildRun": "38105726726",
+  "buildCommit": "5b423eebb7b8f3ada85a9546b5027b09a58bf457",
+  "authorization": "User requested the latest Windows installer and then reported missing in-app updating on 2026-10-11. Enable the existing signed updater for that exact delivered artifact. Authenticode absence was disclosed on delivery; Ed25519 and installer digest verification remain required.",
+  "authenticode": false,
+  "candidateFeed": "https://touliao.cc/downloads/updates/candidates/8157-38105726726",
+  "previousInstallerSha256": "19643e941d90031bf2d41dee1c0c3719e2727ef9faf24b9fe4635449f273c496",
+  "previousManifestSha256": "190a0bdb24093d9538634138f4634d2579de10bf3ca86e7336d4dcc831f1da41",
+  "previousSignatureSha256": "99119ff8daf6e28474872ec16ec3d5d7c1cc17ff8d5b1dc672297b97b9a8669d",
+  "files": {
+    "latest.yml": "ae99a27384e68def37e83dd1c9107f87f19fa7392d5792b94dc9a84c2a0a6dab",
+    "latest.yml.sig": "416ec6ad334b3f133eb0141c7b2b4926cb5817067d6b33034e780821a622d0e2",
+    "touliao-8.1.57-setup.exe": "45bb8f5b837cd70bb0ddf97a4761fabdfb8123e2846b2a0feb1f267d1b43fc05",
+    "touliao-8.1.57-setup.exe.blockmap": "71948db7686a9bf6d45333cd6cc58dfab909b7ddd87ee75546ad8573cd5c4fad"
+  }
+}
