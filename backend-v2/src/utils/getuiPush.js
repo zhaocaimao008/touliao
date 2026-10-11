@@ -11,6 +11,7 @@
  */
 const https = require('https');
 const pushI18n = require('./pushI18n');
+const { notificationId, messageChannel } = require('./notificationPresentation');
 
 const APP_ID = process.env.GETUI_APP_ID || '';
 const APP_KEY = process.env.GETUI_APP_KEY || '';
@@ -127,7 +128,7 @@ async function pushToCid(cid, { title, body, payload, isCurrent }) {
   const token = await getToken();
   // transmission（透传）格式与 VxinGeTuiService.onReceiveMessageData 解析约定一致：
   // {"title":"...","body":"...","conversationId":"..."}
-  // App 在线时走透传 → onReceiveMessageData → showMessageNotification（使用 vxin_messages_v3 渠道）
+  // App 在线时走透传 → onReceiveMessageData → showMessageNotification（使用对应声音/振动渠道）
   // App 离线/后台时走 push_channel.ups.notification → 厂商通道直接展示
   const transmissionPayload = JSON.stringify({
     title,
@@ -136,13 +137,19 @@ async function pushToCid(cid, { title, body, payload, isCurrent }) {
     conversationId: payload?.conversationId || '',
     senderId: payload?.senderId || '',
     recipientId: String(payload?.recipientId || ''),
+    messageId: payload?.messageId || '',
+    sound: payload?.sound !== false,
+    vibrate: payload?.vibrate === true,
+    detailPreview: payload?.detailPreview !== false,
+    conversationUnreadCount: payload?.conversationUnreadCount,
+    badge: payload?.badge,
   });
   const message = {
-    request_id: `${Date.now()}_${Math.random().toString(36).slice(2, 10)}`,
+    request_id: payload?.messageId ? sha256(`${cid}:${payload.recipientId}:${payload.messageId}`).slice(0, 32) : `${Date.now()}_${Math.random().toString(36).slice(2, 10)}`,
     settings: { ttl: 3600000 },   // 离线保留 1h
     audience: { cid: [cid] },
     // transmission 取代 notification：避免个推 SDK 用默认渠道展示通知，
-    // 改由客户端 onReceiveMessageData 以 vxin_messages_v3 渠道展示，保证锁屏可见性正确。
+    // 改由客户端 onReceiveMessageData 按声音/振动偏好展示。
     push_message: {
       transmission: transmissionPayload,
     },
@@ -155,18 +162,29 @@ async function pushToCid(cid, { title, body, payload, isCurrent }) {
       android: {
         ups: {
           notification: { title, body, click_type: 'intent',
+            notify_id: notificationId(payload?.recipientId, payload?.conversationId),
             intent: `intent:#Intent;action=android.intent.action.MAIN;category=android.intent.category.LAUNCHER;package=com.touliao.app;component=com.touliao.app/com.touliao.app.MainActivity;S.recipientId=${encodeURIComponent(payload?.recipientId || '')};${payload?.conversationId ? `S.conversationId=${encodeURIComponent(payload.conversationId)};` : ''}end` },
           // 各厂商离线厂商通道 options（保证锁屏送达）
           options: {
-            HW: { '/message/android/notification/importance': 'HIGH' },
+            HW: {
+              '/message/android/notification/importance': 'NORMAL',
+              '/message/android/notification/channel_id': messageChannel(payload?.sound !== false, payload?.vibrate === true),
+            },
             XM: { '/extra.notify_effect': '1' },
           },
         },
       },
     },
   };
-  const { status, json } = await sendPushWithRetry('/push/single/cid', token, message, { shouldSend: isCurrent });
-  return { status, json, cid };
+  let result = await sendPushWithRetry('/push/single/cid', token, message, { shouldSend: isCurrent });
+  // The provider auth token can expire before our cache does. Refresh once,
+  // keeping the request_id and ownership guard; never discard the device CID.
+  if (result?.json?.code === 10001 && (!isCurrent || isCurrent())) {
+    if (_cachedToken === token) { _cachedToken = null; _tokenExpireAt = 0; }
+    const refreshed = await getToken();
+    result = await sendPushWithRetry('/push/single/cid', refreshed, message, { shouldSend: isCurrent });
+  }
+  return { ...result, cid };
 }
 
 /**

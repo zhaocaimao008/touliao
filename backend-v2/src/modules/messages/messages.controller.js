@@ -65,6 +65,7 @@ exports.searchGlobal = asyncHandler(async (req, res) => res.json(await svc.searc
 exports.searchInConv = asyncHandler(async (req, res) =>
   res.json(await svc.searchInConversation(req.params.convId, req.user.id, req.query.q, {
     type: req.query.type, from: req.query.from, to: req.query.to, senderId: req.query.senderId,
+    limit: req.query.limit, offset: req.query.offset,
   })));
 
 // 会话内批量已读状态：GET /api/messages/conversation/:convId/read-states?msgIds=a,b,c
@@ -137,6 +138,7 @@ exports.uploadHandle = asyncHandler(async (req, res) => {
   });
 
   pushNewMessage({
+    messageId: msg.id,
     conversationId, senderId: req.user.id, senderName: msg.senderName,
     content: msg.burn_after ? '[阅后即焚消息]' : safeOriginalName, type, timestamp: msg.created_at,
     onlineUserIds: req.app.get('onlineUsers') || new Set(),

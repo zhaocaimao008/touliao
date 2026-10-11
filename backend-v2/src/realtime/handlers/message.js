@@ -217,6 +217,7 @@ module.exports = function registerMessageHandler(io, socket) {
           io.to(`user_${userId}`).emit('message_delivered', { messageId: id, conversationId, deliveredCount: onlineRecipients.length });
         }
         pushNewMessage({
+          messageId: id,
           conversationId, senderId: userId, senderName: msg.senderName, content: msg.burn_after ? '[阅后即焚消息]' : content, type,
           timestamp: created_at, onlineUserIds: presence.onlineUserIdSet(), members,
         }).catch(() => {});
