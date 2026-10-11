@@ -168,38 +168,41 @@ async function pushToUser(userId, payload) {
     if (!row.session_id || !nativeSessions.has(row.session_id)) promises.push(sendIosFcm(row));
   }
 
-  // Route per login session: GeTui covers domestic ROMs, FCM is a failure
-  // fallback for that same device, never a reason to suppress other devices.
-  const getuiTokens = getuiPush.isEnabled() ? tokensOf('getui').filter(deviceOwnership.isCurrent) : [];
-  const primarySessions = new Set(getuiTokens.map(row => row.session_id).filter(Boolean));
-  const androidTokens = tokensOf('android');
-  const sendAndroid = rows => rows.length && firebaseAdmin
-    ? fcmOptimized.sendBatchAndroidNotifications(userId, payload, rows) : Promise.resolve();
-  promises.push(sendAndroid(androidTokens.filter(row => !row.session_id || !primarySessions.has(row.session_id))));
-  // One active CID per session. Legacy destinations without session IDs stay
-  // independent, because they cannot safely be assumed to be the same device.
+  // GMS devices use FCM; GeTui immediately serves devices without FCM and
+  // falls back only for a failed FCM destination in the same login session.
+  const androidTokens = firebaseAdmin ? tokensOf('android').filter(deviceOwnership.isCurrent) : [];
+  const androidSessions = new Set(androidTokens.map(row => row.session_id).filter(Boolean));
   const routedSessions = new Set();
-  for (const row of getuiTokens) {
-    if (row.session_id && routedSessions.has(row.session_id)) continue;
-    if (row.session_id) routedSessions.add(row.session_id);
-    promises.push((async () => {
-      try {
-        const result = await getuiPush.pushToCid(row.token, {
+  const getuiTokens = getuiPush.isEnabled() ? tokensOf('getui')
+    .filter(deviceOwnership.isCurrent).sort((a,b) => (b.created_at || 0) - (a.created_at || 0))
+    .filter(row => {
+      if (!row.session_id) return true;
+      if (routedSessions.has(row.session_id)) return false;
+      routedSessions.add(row.session_id); return true;
+    }) : [];
+  const sendGetui = async row => {
+    if (!deviceOwnership.isCurrent(row)) return;
+    try {
+      const result = await getuiPush.pushToCid(row.token, {
         isCurrent: () => deviceOwnership.isCurrent(row),
         title: payload.senderName || pushI18n.t(payload.lang, 'push.newMessage'),
         body: payload.body || pushI18n.t(payload.lang, 'push.oneNewMessage'),
         payload: { ...payload, recipientId: userId },
-        });
-        if (result?.skipped) return;
-        if (result?.json?.code === 0 && (!result.status || result.status === 200)) return;
-        if ([10001, 10002].includes(result?.json?.code)) deviceOwnership.forget(row);
-        throw new Error('GeTui rejected the notification');
-      } catch (error) {
-        console.warn('[push] GeTui failed; retrying paired FCM:', error.message);
-        if (row.session_id) {
-          await sendAndroid(androidTokens.filter(token => token.session_id === row.session_id));
-        }
-      }
+      });
+      if (result?.skipped || (result?.json?.code === 0 && result.status === 200)) return;
+      if ([10001, 10002].includes(result?.json?.code)) deviceOwnership.forget(row);
+      console.warn('[push] GeTui rejected notification:', result?.json?.code);
+    } catch (error) { console.warn('[push] GeTui failed:', error.message); }
+  };
+  for (const row of getuiTokens) {
+    if (!row.session_id || !androidSessions.has(row.session_id)) promises.push(sendGetui(row));
+  }
+  if (androidTokens.length) {
+    promises.push((async () => {
+      const result = await fcmOptimized.sendBatchAndroidNotifications(userId, payload, androidTokens);
+      const delivered = new Set(result?.successfulTokens || []);
+      const deliveredSessions = new Set(androidTokens.filter(row => delivered.has(row.token)).map(row => row.session_id));
+      await Promise.allSettled(getuiTokens.filter(row => row.session_id && androidSessions.has(row.session_id) && !deliveredSessions.has(row.session_id)).map(sendGetui));
     })());
   }
   const results = await Promise.allSettled(promises);

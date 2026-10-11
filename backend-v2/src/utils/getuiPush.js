@@ -128,7 +128,7 @@ async function pushToCid(cid, { title, body, payload, isCurrent }) {
   const token = await getToken();
   // transmission（透传）格式与 VxinGeTuiService.onReceiveMessageData 解析约定一致：
   // {"title":"...","body":"...","conversationId":"..."}
-  // App 在线时走透传 → onReceiveMessageData → showMessageNotification（使用 vxin_messages_v3 渠道）
+  // App 在线时走透传 → onReceiveMessageData → showMessageNotification（使用对应声音/振动渠道）
   // App 离线/后台时走 push_channel.ups.notification → 厂商通道直接展示
   const transmissionPayload = JSON.stringify({
     title,
@@ -149,7 +149,7 @@ async function pushToCid(cid, { title, body, payload, isCurrent }) {
     settings: { ttl: 3600000 },   // 离线保留 1h
     audience: { cid: [cid] },
     // transmission 取代 notification：避免个推 SDK 用默认渠道展示通知，
-    // 改由客户端 onReceiveMessageData 以 vxin_messages_v3 渠道展示，保证锁屏可见性正确。
+    // 改由客户端 onReceiveMessageData 按声音/振动偏好展示。
     push_message: {
       transmission: transmissionPayload,
     },

@@ -14,12 +14,7 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
 import javax.inject.Singleton
 
-/**
- * 通知渠道 + 展示。渠道 id 与后端 FCM android.notification.channelId 一致（vxin_messages_v3）。
- *
- * 通知聚合：同一会话短时间内多条消息折叠为 InboxStyle（最多显示 5 条预览 + 未读总数），
- * 并用 Android 7+ NotificationGroup 汇总，避免同会话连发多条互相覆盖只留最后一条。
- */
+/** Account-scoped message aggregation, preference channels and read cleanup. */
 @Singleton
 class NotificationHelper @Inject constructor(
     @ApplicationContext private val context: Context,
@@ -178,8 +173,7 @@ class NotificationHelper @Inject constructor(
                 CHANNEL_ID, "消息通知", NotificationManager.IMPORTANCE_HIGH,
             ).apply {
                 description = "新消息与提及"
-                // 锁屏可见性：Android 8+ 由渠道决定。PUBLIC = 锁屏完整显示内容，
-                // 否则锁屏收到消息时用户看不到任何提醒（本次问题根因之一）。
+                // Legacy baseline only; new preference channels use PRIVATE visibility.
                 lockscreenVisibility = android.app.Notification.VISIBILITY_PUBLIC
                 enableVibration(true)
                 enableLights(true)
@@ -214,15 +208,12 @@ class NotificationHelper @Inject constructor(
     }
 
     companion object {
-        // 渠道 id 带版本后缀：已存在渠道无法改锁屏可见性/震动（Android 保护用户既有设置），
-        // 需换新 id 才能让新配置对老用户生效。改动这些渠道属性时同步 bump 版本号。
-        // 注意：后端 FCM android.notification.channelId 也须同步为此值（见 backend push.js）。
+        // Preserve the legacy channel as the migration baseline for user controls.
         const val CHANNEL_ID = "vxin_messages_v3"
         const val CALL_CHANNEL_ID = "vxin_calls"
         const val EXTRA_CONVERSATION_ID = "conversationId"
         const val EXTRA_RECIPIENT_ID = "recipientId"
-        // 消息通知固定 id：配合 notify(tag=convId, id=...) 使用，身份由 tag 区分，
-        // 不依赖进程内计数器，跨进程重启保持稳定（见 F4 修复说明）。
+        // Firebase's OS-displayed notification uses id=0 with the same account/chat tag.
         const val MESSAGE_NOTIFICATION_ID = 0
         const val CALL_NOTIFICATION_ID = 424242
         const val SUMMARY_NOTIFICATION_ID = 424200        // 群组汇总通知 ID（固定，更新时覆盖）

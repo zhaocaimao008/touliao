@@ -27,6 +27,22 @@ const https = require('https');
 
 // 捕获个推 HTTP 请求体（/auth + /push/single/cid）
 const getuiRequests = [];
+
+test('message payload carries silent preferences and stable per-conversation identity', async () => {
+  getuiRequests.length = 0;
+  const { pushToCid } = require('../src/utils/getuiPush');
+  const { notificationId } = require('../src/utils/notificationPresentation');
+  const payload = { recipientId:'fixture-recipient', conversationId:'fixture-chat', messageId:'fixture-message', sound:false, vibrate:false, detailPreview:false, conversationUnreadCount:7 };
+  await pushToCid('fixture-cid', {title:'New message',body:'You have a new message',payload});
+  await pushToCid('fixture-cid', {title:'New message',body:'You have a new message',payload});
+  const requests = getuiRequests.filter(r => r.url.includes('/push/single/cid')).map(r => r.body);
+  expect(requests).toHaveLength(2);
+  expect(requests[0].request_id).toBe(requests[1].request_id);
+  expect(requests[0].request_id).toHaveLength(32);
+  expect(JSON.parse(requests[0].push_message.transmission)).toMatchObject(payload);
+  expect(requests[0].push_channel.android.ups.notification.notify_id).toBe(notificationId(payload.recipientId,payload.conversationId));
+  expect(requests[0].push_channel.android.ups.options.HW['/message/android/notification/channel_id']).toBe('touliao_messages_s0_v0');
+});
 jest.mock('https', () => {
   const { Readable } = require('stream');
   const real = jest.requireActual('https');

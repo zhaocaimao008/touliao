@@ -66,6 +66,7 @@ beforeEach(() => {
   db.prepare('DELETE FROM device_tokens WHERE user_id=?').run(user.userId);
   apns.requests.length = 0; apns.reply = () => ({ status: 200, body: '{}' });
   fcm.__send.mockClear(); fcm.__batch.mockClear(); getui.pushCallToCid.mockClear();
+  fcm.__batch.mockReset().mockImplementation(async message => ({ responses: message.tokens.map(() => ({ success: true })), failureCount: 0 }));
   getui.isEnabled.mockReturnValue(false);
   getui.pushToCid.mockReset().mockResolvedValue({ status: 200, json: { code: 0 } });
 });
@@ -147,28 +148,33 @@ test('visible text chat wakes Android and carries stable identity and silent set
   expect(data.android.priority).toBe('high');
   expect(data.android.notification).toMatchObject({ channelId: 'touliao_messages_s0_v0', tag: `touliao:${user.userId}:conversation`, notificationCount: 2, defaultSound: false, visibility: 'private' });
   expect(data.data).toMatchObject({ sound: 'false', vibrate: 'false', messageId: 'm1', conversationUnreadCount: '2', detailPreview: 'false' });
+  const { validateMessage } = jest.requireActual('../node_modules/firebase-admin/lib/messaging/messaging-internal');
+  const { tokens, ...payload } = JSON.parse(JSON.stringify(data));
+  expect(() => validateMessage({ ...payload, token: tokens[0] })).not.toThrow();
 });
 
-test('GeTui primary suppresses only same-session FCM, preserving other phones', async () => {
+test('FCM success suppresses only same-session GeTui, preserving other phones', async () => {
   getui.isEnabled.mockReturnValue(true);
-  const a = session(); device('getui-A', 'getui', a); device('fcm-A', 'android', a); device('fcm-B', 'android', session());
+  const a = session(); device('getui-A', 'getui', a); device('fcm-A', 'android', a); device('getui-B', 'getui', session());
   await pushToUser(user.userId, message);
   expect(getui.pushToCid).toHaveBeenCalledTimes(1);
-  expect(fcm.__batch.mock.calls.flatMap(([m]) => m.tokens)).toEqual(['fcm-B']);
+  expect(getui.pushToCid.mock.calls[0][0]).toBe('getui-B');
+  expect(fcm.__batch.mock.calls.flatMap(([m]) => m.tokens)).toEqual(['fcm-A']);
 });
 
-test('failed GeTui falls back only to its own current session', async () => {
+test('failed FCM falls back only to its own current session', async () => {
   getui.isEnabled.mockReturnValue(true);
-  getui.pushToCid.mockResolvedValue({ status: 200, json: { code: 10001 } });
-  const a = session(); device('getui-A', 'getui', a); device('fcm-A', 'android', a);
+  fcm.__batch.mockResolvedValue({ responses: [{success:false,error:{code:'messaging/unavailable'}}, {success:true}], failureCount:1 });
+  const a = session(), b = session(); device('getui-A', 'getui', a); device('fcm-A', 'android', a);
+  device('getui-B', 'getui', b); device('fcm-B', 'android', b);
   await pushToUser(user.userId, message);
-  expect(fcm.__batch.mock.calls[0][0].tokens).toEqual(['fcm-A']);
+  expect(getui.pushToCid.mock.calls.map(([cid]) => cid)).toEqual(['getui-A']);
 });
 
-test('GeTui fallback cannot deliver after the FCM token changes ownership', async () => {
+test('FCM fallback cannot deliver after the GeTui token changes ownership', async () => {
   getui.isEnabled.mockReturnValue(true);
   const a = session(), b = session(); device('getui-A', 'getui', a); device('fcm-A', 'android', a);
-  getui.pushToCid.mockImplementation(async () => { device('fcm-A', 'android', b); throw Error('timeout'); });
+  fcm.__batch.mockImplementation(async () => { device('getui-A', 'getui', b); throw Error('timeout'); });
   await pushToUser(user.userId, message);
-  expect(fcm.__batch).not.toHaveBeenCalled();
+  expect(getui.pushToCid).not.toHaveBeenCalled();
 });

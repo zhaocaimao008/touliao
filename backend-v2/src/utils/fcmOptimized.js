@@ -61,9 +61,8 @@ function compressData(data) {
     type: data.type || 'message',
     // 会话真实未读数（SQL COUNT>last_read_at，见 pushNewMessage），Android 端通知角标用它
     // 而非本地聚合估算。FCM data payload 只能传字符串。
-    badge: String(data.badge || 1),
-    // data-only 消息（见下方 sendBatchAndroidNotifications 说明）需要客户端自己起标题/正文，
-    // 对应 VxinMessagingService.onMessageReceived 的 data["senderName"]/data["body"] 兜底读取。
+    badge: String(data.badge ?? 1),
+    // Also supply display fields to the app's foreground callback.
     senderName: data.senderName || '',
     body: data.body || '',
     messageId: String(data.messageId || ''),
@@ -114,14 +113,8 @@ async function sendBatchAndroidNotifications(userId, payload, destinations) {
       return null;
     }
     
-    // 2. 构建消息
-    // 必须同时带 notification 块 + data 块：
-    //   · data-only 消息在 App 被杀/后台(Android 8+/12+ 限制)时 onMessageReceived 不会被拉起，
-    //     锁屏将无任何通知——这正是"锁屏收不到消息"的根因（用户实测反馈）。
-    //   · 带 notification 块后：前台时 onMessageReceived 照常被调用（客户端用
-    //     MessageNotificationBridge.appForeground 去重，不重复弹）；后台/被杀/锁屏时
-    //     由系统托盘直接展示（channelId 指向 vxin_messages_v3，渠道已设 VISIBILITY_PUBLIC
-    //     锁屏完整显示 + IMPORTANCE_HIGH）。
+    // notification + data preserves OS display while backgrounded. In the
+    // foreground the client receives the same preferences and stable identity.
     const message = {
       notification: {
         title: payload.senderName,
@@ -196,6 +189,7 @@ async function sendBatchAndroidNotifications(userId, payload, destinations) {
       success: successCount > 0,
       successCount,
       failureCount: response.failureCount,
+      successfulTokens: tokenList.filter((_, index) => response.responses[index]?.success),
       latency,
       messageIds: response.responses.map(r => r.messageId || r.error?.code),
     };
