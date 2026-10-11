@@ -36,7 +36,7 @@ const ConvRow = memo(function ConvRow({ index, style, data }) {
   const draft = (drafts && drafts[conv.id]) || '';
   // 左滑快捷操作（仅触屏）：置顶 / 删除。桌面端走右键菜单，不在 hover 时平移整行
   // （平移会遮住名字/时间，还把「删除」按钮常驻暴露在鼠标下）。
-  const { swipeOffset, swipeHandlers, resetSwipe, swipeEnabled } = useSwipe({ maxOffset: 144, allowRight: false });
+  const { swipeOffset, isSwiping, swipeHandlers, resetSwipe, swipeEnabled } = useSwipe({ maxOffset: 144, allowRight: false });
   const revealed = swipeOffset !== 0;
   const handleSwipePin = () => { resetSwipe(); onPin?.(conv, !conv.pinned); };
   const handleSwipeDelete = () => { resetSwipe(); onDelete?.(conv); };
@@ -72,6 +72,8 @@ const ConvRow = memo(function ConvRow({ index, style, data }) {
         }}
         style={{
           background: conv.pinned && conv.id !== activeConvId ? 'var(--bg-pinned)' : undefined,
+          touchAction: swipeEnabled ? 'pan-y pinch-zoom' : undefined,
+          transition: isSwiping ? 'none' : undefined,
           ...(revealed ? { transform: `translateX(${swipeOffset}px)` } : {}),
         }}
         {...(swipeEnabled ? swipeHandlers : {})}

@@ -96,7 +96,7 @@ html.touliao-ui body .wc-settings-clear-btn { display: flex; width: 100%; margin
 }
 html.touliao-ui body .tl-message-menu { padding: var(--tl-space-1); border-radius: var(--tl-radius-control); box-shadow: var(--tl-shadow-popover); }
 html.touliao-ui body .tl-message-menu .wc-ctx-item { min-height: var(--tl-control-height); padding: var(--tl-space-2) var(--tl-space-3); font-size: var(--tl-type-body-size); border-radius: var(--tl-radius-small); }
-html.touliao-ui body .tl-message-menu .wc-ctx-item:focus { outline: 2px solid var(--tl-focus); outline-offset: -2px; background: var(--tl-surface-hover); }
+html.touliao-ui body .tl-message-menu .wc-ctx-item:focus-visible { outline: 2px solid var(--tl-focus); outline-offset: -2px; background: var(--tl-surface-hover); }
 html.touliao-ui body .tl-message-menu .wc-ctx-item.danger { color: var(--tl-readable-danger); }
 html.touliao-ui body .tl-message-menu .wc-ctx-divider { margin-block: var(--tl-space-1); background: var(--tl-border); }
 html.touliao-ui body .wc-voice-btn { min-height: var(--tl-touch-target); }

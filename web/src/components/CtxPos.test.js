@@ -68,4 +68,19 @@ describe('computeCtxPos 长按菜单定位', () => {
     expect(typeof pos.x).toBe('number');
     expect(typeof pos.y).toBe('number');
   });
+
+  it('keeps a stale offscreen anchor inside a newly shortened viewport', () => {
+    const pos = computeCtxPos({ top: 900, bottom: 940, left: 1000 }, { width: 260, height: 180 },
+      { width: 320, height: 390 }, { safeTop: 8, safeBottom: 8, bottomReserve: 80, edge: 12 });
+    expect(pos.y + 180).toBeLessThanOrEqual(390 - 80 - 8 - 12);
+    expect(pos.x + 260).toBeLessThanOrEqual(320 - 12);
+  });
+
+  it('uses the visible viewport offset when the keyboard or zoom shifts it', () => {
+    const pos = computeCtxPos({ top: 0, bottom: 20, left: 0 }, { width: 220, height: 180 },
+      { width: 300, height: 360, offsetTop: 170, offsetLeft: 35 }, { safeTop: 8, edge: 12 });
+    expect(pos.y).toBeGreaterThanOrEqual(190);
+    expect(pos.x).toBeGreaterThanOrEqual(47);
+    expect(pos.y + 180).toBeLessThanOrEqual(530);
+  });
 });

@@ -14,10 +14,10 @@ function nodes(root, predicate) {
   if (!root || typeof root !== 'object') return [];
   return [root, ...[root.props?.children].flat(Infinity).flatMap(child => nodes(child, predicate))].filter(predicate);
 }
-function render(type, multiSelect = true) {
-  const callbacks = { toggleMsgSelect: vi.fn(), handleContextMenu: vi.fn(), cancelMultiSelect: vi.fn() };
+function render(type, multiSelect = true, overrides = {}) {
+  const callbacks = { toggleMsgSelect: vi.fn(), handleContextMenu: vi.fn(), cancelMultiSelect: vi.fn(), setShowUserProfile: vi.fn() };
   const msg = { id: 'fixture', type, content: type === 'text' ? 'Text with a link' : '{}', file_url: '/test.png', reactions: [{ emoji: '👍', count: 1, userIds: [] }], replyTo: { id: 'quoted', type: 'text', content: 'quoted' } };
-  return { callbacks, msg, tree: MessageItem.type({ item: { msg, multiSelect, isMine: true, convType: 'private', members: [], groupSettings: {} }, cbRef: { current: callbacks } }) };
+  return { callbacks, msg, tree: MessageItem.type({ item: { msg, multiSelect, isMine: true, convType: 'private', members: [], groupSettings: {}, ...overrides }, cbRef: { current: callbacks } }) };
 }
 const event = values => ({ preventDefault: vi.fn(), stopPropagation: vi.fn(), ...values });
 
@@ -59,4 +59,15 @@ test('ordinary messages retain content interaction and expose keyboard context m
   expect(callbacks.handleContextMenu).toHaveBeenCalledWith(key, msg);
   bubble.props.onKeyDown(event({ key: 'Enter' }));
   expect(callbacks.handleContextMenu).toHaveBeenCalledOnce();
+});
+
+test('a profile tap responds immediately without leaving delayed work after a conversation switch', () => {
+  vi.useFakeTimers();
+  try {
+    const { tree, callbacks } = render('text', false, { isMine: false });
+    const avatar = nodes(tree, n => n.props?.className === 'wc-msg-avatar')[0];
+    avatar.props.onClick({ currentTarget: {} });
+    expect(callbacks.setShowUserProfile).toHaveBeenCalledOnce();
+    expect(vi.getTimerCount()).toBe(0);
+  } finally { vi.useRealTimers(); }
 });

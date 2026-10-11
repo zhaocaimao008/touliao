@@ -78,3 +78,66 @@ test('entering selection mode clears an open swipe instead of restoring it on ex
   hooks.effects.at(-1)();
   expect(render().swipeOffset).toBe(0);
 });
+
+test('diagonal scrolling never reveals actions even if the finger later moves sideways', () => {
+  const onSwipeLeft = vi.fn(); const handlers = render({ onSwipeLeft }).swipeHandlers;
+  handlers.onTouchStart(touch(100, 100)); handlers.onTouchMove(touch(60, 140));
+  handlers.onTouchMove(touch(10, 145)); flush(); handlers.onTouchEnd();
+  expect(render().swipeOffset).toBe(0); expect(onSwipeLeft).not.toHaveBeenCalled();
+});
+
+test('small vertical jitter does not cancel an intentional horizontal drag and tracking stops on release', () => {
+  const handlers = render().swipeHandlers;
+  handlers.onTouchStart(touch(100, 100)); handlers.onTouchMove(touch(100, 104));
+  handlers.onTouchMove(touch(45, 107)); flush();
+  expect(render()).toMatchObject({ swipeOffset: -55, isSwiping: true });
+  handlers.onTouchEnd(); expect(render()).toMatchObject({ swipeOffset: -72, isSwiping: false });
+});
+
+test('a drag consumes its synthetic click without blocking keyboard activation or the next deliberate tap', () => {
+  const handlers = render().swipeHandlers;
+  handlers.onTouchStart(touch(100, 100)); handlers.onTouchMove(touch(45, 100)); handlers.onTouchEnd();
+  const keyboard = { detail: 0, preventDefault: vi.fn(), stopPropagation: vi.fn() };
+  handlers.onClickCapture?.(keyboard); expect(keyboard.preventDefault).not.toHaveBeenCalled();
+  const pointer = { detail: 1, preventDefault: vi.fn(), stopPropagation: vi.fn() };
+  handlers.onClickCapture?.(pointer); expect(pointer.preventDefault).toHaveBeenCalledOnce();
+  const next = { detail: 1, preventDefault: vi.fn(), stopPropagation: vi.fn() };
+  handlers.onClickCapture?.(next); expect(next.preventDefault).not.toHaveBeenCalled();
+});
+
+test('an open row stays under the finger and swiping back closes it', () => {
+  let handlers = render().swipeHandlers;
+  handlers.onTouchStart(touch(100, 100)); handlers.onTouchMove(touch(40, 100)); handlers.onTouchEnd();
+  handlers = render().swipeHandlers;
+  handlers.onTouchStart(touch(100, 100)); expect(render().swipeOffset).toBe(-72);
+  handlers.onTouchMove(touch(140, 100)); flush(); expect(render().swipeOffset).toBe(-32);
+  handlers.onTouchEnd(); expect(render().swipeOffset).toBe(0);
+});
+
+test('tapping an open row closes it without activating the content underneath', () => {
+  let handlers = render().swipeHandlers;
+  handlers.onTouchStart(touch(100, 100)); handlers.onTouchMove(touch(40, 100)); handlers.onTouchEnd();
+  handlers = render().swipeHandlers; handlers.onTouchStart(touch(100, 100)); handlers.onTouchEnd();
+  const click = { detail: 1, preventDefault: vi.fn(), stopPropagation: vi.fn() };
+  handlers.onClickCapture?.(click);
+  expect(render().swipeOffset).toBe(0); expect(click.preventDefault).toHaveBeenCalledOnce();
+});
+
+test('text fields and native media controls retain their own gestures', () => {
+  const handlers = render().swipeHandlers;
+  handlers.onTouchStart({ ...touch(100, 100), target: { closest: () => ({ tagName: 'INPUT' }) } });
+  handlers.onTouchMove(touch(40, 100)); handlers.onTouchEnd();
+  expect(render().swipeOffset).toBe(0);
+});
+
+test('a deliberate tap on the revealed action reaches its click handler', () => {
+  let handlers = render().swipeHandlers;
+  handlers.onTouchStart(touch(100, 100)); handlers.onTouchMove(touch(40, 100)); handlers.onTouchEnd();
+  handlers = render().swipeHandlers;
+  handlers.onTouchStart({ ...touch(280, 100), target: { closest: selector => selector.includes('[data-swipe-action]') ? {} : null } });
+  handlers.onTouchEnd();
+  const click = { detail: 1, preventDefault: vi.fn(), stopPropagation: vi.fn() };
+  handlers.onClickCapture(click);
+  expect(render().swipeOffset).toBe(-72);
+  expect(click.preventDefault).not.toHaveBeenCalled();
+});

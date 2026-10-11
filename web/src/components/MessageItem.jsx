@@ -35,7 +35,7 @@ const MessageItem = memo(function MessageItem({ item, cbRef, measure }) {
 
   // 左滑快捷回复（移动端）：仅普通消息可用，多选/系统消息禁用
   const canSwipeReply = !multiSelect && !msg.deleted;
-  const { swipeOffset, swipeHandlers, resetSwipe, swipeEnabled } = useSwipe({
+  const { swipeOffset, isSwiping, swipeHandlers, resetSwipe, swipeEnabled } = useSwipe({
     disabled: !canSwipeReply,
     maxOffset: 72,
     allowRight: false, // 只有左滑回复；右滑没有对应操作，不跟手
@@ -114,24 +114,11 @@ const MessageItem = memo(function MessageItem({ item, cbRef, measure }) {
     return senderMember?.role === 'owner' || senderMember?.role === 'admin';
   })();
 
-  // 头像交互：单击与双击都打开好友资料卡（对齐用户直觉，双击必达资料页）。
-  //   拍一拍(nudge) 改由资料卡内的「拍一拍」按钮触发，避免与看资料手势冲突、也更易发现。
-  // 计时器句柄挂在事件的 currentTarget(DOM 节点)上，避免在 memo 组件里加 hook 破坏 hook 顺序。
+  // Opening a profile has no competing double-click action; respond on the
+  // first click instead of delaying every tap and retaining a stale timer.
   const doAvatarProfile = () => {
     if (!canClickAvatar) { showToast(t('messageItem.privateChatDisabledByOwner')); return; }
     if (!isMine) cbs.setShowUserProfile(msg.sender_id);
-  };
-  const handleAvatarClick = (e) => {
-    if (isMine || multiSelect) { doAvatarProfile(); return; }
-    const el = e.currentTarget;
-    // 单击消抖：若紧接着来了双击，仍是打开资料卡（同一动作），避免连开两次
-    if (el._openTimer) return;
-    el._openTimer = setTimeout(() => { el._openTimer = null; doAvatarProfile(); }, 220);
-  };
-  const handleAvatarDblClick = (e) => {
-    const el = e.currentTarget;
-    if (el._openTimer) { clearTimeout(el._openTimer); el._openTimer = null; }
-    doAvatarProfile(); // 双击 → 直达好友资料卡
   };
 
   const selectMessage = (event) => {
@@ -169,6 +156,8 @@ const MessageItem = memo(function MessageItem({ item, cbRef, measure }) {
       {...(canSwipeReply && swipeEnabled ? swipeHandlers : {})}
       style={{
         ...(multiSelect ? { cursor: 'pointer' } : {}),
+        touchAction: canSwipeReply && swipeEnabled ? 'pan-y pinch-zoom' : undefined,
+        transition: isSwiping ? 'none' : undefined,
         ...(canSwipeReply && swipeOffset !== 0 ? { transform: `translateX(${swipeOffset}px)` } : {}),
       }}
     >
@@ -177,6 +166,7 @@ const MessageItem = memo(function MessageItem({ item, cbRef, measure }) {
         <button
           type="button"
           className="wc-msg-swipe-reply"
+          data-swipe-action="true"
           onClick={handleSwipeReply}
           aria-label={t('chat.reply')}
           style={{ width: 72 }}
@@ -194,8 +184,7 @@ const MessageItem = memo(function MessageItem({ item, cbRef, measure }) {
       )}
       <div
         className="wc-msg-avatar"
-        onClick={!multiSelect ? handleAvatarClick : undefined}
-        onDoubleClick={!multiSelect && !isMine ? handleAvatarDblClick : undefined}
+        onClick={!multiSelect ? doAvatarProfile : undefined}
         role={!multiSelect && !isMine ? 'button' : undefined}
         tabIndex={!multiSelect && !isMine ? 0 : undefined}
         onKeyDown={!multiSelect && !isMine ? (e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); doAvatarProfile(); } }) : undefined}

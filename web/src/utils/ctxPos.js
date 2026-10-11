@@ -8,19 +8,23 @@ export function computeCtxPos(anchor, menu, viewport, opts = {}) {
   const { safeTop = 0, safeBottom = 0, bottomReserve = 0, gap = 6, edge = 12 } = opts;
   const mw = menu.width, mh = menu.height;
   const vw = viewport.width, vh = viewport.height;
+  const left = viewport.offsetLeft || 0, top = viewport.offsetTop || 0;
   if (!mw || !mh || !vw || !vh) return { x: anchor.left || 0, y: (anchor.bottom || 0) + gap };
 
   const below = anchor.bottom + gap;
   const above = anchor.top - gap - mh;
-  const maxY = vh - safeBottom - bottomReserve;
+  const minY = top + safeTop + edge;
+  const maxY = top + vh - safeBottom - bottomReserve;
   let y;
   if (below + mh <= maxY) y = below;                 // 下方足够
-  else if (above >= safeTop) y = above;              // 翻转上方
-  else y = Math.max(safeTop + edge, Math.min(below, maxY - mh - edge)); // 双不足 → clamp
+  else if (above >= minY) y = above;              // 翻转上方
+  else y = below;
+  // Anchors can be stale after scrolling, rotation or the soft keyboard opening.
+  // Clamp both placement branches, not only the insufficient-space branch.
+  y = Math.max(minY, Math.min(y, maxY - mh - edge));
 
   let x = anchor.left;                               // 水平：左对齐气泡
-  if (x + mw > vw - edge) x = Math.max(edge, vw - mw - edge); // 右侧越界向左收
-  if (x < edge) x = edge;                            // 左侧越界向右收
+  x = Math.max(left + edge, Math.min(x, left + vw - mw - edge));
 
   return { x: Math.round(x), y: Math.round(y) };
 }
