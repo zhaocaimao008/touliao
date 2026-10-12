@@ -8,3 +8,5 @@
 .externalNativeBuild
 .cxx
 app/build/
+# Kotlin 2.0+ Gradle 插件在工程根目录写的编译会话/错误数据（不入库）
+.kotlin/
