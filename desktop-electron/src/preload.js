@@ -77,6 +77,7 @@ const electronAPI = {
   // 服务器配置
   setServerUrl:     (url) => ipcRenderer.invoke('config:setServerUrl', url),
   getServerUrl:     ()    => ipcRenderer.invoke('config:getServerUrl'),
+  getServerOrigins: ()    => ipcRenderer.invoke('config:getServerOrigins'),
 
   // 系统信息
   getPlatform:      ()    => ipcRenderer.invoke('system:getPlatform'),

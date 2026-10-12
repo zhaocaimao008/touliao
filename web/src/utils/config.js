@@ -105,24 +105,81 @@ function readCachedConfig() {
 
 const isElectronRuntime = () => typeof window !== 'undefined' && !!window.__ELECTRON_CONFIG__;
 
+const urlOrigin = (u) => { try { return new URL(u).origin; } catch { return ''; } };
+const toWsOrigin = (u) => urlOrigin(u).replace(/^http/, 'ws');
+
+/**
+ * 桌面端主进程当前 CSP 放行的后端 origins（{ api, ws, cdn, manual }）。
+ * 主进程是 CSP 的唯一来源：渲染层用的 api/socket 必须与之一致，否则请求全被自家 CSP 拦下。
+ * 旧主进程没有 getServerOrigins 时退回 getServerUrl（只有 api）；都拿不到返回 null。
+ */
+async function electronAllowedOrigins() {
+  try {
+    const api = window.electronAPI;
+    if (api?.getServerOrigins) {
+      const o = await api.getServerOrigins();
+      if (o?.api) return o;
+    }
+    const url = (await api?.getServerUrl?.()) || window.__ELECTRON_CONFIG__?.serverUrl;
+    return url ? { api: urlOrigin(url) } : null;
+  } catch { return null; }
+}
+
+/** 缓存配置是否与主进程放行的后端一致（手动服务器另行处理，不在此比较）。 */
+export function cacheMatchesAllowed(cached, allowed) {
+  if (!allowed?.api) return true; // 拿不到主进程信息：维持缓存优先
+  if (urlOrigin(cached.api) !== urlOrigin(allowed.api)) return false;
+  if (allowed.ws && toWsOrigin(cached.socket || cached.api) !== allowed.ws) return false;
+  if (allowed.cdn && cached.cdn && urlOrigin(cached.cdn) !== urlOrigin(allowed.cdn)) return false;
+  return true;
+}
+
+function hasManualServer() {
+  try { return !!localStorage.getItem(MANUAL_SERVER_KEY); } catch { return false; }
+}
+
 export function loadRemoteConfig() {
   if (_loaded && _config) return Promise.resolve(_config);
   if (_loading) return _loading;
 
   // Electron「缓存优先」：上次成功拉到的配置已持久化时，启动直接用缓存（不再等最长 3×5s
-  // 的远程拉取），后台再刷新缓存；新配置与缓存不同时下次启动生效。
-  // 没有缓存（首次安装）时保持原有行为。网页端不走这条路径。
+  // 的远程拉取），后台再刷新缓存。没有缓存（首次安装）时保持原有行为。网页端不走这条路径。
+  // 但主进程（main.js refreshRemoteServerConfig）发现 config.json 换了后端时会改 CSP 并
+  // 重载窗口——此时缓存里的旧后端已不在 connect-src 内，继续用缓存会让整个会话所有请求
+  // 被 CSP 拦下。所以缓存只在与主进程放行的后端一致时使用，不一致则以远程配置为准
+  // （远程也拉不到就直接用主进程放行的 origins）。
   if (isElectronRuntime()) {
     const cached = readCachedConfig();
     if (cached?.api) {
-      _config = cached;
-      _loaded = true;
-      _loading = Promise.resolve(_config);
-      fetchRemoteConfig().then(fresh => {
-        if (fresh && JSON.stringify(fresh) !== JSON.stringify(cached)) {
-          console.info('[config] 远程配置已更新，下次启动生效');
+      _loading = (async () => {
+        const allowed = hasManualServer() ? null : await electronAllowedOrigins();
+        if (cacheMatchesAllowed(cached, allowed)) {
+          _config = cached;
+          _loaded = true;
+          fetchRemoteConfig().then(fresh => {
+            if (fresh && JSON.stringify(fresh) !== JSON.stringify(cached)) {
+              console.info('[config] 远程配置已更新，下次启动生效');
+            }
+          }).catch(() => {});
+          return _config;
         }
-      }).catch(() => {});
+        console.info('[config] 缓存后端与桌面端放行的后端不一致，改用远程配置:', cached.api, '->', allowed.api);
+        const fresh = await fetchRemoteConfig();
+        if (fresh && cacheMatchesAllowed(fresh, allowed)) {
+          _config = fresh;
+        } else {
+          // 远程不可达或仍不一致：以主进程（CSP）为准，保证请求不被拦
+          const wsHttp = allowed.ws ? allowed.ws.replace(/^ws/, 'http') : '';
+          _config = {
+            ...DEFAULTS, ...(fresh || cached),
+            api: allowed.api,
+            socket: wsHttp || allowed.api,
+            cdn: allowed.cdn || (fresh || cached).cdn || '',
+          };
+        }
+        _loaded = true;
+        return _config;
+      })();
       return _loading;
     }
   }

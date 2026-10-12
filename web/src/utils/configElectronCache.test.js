@@ -48,3 +48,50 @@ test('网页端有缓存也先拉远程（行为不变）', async () => {
   const { loadRemoteConfig } = await import('./config.js');
   expect((await loadRemoteConfig()).api).toBe('https://new.example');
 });
+
+test('Electron 缓存后端与主进程放行的不一致时不用缓存，改用远程配置', async () => {
+  vi.stubGlobal('window', {
+    __ELECTRON_CONFIG__: {},
+    electronAPI: { getServerOrigins: async () => ({ api: 'https://new.example', ws: 'wss://new.example', cdn: '' }) },
+  });
+  store.set('touliao_remote_config', JSON.stringify({ api: 'https://old.example', socket: 'https://old.example' }));
+  vi.stubGlobal('fetch', vi.fn(async () => ({ ok: true, json: async () => remote })));
+  const { loadRemoteConfig } = await import('./config.js');
+  expect((await loadRemoteConfig()).api).toBe('https://new.example');
+});
+
+test('Electron 缓存不一致且远程不可达时以主进程放行的 origins 为准', async () => {
+  vi.stubGlobal('window', {
+    __ELECTRON_CONFIG__: {},
+    electronAPI: { getServerOrigins: async () => ({ api: 'https://b.example', ws: 'wss://ws.b.example', cdn: 'https://cdn.b.example' }) },
+  });
+  store.set('touliao_remote_config', JSON.stringify({ api: 'https://a.example', socket: 'https://a.example' }));
+  vi.stubGlobal('fetch', vi.fn(async () => { throw new Error('offline'); }));
+  const { loadRemoteConfig } = await import('./config.js');
+  const cfg = await loadRemoteConfig();
+  expect(cfg.api).toBe('https://b.example');
+  expect(cfg.socket).toBe('https://ws.b.example');
+  expect(cfg.cdn).toBe('https://cdn.b.example');
+});
+
+test('Electron 缓存与主进程一致时仍走缓存优先', async () => {
+  vi.stubGlobal('window', {
+    __ELECTRON_CONFIG__: {},
+    electronAPI: { getServerOrigins: async () => ({ api: 'https://old.example', ws: 'wss://old.example', cdn: '' }) },
+  });
+  store.set('touliao_remote_config', JSON.stringify({ api: 'https://old.example', socket: 'https://old.example' }));
+  vi.stubGlobal('fetch', vi.fn(() => new Promise(() => {})));
+  const { loadRemoteConfig } = await import('./config.js');
+  expect((await loadRemoteConfig()).api).toBe('https://old.example');
+});
+
+test('Electron 有手动服务器时不与主进程比较（手动地址另由 readManualServer 校验）', async () => {
+  const getServerOrigins = vi.fn(async () => ({ api: 'https://manual.example' }));
+  vi.stubGlobal('window', { __ELECTRON_CONFIG__: {}, electronAPI: { getServerOrigins } });
+  store.set('touliao_server_url', 'https://manual.example');
+  store.set('touliao_remote_config', JSON.stringify({ api: 'https://old.example' }));
+  vi.stubGlobal('fetch', vi.fn(() => new Promise(() => {})));
+  const { loadRemoteConfig } = await import('./config.js');
+  expect((await loadRemoteConfig()).api).toBe('https://old.example');
+  expect(getServerOrigins).not.toHaveBeenCalled();
+});

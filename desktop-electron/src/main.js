@@ -215,10 +215,12 @@ let remoteServerOrigin = 'https://touliao.cc';
 //  1) applyCachedServerConfig()：建窗前同步执行，用手动服务器或上次成功拉取并持久化的
 //     remoteOrigins（api/ws/cdn）；从未拉到过则用 store.serverUrl/默认域名（与旧版超时回退一致）。
 //  2) refreshRemoteServerConfig()：建窗后后台拉 config.json，结果持久化供下次冷启动；
-//     若 api/ws/cdn 与本次启动所用不同，则立即更新全局（CSP 每次主文档响应现算）并重载
-//     主窗口一次（通话中不重载，下次重载/冷启动生效）。必须重载而非仅"下次启动生效"：
-//     渲染层自己也拉同一份 config.json，会直接改用新后端；当前文档 CSP 仍是旧 origin，
-//     不重载则新后端请求全被自家 CSP 拦下，直到用户重启。服务器迁移极少，重载极少触发。
+//     若 api/ws 与本次启动所用不同，则立即更新全局（CSP 每次主文档响应现算）并重载
+//     主窗口一次（通话中不重载，下次重载/冷启动生效）。仅 cdn 变化（含升级后首次持久化
+//     时 '' -> cfg.cdn）不重载，下次加载生效，避免启动几秒后无端重载打断登录输入。
+//     契约：主进程是后端 origin 的唯一来源。渲染层 config.js 在 Electron 下「缓存优先」，
+//     但会经 config:getServerOrigins 与这里比对，不一致则改用远程配置/这里的 origins，
+//     所以重载后的页面会改连新后端，而不会继续用缓存里已不在 connect-src 内的旧后端。
 // 手动服务器优先于远程 config.json（manual override 仍生效，与渲染端 remote→cache→fallback 一致）。
 function applyServerOrigin(origin) {
   SERVER_URL = origin;
@@ -257,9 +259,12 @@ const serverOriginsKey = () => `${API_ORIGIN}|${WS_ORIGIN}|${CDN_ORIGIN}`;
 
 async function refreshRemoteServerConfig() {
   const before = serverOriginsKey();
+  const beforeBackend = `${API_ORIGIN}|${WS_ORIGIN}`;
   try { await loadRemoteServerUrlInner(); } catch (e) { log.warn('[RemoteConfig] 刷新失败:', e.message); }
   if (serverOriginsKey() === before) return;
   log.info(`[RemoteConfig] 后端地址已变更: ${before} -> ${serverOriginsKey()}`);
+  // 只有 cdn 变了：当前文档 CSP 仍放行旧 cdn、渲染层本会话也用旧 cdn，二者一致；下次加载生效
+  if (`${API_ORIGIN}|${WS_ORIGIN}` === beforeBackend) { log.info('[RemoteConfig] 仅 CDN 变更，不重载，下次加载生效'); return; }
   if (!mainWindow || mainWindow.isDestroyed()) return;
   if (inCall) { log.info('[RemoteConfig] 通话中，暂不重载，下次重载/冷启动生效'); return; }
   mainWindow.loadFile(indexHtmlPath());
@@ -1311,6 +1316,11 @@ function setupIPC() {
   });
   // 返回当前 CSP 放行的后端地址；渲染层据此判断本地保存的手动地址是否可用。
   ipcMain.handle('config:getServerUrl', () => SERVER_URL);
+  // 当前 CSP 放行的完整后端 origins；渲染层 config.js 据此判断本地缓存的配置是否仍可用
+  // （与主进程不一致时不用缓存，避免重载后继续连已被 CSP 拦下的旧后端）。
+  ipcMain.handle('config:getServerOrigins', () => ({
+    api: API_ORIGIN, ws: WS_ORIGIN, cdn: CDN_ORIGIN, manual: !!manualServerOrigin(),
+  }));
 
   // 快捷键设置：读取 / 修改 / 重置
   ipcMain.handle('shortcuts:getAll', (_e) => {
