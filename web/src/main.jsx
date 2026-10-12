@@ -10,9 +10,9 @@ import './design-tokens.css';
 import './index.css';
 import './skins.css';   // 皮肤层:微信绿 / 企业微信蓝 (body[data-skin] 变量覆盖,必须在 index.css 之后)
 import './mobile-adapt.css';
-// 设计系统样式静态引入：随入口一起被发现/下载（此前 boot() 里 await import() 串行阻塞启动）。
-// 放在其余全局样式之后，保持原有层叠顺序（原先也是在上述样式之后注入）。
-import './ui-kit/design-system.css';
+// 设计系统样式（ui-kit/design-system.css）不能静态引入：静态引入会进入口 CSS（<head> 里最先），
+// 而 windows-desktop.css 是按需动态注入的，二者同特异性（0,2,2）的规则会反转为 Windows 值胜出。
+// 见 boot() 里的样式加载：Windows 上先注入 windows-desktop.css 再注入 design-system.css。
 import { isWindowsDesktop } from './utils/desktopPlatform';
 import { startAuthCheck } from './utils/authBootstrap';
 import { loadRemoteConfig, getConfig, readManualServer } from './utils/config';
@@ -49,12 +49,16 @@ if (import.meta.env.PROD && import.meta.env.VITE_SENTRY_DSN) {
 // 3. 启动 React
 
 (async function boot() {
-  // Windows 专属样式仍按需加载，但与下面的配置/语言包加载并行，渲染前再等它
-  let windowsCss = null;
-  if (isWindowsDesktop()) {
-    document.documentElement.classList.add('windows-desktop');
-    windowsCss = import('./windows-desktop.css').catch(() => {});
-  }
+  // 样式尽早发起、与下面的配置/语言包加载并行，渲染前再等。层叠顺序必须与 origin/main 一致：
+  // Windows 上 windows-desktop.css 先注入、ui-kit/design-system.css 后注入（同特异性时设计系统
+  // 胜出，如气泡圆角/搜索框高度/输入区背景/窄窗 @media）。故两者串行链式注入，但不阻塞启动。
+  const isWin = isWindowsDesktop();
+  if (isWin) document.documentElement.classList.add('windows-desktop');
+  const loadDesignSystem = () => import('./ui-kit/design-system.css');
+  const stylesReady = (isWin
+    ? import('./windows-desktop.css').catch(() => {}).then(loadDesignSystem)
+    : loadDesignSystem()
+  ).catch(() => {});
   document.documentElement.classList.add('touliao-ui');
   initAccountWindow();
   // 迁移旧版 vxin_* localStorage key
@@ -172,8 +176,8 @@ if (import.meta.env.PROD && import.meta.env.VITE_SENTRY_DSN) {
     initImageOptimizer();
   }
 
-  // 6. 等待已并行发起的语言包预载 / Windows 样式（通常早已完成）
-  await Promise.all([localeReady, windowsCss]);
+  // 6. 等待已并行发起的语言包预载 / 样式（通常早已完成）
+  await Promise.all([localeReady, stylesReady]);
 
   // 7. 渲染 React
   ReactDOM.createRoot(document.getElementById('root')).render(<App />);
