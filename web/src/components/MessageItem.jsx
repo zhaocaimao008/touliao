@@ -83,6 +83,11 @@ function BubbleVideoThumb({ fileUrl, vidSrc, onMeta }) {
   );
 }
 
+// JSON.parse 失败时返回 fallback（与原 `let x = {}; try { x = JSON.parse(...) } catch { x = {} }` 等价）
+function parseJsonOr(raw, fallback) {
+  try { return JSON.parse(raw); } catch { return fallback; }
+}
+
 const MessageItem = memo(function MessageItem({ item, cbRef, measure }) {
   useMediaCredentials();
   const { t } = useI18n();
@@ -90,7 +95,8 @@ const MessageItem = memo(function MessageItem({ item, cbRef, measure }) {
     convType, userId, myUsername, groupSettings, myGroupRole, members,
     consecutive } = item;
 
-  const cbs = cbRef.current;
+  // cbRef.current 只在事件回调里读（react-hooks/refs：渲染期间不得读 ref）。这也正是传 ref 的本意：
+  // memo 比较不含回调本身，渲染期快照可能是旧回调，事件发生时再取才是最新的一组。
 
   // 左滑快捷回复（移动端）：仅普通消息可用，多选/系统消息禁用
   const canSwipeReply = !multiSelect && !msg.deleted;
@@ -102,7 +108,7 @@ const MessageItem = memo(function MessageItem({ item, cbRef, measure }) {
   });
   const handleSwipeReply = () => {
     resetSwipe();
-    cbs.setReply?.(msg);
+    cbRef.current.setReply?.(msg);
   };
 
   // 拍一拍：居中系统提示「你 拍了拍 X」/「X 拍了拍 你」/「X 拍了拍 Y」
@@ -177,14 +183,37 @@ const MessageItem = memo(function MessageItem({ item, cbRef, measure }) {
   // first click instead of delaying every tap and retaining a stale timer.
   const doAvatarProfile = () => {
     if (!canClickAvatar) { showToast(t('messageItem.privateChatDisabledByOwner')); return; }
-    if (!isMine) cbs.setShowUserProfile(msg.sender_id);
+    if (!isMine) cbRef.current.setShowUserProfile(msg.sender_id);
   };
 
   const selectMessage = (event) => {
     event.preventDefault();
     event.stopPropagation();
-    if (!selectionBusy) cbs.toggleMsgSelect(msg.id);
+    if (!selectionBusy) cbRef.current.toggleMsgSelect(msg.id);
   };
+  // 气泡内容的派生值。原先写在 JSX 里的立即执行函数（IIFE）中：IIFE 在渲染期执行且捕获了 cbRef，
+  // react-hooks/refs 会判为渲染期读 ref。挪到组件体后，JSX 里只剩事件回调（事件发生时才读 cbRef.current）。
+  // 只按 msg.type 计算对应那一项，其余为空值，行为与原 IIFE 一致。
+  const imgSrc = msg.type === 'image' ? mediaUrl(msg.file_url) : '';
+  // 已知宽高比 → 预留正确高度，消除加载时的布局抖动(滚回历史不再跳)
+  const imgAspect = msg.type === 'image' ? getAspect(imgSrc) : null;
+  // aspect-ratio 需配合一个确定的宽度才能预留高度：竖图按 max-height 反推宽度，
+  // 横图/方图取 max-width(240)，避免占位框比真实图片更宽。
+  const imgAspectStyle = imgAspect
+    ? { aspectRatio: String(imgAspect), width: imgAspect < 0.75 ? `${Math.round(320 * imgAspect)}px` : 'min(240px, 62vw)' }
+    : undefined;
+  const vidSrc = msg.type === 'video' ? mediaUrl(msg.file_url) : '';
+  // 复用图片的宽高比缓存，视频加载 metadata 前也能预留正确高度,消除布局抖动
+  const vidAspect = msg.type === 'video' ? getAspect(vidSrc) : null;
+  const onVideoMeta = (w, h) => {
+    rememberAspect(vidSrc, w, h);
+    measure?.(); // 海报/metadata 到达→按真实宽高比撑开后同步重测本行
+  };
+  const openVideoPreview = () => cbRef.current.setVideoUrl?.({ url: msg.file_url, name: msg.content });
+  const fileSizeText = msg.type === 'file' && msg.file_size ? humanFileSize(msg.file_size) : '';
+  const contactCard = msg.type === 'contact_card' ? parseJsonOr(msg.content, {}) : null;
+  const redPacket = msg.type === 'red_packet' ? parseJsonOr(msg.content, {}) : null;
+
   const selectionLabel = msg.type === 'text' || msg.type === 'file'
     ? String(msg.content || t('messageItem.replyPreviewFile'))
     : t({ image: 'messageItem.replyPreviewImage', video: 'messageItem.replyPreviewVideo',
@@ -199,7 +228,7 @@ const MessageItem = memo(function MessageItem({ item, cbRef, measure }) {
       className={`wc-msg-row${isMine ? ' mine' : ''}${consecutive ? ' consecutive' : ''}${multiSelect ? ' multiselect-row' : ''}${isHighlighted ? ' wc-msg-hl' : ''}`}
       onClickCapture={multiSelect ? selectMessage : undefined}
       onKeyDownCapture={multiSelect ? e => {
-        if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); cbs.cancelMultiSelect?.(); return; }
+        if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); cbRef.current.cancelMultiSelect?.(); return; }
         if (e.key === 'Enter' || e.key === ' ') {
           if (e.repeat) { e.preventDefault(); e.stopPropagation(); return; }
           selectMessage(e);
@@ -275,8 +304,8 @@ const MessageItem = memo(function MessageItem({ item, cbRef, measure }) {
                 data-testid="msg-send-failed"
                 title={t('messageItem.sendFailedRetry')}
                 role="button" tabIndex={0} aria-label={t('messageItem.sendFailedRetry')}
-                onClick={() => cbs.retryMessage(msg)}
-                onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); cbs.retryMessage(msg); } }}
+                onClick={() => cbRef.current.retryMessage(msg)}
+                onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); cbRef.current.retryMessage(msg); } }}
               ><TouliaoIcon name="error" size="sm" /></div>
             ) : isLastMine && convType === 'private' ? (
               showRead
@@ -307,17 +336,17 @@ const MessageItem = memo(function MessageItem({ item, cbRef, measure }) {
             aria-haspopup={multiSelect ? undefined : 'menu'}
             onKeyDown={e => {
               if (!multiSelect && (e.key === 'ContextMenu' || (e.shiftKey && e.key === 'F10'))) {
-                cbs.handleContextMenu(e, msg);
+                cbRef.current.handleContextMenu(e, msg);
               }
             }}
-            onContextMenu={e => cbs.handleContextMenu(e, msg)}
+            onContextMenu={e => cbRef.current.handleContextMenu(e, msg)}
           >
             {/* 引用块：被引用消息已撤回/删除时整块移除，UI 无痕（不显示"消息已撤回"） */}
             {msg.replyTo && !msg.replyTo.deleted && (
               <div className={`wc-msg-reply gi-cp${(msg.type === 'image' || msg.type === 'video' || msg.type === 'sticker') ? ' wc-msg-reply--on-media' : ''}`} role="button" tabIndex={0} data-testid="msg-reply-preview"
                 aria-label={t('messageItem.jumpToQuotedAriaLabel')}
-                onClick={e => { e.stopPropagation(); cbs.scrollToMsg(msg.replyTo.id); }}
-                onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.stopPropagation(); cbs.scrollToMsg(msg.replyTo.id); } }}>
+                onClick={e => { e.stopPropagation(); cbRef.current.scrollToMsg(msg.replyTo.id); }}
+                onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.stopPropagation(); cbRef.current.scrollToMsg(msg.replyTo.id); } }}>
                 <div className="wc-msg-reply-name">{msg.replyTo.senderName}</div>
                 {(msg.replyTo.type === 'image' || msg.replyTo.type === 'sticker') && msg.replyTo.file_url ? (
                   <div className="wc-msg-reply-media">
@@ -350,143 +379,112 @@ const MessageItem = memo(function MessageItem({ item, cbRef, measure }) {
               </span>
             )}
             {msg.type === 'merged' && <MergedMessageCard content={msg.content} />}
-            {msg.type === 'image' && (() => {
-              const imgSrc = mediaUrl(msg.file_url);
-              // 已知宽高比 → 预留正确高度，消除加载时的布局抖动(滚回历史不再跳)
-              const aspect = getAspect(imgSrc);
-              // aspect-ratio 需配合一个确定的宽度才能预留高度：竖图按 max-height 反推宽度，
-              // 横图/方图取 max-width(240)，避免占位框比真实图片更宽。
-              const aspectStyle = aspect
-                ? { aspectRatio: String(aspect), width: aspect < 0.75 ? `${Math.round(320 * aspect)}px` : 'min(240px, 62vw)' }
-                : undefined;
-              return (
-                <ImgOptimized
-                  key={imgSrc}
-                  data-testid="msg-image"
-                  src={imgSrc}
-                  alt={t('messageItem.messageImageAlt')}
-                  className="wc-msg-img"
-                  aspectStyle={aspectStyle}
-                  role="button" tabIndex={0} aria-label={t('moments.viewLargeImage')}
-                  onClick={() => cbs.setLightboxUrl(msg.file_url)}
-                  onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); cbs.setLightboxUrl(msg.file_url); } }}
-                  onLoad={e => {
-                    const el = e.currentTarget;
-                    rememberAspect(imgSrc, el.naturalWidth, el.naturalHeight);
-                    measure?.();
-                    cbs.onImageLoad?.();
-                  }}
-                />
-              );
-            })()}
+            {msg.type === 'image' && (
+              <ImgOptimized
+                key={imgSrc}
+                data-testid="msg-image"
+                src={imgSrc}
+                alt={t('messageItem.messageImageAlt')}
+                className="wc-msg-img"
+                aspectStyle={imgAspectStyle}
+                role="button" tabIndex={0} aria-label={t('moments.viewLargeImage')}
+                onClick={() => cbRef.current.setLightboxUrl(msg.file_url)}
+                onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); cbRef.current.setLightboxUrl(msg.file_url); } }}
+                onLoad={e => {
+                  const el = e.currentTarget;
+                  rememberAspect(imgSrc, el.naturalWidth, el.naturalHeight);
+                  measure?.();
+                  cbRef.current.onImageLoad?.();
+                }}
+              />
+            )}
             {msg.type === 'voice' && (
               <VoicePlayer url={mediaUrl(msg.file_url)} msgId={msg.id} isMine={isMine} />
             )}
-            {msg.type === 'video' && (() => {
-              const vidSrc = mediaUrl(msg.file_url);
-              // 复用图片的宽高比缓存，视频加载 metadata 前也能预留正确高度,消除布局抖动
-              const vAspect = getAspect(vidSrc);
-              const onVideoMeta = (w, h) => {
-                rememberAspect(vidSrc, w, h);
-                measure?.(); // 海报/metadata 到达→按真实宽高比撑开后同步重测本行
-              };
-              const openPreview = () => cbs.setVideoUrl?.({ url: msg.file_url, name: msg.content });
-              return (
-                <div
-                  className="wc-msg-video-wrap"
-                  role="button" tabIndex={0} aria-label={t('messageItem.playVideo')}
-                  onClick={openPreview}
-                  onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openPreview(); } }}
-                  style={{
-                    position: 'relative', display: 'inline-block', cursor: 'pointer',
-                    borderRadius: 'var(--radius-input, 8px)', overflow: 'hidden', background: '#000',
-                    ...(vAspect ? { aspectRatio: String(vAspect), width: 'min(240px, 62vw)' } : { width: 'min(240px, 62vw)' }),
-                  }}
-                >
-                  {/* 封面：有 _thumb.webp 海报用 poster+preload=none，否则 preload=metadata + #t=0.1 抓首帧；不播放、不显控件 */}
-                  <BubbleVideoThumb fileUrl={msg.file_url} vidSrc={vidSrc} onMeta={onVideoMeta} />
-                  {/* 中央播放按钮浮层 */}
-                  <span aria-hidden="true" style={{
-                    position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)',
-                    width: 48, height: 48, borderRadius: '50%', background: 'rgba(0,0,0,.5)',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  }}>
-                    <TouliaoIcon name="play" style={{marginLeft:3}} tone="onDark" size="md" />
-                  </span>
+            {msg.type === 'video' && (
+              <div
+                className="wc-msg-video-wrap"
+                role="button" tabIndex={0} aria-label={t('messageItem.playVideo')}
+                onClick={openVideoPreview}
+                onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openVideoPreview(); } }}
+                style={{
+                  position: 'relative', display: 'inline-block', cursor: 'pointer',
+                  borderRadius: 'var(--radius-input, 8px)', overflow: 'hidden', background: '#000',
+                  ...(vidAspect ? { aspectRatio: String(vidAspect), width: 'min(240px, 62vw)' } : { width: 'min(240px, 62vw)' }),
+                }}
+              >
+                {/* 封面：有 _thumb.webp 海报用 poster+preload=none，否则 preload=metadata + #t=0.1 抓首帧；不播放、不显控件 */}
+                <BubbleVideoThumb fileUrl={msg.file_url} vidSrc={vidSrc} onMeta={onVideoMeta} />
+                {/* 中央播放按钮浮层 */}
+                <span aria-hidden="true" style={{
+                  position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)',
+                  width: 48, height: 48, borderRadius: '50%', background: 'rgba(0,0,0,.5)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                }}>
+                  <TouliaoIcon name="play" style={{marginLeft:3}} tone="onDark" size="md" />
+                </span>
+              </div>
+            )}
+            {msg.type === 'file' && (
+              <a href={mediaUrl(msg.file_url)}
+                 onClick={(e) => {
+                   e.preventDefault();
+                   cbRef.current.setFilePreview?.({
+                     fileUrl: msg.file_url, filename: msg.content,
+                     mimeType: msg.file_mime || '', fileSize: msg.file_size || 0,
+                   });
+                 }}
+                 className="wc-msg-file-link" data-testid="msg-file">
+                <div className="wc-msg-file-icon" aria-hidden="true">
+                  <TouliaoIcon name="fileContent" size="lg" />
                 </div>
-              );
-            })()}
-            {msg.type === 'file' && (() => {
-              const sizeText = msg.file_size ? humanFileSize(msg.file_size) : '';
-              return (
-                <a href={mediaUrl(msg.file_url)}
-                   onClick={(e) => {
-                     e.preventDefault();
-                     cbs.setFilePreview?.({
-                       fileUrl: msg.file_url, filename: msg.content,
-                       mimeType: msg.file_mime || '', fileSize: msg.file_size || 0,
-                     });
-                   }}
-                   className="wc-msg-file-link" data-testid="msg-file">
-                  <div className="wc-msg-file-icon" aria-hidden="true">
-                    <TouliaoIcon name="fileContent" size="lg" />
-                  </div>
-                  <div>
-                    <div className="wc-msg-file-name">{msg.content}</div>
-                    <div className="wc-msg-file-size">{sizeText ? `${sizeText} · ${t('messageItem.clickToPreview')}` : t('messageItem.clickToPreview')}</div>
-                  </div>
-                </a>
-              );
-            })()}
+                <div>
+                  <div className="wc-msg-file-name">{msg.content}</div>
+                  <div className="wc-msg-file-size">{fileSizeText ? `${fileSizeText} · ${t('messageItem.clickToPreview')}` : t('messageItem.clickToPreview')}</div>
+                </div>
+              </a>
+            )}
             {msg.type === 'sticker' && (
               <img key={mediaUrl(msg.file_url || msg.content)} loading="lazy" src={mediaUrl(msg.file_url || msg.content)} alt="sticker" className="wc-msg-sticker" onLoad={() => measure?.()} onError={e => { e.currentTarget.style.display = 'none'; measure?.(); }} style={{ maxWidth: 120, maxHeight: 120 }} />
             )}
-            {msg.type === 'contact_card' && (() => {
-              let card = {};
-              try { card = JSON.parse(msg.content); } catch { card = {}; }
-              return (
-                <div
-                  onClick={() => card.uid && cbs.setShowUserProfile(card.uid)}
-                  className="wc-contact-card"
-                  role="button" tabIndex={0}
-                  aria-label={t('messageItem.viewCardAriaLabelTemplate').replace('{name}', card.username || t('messageItem.defaultUsername'))}
-                  onKeyDown={e => { if ((e.key === 'Enter' || e.key === ' ') && card.uid) { e.preventDefault(); cbs.setShowUserProfile(card.uid); } }}
-                >
-                  <div className="wc-contact-card-body">
-                    <Avatar src={card.avatar} name={card.username} size='md' style={{ borderRadius: 'var(--radius-sm)', flexShrink: 0 }} />
-                    <div className="wc-contact-card-info">
-                      <div className="wc-contact-card-name">{card.username || t('messageItem.defaultUsername')}</div>
-                      {card.wechat_id && <div className="wc-contact-card-wechat">{t('messageItem.touliaoIdTemplate').replace('{id}', card.wechat_id)}</div>}
-                    </div>
+            {msg.type === 'contact_card' && (
+              <div
+                onClick={() => contactCard.uid && cbRef.current.setShowUserProfile(contactCard.uid)}
+                className="wc-contact-card"
+                role="button" tabIndex={0}
+                aria-label={t('messageItem.viewCardAriaLabelTemplate').replace('{name}', contactCard.username || t('messageItem.defaultUsername'))}
+                onKeyDown={e => { if ((e.key === 'Enter' || e.key === ' ') && contactCard.uid) { e.preventDefault(); cbRef.current.setShowUserProfile(contactCard.uid); } }}
+              >
+                <div className="wc-contact-card-body">
+                  <Avatar src={contactCard.avatar} name={contactCard.username} size='md' style={{ borderRadius: 'var(--radius-sm)', flexShrink: 0 }} />
+                  <div className="wc-contact-card-info">
+                    <div className="wc-contact-card-name">{contactCard.username || t('messageItem.defaultUsername')}</div>
+                    {contactCard.wechat_id && <div className="wc-contact-card-wechat">{t('messageItem.touliaoIdTemplate').replace('{id}', contactCard.wechat_id)}</div>}
                   </div>
-                  <div className="wc-contact-card-footer">{t('messageItem.personalCard')}</div>
                 </div>
-              );
-            })()}
-            {msg.type === 'red_packet' && (() => {
-              let rp = {};
-              try { rp = JSON.parse(msg.content); } catch { rp = {}; }
-              return (
-                <div
-                  onClick={() => cbs.openRedPacket(rp.packetId)}
-                  className="wc-redpacket-card"
-                  role="button" tabIndex={0}
-                  aria-label={t('messageItem.openRedPacket')}
-                  onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); cbs.openRedPacket(rp.packetId); } }}
-                >
-                  <div className="wc-redpacket-body">
-                    <div className="wc-redpacket-icon"><TouliaoIcon name="redPacket" size="lg" /></div>
-                    <div className="wc-redpacket-info">
-                      <div className="wc-redpacket-greeting">
-                        {rp.greeting || t('messageItem.redPacketFallbackGreeting')}
-                      </div>
-                      <div className="wc-redpacket-hint">{isMine ? t('messageItem.viewRedPacket') : t('messageItem.clickToClaimRedPacket')}</div>
+                <div className="wc-contact-card-footer">{t('messageItem.personalCard')}</div>
+              </div>
+            )}
+            {msg.type === 'red_packet' && (
+              <div
+                onClick={() => cbRef.current.openRedPacket(redPacket.packetId)}
+                className="wc-redpacket-card"
+                role="button" tabIndex={0}
+                aria-label={t('messageItem.openRedPacket')}
+                onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); cbRef.current.openRedPacket(redPacket.packetId); } }}
+              >
+                <div className="wc-redpacket-body">
+                  <div className="wc-redpacket-icon"><TouliaoIcon name="redPacket" size="lg" /></div>
+                  <div className="wc-redpacket-info">
+                    <div className="wc-redpacket-greeting">
+                      {redPacket.greeting || t('messageItem.redPacketFallbackGreeting')}
                     </div>
+                    <div className="wc-redpacket-hint">{isMine ? t('messageItem.viewRedPacket') : t('messageItem.clickToClaimRedPacket')}</div>
                   </div>
-                  <div className="wc-redpacket-footer">{t('messageItem.touliaoRedPacket')}</div>
                 </div>
-              );
-            })()}
+                <div className="wc-redpacket-footer">{t('messageItem.touliaoRedPacket')}</div>
+              </div>
+            )}
             {msg.type === 'transfer' && (() => {
               let tf;
               try { tf = JSON.parse(msg.content); } catch { tf = {}; }
@@ -522,11 +520,11 @@ const MessageItem = memo(function MessageItem({ item, cbRef, measure }) {
               <div
                 key={r.emoji}
                 className={`wc-reaction-pill${mine ? ' mine' : ''}`}
-                onClick={() => cbs.toggleReaction(msg.id, r.emoji)}
+                onClick={() => cbRef.current.toggleReaction(msg.id, r.emoji)}
                 role="button" tabIndex={0}
                 aria-label={`${r.emoji} ${r.count > 1 ? t('messageItem.reactionCountPersonTemplate').replace('{count}', r.count) : ''}${mine ? t('messageItem.reactionRespondedSuffix') : t('messageItem.reactionClickToRespondSuffix')}`}
                 aria-pressed={mine}
-                onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); cbs.toggleReaction(msg.id, r.emoji); } }}
+                onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); cbRef.current.toggleReaction(msg.id, r.emoji); } }}
               >
                 <span>{r.emoji}</span>
                 {r.count > 1 && <span>{r.count}</span>}
