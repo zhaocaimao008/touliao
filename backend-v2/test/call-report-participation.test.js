@@ -7,15 +7,23 @@ const svc = require('../src/modules/telemetry/telemetry.service');
 const createRegistry = require('../src/realtime/callSessionRegistry');
 const registerGroupCallHandler = require('../src/realtime/handlers/groupCall');
 
-afterAll(async () => { await require('../src/db/writer').shutdown(); });
+// 各测试文件共用同一个测试库：本文件写入的 call_reports 在结束时删掉，并且只用 desktop/ios 平台，
+// 避免影响 be-fixes-20261012.test.js 里按 android/web 平台断言的 callStats（运行顺序不固定）。
+const createdCallIds = [];
+afterAll(async () => {
+  for (const id of createdCallIds) db.prepare('DELETE FROM call_reports WHERE call_id=?').run(id);
+  await require('../src/db/writer').shutdown();
+});
 
 const BODY = {
   role: 'caller', callType: 'audio', group: false, connected: true, setupMs: 1200, durationSec: 30,
   endReason: 'hangup', iceRestarts: 0, localCandidateType: 'host', remoteCandidateType: 'srflx',
-  protocol: 'udp', relayProtocol: null, rttMsAvg: 40, packetLossPct: 0.5, platform: 'web', appVersion: '1.0.0',
+  protocol: 'udp', relayProtocol: null, rttMsAvg: 40, packetLossPct: 0.5, platform: 'desktop', appVersion: '1.0.0',
 };
-const report = (u, callId, body = BODY) => request(app).post(`/api/calls/${callId}/report`)
-  .set('Authorization', `Bearer ${u.token}`).send(body);
+const report = (u, callId, body = BODY) => {
+  if (!createdCallIds.includes(callId)) createdCallIds.push(callId);
+  return request(app).post(`/api/calls/${callId}/report`).set('Authorization', `Bearer ${u.token}`).send(body);
+};
 const rowOf = (callId, userId) => db.prepare('SELECT * FROM call_reports WHERE call_id=? AND user_id=?').get(callId, userId);
 
 async function waitFor(fn, ms = 3000) {
