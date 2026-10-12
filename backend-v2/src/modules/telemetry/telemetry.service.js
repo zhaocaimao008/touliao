@@ -66,20 +66,30 @@ function percentile(sorted, q) {
 }
 const round = (v, d = 0) => (v == null ? null : Math.round(v * 10 ** d) / 10 ** d);
 
+// 每个指标最多读入这么多行算分位数；超过则对该指标做均匀随机抽样（sampled: true）。
+// 此前全表 ORDER BY name, value LIMIT 500000 一次读入：窗口超 50 万行时字母序靠后的指标
+// （LCP/TTFB…）整个丢失、被截断的指标只剩最小值，p75/p95 偏低且无任何提示，还在主线程
+// 同步构造 50 万行数组。现按指标分别计数 + 分别读取，每个指标读入量有上限。
+const VITALS_STATS_CAP = 50000;
+
 /** 每个指标的 p50/p75/p95（days ∈ {1,7}），可按 ua_class 过滤。 */
 function vitalsStats(days = 1, { uaClass: cls } = {}) {
   const since = Math.floor(Date.now() / 1000) - days * DAY;
   const params = [since];
   let where = 'ts >= ?';
   if (cls) { where += ' AND ua_class = ?'; params.push(cls); }
-  const rows = readDb.prepare(`SELECT name, value FROM web_vitals WHERE ${where} ORDER BY name, value LIMIT 500000`).all(...params);
-  const by = new Map();
-  for (const r of rows) { if (!by.has(r.name)) by.set(r.name, []); by.get(r.name).push(r.value); }
+  const counts = readDb.prepare(`SELECT name, COUNT(*) AS n FROM web_vitals WHERE ${where} GROUP BY name`).all(...params);
   const metrics = {};
-  for (const [name, vals] of by) {
+  for (const { name, n } of counts) {
+    const step = Math.max(1, Math.ceil(n / VITALS_STATS_CAP));
+    // 抽样用 random() 而非 id 取模：同一页面的各指标按固定顺序插入，id 取模会与指标名相关
+    const sql = `SELECT value FROM web_vitals WHERE ${where} AND name = ?`
+      + (step > 1 ? ' AND abs(random() % ?) = 0' : '') + ' ORDER BY value';
+    const vals = readDb.prepare(sql).all(...params, name, ...(step > 1 ? [step] : [])).map(r => r.value);
     const d = name === 'CLS' ? 3 : 0;
     metrics[name] = {
-      count: vals.length,
+      count: n,
+      ...(step > 1 ? { sampled: true, sampleSize: vals.length } : {}),
       p50: round(percentile(vals, 0.5), d), p75: round(percentile(vals, 0.75), d), p95: round(percentile(vals, 0.95), d),
     };
   }
@@ -167,7 +177,38 @@ function applyParticipation(row, participation) {
   return out;
 }
 
+// call_reports 保留期：已核验 90 天；未核验（查无通话记录）只留 7 天——后者只用于观察核验
+// 覆盖率，且任何登录用户都能用随机 callId 制造，不能无限增长。修剪方式同 web_vitals：
+// 每 CALL_PRUNE_EVERY 次写入或距上次超过 1 小时顺手删一次（走 created_at 索引）。
+const CALL_REPORTS_RETENTION_SEC = 90 * DAY;
+const CALL_REPORTS_UNVERIFIED_RETENTION_SEC = 7 * DAY;
+const CALL_PRUNE_EVERY = 200;
+let callSavesSincePrune = 0;
+let lastCallPruneAt = 0;
+function maybePruneCallReports(nowSec = Math.floor(Date.now() / 1000)) {
+  callSavesSincePrune++;
+  if (callSavesSincePrune < CALL_PRUNE_EVERY && nowSec - lastCallPruneAt <= 3600) return false;
+  callSavesSincePrune = 0;
+  lastCallPruneAt = nowSec;
+  writeAsync('DELETE FROM call_reports WHERE created_at < ?', [nowSec - CALL_REPORTS_RETENTION_SEC]).catch(() => {});
+  writeAsync('DELETE FROM call_reports WHERE verified = 0 AND created_at < ?',
+    [nowSec - CALL_REPORTS_UNVERIFIED_RETENTION_SEC]).catch(() => {});
+  return true;
+}
+
+// 「查无任何通话记录」的未核验上报：单用户 24 小时内最多存这么多条，超出不再落库
+//（照常回 200，客户端无需区分）。正常客户端偶发的写入时序问题远到不了这个量。
+const UNVERIFIED_NONE_QUOTA_24H = 20;
+function unverifiedQuotaExceeded(userId, participation) {
+  if (participation.verdict !== 'unverified' || participation.source !== 'none') return false;
+  const since = Math.floor(Date.now() / 1000) - DAY;
+  const n = readDb.prepare('SELECT COUNT(*) AS n FROM call_reports WHERE created_at >= ? AND user_id = ? AND verified = 0')
+    .get(since, userId).n;
+  return n >= UNVERIFIED_NONE_QUOTA_24H;
+}
+
 async function saveCallReport(userId, callId, row) {
+  maybePruneCallReports();
   const cols = ['call_id', 'user_id', ...Object.keys(row)];
   const vals = [callId, userId, ...Object.values(row)];
   const updates = Object.keys(row).map(c => `${c}=excluded.${c}`).join(', ');
@@ -219,4 +260,5 @@ function callStats(days = 7, { includeUnverified = false } = {}) {
 module.exports = {
   normalizeVital, recordVital, vitalsStats, uaClass, pageOf,
   normalizeCallReport, saveCallReport, callStats, verifyCallParticipation, applyParticipation,
+  unverifiedQuotaExceeded, maybePruneCallReports, VITALS_STATS_CAP, UNVERIFIED_NONE_QUOTA_24H,
 };
