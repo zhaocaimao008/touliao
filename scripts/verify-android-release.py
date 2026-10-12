@@ -93,7 +93,11 @@ def main():
     require(old["package"] == new["package"] == "com.touliao.app", "Application ID must remain unchanged")
     require(new["versionCode"] > old["versionCode"], "versionCode must increase")
     require(version(new["versionName"]) > version(old["versionName"]), "versionName must increase")
-    require(set(old["abis"]).issubset(new["abis"]), "Existing supported ABIs must remain available")
+    # 发布包只保留真机 ABI（x86/x86_64 仅模拟器使用，已从正式包移除以缩小体积）；
+    # 旧版本支持的 ARM ABI 必须全部保留，否则存量 ARM 设备无法覆盖升级。
+    phone_abis = {"arm64-v8a", "armeabi-v7a"}
+    require((set(old["abis"]) & phone_abis).issubset(new["abis"]), "Existing supported ARM ABIs must remain available")
+    require(set(new["abis"]) <= phone_abis | {"x86", "x86_64"}, f"Unexpected ABIs in release APK: {new['abis']}")
     require(new["v1"], "Formal release requires the configured v1/v2/v3 signature schemes")
     gradle = Path("android/app/build.gradle.kts").read_text()
     require(re.search(r'versionName\s*=\s*"([^"]+)"', gradle)[1] == new["versionName"], "APK and Gradle versionName differ")

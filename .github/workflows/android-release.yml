@@ -77,7 +77,32 @@ jobs:
           GETUI_APP_KEY: ${{ secrets.GETUI_APP_KEY }}
           GETUI_APP_SECRET: ${{ secrets.GETUI_APP_SECRET }}
         run: |
-          ./gradlew testDebugUnitTest assembleRelease --stacktrace --no-daemon
+          # 正式包只含 arm64-v8a/armeabi-v7a。先额外打一份带 x86_64 的同签名包，仅供下方
+          # x86_64 模拟器冒烟测试安装；随后用默认 ABI 重新打包（R8/dex 任务 up-to-date，只重做打包），
+          # 输出路径上留下的 app-release.apk 才是要校验与发布的正式包。
+          ./gradlew testDebugUnitTest assembleRelease -PtouliaoAbis=arm64-v8a,armeabi-v7a,x86_64 --stacktrace --no-daemon
+          mkdir -p "$RUNNER_TEMP/smoke-apk"
+          cp app/build/outputs/apk/release/app-release.apk "$RUNNER_TEMP/smoke-apk/app-release-x86_64.apk"
+          ./gradlew assembleRelease --stacktrace --no-daemon
+
+      - name: Smoke-test APK must match release APK except x86_64 native libs
+        run: |
+          python3 - "$RUNNER_TEMP/smoke-apk/app-release-x86_64.apk" android/app/build/outputs/apk/release/app-release.apk <<'PY'
+          import re, sys, zipfile
+          def entries(path, drop):
+              with zipfile.ZipFile(path) as z:
+                  return {i.filename: i.CRC for i in z.infolist()
+                          if not drop(i.filename) and not re.fullmatch(r"META-INF/[^/]+\.(SF|RSA|EC|DSA|MF)", i.filename)}
+          smoke = entries(sys.argv[1], lambda n: n.startswith("lib/x86_64/"))
+          release = entries(sys.argv[2], lambda n: False)
+          if smoke != release:
+              diff = sorted(set(smoke.items()) ^ set(release.items()))[:20]
+              sys.exit(f"Smoke-test APK diverges from release APK: {diff}")
+          with zipfile.ZipFile(sys.argv[1]) as z:
+              if not any(n.startswith("lib/x86_64/") for n in z.namelist()):
+                  sys.exit("Smoke-test APK lacks x86_64 libs")
+          print(f"smoke APK == release APK + lib/x86_64 ({len(release)} entries compared)")
+          PY
 
       - name: Verify production identity signature and upgrade version
         run: |
@@ -93,7 +118,8 @@ jobs:
           arch: x86_64
           target: default
           disable-animations: true
-          script: bash scripts/android-upgrade-smoke.sh android-release-evidence/previous.apk android/app/build/outputs/apk/release/app-release.apk
+          # 安装的是与正式包 dex/资源/签名逐项一致、仅额外带 lib/x86_64 的冒烟包（见上一步校验）
+          script: bash scripts/android-upgrade-smoke.sh android-release-evidence/previous.apk ${{ runner.temp }}/smoke-apk/app-release-x86_64.apk
 
       - name: Upload startup evidence
         if: always()

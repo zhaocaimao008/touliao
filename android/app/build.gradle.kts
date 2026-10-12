@@ -59,6 +59,14 @@ android {
         }
         release {
             isMinifyEnabled = false
+            // 发布包只带真机 ABI：WebRTC libjingle_peerconnection_so 每个 ABI 6~13MB，
+            // x86/x86_64 只在模拟器/极少数 x86 设备上用到。CI 的 x86_64 模拟器冒烟测试用
+            // -PtouliaoAbis=arm64-v8a,armeabi-v7a,x86_64 另打一份（dex/资源/签名与正式包一致）。
+            // debug 不过滤，便于本地/CI 在 x86_64 模拟器上跑仪器测试。
+            val releaseAbis = (project.findProperty("touliaoAbis") as String?) ?: "arm64-v8a,armeabi-v7a"
+            ndk {
+                abiFilters += releaseAbis.split(",").map { it.trim() }.filter { it.isNotEmpty() }
+            }
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
             if (ksPath != null && file(ksPath).exists()) {
                 signingConfig = signingConfigs.getByName("release")
