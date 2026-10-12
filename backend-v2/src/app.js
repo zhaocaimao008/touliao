@@ -515,14 +515,12 @@ app.use('/api/ai',            stub501);   // P12 AI 增强 (mock, 内容审核�
 app.use('/api/web3',          stub501);   // P13 Web3 集成 (mock)
 
 // 公开配置（前端读取功能开关，决定朋友圈/收藏入口显隐）
-const { getFeatures, getMinVersions } = require('./modules/admin/admin.service');
-// 2026-10-12：features 追加服务端能力位（由 .env 决定，非后台开关）。客户端约定：
-//   features.cloudUpload === false → 不调 /api/upload/credential，直接走本机上传；
-//   features.webPush === false     → 不取 /api/notifications/vapid-public-key、不做 Web Push 订阅。
-const { isConfigured: cloudUploadConfigured } = require('./utils/cloudStorage');
-const { vapidPublicKey: webPushKey } = require('./modules/notifications/notifications.service');
+const { getMinVersions } = require('./modules/admin/admin.service');
+// 2026-10-12：features 追加服务端能力位（由 .env 决定，非后台开关），约定见 utils/publicFeatures.js；
+// 后台改开关后的 config:updated 广播用同一个 publicFeatures()。
+const { publicFeatures } = require('./utils/publicFeatures');
 app.get('/api/config', (req, res) => res.json({
-  features: { ...getFeatures(), cloudUpload: !!cloudUploadConfigured(), webPush: !!webPushKey() },
+  features: publicFeatures(),
   minVersion: getMinVersions(),
 }));
 

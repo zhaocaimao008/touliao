@@ -325,9 +325,10 @@ exports.setFeatures = asyncHandler(async (req, res) => {
     ip: req.ip,
     userAgent: req.headers['user-agent'],
   });
-  // 全局广播最新开关：在线客户端无需刷新即可实时显隐入口/按钮（如群语音/视频通话）
+  // 全局广播最新开关：在线客户端无需刷新即可实时显隐入口/按钮（如群语音/视频通话）。
+  // 广播与 GET /api/config 同形（含 cloudUpload/webPush 能力位）：客户端整体替换 features。
   const socketIo = io(req);
-  if (socketIo) socketIo.emit('config:updated', { features });
+  if (socketIo) socketIo.emit('config:updated', { features: require('../../utils/publicFeatures').publicFeatures() });
   res.json(features);
 });
 
