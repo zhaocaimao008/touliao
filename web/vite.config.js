@@ -1,6 +1,10 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import viteCompression from 'vite-plugin-compression';
+import { promisify } from 'node:util';
+import { brotliCompress as brotliCompressCb, constants as zlibConstants } from 'node:zlib';
+import { readdir, readFile, writeFile } from 'node:fs/promises';
+import path from 'node:path';
 
 // Service Worker 脚本（public/sw.js、public/push-sw.js）每次构建都必须产出新的 .gz：线上 nginx
 // 开了 gzip_static，deploy.yml 用 `rsync -a`（不带 --delete）发布 dist/。脚本一旦小于压缩阈值
@@ -8,6 +12,47 @@ import viteCompression from 'vite-plugin-compression';
 // 浏览器拿到的仍是旧 worker，退役版 sw.js 永远生效不了。所以这两个文件不设阈值。
 const SW_SCRIPT = /[\\/](?:sw|push-sw)\.js$/;
 const COMPRESSIBLE = /\.(?:js|mjs|json|css|html)$/i; // vite-plugin-compression 的默认过滤
+
+const PRECOMPRESS_THRESHOLD = 1024;
+
+// .br 预压缩：给 deploy/nginx/snippets/touliao-brotli.conf 的 brotli_static 用（nginx 尚未装 brotli
+// 模块时 .br 只是躺在 /var/www 里不会被发送，无害）。规则与 .gz 完全一致：同一过滤、普通资源 1KB 阈值、
+// SW 脚本不设阈值（理由同上：brotli_static 同样会优先发残留的旧 sw.js.br）。
+// 不用 vite-plugin-compression 再开一个 brotliCompress 实例：0.5.1 的 mtime 缓存是模块级共享的，
+// gzip 实例处理过的文件会被第二个实例当成"未变化"跳过，结果一个 .br 都不产（实测）。
+// desktop 构建（Electron 走 file:// 直接读 dist，整个 dist 打进安装包）用不上预压缩文件，不产 .br。
+const brotliCompress = promisify(brotliCompressCb);
+async function listFiles(dir) {
+  const out = [];
+  for (const entry of await readdir(dir, { withFileTypes: true })) {
+    const full = path.join(dir, entry.name);
+    if (entry.isDirectory()) out.push(...await listFiles(full));
+    else out.push(full);
+  }
+  return out;
+}
+function brotliPrecompress() {
+  let outDir;
+  return {
+    name: 'touliao-brotli-precompress',
+    apply: 'build',
+    enforce: 'post',
+    configResolved(config) { outDir = path.resolve(config.root, config.build.outDir); },
+    async closeBundle() {
+      const files = (await listFiles(outDir)).filter(f => COMPRESSIBLE.test(f));
+      await Promise.all(files.map(async file => {
+        const buf = await readFile(file);
+        if (!SW_SCRIPT.test(file) && buf.length < PRECOMPRESS_THRESHOLD) return;
+        const br = await brotliCompress(buf, { params: {
+          [zlibConstants.BROTLI_PARAM_QUALITY]: zlibConstants.BROTLI_MAX_QUALITY,
+          [zlibConstants.BROTLI_PARAM_MODE]: zlibConstants.BROTLI_MODE_TEXT,
+          [zlibConstants.BROTLI_PARAM_SIZE_HINT]: buf.length,
+        } });
+        await writeFile(`${file}.br`, br);
+      }));
+    },
+  };
+}
 
 export default defineConfig(({ mode }) => ({
   // desktop(Electron file:// 加载) 必须用相对路径，否则 /assets/... 指向磁盘根目录白屏
@@ -17,9 +62,10 @@ export default defineConfig(({ mode }) => ({
   },
   plugins: [
     react(),
-    viteCompression({ algorithm: 'gzip', ext: '.gz', threshold: 1024, deleteOriginFile: false,
+    viteCompression({ algorithm: 'gzip', ext: '.gz', threshold: PRECOMPRESS_THRESHOLD, deleteOriginFile: false,
       filter: file => COMPRESSIBLE.test(file) && !SW_SCRIPT.test(file) }),
     viteCompression({ algorithm: 'gzip', ext: '.gz', threshold: 0, deleteOriginFile: false, filter: SW_SCRIPT }),
+    ...(mode === 'desktop' ? [] : [brotliPrecompress()]),
   ],
   build: {
     outDir: 'dist',
