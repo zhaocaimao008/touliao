@@ -2,11 +2,13 @@ package com.touliao.app.feature.call
 
 import androidx.compose.material3.MaterialTheme
 import android.Manifest
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -68,6 +70,9 @@ fun CallHost(
         }
     }
     if (state.stage == CallStage.IDLE) return
+
+    // 2026-10-12：通话期间(来电振铃/呼出/接通，含小窗)保持屏幕常亮
+    KeepScreenOnDuringCall()
 
     // 回铃音无声提示：通话音量=0 时 ToneGenerator 不发声，用户会以为 App 坏了。
     // 只在主叫等待期(calling)显示；音量恢复或接通后自动消失。
@@ -133,7 +138,18 @@ fun CallHost(
         )
     }
 
-    Box(Modifier.fillMaxSize().background(TouliaoMedia.canvas)) {
+    // 2026-10-12：全屏通话界面拦截返回键(此前穿透到下层 NavHost 弹栈)。
+    // 呼出/连接中/已接通 → 收起为小窗(同左上角按钮)；来电振铃/结束态 → 吞掉，须明确接听/拒绝。
+    // 绝不在返回键上挂断。小窗态在上面已 return，不注册本回调，返回键交还给 App。
+    BackHandler {
+        if (state.stage == CallStage.OUTGOING || state.stage == CallStage.CONNECTING || state.stage == CallStage.CONNECTED) {
+            viewModel.setMinimized(true)
+        }
+    }
+
+    // 2026-10-12：CallHost 与 NavHost 是兄弟节点，根 Box 不处理触摸时点击会穿透到下层页面；
+    // 空 detectTapGestures 让根节点成为命中目标，子按钮仍优先处理(无涟漪/无无障碍语义)。
+    Box(Modifier.fillMaxSize().background(TouliaoMedia.canvas).pointerInput(Unit) { detectTapGestures { } }) {
         // 通话音量=0 提示:回铃音无声时用户会以为 App 坏了,主动引导调音量
         if (showVolumeHint) {
             Box(
@@ -220,9 +236,10 @@ fun CallHost(
         ) {
             if (state.stage == CallStage.INCOMING) {
                 Row(horizontalArrangement = Arrangement.spacedBy(20.dp)) {
-                    RoundButton("接听", CallGreen) { viewModel.accept() }
-                    RoundButton("回复消息", com.touliao.app.ui.theme.TouliaoDarkPalette.surfaceSecondary) { viewModel.rejectAndReply() }
+                    // 2026-10-12：拒绝在左、接听在右(对齐微信/Android 系统来电习惯)
                     RoundButton("拒绝", CallRed) { viewModel.reject() }
+                    RoundButton("回复消息", com.touliao.app.ui.theme.TouliaoDarkPalette.surfaceSecondary) { viewModel.rejectAndReply() }
+                    RoundButton("接听", CallGreen) { viewModel.accept() }
                 }
             } else {
                 androidx.compose.foundation.layout.FlowRow(
@@ -277,6 +294,23 @@ private fun callStatusOrDuration(stage: CallStage, video: Boolean, connectedAt: 
 @Composable
 private fun RoundButton(label: String, color: Color, onClick: () -> Unit) {
     com.touliao.app.ui.components.CallActionButton(label, color, onClick)
+}
+
+/** 1v1 与群通话浮层挂在同一个 ComposeView 上，按引用计数开关 keepScreenOn，避免一方结束时清掉另一方的常亮(仅主线程访问) */
+private var keepScreenOnRefs = 0
+
+/** 通话浮层在组合中即保持屏幕常亮；离开组合(通话归零)自动恢复 */
+@Composable
+internal fun KeepScreenOnDuringCall() {
+    val view = androidx.compose.ui.platform.LocalView.current
+    DisposableEffect(view) {
+        keepScreenOnRefs++
+        view.keepScreenOn = true
+        onDispose {
+            keepScreenOnRefs = (keepScreenOnRefs - 1).coerceAtLeast(0)
+            if (keepScreenOnRefs == 0) view.keepScreenOn = false
+        }
+    }
 }
 
 /** SurfaceViewRenderer 包装：按 track 变化挂/摘 sink，离场释放 */

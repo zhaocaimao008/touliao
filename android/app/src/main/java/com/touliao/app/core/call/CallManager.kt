@@ -13,7 +13,9 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.filter
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import org.webrtc.AudioTrack
@@ -204,6 +206,41 @@ class CallManager @Inject constructor(
     /** 通话音量=0(回铃音无声根因之一):CallScreen 据此提示用户调高音量 */
     val voiceCallVolumeZero = MutableStateFlow(false)
     val state: StateFlow<CallState> = _state.asStateFlow()
+
+    // ── 距离传感器(2026-10-12新增)：已接通的 1v1 语音通话走听筒时，贴耳自动熄屏防脸误触；
+    // 切扬声器/蓝牙/视频或通话结束(任何结束路径最终都会离开 CONNECTED)即释放。
+    // 放在 Manager 而不是 CallHost：UI 退到后台时 collectAsStateWithLifecycle 停更，
+    // 组合里持有的锁可能在通话结束后仍不释放。
+    private val proximityWakeLock: android.os.PowerManager.WakeLock? by lazy {
+        val pm = context.getSystemService(Context.POWER_SERVICE) as? android.os.PowerManager
+        if (pm != null && pm.isWakeLockLevelSupported(android.os.PowerManager.PROXIMITY_SCREEN_OFF_WAKE_LOCK)) {
+            runCatching {
+                pm.newWakeLock(android.os.PowerManager.PROXIMITY_SCREEN_OFF_WAKE_LOCK, "touliao:call-proximity")
+                    .apply { setReferenceCounted(false) }
+            }.getOrNull()
+        } else null
+    }
+
+    init {
+        scope.launch {
+            _state.map { it.stage == CallStage.CONNECTED && !it.isVideo && !it.speakerOn && !it.bluetoothOn }
+                .distinctUntilChanged()
+                .collect { setProximityLock(it) }
+        }
+    }
+
+    private fun setProximityLock(enabled: Boolean) {
+        val lock = proximityWakeLock ?: return
+        runCatching {
+            if (enabled) {
+                // 带超时兜底(4h)，万一状态流异常也不会永久持锁
+                if (!lock.isHeld) lock.acquire(4 * 60 * 60 * 1000L)
+            } else if (lock.isHeld) {
+                // 等离开传感器后再亮屏，避免还贴着脸时挂断瞬间亮屏误触
+                lock.release(android.os.PowerManager.RELEASE_FLAG_WAIT_FOR_NO_PROXIMITY)
+            }
+        }
+    }
 
     // STUN-only 兜底；通话前 refreshIceServers() 会向后端拉取含 TURN 的完整列表。
     // 自家 coturn（与 TURN 同机，3478 同时提供 STUN）放第一位：国内网络下 Google STUN 常不可达。

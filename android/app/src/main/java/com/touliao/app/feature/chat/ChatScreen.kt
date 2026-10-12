@@ -98,6 +98,9 @@ import com.touliao.app.core.util.downloadFile
 import com.touliao.app.core.util.humanFileSize
 import com.touliao.app.core.util.formatChatTime
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.graphics.luminance
+import androidx.compose.material3.minimumInteractiveComponentSize
 import com.touliao.app.data.model.ContactCardContent
 import com.touliao.app.data.model.LocalMsgStatus
 import com.touliao.app.data.model.Message
@@ -146,6 +149,9 @@ fun ChatScreen(
     var mergedDetail by remember { mutableStateOf<Message?>(null) }   // F4a merged 气泡点开详情
     // v3 极光：空状态 CTA「打个招呼」聚焦输入框
     val inputFocusRequester = remember { androidx.compose.ui.focus.FocusRequester() }
+    // 表情/+面板与软键盘互斥：开面板前先收键盘并清焦点，输入框重新获焦时收起面板
+    val keyboardController = androidx.compose.ui.platform.LocalSoftwareKeyboardController.current
+    val focusManager = androidx.compose.ui.platform.LocalFocusManager.current
     var galleryImages by remember { mutableStateOf<List<String>?>(null) }
     var galleryStart by remember { mutableStateOf(0) }
     // 2026-08-29 统一附件系统：视频/PDF/其他文件 App 内预览态（三者互斥，同时只开一个）
@@ -495,8 +501,24 @@ fun ChatScreen(
                             viewModel.send()
                         }
                     },
-                    onToggleEmoji = { showEmojiPanel = !showEmojiPanel; if (showEmojiPanel) showFuncPanel = false },
-                    onToggleFunc = { showFuncPanel = !showFuncPanel; if (showFuncPanel) showEmojiPanel = false },
+                    onToggleEmoji = {
+                        if (showEmojiPanel) {
+                            // 表情面板 → 键盘：收起面板并唤起输入法
+                            showEmojiPanel = false
+                            inputFocusRequester.requestFocus()
+                            keyboardController?.show()
+                        } else {
+                            // 先收键盘再展开面板，避免面板叠在键盘上方
+                            keyboardController?.hide(); focusManager.clearFocus()
+                            showEmojiPanel = true; showFuncPanel = false
+                        }
+                    },
+                    onToggleFunc = {
+                        if (!showFuncPanel) { keyboardController?.hide(); focusManager.clearFocus() }
+                        showFuncPanel = !showFuncPanel; if (showFuncPanel) showEmojiPanel = false
+                    },
+                    // 点击输入框获焦（键盘将弹出）时收起面板
+                    onInputFocused = { showEmojiPanel = false; showFuncPanel = false },
                     funcPanelOpen = showFuncPanel,
                     emojiPanelOpen = showEmojiPanel,
                     showMention = viewModel.isGroup,
@@ -640,7 +662,9 @@ fun ChatScreen(
                             ) {
                                 Box(
                                     Modifier.size(22.dp).clip(CircleShape)
-                                        .background(if (checked) VxinBrand else Color(0x22000000)),
+                                        .background(if (checked) VxinBrand else Color.Transparent)
+                                        // 未选中：主题描边色空心圆，深浅色下均可见
+                                        .then(if (checked) Modifier else Modifier.border(1.5.dp, MaterialTheme.colorScheme.outline, CircleShape)),
                                     contentAlignment = Alignment.Center,
                                 ) { if (checked) com.touliao.app.ui.TouliaoGlyph(com.touliao.app.ui.TouliaoIcons.Check, color = com.touliao.app.ui.IconColor.OnDark, size = com.touliao.app.ui.IconSize.Xs) }
                                 Box(Modifier.weight(1f)) {
@@ -1269,6 +1293,8 @@ private fun MessageBubble(
                         fontSize = com.touliao.app.ui.theme.VxinTextSize.xs2,
                         color = com.touliao.app.ui.theme.VxinError,
                         modifier = Modifier
+                            // 视觉尺寸不变，触控区域扩到 ≥48dp
+                            .minimumInteractiveComponentSize()
                             .clip(RoundedCornerShape(com.touliao.app.ui.theme.VxinRadius.tag))
                             .clickable(onClick = onRetry)
                             .testTag("msg-send-failed-${msg.id}")
@@ -1583,6 +1609,8 @@ private fun MessageContent(
 @OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
 private fun PendingBubble(p: PendingUpload, onRetry: () -> Unit, onDismiss: () -> Unit) {
+    // 失败态：危险浅底 + 可读危险色文字（浅色/深色主题均满足对比度）
+    val palette = com.touliao.app.ui.theme.LocalTouliaoPalette.current
     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End, verticalAlignment = Alignment.CenterVertically) {
         // 失败时：气泡左侧显示红色感叹号，点击重试（对齐微信）
         if (p.failed) {
@@ -1598,7 +1626,7 @@ private fun PendingBubble(p: PendingUpload, onRetry: () -> Unit, onDismiss: () -
                 modifier = Modifier
                     .widthIn(max = 220.dp)
                     .clip(RoundedCornerShape(com.touliao.app.ui.theme.VxinRadius.badge))
-                    .background(if (p.failed) Color(0x33FA5151) else VxinBrand.copy(alpha = 0.6f))
+                    .background(if (p.failed) palette.dangerSoft else VxinBrand.copy(alpha = 0.6f))
                     .combinedClickable(
                         onClick = { if (p.failed) onRetry() },
                         onLongClick = { if (p.failed) onDismiss() },
@@ -1623,7 +1651,7 @@ private fun PendingBubble(p: PendingUpload, onRetry: () -> Unit, onDismiss: () -
                         }
                         Text(
                             if (p.failed) "发送失败（点击重试，长按移除）" else placeholderLabel(p),
-                            color = Color.White,
+                            color = if (p.failed) palette.readableDanger else Color.White,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
                         )
@@ -1660,8 +1688,13 @@ private val MENTION_RE = Regex("@[^\\s@]+")
 @Composable
 private fun highlightMentions(content: String, isMine: Boolean): androidx.compose.ui.text.AnnotatedString {
     if (!content.contains('@')) return androidx.compose.ui.text.AnnotatedString(content)
-    // @提及高亮：我方靛底用浅色、对方白底用品牌深色，均保证可读
-    val color = if (isMine) Color.White else VxinBrandDark
+    // @提及高亮：我方靛底用浅色；对方浅色气泡用品牌深色，深色气泡改用浅紫 primaryText，均保证可读
+    val palette = com.touliao.app.ui.theme.LocalTouliaoPalette.current
+    val color = when {
+        isMine -> Color.White
+        palette.messageIncoming.luminance() < 0.5f -> palette.primaryText
+        else -> VxinBrandDark
+    }
     return androidx.compose.ui.text.buildAnnotatedString {
         var last = 0
         MENTION_RE.findAll(content).forEach { mr ->
@@ -1775,6 +1808,7 @@ private fun MessageInputBar(
     showMention: Boolean = false,
     onMention: () -> Unit = {},
     inputFocusRequester: androidx.compose.ui.focus.FocusRequester? = null,
+    onInputFocused: () -> Unit = {},
 ) {
     val hasText = value.isNotBlank()
     // 注意：imePadding / navigationBarsPadding 已在 ChatScreen 的 bottomBar 顶层统一处理，此处不再重复。
@@ -1817,6 +1851,7 @@ private fun MessageInputBar(
                     .weight(1f)
                     .padding(vertical = 4.dp)
                     .then(if (inputFocusRequester != null) Modifier.focusRequester(inputFocusRequester) else Modifier)
+                    .onFocusChanged { if (it.isFocused) onInputFocused() }
                     .testTag("chat-msg-input"),
                 decorationBox = { inner ->
                     Box(

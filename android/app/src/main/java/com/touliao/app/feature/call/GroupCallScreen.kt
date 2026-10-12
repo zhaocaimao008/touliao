@@ -2,10 +2,12 @@ package com.touliao.app.feature.call
 
 import androidx.compose.material3.MaterialTheme
 import android.Manifest
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -35,6 +37,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -83,7 +86,13 @@ fun GroupCallHost(viewModel: GroupCallViewModel = hiltViewModel()) {
         }
         LaunchedEffect(Unit) { permLauncher.launch(perms) }
 
-        Column(Modifier.fillMaxSize().background(com.touliao.app.ui.theme.TouliaoDarkPalette.background).systemBarsPadding(), horizontalAlignment = Alignment.CenterHorizontally) {
+        // 2026-10-12：通话期间保持屏幕常亮(与 1v1 共用引用计数)
+        KeepScreenOnDuringCall()
+        // 2026-10-12：群通话暂无小窗，返回键直接吞掉，避免穿透到下层 NavHost；绝不在返回键上挂断
+        BackHandler { }
+
+        // 2026-10-12：根节点吃掉子控件未处理的触摸，防止点击穿透到下层页面(同 1v1 CallHost)
+        Column(Modifier.fillMaxSize().background(com.touliao.app.ui.theme.TouliaoDarkPalette.background).pointerInput(Unit) { detectTapGestures { } }.systemBarsPadding(), horizontalAlignment = Alignment.CenterHorizontally) {
             val durationText = groupCallDuration(state.connectedAt)
             Text(
                 "群${if (state.isVideo) "视频" else "语音"}通话 · ${state.participants.size + 1} 人" +

@@ -22,6 +22,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -160,11 +161,19 @@ fun ConversationListScreen(
                     CircularProgressIndicator(Modifier.align(Alignment.Center))
 
                 state.error != null && state.conversations.isEmpty() ->
-                    Text(
-                        state.error!!,
-                        color = MaterialTheme.colorScheme.error,
-                        modifier = Modifier.align(Alignment.Center),
-                    )
+                    // 加载失败：错误文案 + 重试（与下拉刷新同一入口）
+                    Column(
+                        Modifier.align(Alignment.Center).padding(horizontal = 24.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                    ) {
+                        Text(
+                            state.error!!,
+                            color = MaterialTheme.colorScheme.error,
+                            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                        )
+                        Spacer(Modifier.size(8.dp))
+                        TextButton(onClick = { viewModel.refresh() }, modifier = Modifier.testTag("conv-list-retry")) { Text("重试") }
+                    }
 
                 state.conversations.isEmpty() ->
                     com.touliao.app.ui.components.EmptyState(
@@ -233,20 +242,7 @@ fun ConversationListScreen(
                                     Text("已归档会话", style = MaterialTheme.typography.bodyLarge)
                                     Text("${archivedList.size} 个会话", color = VxinTextSecondary, fontSize = com.touliao.app.ui.theme.VxinTextSize.sm2)
                                 }
-                                if (archiveUnread > 0) {
-                                    Box(
-                                        modifier = Modifier
-                                            .size(18.dp)
-                                            .clip(CircleShape)
-                                            .background(com.touliao.app.ui.theme.VxinError),
-                                        contentAlignment = Alignment.Center,
-                                    ) {
-                                        Text(
-                                            if (archiveUnread > 99) "99+" else archiveUnread.toString(),
-                                            color = MaterialTheme.colorScheme.onError, fontSize = com.touliao.app.ui.theme.VxinTextSize.xs2,
-                                        )
-                                    }
-                                }
+                                if (archiveUnread > 0) UnreadBadge(archiveUnread)
                             }
                         }
                     }
@@ -284,6 +280,28 @@ fun ConversationListScreen(
             text = { Text("确认清空与「${target.name.ifBlank { "该会话" }}」的聊天记录？此操作不可恢复。") },
             confirmButton = { TextButton(onClick = { viewModel.clearMessages(target); clearTarget = null }) { Text("清空", color = com.touliao.app.ui.theme.VxinError) } },
             dismissButton = { TextButton(onClick = { clearTarget = null }) { Text("取消") } },
+        )
+    }
+}
+
+/** 未读数角标：胶囊形，最小 18dp 圆；「99+」或大字号时随内容变宽变高而不裁切 */
+@Composable
+private fun UnreadBadge(count: Int) {
+    Box(
+        modifier = Modifier
+            .heightIn(min = 18.dp)
+            .widthIn(min = 18.dp)
+            .clip(RoundedCornerShape(50))
+            .background(com.touliao.app.ui.theme.VxinError)
+            .padding(horizontal = 5.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            if (count > 99) "99+" else count.toString(),
+            color = MaterialTheme.colorScheme.onError, fontSize = com.touliao.app.ui.theme.VxinTextSize.xs2,
+            lineHeight = com.touliao.app.ui.theme.VxinTextSize.xs2 * 1.2f,
+            maxLines = 1,
+            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
         )
     }
 }
@@ -377,18 +395,7 @@ internal fun ConversationRow(
                     com.touliao.app.ui.TouliaoGlyph(com.touliao.app.ui.TouliaoIcons.Mute, size = com.touliao.app.ui.IconSize.Xs)
                 }
                 // 正常会话：显示未读数字角标
-                conv.unreadCount > 0 -> Box(
-                    modifier = Modifier
-                        .size(18.dp)
-                        .clip(CircleShape)
-                        .background(com.touliao.app.ui.theme.VxinError),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Text(
-                        if (conv.unreadCount > 99) "99+" else conv.unreadCount.toString(),
-                        color = MaterialTheme.colorScheme.onError, fontSize = com.touliao.app.ui.theme.VxinTextSize.xs2,
-                    )
-                }
+                conv.unreadCount > 0 -> UnreadBadge(conv.unreadCount)
             }
         }
     }

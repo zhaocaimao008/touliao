@@ -29,9 +29,13 @@ import androidx.media3.ui.PlayerView
 import com.touliao.app.core.util.saveVideoToGallery
 import com.touliao.app.core.util.shareFile
 import com.touliao.app.ui.theme.VxinTextSize
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
+import kotlin.math.roundToInt
 import java.io.File
 
 /**
@@ -107,12 +111,13 @@ fun VideoPlayerOverlay(url: String, filename: String?, onDismiss: () -> Unit) {
 /**
  * PDF App 内预览：Android 系统自带 android.graphics.pdf.PdfRenderer（API 21+，无需第三方库，
  * 全程离线本地渲染，不经任何网络转换服务）。PdfRenderer 需要本地文件描述符，不能直接对接
- * 网络流，所以先用 OkHttp 把文件流式下载到 cache 目录，再逐页渲染成 Bitmap。
+ * 网络流，所以先用 OkHttp 把文件流式下载到 cache 目录；页面按需懒渲染（仅渲染滚到可见区的页，
+ * 宽度按屏宽缩放并封顶），离开组合即释放位图，避免大 PDF 一次性渲染全部页面导致 OOM。
  */
 @Composable
 fun PdfViewerOverlay(url: String, filename: String?, onDismiss: () -> Unit) {
     val context = LocalContext.current
-    var pages by remember { mutableStateOf<List<Bitmap>?>(null) }
+    var doc by remember { mutableStateOf<PdfDoc?>(null) }
     var error by remember { mutableStateOf<String?>(null) }
 
     LaunchedEffect(url) {
@@ -127,48 +132,40 @@ fun PdfViewerOverlay(url: String, filename: String?, onDismiss: () -> Unit) {
                     val body = resp.body ?: throw IllegalStateException("空响应")
                     file.outputStream().use { out -> body.byteStream().copyTo(out) }
                 }
-                val pfd = ParcelFileDescriptor.open(file, ParcelFileDescriptor.MODE_READ_ONLY)
-                val renderer = PdfRenderer(pfd)
-                val bitmaps = mutableListOf<Bitmap>()
-                for (i in 0 until renderer.pageCount) {
-                    renderer.openPage(i).use { page ->
-                        val bmp = Bitmap.createBitmap(page.width * 2, page.height * 2, Bitmap.Config.ARGB_8888)
-                        bmp.eraseColor(android.graphics.Color.WHITE)
-                        page.render(bmp, null, null, PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY)
-                        bitmaps.add(bmp)
-                    }
-                }
-                renderer.close()
-                pfd.close()
-                file.delete()
-                bitmaps
-            }.onSuccess { bitmaps -> pages = bitmaps }
+                PdfDoc.open(file)
+            }.onSuccess { opened -> doc = opened }
                 .onFailure { error = it.message ?: "PDF 解析失败" }
         }
+    }
+    // 关闭预览时释放 PdfRenderer、文件描述符与临时文件（等待正在进行的页渲染结束）
+    DisposableEffect(doc) {
+        val opened = doc
+        onDispose { opened?.closeAsync() }
     }
 
     Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
         Box(Modifier.fillMaxSize().background(Color(0xFF525659))) {
+            val opened = doc
             when {
                 error != null -> Column(
                     Modifier.align(Alignment.Center), horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
                     Text("无法预览：$error", color = Color.White)
                 }
-                pages == null -> CircularProgressIndicator(
+                opened == null -> CircularProgressIndicator(
                     modifier = Modifier.align(Alignment.Center), color = Color.White,
                 )
-                else -> LazyColumn(
-                    Modifier.fillMaxSize(),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    contentPadding = PaddingValues(vertical = 16.dp),
-                ) {
-                    items(pages!!) { bmp ->
-                        Image(
-                            bitmap = bmp.asImageBitmap(),
-                            contentDescription = "PDF 页面",
-                            modifier = Modifier.padding(bottom = 12.dp).background(Color.White),
-                        )
+                else -> BoxWithConstraints(Modifier.fillMaxSize()) {
+                    // 按屏宽渲染（封顶，防止平板/横屏下单页位图过大）
+                    val targetWidthPx = constraints.maxWidth.coerceIn(1, PDF_MAX_RENDER_WIDTH_PX)
+                    LazyColumn(
+                        Modifier.fillMaxSize(),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        contentPadding = PaddingValues(vertical = 16.dp),
+                    ) {
+                        items(opened.pageCount) { index ->
+                            PdfPageItem(opened, index, targetWidthPx)
+                        }
                     }
                 }
             }
@@ -184,6 +181,97 @@ fun PdfViewerOverlay(url: String, filename: String?, onDismiss: () -> Unit) {
                     maxLines = 1,
                     modifier = Modifier.align(Alignment.TopCenter).padding(top = 44.dp).padding(horizontal = 60.dp),
                 )
+            }
+        }
+    }
+}
+
+/** 单页渲染宽度上限（px）：ARGB_8888 下 1440×~2000 一页约 11MB，可见区通常只有 1~3 页 */
+private const val PDF_MAX_RENDER_WIDTH_PX = 1440
+
+/** 单页：进入组合时在 IO 线程按需渲染，离开组合即放弃引用（位图交由 GC 回收） */
+@Composable
+private fun PdfPageItem(doc: PdfDoc, index: Int, targetWidthPx: Int) {
+    val aspect = doc.aspectRatio(index)
+    val bitmap by produceState<Bitmap?>(initialValue = null, doc, index, targetWidthPx) {
+        value = withContext(Dispatchers.IO) { runCatching { doc.render(index, targetWidthPx) }.getOrNull() }
+    }
+    Box(
+        Modifier.padding(bottom = 12.dp).fillMaxWidth().aspectRatio(aspect).background(Color.White),
+        contentAlignment = Alignment.Center,
+    ) {
+        val bmp = bitmap
+        if (bmp != null) {
+            Image(
+                bitmap = bmp.asImageBitmap(),
+                contentDescription = "PDF 第 ${index + 1} 页",
+                contentScale = androidx.compose.ui.layout.ContentScale.FillWidth,
+                modifier = Modifier.fillMaxSize(),
+            )
+        } else {
+            CircularProgressIndicator(Modifier.size(24.dp), strokeWidth = 2.dp, color = Color(0xFF525659))
+        }
+    }
+}
+
+/**
+ * 已打开的 PDF。PdfRenderer 同一时刻只允许打开一页，所有 openPage / close 都经 [mutex] 串行化。
+ * 打开时预读各页宽高比用于占位，滚动时不跳动。
+ */
+private class PdfDoc private constructor(
+    private val file: File,
+    private val pfd: ParcelFileDescriptor,
+    private val renderer: PdfRenderer,
+    private val aspects: FloatArray,
+) {
+    private val mutex = Mutex()
+    private var closed = false
+    val pageCount: Int get() = aspects.size
+
+    fun aspectRatio(index: Int): Float = aspects.getOrElse(index) { 1f / 1.414f }
+
+    /** 按目标宽度渲染一页；已关闭返回 null。PdfRenderer 要求 ARGB_8888。 */
+    suspend fun render(index: Int, targetWidthPx: Int): Bitmap? = mutex.withLock {
+        if (closed) return@withLock null
+        renderer.openPage(index).use { page ->
+            val w = targetWidthPx.coerceAtLeast(1)
+            val h = (w.toFloat() * page.height / page.width.coerceAtLeast(1)).roundToInt().coerceAtLeast(1)
+            val bmp = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
+            bmp.eraseColor(android.graphics.Color.WHITE)
+            // transform 传 null：页面内容缩放铺满整张位图
+            page.render(bmp, null, null, PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY)
+            bmp
+        }
+    }
+
+    /** 异步关闭（等正在进行的渲染完成后再关 renderer / fd，并删除临时文件） */
+    fun closeAsync() {
+        CoroutineScope(Dispatchers.IO).launch {
+            mutex.withLock {
+                if (closed) return@withLock
+                closed = true
+                runCatching { renderer.close() }
+                runCatching { pfd.close() }
+                runCatching { file.delete() }
+            }
+        }
+    }
+
+    companion object {
+        fun open(file: File): PdfDoc {
+            val pfd = ParcelFileDescriptor.open(file, ParcelFileDescriptor.MODE_READ_ONLY)
+            try {
+                val renderer = PdfRenderer(pfd)
+                try {
+                    val aspects = FloatArray(renderer.pageCount) { i ->
+                        renderer.openPage(i).use { page -> page.width.toFloat() / page.height.coerceAtLeast(1) }
+                    }
+                    return PdfDoc(file, pfd, renderer, aspects)
+                } catch (e: Throwable) {
+                    runCatching { renderer.close() }; throw e
+                }
+            } catch (e: Throwable) {
+                runCatching { pfd.close() }; file.delete(); throw e
             }
         }
     }
