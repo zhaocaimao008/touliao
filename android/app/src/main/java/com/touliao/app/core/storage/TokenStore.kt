@@ -2,8 +2,6 @@ package com.touliao.app.core.storage
 
 import android.content.Context
 import android.content.SharedPreferences
-import androidx.security.crypto.EncryptedSharedPreferences
-import androidx.security.crypto.MasterKey
 import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -14,27 +12,19 @@ import javax.inject.Singleton
  * 对应 Web 端 localStorage 的 vxin_electron_token，但加密落盘。
  */
 @Singleton
-class TokenStore internal constructor(private val prefs: SharedPreferences) {
-    @Inject constructor(@ApplicationContext context: Context) : this(createPrefs(context))
+class TokenStore internal constructor(prefsProvider: () -> SharedPreferences) {
+    internal constructor(prefs: SharedPreferences) : this({ prefs })
+    // 2026-10-12：加密 prefs（MasterKey + Tink）改为首次读写才创建，不再随单例构造发生；
+    // TouliaoApp 在后台线程预热（含 keyset 损坏时删除重建的兜底）。读取语义仍是同步的。
+    @Inject constructor(@ApplicationContext context: Context) : this({ SecurePrefs.createOrReset(context, FILE_NAME) })
+
+    private val prefs: SharedPreferences by lazy(prefsProvider)
 
     private companion object {
         const val FILE_NAME = "vxin_secure_prefs"
         const val KEY_TOKEN = "vxin_token"
         const val KEY_TOKEN_ORIGIN = "vxin_token_origin"
         const val KEY_SERVER_ORIGIN = "vxin_server_origin"
-        fun createPrefs(context: Context): SharedPreferences = runCatching {
-            createEncrypted(context)
-        }.getOrElse {
-            // 极少数情况下 keyset 损坏：清掉重建，避免崩溃
-            context.deleteSharedPreferences(FILE_NAME)
-            createEncrypted(context)
-        }
-        fun createEncrypted(context: Context): SharedPreferences {
-            val masterKey = MasterKey.Builder(context).setKeyScheme(MasterKey.KeyScheme.AES256_GCM).build()
-            return EncryptedSharedPreferences.create(context, FILE_NAME, masterKey,
-                EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
-                EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM)
-        }
     }
 
     data class Snapshot(val token: String?, val revision: Long, val identityEpoch: Long, val origin: String)

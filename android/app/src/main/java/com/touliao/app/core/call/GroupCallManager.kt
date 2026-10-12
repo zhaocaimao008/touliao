@@ -19,8 +19,6 @@ import org.webrtc.AudioSource
 import org.webrtc.AudioTrack
 import org.webrtc.Camera2Enumerator
 import org.webrtc.CameraVideoCapturer
-import org.webrtc.DefaultVideoDecoderFactory
-import org.webrtc.DefaultVideoEncoderFactory
 import org.webrtc.EglBase
 import org.webrtc.IceCandidate
 import org.webrtc.MediaConstraints
@@ -65,13 +63,15 @@ class GroupCallManager @Inject constructor(
     @ApplicationContext private val context: Context,
     private val socketManager: SocketManager,
     private val sessionManager: SessionManager,
-    private val turnApi: com.touliao.app.data.api.TurnApi,
+    private val iceProvider: IceServerProvider,
     private val audioRouter: CallAudioRouter,
+    private val webRtc: WebRtcFactoryHolder,
+    private val qualityReporter: CallQualityReporter,
     @AppScope private val scope: CoroutineScope,
 ) {
-    val eglBase: EglBase = EglBase.create()
+    // 2026-10-12：与 1v1 共用懒初始化的 WebRTC 工厂/EGL（不再随冷启动在主线程建第二套）
+    val eglBase: EglBase get() = webRtc.eglBase
 
-    private var factory: PeerConnectionFactory? = null
     private var audioSource: AudioSource? = null
     private var localAudioTrack: AudioTrack? = null
     private var videoSource: VideoSource? = null
@@ -143,10 +143,7 @@ class GroupCallManager @Inject constructor(
     private val _remoteTracks = MutableStateFlow<Map<String, VideoTrack>>(emptyMap())
     val remoteTracks: StateFlow<Map<String, VideoTrack>> = _remoteTracks.asStateFlow()
 
-    private val fallbackIceServers = listOf(
-        PeerConnection.IceServer.builder("stun:stun.l.google.com:19302").createIceServer(),
-    )
-    @Volatile private var iceServers: List<PeerConnection.IceServer> = fallbackIceServers
+    @Volatile private var iceServers: List<PeerConnection.IceServer> = emptyList()
     @Volatile private var busyElsewhereCallId: String = ""
     @Volatile private var participatingCallId: String = ""
     // Q06 全修：group_call:resume 必须证明持有它，光凭 callId+userId 不再够（同账号
@@ -155,39 +152,45 @@ class GroupCallManager @Inject constructor(
     @Volatile private var callAttempt = 0L
 
     init {
-        ensureFactory()
+        // 2026-10-12：不再在 init 里建 PeerConnectionFactory，改为首次发起/加入群通话时后台懒初始化
         observeSignaling()
         sessionManager.onIdentityCleanup {
-            if (_state.value.stage != GroupCallStage.IDLE && _state.value.stage != GroupCallStage.ENDED) cleanup()
+            if (_state.value.stage != GroupCallStage.IDLE && _state.value.stage != GroupCallStage.ENDED) cleanup("logout")
             busyElsewhereCallId = ""
         }
     }
 
-    private fun ensureFactory() {
-        if (factory != null) return
-        PeerConnectionFactory.initialize(
-            PeerConnectionFactory.InitializationOptions.builder(context).setFieldTrials(CALL_FIELD_TRIALS).createInitializationOptions()
-        )
-        factory = PeerConnectionFactory.builder()
-            .setVideoEncoderFactory(DefaultVideoEncoderFactory(eglBase.eglBaseContext, true, true))
-            .setVideoDecoderFactory(DefaultVideoDecoderFactory(eglBase.eglBaseContext))
-            .createPeerConnectionFactory()
+    /** 通话前刷新 ICE：与 1v1 共用 IceServerProvider（未过期缓存 / 自家 STUN 兜底 / 401 换 token 重试）。 */
+    private suspend fun refreshIceServers() {
+        iceServers = iceProvider.resolve(TAG)
     }
 
-    private suspend fun refreshIceServers() {
-        try {
-            val creds = turnApi.getCredentials()
-            val servers = creds.iceServers.mapNotNull { dto ->
-                if (dto.urls.isEmpty()) return@mapNotNull null
-                PeerConnection.IceServer.builder(dto.urls).apply {
-                    dto.username?.let { setUsername(it) }
-                    dto.credential?.let { setPassword(it) }
-                }.createIceServer()
-            }
-            if (servers.isNotEmpty()) iceServers = servers
-        } catch (e: Exception) {
-            Log.w(TAG, "refreshIceServers failed, fallback STUN", e)
+    // ── 通话质量上报（2026-10-12）──
+    private val statsAcc = CallQualityAccumulator()
+    @Volatile private var setupStartAt = 0L          // 发起/加入时刻（elapsedRealtime）
+    @Volatile private var firstMediaConnectedAt = 0L // 首个 peer ICE 接通时刻
+    @Volatile private var totalIceRestarts = 0
+    @Volatile private var isInitiator = false        // 本端发起（caller）还是加入（callee）
+    private var statsJob: Job? = null
+    private val networkWatcher = CallNetworkWatcher(context, TAG)
+
+    private fun resetReportStats(initiator: Boolean) {
+        statsAcc.reset()
+        setupStartAt = android.os.SystemClock.elapsedRealtime()
+        firstMediaConnectedAt = 0L
+        totalIceRestarts = 0
+        isInitiator = initiator
+    }
+
+    /** 建本地媒体前等待共享工厂（后台线程初始化）；失败则收尾，返回 false。 */
+    private suspend fun ensureFactoryReady(attempt: Long): Boolean {
+        val ok = try { webRtc.await(); true } catch (e: Exception) {
+            if (e is kotlinx.coroutines.CancellationException) throw e
+            Log.e(TAG, "WebRTC 初始化失败", e)
+            false
         }
+        if (!ok && attempt == callAttempt && _state.value.stage != GroupCallStage.ENDED) cleanup("webrtc_init_failed")
+        return ok
     }
 
     // ── 对外动作 ───────────────────────────────────────────
@@ -197,10 +200,13 @@ class GroupCallManager @Inject constructor(
         if (_state.value.stage != GroupCallStage.IDLE && _state.value.stage != GroupCallStage.ENDED) return
         val attempt = ++callAttempt
         _state.value = GroupCallState(GroupCallStage.CONNECTING, conversationId = conversationId, isVideo = video)
+        resetReportStats(initiator = true)
+        webRtc.prewarm(scope)   // 与拉 ICE 并行初始化 WebRTC
         // 进入群通话即切通话音频：群视频默认扬声器、群语音默认听筒，有蓝牙耳机优先蓝牙
         audioRouter.acquire(audioListener, video)
         scope.launch {
             refreshIceServers()
+            if (!ensureFactoryReady(attempt)) return@launch
             if (attempt != callAttempt || _state.value.stage == GroupCallStage.ENDED) return@launch
             createLocalMedia(video)
             socketManager.emitGroupCallStart(conversationId, if (video) "video" else "audio")
@@ -212,9 +218,12 @@ class GroupCallManager @Inject constructor(
         if (_state.value.stage != GroupCallStage.IDLE && _state.value.stage != GroupCallStage.ENDED) return
         val attempt = ++callAttempt
         _state.value = GroupCallState(GroupCallStage.CONNECTING, callId, conversationId, isVideo = video)
+        resetReportStats(initiator = false)
+        webRtc.prewarm(scope)
         audioRouter.acquire(audioListener, video)
         scope.launch {
             refreshIceServers()
+            if (!ensureFactoryReady(attempt)) return@launch
             if (attempt != callAttempt || _state.value.stage == GroupCallStage.ENDED) return@launch
             createLocalMedia(video)
             socketManager.emitGroupCallJoin(callId)
@@ -225,7 +234,7 @@ class GroupCallManager @Inject constructor(
     fun hangup() {
         val cid = _state.value.callId
         if (cid.isNotEmpty()) socketManager.emitGroupCallLeave(cid)
-        cleanup()
+        cleanup("hangup")
     }
 
     fun toggleMic() {
@@ -324,7 +333,7 @@ class GroupCallManager @Inject constructor(
         scope.launch {
             socketManager.groupCallPeerJoinedEvents.collect { e ->
                 if (e.callId != _state.value.callId) return@collect
-                val peer = peerFor(e.userId)
+                val peer = peerFor(e.userId) ?: return@collect
                 _state.update { it.copy(participants = peerIds()) }
                 // 既有成员向新 peer 发 offer
                 sendOffer(e.userId, peer)
@@ -333,7 +342,7 @@ class GroupCallManager @Inject constructor(
         scope.launch {
             socketManager.groupCallOfferEvents.collect { e ->
                 if (e.callId != _state.value.callId) return@collect
-                val peer = peerFor(e.from)
+                val peer = peerFor(e.from) ?: return@collect
                 _state.update { it.copy(participants = peerIds()) }
                 // 完美协商：撞车(本端也在 HAVE_LOCAL_OFFER)时 impolite 忽略，polite 回滚后应答
                 val collision = runCatching { peer.pc.signalingState() }.getOrNull() == PeerConnection.SignalingState.HAVE_LOCAL_OFFER
@@ -402,7 +411,7 @@ class GroupCallManager @Inject constructor(
         scope.launch {
             socketManager.groupCallErrorEvents.collect { e ->
                 Log.w(TAG, "group call error: ${e.reason}")
-                if (_state.value.stage != GroupCallStage.CONNECTED) cleanup()
+                if (_state.value.stage != GroupCallStage.CONNECTED) cleanup("error")
             }
         }
         scope.launch {
@@ -412,7 +421,7 @@ class GroupCallManager @Inject constructor(
                     !CallSignalMatcher.canResume(_state.value.callId, e.callId)
                 ) return@collect
                 Log.w(TAG, "group call ended by server: ${e.reason}")
-                cleanup()
+                cleanup(e.reason.ifBlank { "server_ended" })
             }
         }
     }
@@ -429,7 +438,7 @@ class GroupCallManager @Inject constructor(
 
     // ── WebRTC ───────────────────────────────────────────
     private fun createLocalMedia(video: Boolean) {
-        val f = factory ?: return
+        val f = webRtc.getOrNull() ?: return
         audioSource = f.createAudioSource(MediaConstraints())
         localAudioTrack = f.createAudioTrack("g_audio", audioSource).apply { setEnabled(true) }
         // 本地媒体已开始采集 → 起前台服务保活（RECORD_AUDIO 未授权时等授权回调再起）
@@ -496,12 +505,16 @@ class GroupCallManager @Inject constructor(
     }
 
     // 为某 peer 建立 PeerConnection（含本地轨）。幂等；查找+创建在 peersLock 内，防两条信令协程并发各建一条。
-    private fun peerFor(peerId: String): Peer = synchronized(peersLock) {
+    // 工厂未就绪（理论上不会：start/join 先 await 工厂再发信令）时返回 null，调用方丢弃该事件，
+    // 不再用 !! 抛异常——异常会让整条信令 collect 协程永久退出。
+    private fun peerFor(peerId: String): Peer? = synchronized(peersLock) {
         peers[peerId]?.let { return it }
-        val f = factory!!
-        val config = PeerConnection.RTCConfiguration(iceServers).apply {
-            sdpSemantics = PeerConnection.SdpSemantics.UNIFIED_PLAN
+        val f = webRtc.getOrNull() ?: run {
+            Log.w(TAG, "WebRTC 工厂未就绪，忽略 peer $peerId 的建连")
+            return null
         }
+        // 持续收集候选 + 预收集池（见 buildCallRtcConfig），与 1v1 一致
+        val config = buildCallRtcConfig(iceServers)
         val pc = f.createPeerConnection(config, object : PeerConnection.Observer {
             override fun onIceCandidate(candidate: IceCandidate) {
                 socketManager.emitGroupCallIce(_state.value.callId, peerId, candidate.sdp, candidate.sdpMid, candidate.sdpMLineIndex)
@@ -543,6 +556,10 @@ class GroupCallManager @Inject constructor(
                 peer.iceRestartCount = 0
                 // A-3：本 pc 刚转 connected → 按最新已连接人数对全部已连接 pc（含本条）重放码率/降档
                 reapplyGroupCaps()
+                // 首个媒体接通：记接通时刻（质量上报 setupMs/时长）+ 起 stats 采样 + 监听网络切换
+                if (firstMediaConnectedAt == 0L) firstMediaConnectedAt = android.os.SystemClock.elapsedRealtime()
+                startStatsSampling()
+                networkWatcher.start { onNetworkChanged() }
             }
             PeerConnection.IceConnectionState.DISCONNECTED -> {
                 if (!isImpoliteTo(peerId)) { startPoliteRecoverWatchdog(peerId, peer); return }
@@ -562,6 +579,40 @@ class GroupCallManager @Inject constructor(
             // CLOSED 只会是我们自己 close() 触发（removePeer/cleanup 已在处理），不再递归 removePeer
             PeerConnection.IceConnectionState.CLOSED -> {}
             else -> {}
+        }
+    }
+
+    /**
+     * 系统默认网络切换：对本端负责 restart（impolite）且当前已协商过的 peer 立即 ICE restart，
+     * 不等 disconnected + 3s 防抖。polite 一方不动（四端协议），靠 GATHER_CONTINUALLY trickle 新候选。
+     */
+    private fun onNetworkChanged() {
+        scope.launch {
+            if (_state.value.stage != GroupCallStage.CONNECTED) return@launch
+            synchronized(peersLock) { peers.entries.toList() }.forEach { (pid, peer) ->
+                if (!isImpoliteTo(pid)) return@forEach
+                if (peer.iceRestartRecoverJob?.isActive == true) return@forEach
+                if (runCatching { peer.pc.remoteDescription }.getOrNull() == null) return@forEach  // 尚未协商完
+                peer.iceRestartDebounceJob?.cancel(); peer.iceRestartDebounceJob = null
+                tryPeerRestart(pid)
+            }
+        }
+    }
+
+    // 群通话此前没有 stats 采样：接通后每 5s 对各 peer 取一次 getStats，只为结束时的质量上报
+    private fun startStatsSampling() {
+        if (statsJob?.isActive == true) return
+        statsJob = scope.launch {
+            while (true) {
+                synchronized(peersLock) { peers.entries.toList() }.forEach { (pid, peer) ->
+                    runCatching {
+                        peer.pc.getStats(org.webrtc.RTCStatsCollectorCallback { report ->
+                            runCatching { statsAcc.ingest(pid, parseStats(report.toEntries())) }
+                        })
+                    }
+                }
+                delay(STATS_INTERVAL_MS)
+            }
         }
     }
 
@@ -616,6 +667,7 @@ class GroupCallManager @Inject constructor(
         if (!isImpoliteTo(peerId)) return
         if (peer.iceRestartCount >= ICE_RESTART_MAX) { removePeer(peerId); return }
         peer.iceRestartCount++
+        totalIceRestarts++
         peer.pc.restartIce()
         sendOffer(peerId, peer)   // restartIce() 只打标记，必须实际重协商 offer 对方才会重新打通
         peer.iceRestartRecoverJob?.cancel()
@@ -635,7 +687,29 @@ class GroupCallManager @Inject constructor(
         mandatory.add(MediaConstraints.KeyValuePair("OfferToReceiveVideo", if (_state.value.isVideo) "true" else "false"))
     }
 
-    private fun cleanup() {
+    private fun cleanup(endReason: String = "ended") {
+        // 质量上报：本端真正进入过的群通话（拿到 callId）才报，只报一次；纯内存快照 + 异步发送，绝不拖慢离开
+        runCatching {
+            val cur = _state.value
+            if (cur.stage != GroupCallStage.IDLE && cur.stage != GroupCallStage.ENDED &&
+                cur.callId.isNotEmpty() && cur.callId == participatingCallId
+            ) {
+                qualityReporter.send(cur.callId, CallReportInput(
+                    isCaller = isInitiator,
+                    isVideo = cur.isVideo,
+                    group = true,
+                    setupStartAt = setupStartAt,
+                    connectedAt = firstMediaConnectedAt,
+                    endedAt = android.os.SystemClock.elapsedRealtime(),
+                    endReason = endReason,
+                    iceRestarts = totalIceRestarts,
+                    stats = statsAcc.snapshot(),
+                    appVersion = com.touliao.app.BuildConfig.VERSION_NAME,
+                ))
+            }
+        }.onFailure { Log.w(TAG, "group call report build failed: ${it.message}") }
+        statsJob?.cancel(); statsJob = null
+        networkWatcher.stop()
         callAttempt++
         participatingCallId = ""
         participatingResumeToken = null
@@ -670,5 +744,6 @@ class GroupCallManager @Inject constructor(
         const val ICE_RESTART_DEBOUNCE_MS = 3000L
         const val ICE_RESTART_WINDOW_MS = 15000L
         const val ICE_RESTART_MAX = 3
+        const val STATS_INTERVAL_MS = 5000L   // 质量上报用 stats 采样间隔（群通话无质量指示 UI，不必 2s）
     }
 }

@@ -1,6 +1,8 @@
 package com.touliao.app.feature.chat
 
 import android.net.Uri
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -33,6 +35,9 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -42,6 +47,7 @@ import javax.inject.Inject
 private const val HISTORY_PAGE = 50   // 与 MessageApi.history 默认 limit 一致
 private const val LOCATE_MAX_PAGES = 20 // 定位更早消息最多向前翻的页数（约 1000 条）
 private const val MAX_PICK_IMAGES = 9 // 聊天一次选图上限（与微信一致）
+private const val DRAFT_SAVE_DEBOUNCE_MS = 500L // 草稿落盘防抖
 
 /** 上传中的占位项（成功后被真实 Message 替换） */
 data class PendingUpload(
@@ -58,7 +64,7 @@ data class ChatUiState(
     val loading: Boolean = false,
     val messages: List<Message> = emptyList(),
     val pending: List<PendingUpload> = emptyList(),
-    val input: String = "",
+    // 输入框文字不在这里：每次按键 copy 整个 ChatUiState 会让所有可见气泡重组（见 ChatViewModel.input）
     val sending: Boolean = false,
     val recording: Boolean = false,
     val peerTyping: Boolean = false,
@@ -157,9 +163,37 @@ class ChatViewModel @Inject constructor(
     private fun currentAttempt(credential: com.touliao.app.core.storage.TokenStore.Snapshot) =
         currentOwner() && tokenStore.isCurrent(credential)
 
-    // 进入会话即恢复上次未发送的草稿(对齐微信/Web)
-    private val _uiState = MutableStateFlow(ChatUiState(title = title, loading = true, input = draftStore.get(conversationId)))
+    private val _uiState = MutableStateFlow(ChatUiState(title = title, loading = true))
     val uiState: StateFlow<ChatUiState> = _uiState.asStateFlow()
+
+    /**
+     * 输入框文字（2026-10-12 从 ChatUiState 拆出）：Compose 快照状态，只有输入栏读取它 →
+     * 打字只重组输入栏，不再触发消息列表重组。用快照状态而非 StateFlow：TextField 的值必须
+     * 同步回写，异步收集会在拼音组字（IME composition）时丢字/跳光标。
+     * 进入会话即恢复上次未发送的草稿(对齐微信/Web)。
+     */
+    var input by androidx.compose.runtime.mutableStateOf(draftStore.get(conversationId))
+        private set
+    private var draftSaveJob: Job? = null
+
+    /** 草稿落盘防抖 500ms（此前每次按键都写一次 SharedPreferences）。 */
+    private fun setInputAndScheduleDraft(text: String) {
+        input = text
+        draftSaveJob?.cancel()
+        draftSaveJob = viewModelScope.launch {
+            delay(DRAFT_SAVE_DEBOUNCE_MS)
+            draftStore.set(conversationId, text)
+        }
+    }
+
+    /** 立即落盘未保存的草稿（离开会话 / VM 销毁时，防丢最后 500ms 内的输入）。 */
+    private fun flushDraft() {
+        if (draftSaveJob?.isActive == true) {
+            draftSaveJob?.cancel()
+            draftStore.set(conversationId, input)
+        }
+        draftSaveJob = null
+    }
     private val historyPagination = HistoryPaginationAction(chatRepository)
 
     /** 一次性提示消费：Screen 展示 error 后调用，清空以免常驻（错误与"已收藏/已转发"等成功提示共用 error 字段） */
@@ -173,14 +207,24 @@ class ChatViewModel @Inject constructor(
     private val json = Json { ignoreUnknownKeys = true }
 
     init {
+        // 阅后即焚到期移除（2026-10-12）：此前无论有没有焚毁消息都每秒 filter + copy 一次整个列表，
+        // 每秒触发一次全量重组。现在只在列表里存在 burn_expires_at 时才跑 1s 计时，且只在确有消息到期时才更新。
         viewModelScope.launch {
-            while (true) {
-                delay(1000)
-                val now = System.currentTimeMillis() / 1000
-                _uiState.update { state -> state.copy(messages = state.messages.filter { (it.burn_expires_at ?: Long.MAX_VALUE) > now }) }
-            }
+            _uiState.map { s -> s.messages.any { it.burn_expires_at != null } }
+                .distinctUntilChanged()
+                .collectLatest { hasBurn ->
+                    while (hasBurn) {
+                        delay(1000)
+                        val now = System.currentTimeMillis() / 1000
+                        _uiState.update { state ->
+                            if (state.messages.none { (it.burn_expires_at ?: Long.MAX_VALUE) <= now }) state
+                            else state.copy(messages = state.messages.filter { (it.burn_expires_at ?: Long.MAX_VALUE) > now })
+                        }
+                    }
+                }
         }
         notificationHelper.clearConversationNotifications(conversationId)   // 进入会话即清理该会话的锁屏/通知栏聚合通知
+        chatRepository.onConversationOpened(conversationId)   // 打开会话至少标一次已读（之后同位置去重）
         chatRepository.joinConversation(conversationId)
         primeFromCache()    // 首屏占位：先渲染离线缓存历史，随后 loadHistory 拉取真相源覆盖
         loadHistory()
@@ -249,14 +293,12 @@ class ChatViewModel @Inject constructor(
     }
 
     fun appendMention(member: com.touliao.app.data.model.GroupMember) {
-        _uiState.update { it.copy(input = it.input + "@${member.username} ") }
-        draftStore.set(conversationId, _uiState.value.input)   // @追加也存草稿
+        setInputAndScheduleDraft(input + "@${member.username} ")   // @追加也存草稿
     }
 
     /** @所有人（仅群主/管理员可用，UI 已按 canManageGroup 控制入口）。 */
     fun appendMentionAll() {
-        _uiState.update { it.copy(input = it.input + "@所有人 ") }
-        draftStore.set(conversationId, _uiState.value.input)
+        setInputAndScheduleDraft(input + "@所有人 ")
     }
 
     private fun observeGroupGone() {
@@ -578,8 +620,7 @@ class ChatViewModel @Inject constructor(
 
     // ── 表情/贴纸 ──────────────────────────────────────
     fun appendEmoji(emoji: String) {
-        _uiState.update { it.copy(input = it.input + emoji) }
-        draftStore.set(conversationId, _uiState.value.input)   // 表情追加也存草稿
+        setInputAndScheduleDraft(input + emoji)   // 表情追加也存草稿
     }
 
     fun loadStickers() {
@@ -905,15 +946,23 @@ class ChatViewModel @Inject constructor(
      * 缓存非真相源——loadHistory 成功后会以服务端结果 mergeById 覆盖并重新落盘。
      * 阅后即焚会话不读缓存（该会话本就不落盘，双保险）；已存在 outbox 待发消息也一并合并。
      */
+    // loadHistory 已把服务端结果写入列表（真相源）后，迟到的缓存占位不得再覆盖——即便服务端返回空列表。
+    @Volatile private var serverHistoryApplied = false
+
     private fun primeFromCache() {
         if (!currentOwner()) return;
         if (conversationId.isBlank() || uiBurnAfterEnabled()) return
-        val cached = msgCacheStore.load(conversationId)
-        val pending = outboxStore.load(conversationId, outboxOwner)
-        val merged = mergeServerWithPending(cached, pending)
-        _uiState.update {
-            // 已被 loadHistory 抢先填充则不覆盖（竞态保护）
-            if (it.messages.isNotEmpty()) it else it.copy(messages = merged)
+        // 2026-10-12：解密 + 反序列化 50 条移出主线程。loadAsync 与 save/remove 走同一单线程 executor，
+        // 读到的是此前所有写入之后的结果；与 loadHistory 的先后由 serverHistoryApplied 保证（见上）。
+        viewModelScope.launch {
+            val cached = msgCacheStore.loadAsync(conversationId)
+            val pending = withContext(Dispatchers.IO) { outboxStore.load(conversationId, outboxOwner) }
+            if (!currentOwner() || uiBurnAfterEnabled()) return@launch
+            val merged = withContext(Dispatchers.Default) { mergeServerWithPending(cached, pending) }
+            _uiState.update {
+                // 已被 loadHistory 抢先填充则不覆盖（竞态保护）
+                if (serverHistoryApplied || it.messages.isNotEmpty()) it else it.copy(messages = merged)
+            }
         }
     }
 
@@ -942,6 +991,7 @@ class ChatViewModel @Inject constructor(
                     val stillPending = pending.filter { it.id !in serverIds }
                     pending.filterNot { it in stillPending }.forEach { outboxStore.remove(conversationId, it.id, outboxOwner) }
                     val merged = mergeServerWithPending(list, stillPending)
+                    serverHistoryApplied = true
                     _uiState.update { it.copy(loading = false, messages = merged, reachedStart = list.size < HISTORY_PAGE) }
                     if (runCatching { msgCacheStore.saveBeforeCursor(conversationId, if (uiBurnAfterEnabled()) emptyList() else list) }.isFailure) {
                         _uiState.update { it.copy(error = "消息缓存更新失败，请重试同步") }
@@ -1214,23 +1264,27 @@ class ChatViewModel @Inject constructor(
         )
     }
 
+    /**
+     * 标记已读到最新一条「服务端已确认」的消息（乐观/待发气泡的临时 id 服务端不认识，跳过）。
+     * 经 ReadReporter：位置未前进不发、每会话 800ms 防抖合并、App 在后台不发（回前台补发）。
+     */
     private fun markReadLatest() {
-        val last = _uiState.value.messages.lastOrNull() ?: return
-        viewModelScope.launch { chatRepository.markRead(conversationId, last.id) }
+        val last = _uiState.value.messages.lastOrNull { it.localStatus == null } ?: return
+        chatRepository.reportRead(conversationId, last)
     }
 
-    /** 退出聊天时发送 read + stop_typing */
+    /** 退出聊天时发送 read + stop_typing，并立即落盘未保存的草稿 */
     fun onLeave() {
         chatRepository.emitStopTyping(conversationId)
         markReadLatest()
+        flushDraft()
     }
 
     // ── 文本 ──────────────────────────────────────────────
     fun onInputChange(v: String) {
         // 保留换行（回车换行 / 粘贴多行），仅把 \r\n、\r 统一成 \n
         val normalized = v.replace("\r\n", "\n").replace("\r", "\n")
-        _uiState.update { it.copy(input = normalized) }
-        draftStore.set(conversationId, normalized)
+        setInputAndScheduleDraft(normalized)   // 只改输入栏状态 + 500ms 防抖落草稿，不碰 ChatUiState
         // 节流：非空且距上次 emit > 2s 才发 typing，避免刷屏
         val now = System.currentTimeMillis()
         if (v.isNotBlank() && now - lastTypingEmit > 2000) {
@@ -1241,7 +1295,7 @@ class ChatViewModel @Inject constructor(
 
     fun send() {
         if (!currentOwner()) return
-        val text = _uiState.value.input.trim()
+        val text = input.trim()
         if (text.isEmpty()) return
         val replyId = _uiState.value.replyingTo?.id
         // 幂等键：本次发送固定一个 clientMsgId；失败重发复用它，后端据 (sender_id, client_msg_id)
@@ -1263,7 +1317,9 @@ class ChatViewModel @Inject constructor(
             localStatus = LocalMsgStatus.SENDING,
             clientMsgId = clientMsgId,
         )
-        _uiState.update { it.copy(input = "", error = null, replyingTo = null, messages = it.messages + optimistic) }
+        input = ""
+        draftSaveJob?.cancel(); draftSaveJob = null
+        _uiState.update { it.copy(error = null, replyingTo = null, messages = it.messages + optimistic) }
         draftStore.clear(conversationId)
         chatRepository.emitStopTyping(conversationId)
         dispatchSend(optimistic)
@@ -1497,6 +1553,7 @@ class ChatViewModel @Inject constructor(
     }
 
     override fun onCleared() {
+        flushDraft()
         audioRecorder.cancel()
         audioPlayer.stop()
         super.onCleared()

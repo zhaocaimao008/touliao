@@ -103,8 +103,8 @@ class SessionManager @Inject constructor(
             },
             failure = { failure ->
                 _recovery.value = failure.message
-                if (failure == RestoreFailure.FORBIDDEN) tokenStore.withCurrent(credential) {
-                    // /me denied access: stop retries and sockets, retain credentials for recovery.
+                if (failure == RestoreFailure.FORBIDDEN || failure == RestoreFailure.RATE_LIMITED) tokenStore.withCurrent(credential) {
+                    // /me denied access (403) or rate-limited (429): stop retries and sockets, retain credentials for recovery.
                     identityCleanup.forEach { it() }
                     notificationHelper.clearAccountNotifications()
                     socketManager.disconnect()

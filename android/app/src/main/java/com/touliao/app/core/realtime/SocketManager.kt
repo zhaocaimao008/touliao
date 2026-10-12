@@ -819,6 +819,20 @@ class SocketManager @Inject constructor(
         _status.value = SocketStatus.DISCONNECTED
     }
 
+    /**
+     * 后台省电断开（2026-10-12，见 SocketBackgroundPolicy）：有会话中的 socket 实例（已连或正在自动
+     * 重连）才断开并返回 true，调用方据此在回到前台时 connect()。无实例（未登录/已登出）返回 false。
+     */
+    /** 是否已有 socket 实例（已连或正在连/自动重连中）。 */
+    fun hasSession(): Boolean = synchronized(tokenStore) { socket != null }
+
+    fun disconnectForBackground(): Boolean = synchronized(tokenStore) {
+        if (socket == null) return false
+        disconnectInternal()
+        _status.value = SocketStatus.DISCONNECTED
+        true
+    }
+
     private fun typingEvent(any: Any?, isTyping: Boolean) {
         (any as? JSONObject)?.let { o ->
             _typingEvents.tryEmit(TypingEvent(o.optString("userId"), o.optString("conversationId"), isTyping))

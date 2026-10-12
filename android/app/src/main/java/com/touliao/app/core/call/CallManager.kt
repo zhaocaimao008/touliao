@@ -21,8 +21,6 @@ import kotlinx.coroutines.launch
 import org.webrtc.AudioTrack
 import org.webrtc.Camera2Enumerator
 import org.webrtc.CameraVideoCapturer
-import org.webrtc.DefaultVideoDecoderFactory
-import org.webrtc.DefaultVideoEncoderFactory
 import org.webrtc.EglBase
 import org.webrtc.IceCandidate
 import org.webrtc.MediaConstraints
@@ -76,13 +74,17 @@ class CallManager @Inject constructor(
     @ApplicationContext private val context: Context,
     private val socketManager: SocketManager,
     private val sessionManager: SessionManager,
-    private val turnApi: com.touliao.app.data.api.TurnApi,
+    private val iceProvider: IceServerProvider,
     private val userApi: com.touliao.app.data.api.UserApi,
     private val notificationHelper: com.touliao.app.core.push.NotificationHelper,
     private val audioRouter: CallAudioRouter,
+    private val webRtc: WebRtcFactoryHolder,
+    private val qualityReporter: CallQualityReporter,
     @AppScope private val scope: CoroutineScope,
 ) {
-    val eglBase: EglBase = EglBase.create()
+    // 2026-10-12：EGL/工厂改由共享的 WebRtcFactoryHolder 懒初始化（不再随 App 冷启动在主线程建）。
+    // 仅通话界面渲染时访问；此前已由建连路径在后台初始化好。
+    val eglBase: EglBase get() = webRtc.eglBase
 
     init {
         // 来电铃声：启动时同步 user_settings.ringtone（设置页更新后也写入本字段即时生效）
@@ -153,7 +155,6 @@ class CallManager @Inject constructor(
     /** 切换蓝牙路由(与扬声器互斥)。仅在 state.bluetoothAvailable 时应被UI调用。 */
     fun toggleBluetooth() = audioRouter.toggleBluetooth()
 
-    private var factory: PeerConnectionFactory? = null
     private var peerConnection: PeerConnection? = null
     private var callTimeoutJob: Job? = null   // 主叫呼出超时:对方无应答/断线时自动收尾,防卡死"呼叫中"
     // 被叫 accept() 后的对称看门狗——接听信令丢失/SDP协商失败会永久占用
@@ -242,83 +243,44 @@ class CallManager @Inject constructor(
         }
     }
 
-    // STUN-only 兜底；通话前 refreshIceServers() 会向后端拉取含 TURN 的完整列表。
-    // 自家 coturn（与 TURN 同机，3478 同时提供 STUN）放第一位：国内网络下 Google STUN 常不可达。
-    private val fallbackIceServers = listOf(
-        PeerConnection.IceServer.builder("stun:$FALLBACK_STUN_HOST:3478").createIceServer(),
-        PeerConnection.IceServer.builder("stun:stun.l.google.com:19302").createIceServer(),
-    )
+    // 通话前 refreshIceServers() 经共享 IceServerProvider 拉取含 TURN 的完整列表
+    // （失败用未过期缓存，否则自家 STUN + Google STUN 兜底；缓存/401 重试逻辑与群通话共用）。
     @Volatile
-    private var iceServers: List<PeerConnection.IceServer> = fallbackIceServers
-    // 上次成功拉到的 ICE（含时效 TURN 凭证）及其过期时刻（elapsedRealtime）。过期即视为没有——
-    // 此前失败时一直沿用旧凭证，超过 TTL 后 coturn 拒绝认证，等于静默丢了 TURN。
-    @Volatile private var cachedIce: List<PeerConnection.IceServer>? = null
-    @Volatile private var cachedIceExpiresAt = 0L
+    private var iceServers: List<PeerConnection.IceServer> = emptyList()
 
-    /** 通话建立前刷新 ICE（含时效 TURN 凭证）。失败时用未过期缓存，否则兜底 STUN，不阻断通话。 */
+    /** 通话建立前刷新 ICE（含时效 TURN 凭证）。从不抛异常、不阻断通话。 */
     private suspend fun refreshIceServers() {
-        val fresh = try {
-            fetchIceServers()
-        } catch (e: Exception) {
-            if (e is kotlinx.coroutines.CancellationException) throw e
-            Log.w(TAG, "refreshIceServers failed", e)
-            null
-        }
-        if (fresh != null) { iceServers = fresh; return }
-        val cached = cachedIce
-        if (cached != null && android.os.SystemClock.elapsedRealtime() < cachedIceExpiresAt) {
-            Log.w(TAG, "ICE: using cached TURN credentials (still within TTL)")
-            iceServers = cached
-        } else {
-            cachedIce = null
-            Log.w(TAG, "ICE fallback: no valid TURN credentials, STUN-only ($FALLBACK_STUN_HOST:3478, then Google)")
-            iceServers = fallbackIceServers
-        }
+        iceServers = iceProvider.resolve(TAG)
     }
 
-    private suspend fun fetchIceServers(): List<PeerConnection.IceServer>? {
-        val creds = try {
-            turnApi.getCredentials()
-        } catch (e: retrofit2.HttpException) {
-            // 401：App 没有 refresh-token 机制，AuthInterceptor 会把「本次请求所用且仍为当前」的 token
-            // 作废并走登出。只有请求途中 token 已被替换（改密 applyNewToken / 切号）时本地仍有 token，
-            // 这种情况用新 token 重试一次；否则重试必然再 401，直接抛出走兜底。
-            if (e.code() != 401 || sessionManager.credentialSnapshot().token == null) throw e
-            Log.w(TAG, "turn credentials 401 with a replaced token, retrying once")
-            turnApi.getCredentials()
+    /** 等待共享 WebRTC 工厂就绪（后台线程初始化）；失败返回 null，由调用方收尾。 */
+    private suspend fun awaitFactory(): PeerConnectionFactory? =
+        try { webRtc.await() } catch (e: Exception) {
+            if (e is kotlinx.coroutines.CancellationException) throw e
+            Log.e(TAG, "WebRTC 初始化失败", e)
+            null
         }
-        val servers = creds.iceServers.mapNotNull { dto ->
-            if (dto.urls.isEmpty()) return@mapNotNull null
-            PeerConnection.IceServer.builder(dto.urls).apply {
-                dto.username?.let { setUsername(it) }
-                dto.credential?.let { setPassword(it) }
-            }.createIceServer()
-        }
-        if (servers.isEmpty()) return null
-        // 预留 60s 余量：凭证在通话建立后还要撑过 ICE restart 的重新认证
-        cachedIceExpiresAt = android.os.SystemClock.elapsedRealtime() + (creds.ttl - 60).coerceAtLeast(0) * 1000L
-        cachedIce = servers
-        return servers
+
+    // ── 通话质量上报（2026-10-12）：数据取自已有的 2s getStats 采样，挂断时异步发送 ──
+    private val statsAcc = CallQualityAccumulator()
+    @Volatile private var setupStartAt = 0L        // 拨出/接听时刻（elapsedRealtime）
+    @Volatile private var totalIceRestarts = 0     // 本通累计 ICE restart 次数（不随恢复清零）
+    private val networkWatcher = CallNetworkWatcher(context, TAG)
+
+    /** 新一通开始：清空上报统计。 */
+    private fun resetReportStats(setupStart: Long) {
+        statsAcc.reset()
+        setupStartAt = setupStart
+        totalIceRestarts = 0
     }
 
     init {
-        ensureFactory()
+        // 2026-10-12：不再在 init 里建 PeerConnectionFactory（冷启动主线程加载 WebRTC .so），改为首次通话时懒初始化
         observeSignaling()
         sessionManager.onIdentityCleanup {
-            cachedIce = null   // TURN 用户名绑定 userId，换号后旧凭证不可再用
-            if (_state.value.stage != CallStage.IDLE && _state.value.stage != CallStage.ENDED) cleanup(CallStage.ENDED)
+            // TURN 凭证缓存由 IceServerProvider 自行在身份清理时作废
+            if (_state.value.stage != CallStage.IDLE && _state.value.stage != CallStage.ENDED) cleanup(CallStage.ENDED, "logout")
         }
-    }
-
-    private fun ensureFactory() {
-        if (factory != null) return
-        PeerConnectionFactory.initialize(
-            PeerConnectionFactory.InitializationOptions.builder(context).setFieldTrials(CALL_FIELD_TRIALS).createInitializationOptions()
-        )
-        factory = PeerConnectionFactory.builder()
-            .setVideoEncoderFactory(DefaultVideoEncoderFactory(eglBase.eglBaseContext, true, true))
-            .setVideoDecoderFactory(DefaultVideoDecoderFactory(eglBase.eglBaseContext))
-            .createPeerConnectionFactory()
     }
 
     // ── 对外动作 ───────────────────────────────────────────
@@ -327,6 +289,8 @@ class CallManager @Inject constructor(
         if (_state.value.stage != CallStage.IDLE && _state.value.stage != CallStage.ENDED) return
         val attempt = ++callAttempt          // 本次呼出序号，ack 回填时校验（P2）
         _state.value = CallState(CallStage.OUTGOING, peerId, peerName, isVideo = video, isCaller = true)
+        resetReportStats(android.os.SystemClock.elapsedRealtime())
+        webRtc.prewarm(scope)               // 与下面拉 ICE 的网络往返并行初始化 WebRTC（后台线程）
         // 先切通话音频模式(MODE_IN_COMMUNICATION + 音频焦点)再播回铃音:
         // ToneGenerator 走 STREAM_VOICE_CALL,未切模式/无焦点时部分 ROM 不发声
         // (此前回铃音先播、acquireAudioFocusAndRoute 在建流时才执行——顺序反了)
@@ -342,14 +306,20 @@ class CallManager @Inject constructor(
             val st = _state.value.stage
             if (st == CallStage.OUTGOING || st == CallStage.CONNECTING) {
                 if (_state.value.peerId.isNotEmpty()) socketManager.emitCallEnd(_state.value.peerId, _state.value.callId)
-                cleanup(CallStage.ENDED)
+                cleanup(CallStage.ENDED, "timeout")
             }
         }
         scope.launch {
             refreshIceServers()                 // 先拿到含 TURN 的 ICE，再建连接
+            val factoryReady = awaitFactory() != null   // 预热通常已完成；未完成则在后台线程等待
             // generation 前置校验（P1-2）：挂断→秒重拨后旧协程恢复时不得继续建连/采音/发请求，
             // 否则泄漏 PeerConnection/摄像头并产生幽灵 call:request
             if (attempt != callAttempt || _state.value.stage != CallStage.OUTGOING) return@launch
+            if (!factoryReady) {
+                _state.update { it.copy(endMessage = "通话组件初始化失败，请稍后重试") }
+                cleanup(CallStage.ENDED, "webrtc_init_failed")
+                return@launch
+            }
             createPeerConnection()
             createLocalTracks(video)
             // AUDIT P2：视频通话但摄像头不可用（无摄像头/被占用/权限拒）→ 本端如实降级为
@@ -368,7 +338,7 @@ class CallManager @Inject constructor(
                 // 服务端已明确拒绝（未建立通话，无需补发 call:end）：立即收尾并说明原因
                 if (attempt == callAttempt && _state.value.stage == CallStage.OUTGOING) {
                     _state.update { it.copy(endMessage = callRejectMessage(requestAck.error)) }
-                    cleanup(CallStage.ENDED)
+                    cleanup(CallStage.ENDED, "request_rejected")
                 }
                 return@launch
             }
@@ -383,7 +353,7 @@ class CallManager @Inject constructor(
                 if (_state.value.peerId.isNotEmpty() && socketManager.isConnected()) {
                     socketManager.emitCallEnd(_state.value.peerId)
                 }
-                if (attempt == callAttempt && _state.value.stage == CallStage.OUTGOING) cleanup(CallStage.ENDED)
+                if (attempt == callAttempt && _state.value.stage == CallStage.OUTGOING) cleanup(CallStage.ENDED, "request_failed")
                 return@launch
             }
             val callId = requestAck.callId
@@ -411,6 +381,8 @@ class CallManager @Inject constructor(
         stopIncomingTone()
         incomingTimeoutJob?.cancel(); incomingTimeoutJob = null
         _state.update { it.copy(stage = CallStage.CONNECTING) }
+        resetReportStats(android.os.SystemClock.elapsedRealtime())
+        webRtc.prewarm(scope)               // 响铃时通常已预热；未完成则与 ICE 拉取并行
         // 响铃阶段不碰通话模式/焦点（铃声走铃声流）；接听这一刻才切通话路由。
         // 之后 createLocalTracks 里的 acquire 是幂等的，不会把用户此间切的扬声器重置。
         acquireAudioFocusAndRoute()
@@ -422,12 +394,20 @@ class CallManager @Inject constructor(
             val st = _state.value.stage
             if (st == CallStage.CONNECTING) {
                 if (_state.value.peerId.isNotEmpty()) socketManager.emitCallEnd(_state.value.peerId, _state.value.callId)
-                cleanup(CallStage.ENDED)
+                cleanup(CallStage.ENDED, "timeout")
             }
         }
         scope.launch {
             refreshIceServers()
+            val factoryReady = awaitFactory() != null
             if (_state.value.stage == CallStage.ENDED) return@launch
+            if (!factoryReady) {
+                // 无法建立媒体：明确拒接（对端结束呼叫），不让主叫空等 45s
+                socketManager.emitCallResponse(s.peerId, false, s.callId)
+                _state.update { it.copy(endMessage = "通话组件初始化失败，请稍后重试") }
+                cleanup(CallStage.ENDED, "webrtc_init_failed")
+                return@launch
+            }
             createPeerConnection()
             createLocalTracks(s.isVideo)
             // AUDIT P2：被叫接听时本端摄像头不可用 → 本端如实转语音 UI（不发视频轨）。
@@ -450,14 +430,14 @@ class CallManager @Inject constructor(
     fun reject() {
         val s = _state.value
         if (s.peerId.isNotEmpty()) socketManager.emitCallResponse(s.peerId, false, s.callId)
-        cleanup(CallStage.ENDED)
+        cleanup(CallStage.ENDED, "rejected")
     }
 
     /** 挂断（任一方） */
     fun hangup() {
         val s = _state.value
         if (s.peerId.isNotEmpty()) socketManager.emitCallEnd(s.peerId, s.callId)
-        cleanup(CallStage.ENDED)
+        cleanup(CallStage.ENDED, "hangup")
     }
 
     /** CallScreen 权限申请回调：补起前台服务 + 重新探测蓝牙耳机（BLUETOOTH_CONNECT 刚授予）。 */
@@ -498,6 +478,7 @@ class CallManager @Inject constructor(
         if (!_state.value.isCaller) return
         if (iceRestartCount >= ICE_RESTART_MAX) { endCallByNetwork(); return }
         iceRestartCount++
+        totalIceRestarts++
         pc.restartIce()
         createOfferAndSend()   // restartIce() 只打标记，必须实际重协商 offer 对方才会重新打通
         iceRestartRecoverJob?.cancel()
@@ -530,7 +511,22 @@ class CallManager @Inject constructor(
         iceRestartRecoverJob?.cancel(); iceRestartRecoverJob = null
         val s = _state.value
         if (s.peerId.isNotEmpty()) socketManager.emitCallEnd(s.peerId, s.callId)
-        cleanup(CallStage.ENDED)
+        cleanup(CallStage.ENDED, "network_failed")
+    }
+
+    /**
+     * 系统默认网络切换（Wi-Fi↔4G）：已接通时立即 ICE restart，不再等 ICE 报 disconnected + 3s 防抖。
+     * 四端协议只允许主叫（impolite）发 restart offer，被叫这里不动——GATHER_CONTINUALLY 会把被叫
+     * 新网络上的候选 trickle 给主叫，主叫侧检测到断开后照常 restart。已有 restart 在途时不叠加。
+     */
+    private fun onNetworkChanged() {
+        scope.launch {
+            val s = _state.value
+            if (s.stage != CallStage.CONNECTED || peerConnection == null || !s.isCaller) return@launch
+            if (iceRestartRecoverJob?.isActive == true) return@launch
+            iceRestartDebounceJob?.cancel(); iceRestartDebounceJob = null
+            tryIceRestart()
+        }
     }
 
     /** 通话小窗：最小化/恢复全屏。只切UI呈现，不碰PeerConnection/信令。 */
@@ -592,6 +588,8 @@ class CallManager @Inject constructor(
     /** 新进入 INCOMING：播来电铃声 + 起 60s 未接听看门狗。 */
     private fun onEnterIncoming() {
         playIncomingTone()
+        resetReportStats(0L)
+        webRtc.prewarm(scope)   // 响铃期间后台预热 WebRTC，接听时无需再等 .so 加载/建工厂
         val attempt = callAttempt   // cleanup 会自增：期间结束过再进新来电，旧看门狗不得误杀
         incomingTimeoutJob?.cancel()
         incomingTimeoutJob = scope.launch {
@@ -599,7 +597,7 @@ class CallManager @Inject constructor(
             if (attempt == callAttempt && _state.value.stage == CallStage.INCOMING) {
                 Log.w(TAG, "来电 ${INCOMING_TIMEOUT_MS / 1000}s 未接听，自动收起")
                 notificationHelper.cancelCallNotification()
-                cleanup(CallStage.ENDED)
+                cleanup(CallStage.ENDED, "no_answer")
             }
         }
     }
@@ -691,7 +689,7 @@ class CallManager @Inject constructor(
                     _state.update { it.copy(stage = CallStage.CONNECTING) }
                     createOfferAndSend()
                 } else {
-                    cleanup(CallStage.ENDED)
+                    cleanup(CallStage.ENDED, "declined")
                 }
             }
         }
@@ -788,7 +786,7 @@ class CallManager @Inject constructor(
                 val matchesOtherDeviceOutgoing = !s.isCaller && s.stage == CallStage.OUTGOING &&
                     (e.callId.isEmpty() || e.callId == s.callId)
                 if (matchesPeerCall || matchesOtherDeviceOutgoing) {
-                    cleanup(CallStage.ENDED)
+                    cleanup(CallStage.ENDED, e.reason.ifBlank { "remote_hangup" })
                 }
             }
         }
@@ -849,11 +847,10 @@ class CallManager @Inject constructor(
 
     // ── WebRTC 构建 ────────────────────────────────────────
     private fun createPeerConnection() {
-        val f = factory ?: return
+        val f = webRtc.getOrNull() ?: return
         synchronized(iceLock) { remoteDescSet = false; pendingIce.clear() }
-        val config = PeerConnection.RTCConfiguration(iceServers).apply {
-            sdpSemantics = PeerConnection.SdpSemantics.UNIFIED_PLAN
-        }
+        // 持续收集候选 + 预收集池（见 buildCallRtcConfig），与群通话一致
+        val config = buildCallRtcConfig(iceServers)
         peerConnection = f.createPeerConnection(config, object : PeerConnection.Observer {
             override fun onIceCandidate(candidate: IceCandidate) {
                 socketManager.emitCallIce(_state.value.peerId, candidate.sdp, candidate.sdpMid, candidate.sdpMLineIndex, _state.value.callId)
@@ -879,6 +876,8 @@ class CallManager @Inject constructor(
                             else it
                         }
                         startQualitySampling()
+                        // 接通后监听系统网络切换，切网立即 ICE restart（幂等，cleanup 时注销）
+                        networkWatcher.start { onNetworkChanged() }
                         // N1：接通/恢复即对视频 sender 施加发送码率上限(2.5Mbps)，防止全端无约束导致模糊。
                         peerConnection?.let { capVideoBitrate(it) }
                     }
@@ -925,7 +924,7 @@ class CallManager @Inject constructor(
     }
 
     private fun createLocalTracks(video: Boolean) {
-        val f = factory ?: return
+        val f = webRtc.getOrNull() ?: return
         val pc = peerConnection ?: return
         acquireAudioFocusAndRoute()   // 幂等：startCall/accept 已获取时不重置路由
         localVideoOk = false
@@ -971,20 +970,11 @@ class CallManager @Inject constructor(
         val pc = peerConnection ?: return
         pc.getStats(object : RTCStatsCollectorCallback {
             override fun onStatsDelivered(report: RTCStatsReport) {
-                var rtt: Double? = null
-                var lost = 0L; var received = 0L
-                for (s in report.statsMap.values) {
-                    val m = s.members
-                    if (s.type == "candidate-pair" && m["nominated"] == true && m["state"] == "succeeded") {
-                        (m["currentRoundTripTime"] as? Double)?.let { rtt = it * 1000 }
-                    }
-                    if (s.type == "inbound-rtp" && m["kind"] == "audio") {
-                        lost += (m["packetsLost"] as? Long) ?: 0L
-                        received += (m["packetsReceived"] as? Long) ?: 0L
-                    }
-                }
-                val lossRate = if (received + lost > 0) lost.toDouble() / (received + lost) else 0.0
-                val r = rtt   // 局部快照：lambda 捕获的可变变量不能 smart cast
+                // 解析逻辑与质量上报共用（parseStats）：选中候选对 RTT + 入站音频丢包
+                val sample = runCatching { parseStats(report.toEntries()) }.getOrNull() ?: return
+                statsAcc.ingest("peer", sample)
+                val lossRate = sample.lossRate()
+                val r = sample.rttMs
                 val q = when {
                     r != null && r >= 500 -> "poor"
                     r != null && r >= 200 -> "medium"
@@ -1021,7 +1011,7 @@ class CallManager @Inject constructor(
                     if (localVideoTrack == null) {
                         val capturer = createCameraCapturer()
                         if (capturer == null) { Log.w(TAG, "切换视频失败:无可用摄像头"); return@launch }
-                        val f = factory ?: return@launch
+                        val f = webRtc.getOrNull() ?: return@launch
                         videoCapturer = capturer
                         surfaceHelper = SurfaceTextureHelper.create("CaptureThread", eglBase.eglBaseContext)
                         videoSource = f.createVideoSource(false)
@@ -1055,7 +1045,29 @@ class CallManager @Inject constructor(
     }
 
     // ── 清理 ──────────────────────────────────────────────
-    private fun cleanup(finalStage: CallStage) {
+    private fun cleanup(finalStage: CallStage, endReason: String = "ended") {
+        // 质量上报：仅本设备实际参与（发起成功/已接听）的这一通，且只报一次（已 ENDED/IDLE 不再报）。
+        // 只读内存快照 + 异步发送，任何异常都吞掉，绝不影响/拖慢挂断。
+        runCatching {
+            val cur = _state.value
+            if (cur.stage != CallStage.IDLE && cur.stage != CallStage.ENDED &&
+                cur.callId.isNotEmpty() && cur.callId == participatingCallId
+            ) {
+                qualityReporter.send(cur.callId, CallReportInput(
+                    isCaller = cur.isCaller,
+                    isVideo = cur.isVideo,
+                    group = false,
+                    setupStartAt = setupStartAt,
+                    connectedAt = cur.connectedAt,
+                    endedAt = android.os.SystemClock.elapsedRealtime(),
+                    endReason = endReason,
+                    iceRestarts = totalIceRestarts,
+                    stats = statsAcc.snapshot(),
+                    appVersion = com.touliao.app.BuildConfig.VERSION_NAME,
+                ))
+            }
+        }.onFailure { Log.w(TAG, "call report build failed: ${it.message}") }
+        networkWatcher.stop()
         callAttempt++
         participatingCallId = ""
         participatingResumeToken = null
@@ -1240,8 +1252,6 @@ class CallManager @Inject constructor(
     private companion object {
         const val STREAM_ID = "stream0"
         const val TAG = "CallManager"
-        // TURN 服务器主机（backend-v2 TURN_URLS 同一主机），ICE 兜底时用其 3478 STUN
-        const val FALLBACK_STUN_HOST = "touliao.cc"
         // ICE restart 参数(与四端统一):防抖 3s / 恢复窗口 15s / 最大 3 次
         const val ICE_RESTART_DEBOUNCE_MS = 3000L
         const val ICE_RESTART_WINDOW_MS = 15000L

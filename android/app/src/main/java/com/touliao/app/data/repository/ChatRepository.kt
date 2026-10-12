@@ -36,6 +36,7 @@ class ChatRepository @Inject constructor(
     private val accountStore: AccountStore,
     private val tokenStore: TokenStore,
     private val requestKeys: RequestKeys,
+    private val readReporter: ReadReporter,
 ) : HistoryPageSource {
     private val historyPageSource = ApiHistoryPageSource(api)
     /** 实时连接状态（供 UI 显示「连接中/已连接」） */
@@ -80,10 +81,16 @@ class ChatRepository @Inject constructor(
     suspend fun setConversationBackground(conversationId: String, background: String) =
         api.setBackground(conversationId, com.touliao.app.data.model.BackgroundBody(background))
 
-    /** 标记会话已读 */
+    /** 标记会话已读（立即发送；会话列表「标为已读」等显式操作用） */
     suspend fun markRead(conversationId: String, messageId: String?) {
         runCatching { api.markRead(conversationId, MarkReadRequest(messageId)) }
     }
+
+    /** 聊天页「已看到这条」：经 [ReadReporter] 去重 + 每会话 800ms 防抖 + 后台不发。 */
+    fun reportRead(conversationId: String, message: com.touliao.app.data.model.Message) =
+        readReporter.report(conversationId, message.id, message.server_sequence, message.created_at)
+
+    fun onConversationOpened(conversationId: String) = readReporter.onConversationOpened(conversationId)
 
     /** includeArchived=true 时返回含已归档会话（主列表页拉全量后本地分流，对齐 Web） */
     suspend fun loadConversations(includeArchived: Boolean = false): List<Conversation> =

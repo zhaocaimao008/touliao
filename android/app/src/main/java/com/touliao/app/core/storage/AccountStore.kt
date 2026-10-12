@@ -2,8 +2,6 @@ package com.touliao.app.core.storage
 
 import android.content.Context
 import android.content.SharedPreferences
-import androidx.security.crypto.EncryptedSharedPreferences
-import androidx.security.crypto.MasterKey
 import com.touliao.app.data.model.Account
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.serialization.encodeToString
@@ -17,12 +15,16 @@ import javax.inject.Singleton
  */
 @Singleton
 class AccountStore internal constructor(
-    private val prefs: SharedPreferences,
+    prefsProvider: () -> SharedPreferences,
     private val json: Json,
     private val tokens: TokenStore,
 ) {
+    internal constructor(prefs: SharedPreferences, json: Json, tokens: TokenStore) : this({ prefs }, json, tokens)
+    // 2026-10-12：加密 prefs 首次读写才创建（共享 MasterKey，见 SecurePrefs），不随单例构造在主线程初始化
     @Inject constructor(@ApplicationContext context: Context, json: Json, tokens: TokenStore) :
-        this(createPrefs(context), json, tokens)
+        this({ SecurePrefs.createOrReset(context, FILE) }, json, tokens)
+
+    private val prefs: SharedPreferences by lazy(prefsProvider)
 
     // Legacy unscoped accounts cannot be assigned to a trustworthy server.
     private val listKey get() = "$KEY_LIST:${tokens.origin}"
@@ -83,18 +85,5 @@ class AccountStore internal constructor(
         const val FILE = "vxin_accounts"
         const val KEY_LIST = "accounts"
         const val KEY_ACTIVE = "active_id"
-
-        fun createPrefs(context: Context): SharedPreferences = runCatching { create(context) }.getOrElse {
-            context.deleteSharedPreferences(FILE); create(context)
-        }
-
-        fun create(ctx: Context): SharedPreferences {
-            val key = MasterKey.Builder(ctx).setKeyScheme(MasterKey.KeyScheme.AES256_GCM).build()
-            return EncryptedSharedPreferences.create(
-                ctx, FILE, key,
-                EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
-                EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM,
-            )
-        }
     }
 }

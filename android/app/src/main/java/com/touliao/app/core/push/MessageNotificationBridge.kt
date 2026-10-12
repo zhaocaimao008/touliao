@@ -37,12 +37,18 @@ import javax.inject.Singleton
 @Singleton
 class MessageNotificationBridge @Inject constructor(
     @ApplicationContext private val appContext: Context,
-    private val chatRepository: ChatRepository,
-    private val userApi: UserApi,
+    // 2026-10-12 启动性能：以下依赖链（SessionManager → TokenStore/AccountStore 加密 prefs、
+    // Retrofit/OkHttp、SocketManager…）改为 dagger.Lazy，在 install() 的后台协程里首次解析，
+    // 不再在 Application.onCreate 主线程上同步构建整张依赖图。
+    private val chatRepositoryLazy: dagger.Lazy<ChatRepository>,
+    private val userApiLazy: dagger.Lazy<UserApi>,
     private val notificationHelper: NotificationHelper,
-    private val sessionManager: SessionManager,
+    private val sessionManagerLazy: dagger.Lazy<SessionManager>,
     @AppScope private val scope: CoroutineScope,
 ) : Application.ActivityLifecycleCallbacks {
+    private val chatRepository: ChatRepository get() = chatRepositoryLazy.get()
+    private val userApi: UserApi get() = userApiLazy.get()
+    private val sessionManager: SessionManager get() = sessionManagerLazy.get()
 
     private val startedActivities = AtomicInteger(0)
     private val isForeground: Boolean get() = startedActivities.get() > 0
@@ -56,10 +62,15 @@ class MessageNotificationBridge @Inject constructor(
     @Volatile private var settingsLoadedAt = 0L
     private val refreshMutex = Mutex()
 
-    /** 由 TouliaoApp.onCreate 调用一次：注册前后台追踪 + 开始监听 socket 新消息。 */
+    /**
+     * 由 TouliaoApp.onCreate 调用一次：注册前后台追踪（主线程，须早于首个 Activity）+ 开始监听 socket 新消息。
+     * SessionManager（启动即 restoreSession）等依赖在 AppScope（Default）里首次解析 → 构建与加密 prefs
+     * 初始化都落在后台线程；MainActivity 稍后注入同一单例时通常已建好（Hilt 单例创建线程安全）。
+     */
     fun install(app: Application) {
         app.registerActivityLifecycleCallbacks(this)
         scope.launch {
+            sessionManagerLazy.get()   // 触发会话恢复（remoteConfig → /me → socket 连接）
             chatRepository.incomingMessages.collect { msg ->
                 if (msg.sender_id == sessionManager.currentUser?.id) return@collect // 自己发的不提醒
                 if (msg.deleted == 1) return@collect                              // 已撤回/删除不提醒
@@ -127,10 +138,12 @@ class MessageNotificationBridge @Inject constructor(
 
     override fun onActivityStarted(activity: Activity) {
         startedActivities.incrementAndGet(); appForeground = true
+        com.touliao.app.core.util.AppForeground.set(true)
     }
     override fun onActivityStopped(activity: Activity) {
         if (startedActivities.get() > 0) startedActivities.decrementAndGet()
         appForeground = startedActivities.get() > 0
+        com.touliao.app.core.util.AppForeground.set(appForeground)
     }
 
     override fun onActivityCreated(activity: Activity, savedInstanceState: Bundle?) {}

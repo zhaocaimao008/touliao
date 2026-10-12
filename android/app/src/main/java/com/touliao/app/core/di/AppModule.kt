@@ -72,9 +72,6 @@ object AppModule {
         hostSelectionInterceptor: HostSelectionInterceptor,
         tokenStore: TokenStore,
     ): OkHttpClient {
-        val logging = HttpLoggingInterceptor().apply {
-            level = HttpLoggingInterceptor.Level.BASIC
-        }
         return OkHttpClient.Builder()
             // 超时:默认仅 10s,弱网/大文件(分片上传单片、视频、二维码下载)必触发 SocketTimeout。
             // 连接 20s;读写 60s 容纳慢上传/下载;callTimeout=0 不设总时长上限,靠读写超时兜底。
@@ -85,7 +82,12 @@ object AppModule {
             .addInterceptor(hostSelectionInterceptor)
             .addInterceptor(authInterceptor)
             .addNetworkInterceptor(authInterceptor)
-            .addInterceptor(logging)
+            .apply {
+                // 请求日志仅 debug 包：release 每个请求都往 logcat 打 URL 行，既耗 CPU 又泄露接口路径
+                if (com.touliao.app.BuildConfig.DEBUG) {
+                    addInterceptor(HttpLoggingInterceptor().apply { level = HttpLoggingInterceptor.Level.BASIC })
+                }
+            }
             .build().cancelOnOriginChange(tokenStore)
     }
 
@@ -175,6 +177,11 @@ object AppModule {
     @Singleton
     fun provideTurnApi(retrofit: Retrofit): com.touliao.app.data.api.TurnApi =
         retrofit.create(com.touliao.app.data.api.TurnApi::class.java)
+
+    @Provides
+    @Singleton
+    fun provideCallReportApi(retrofit: Retrofit): com.touliao.app.data.api.CallReportApi =
+        retrofit.create(com.touliao.app.data.api.CallReportApi::class.java)
 
     @Provides
     @Singleton
