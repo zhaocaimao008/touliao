@@ -83,12 +83,16 @@ async function startServer() {
   // 异步执行缓存预热，不阻塞启动。2026-10-12：未配置 REDIS_URL（redisCache 没有 client）时不预热——
   // 原来照样每小时 SELECT 上千用户/上万消息写进 no-op 对象，纯浪费。
   if (redisCache.client) {
-    cacheWarmer.warmAll().then(results => {
-      console.log('[P4.6] 缓存预热完成:', results.duration, 'ms');
-      cacheWarmer.startPeriodicWarming(60 * 60 * 1000); // 每小时更新一次
-    }).catch(err => {
-      console.warn('[P4.6] 缓存预热失败:', err.message);
-    });
+    // 先一次性清理旧版写入的含密码哈希/手机号的 user:<id>（见 cacheWarmer.purgeLegacySensitiveUserKeys），再预热
+    cacheWarmer.purgeLegacySensitiveUserKeys(redisCache.client)
+      .then(() => cacheWarmer.warmAll())
+      .then(results => {
+        console.log('[P4.6] 缓存预热完成:', results.duration, 'ms');
+        cacheWarmer.startPeriodicWarming(60 * 60 * 1000); // 每小时更新一次
+      })
+      .catch(err => {
+        console.warn('[P4.6] 缓存预热失败:', err.message);
+      });
   } else {
     console.log('[P4.6] Redis 未配置，跳过缓存预热');
   }

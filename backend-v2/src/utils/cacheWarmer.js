@@ -6,6 +6,27 @@
 
 const { db } = require('../db/connection');
 const { redis } = require('./redis');
+const { USER_CACHE_COLUMNS } = require('./cache');
+
+// 2026-10-12 安全修复：旧版 warmActiveUsers/warmUserData 用 SELECT * FROM users，把整行（含
+// password 哈希、phone）写进 Redis 的 user:<id>。该键的唯一读者 users.service getUserDetail
+// 会把缓存值原样展开进用户详情响应；REDIS_URL 带库号使两个客户端落在同一个库时，任何人查看
+// 资料都可能拿到对方的密码哈希和手机号。现在只写 USER_CACHE_COLUMNS，并在启动时一次性清理
+// 旧版写入的含敏感字段的键（见 purgeLegacySensitiveUserKeys）。
+const LEGACY_USER_PURGE_MARKER = 'touliao:maint:cachewarmer-user-purge:v1';
+const LEGACY_SENSITIVE_FIELDS = ['password', 'phone'];
+// 只匹配 user:<id>；不碰 user:search:<id>:<q>（搜索历史计数）、user:<id>:conversations 等
+const PLAIN_USER_KEY = /^user:[^:]+$/;
+
+function isLegacySensitiveUserValue(raw) {
+  if (typeof raw !== 'string' || raw[0] !== '{') return false;
+  try {
+    const v = JSON.parse(raw);
+    return !!v && typeof v === 'object' && LEGACY_SENSITIVE_FIELDS.some(f => Object.prototype.hasOwnProperty.call(v, f));
+  } catch {
+    return false;
+  }
+}
 
 class CacheWarmer {
   constructor(options = {}) {
@@ -23,9 +44,10 @@ class CacheWarmer {
     try {
       console.debug('[CacheWarmer] 开始预热活跃用户...');
       
+      // 只取 user:<id> 读者需要的公开列（见 utils/cache.js USER_CACHE_COLUMNS），绝不写 password/phone
       const users = db.prepare(`
-        SELECT * FROM users 
-        ORDER BY created_at DESC 
+        SELECT ${USER_CACHE_COLUMNS} FROM users
+        ORDER BY created_at DESC
         LIMIT ?
       `).all(this.maxActiveUsers);
 
@@ -148,6 +170,40 @@ class CacheWarmer {
   }
 
   /**
+   * 一次性清理旧版预热写入的 user:<id>（值里含 password/phone 的整行）。
+   * - 只在配置了 Redis 时由 server.js 调用（client 为 integrations/redisCache 的 ioredis 客户端，
+   *   即 CacheWarmer 写入的同一个库）；
+   * - SCAN + MGET + DEL，只删值是 JSON 对象且含敏感字段的 user:<id>，不 FLUSH、不碰其他键；
+   * - 成功后写标记键，之后启动直接跳过；失败不写标记，下次启动重试。可重复执行（幂等）。
+   * 旧键本身 TTL 为 1 小时，这里是为了上线后立即清掉，而不是等它们过期。
+   */
+  async purgeLegacySensitiveUserKeys(client, { scanCount = 500 } = {}) {
+    if (!client || typeof client.scan !== 'function') return { skipped: 'no-redis' };
+    try {
+      if (await client.get(LEGACY_USER_PURGE_MARKER)) return { skipped: 'already-done' };
+      let cursor = '0';
+      let checked = 0;
+      let deleted = 0;
+      do {
+        const [next, keys] = await client.scan(cursor, 'MATCH', 'user:*', 'COUNT', scanCount);
+        cursor = String(next);
+        const candidates = (keys || []).filter(k => PLAIN_USER_KEY.test(k));
+        if (candidates.length === 0) continue;
+        checked += candidates.length;
+        const values = await client.mget(...candidates);   // 非 string 类型的键 MGET 返回 nil
+        const doomed = candidates.filter((_, i) => isLegacySensitiveUserValue(values[i]));
+        if (doomed.length) deleted += Number(await client.del(...doomed)) || 0;
+      } while (cursor !== '0');
+      await client.set(LEGACY_USER_PURGE_MARKER, String(Date.now()));
+      console.log(`[CacheWarmer] 已清理旧版预热写入的含敏感字段的 user:<id> 缓存：检查 ${checked} 个，删除 ${deleted} 个`);
+      return { checked, deleted };
+    } catch (err) {
+      console.warn('[CacheWarmer] 清理旧版 user:<id> 缓存失败（下次启动重试）:', err.message);
+      return { error: err.message };
+    }
+  }
+
+  /**
    * 执行全量预热
    */
   async warmAll() {
@@ -198,17 +254,21 @@ class CacheWarmer {
    */
   async warmUserData(userId) {
     try {
-      const user = db.prepare('SELECT * FROM users WHERE id = ?').get(userId);
+      // 同 warmActiveUsers：只取公开列（该返回值还会经 /api/optimization/cache/warm-user 回给客户端）
+      const user = db.prepare(`SELECT ${USER_CACHE_COLUMNS} FROM users WHERE id = ?`).get(userId);
       if (user) {
         await redis.setex(`user:${userId}`, this.userTTL, JSON.stringify(user));
       }
 
       // 预热用户的会话列表
+      // 原 SQL 用不存在的 participant_a/participant_b 列，一直抛 "no such column"，整个函数返回 null
+      // （连带用户资料也没预热）。会话成员关系在 conversation_members。
       const conversations = db.prepare(`
-        SELECT * FROM conversations 
-        WHERE participant_a = ? OR participant_b = ?
+        SELECT c.* FROM conversations c
+        JOIN conversation_members m ON m.conversation_id = c.id
+        WHERE m.user_id = ?
         LIMIT 100
-      `).all(userId, userId);
+      `).all(userId);
 
       const convKey = `user:${userId}:conversations`;
       await redis.setex(convKey, this.userTTL, JSON.stringify(conversations));
@@ -222,3 +282,5 @@ class CacheWarmer {
 }
 
 module.exports = CacheWarmer;
+module.exports.LEGACY_USER_PURGE_MARKER = LEGACY_USER_PURGE_MARKER;
+module.exports.isLegacySensitiveUserValue = isLegacySensitiveUserValue;

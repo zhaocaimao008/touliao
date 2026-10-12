@@ -69,6 +69,11 @@ const keys = {
   user: userId => `user:${userId}`,
 };
 
+// user:<id> 缓存值的列（唯一来源）。读者只有 users.service getUserDetail（非特权路径），
+// 它把缓存值展开进对外的用户详情响应——所以这里只能放可公开的资料列，绝不能有
+// password / phone 等。utils/cacheWarmer 预热同一个键也必须用这份列清单。
+const USER_CACHE_COLUMNS = 'id,username,avatar,bio,status,wechat_id,cover_photo';
+
 // 获取缓存
 async function get(key) {
   try {
@@ -139,6 +144,7 @@ module.exports = {
   init,
   close,
   keys,
+  USER_CACHE_COLUMNS,
   get,
   set,
   del,

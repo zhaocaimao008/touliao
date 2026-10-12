@@ -258,7 +258,7 @@ async function getUserDetail(viewerId, targetId) {
     : await cache.get(cacheKey);
 
   if (!user) {
-    user = db.prepare('SELECT id,username,avatar,bio,status,wechat_id,cover_photo FROM users WHERE id=?').get(targetId);
+    user = db.prepare(`SELECT ${cache.USER_CACHE_COLUMNS} FROM users WHERE id=?`).get(targetId);
     if (!user) throw notFound('用户不存在');
     await cache.set(cacheKey, user, 1800);
   }
