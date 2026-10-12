@@ -65,6 +65,37 @@ function extractCsrfToken(response) {
   }
 }
 
+// ── 刷新熔断 ──────────────────────────────────────────────────────
+// refresh 被明确拒绝（401/403）或限流（429 + Retry-After）后，在凭证变化前不再发 refresh：
+// 否则每个后续 401 请求都会各自触发一次 refresh + 重放，形成 refresh / me 请求风暴
+// （后端对持续发坏 token 的客户端会返回 429）。凭证变化 = session revision 变化
+// （本标签页/其它标签页刷新成功、登录），或显式 resetRefreshBlock()（登录/登出）。
+let refreshBlock = null; // { until: number, revision }
+const DEFAULT_RETRY_AFTER_MS = 60_000;
+
+function parseRetryAfter(value) {
+  if (value == null || value === '') return DEFAULT_RETRY_AFTER_MS;
+  const secs = Number(value);
+  if (Number.isFinite(secs) && secs >= 0) return Math.min(secs * 1000, 15 * 60_000);
+  const at = Date.parse(value);
+  if (Number.isFinite(at)) return Math.max(0, Math.min(at - Date.now(), 15 * 60_000));
+  return DEFAULT_RETRY_AFTER_MS;
+}
+
+function refreshBlocked() {
+  if (!refreshBlock) return false;
+  if (refreshBlock.revision !== revision() || Date.now() >= refreshBlock.until) {
+    refreshBlock = null;
+    return false;
+  }
+  return true;
+}
+
+/** 登录 / 切换账号 / 登出后调用：新凭证允许重新尝试 refresh。 */
+export function resetRefreshBlock() { refreshBlock = null; }
+/** 测试/诊断用 */
+export function isRefreshBlocked() { return refreshBlocked(); }
+
 /**
  * 刷新 token（防止在请求过程中 token 过期）
  */
@@ -92,7 +123,14 @@ async function refreshToken(axios) {
       // the credential on transport/5xx failures so a later request can recover;
       // only a definitive authentication rejection invalidates it locally.
       console.error('[axios] Token refresh failed:', err);
-      if (isBearerClient() && [401, 403].includes(err.response?.status)) {
+      const status = err.response?.status;
+      if (status === 401 || status === 403) {
+        refreshBlock = { until: Infinity, revision: revision() };
+      } else if (status === 429) {
+        const ra = err.response?.headers?.['retry-after'] ?? err.response?.headers?.get?.('retry-after');
+        refreshBlock = { until: Date.now() + parseRetryAfter(ra), revision: revision() };
+      }
+      if (isBearerClient() && [401, 403].includes(status)) {
         localStorage.removeItem('touliao_electron_token');
         delete axios.defaults.headers.common['Authorization'];
       }
@@ -195,6 +233,10 @@ export function setupAxiosInterceptors(axios) {
         
         originalRequest._retry = true;
 
+        // refresh 已被明确拒绝/限流且凭证未变：不再 refresh、不再重放，直接交给
+        // AuthContext 的 401 拦截器干净登出（避免每个 401 请求各引发一轮 refresh）
+        if (refreshBlocked()) return Promise.reject(error);
+
         try {
           const refreshed = await refreshToken(axios);
           if (!isOperationGenerationCurrent(originalRequest._sessionContext) || !isOperationCurrent(refreshed.scope)) {
@@ -210,13 +252,17 @@ export function setupAxiosInterceptors(axios) {
           return axios(originalRequest);
         } catch (refreshError) {
           if (refreshError.config?._sessionStale) return Promise.reject(staleRequest(originalRequest));
+          // 429 限流：服务端已明确要求退避，不再重放原请求
+          if (refreshError.response?.status === 429) return Promise.reject(error);
           // 多标签页竞态：本标签页的 refresh 可能因为另一个标签页并发 refresh 抢先
           // 一步而失败（服务端对 refresh 做"旧 token 用后即拉黑"，见 auth.controller.js
           // 的 refresh），但 cookie 是同源共享的——另一个标签页那次成功的 refresh 早
           // 已把新 cookie 写回浏览器。这里刷新失败不代表账号真的掉线，重试一次原始
           // 请求：大概率会带上那个新 cookie 直接成功，避免把这个标签页错误地登出。
           try {
-            return await axios(originalRequest);
+            const retried = await axios(originalRequest);
+            refreshBlock = null; // 原请求凭新 cookie 成功 → 会话其实有效，解除熔断
+            return retried;
           } catch (retryErr) {
             // 重试也失败 → 才是真的没有可用会话了，交给各组件/全局拦截器处理登出
             return Promise.reject(retryErr);
@@ -268,4 +314,10 @@ export function setCsrfToken(token) {
 export function clearCsrfToken() {
   csrfToken = null;
   csrfRevision = null;
+}
+
+/** 仅测试用：重置模块级 refresh 状态 */
+export function __resetAuthRefreshForTests() {
+  refreshBlock = null;
+  tokenRefreshPromise = null;
 }

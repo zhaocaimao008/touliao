@@ -10,7 +10,11 @@ import './design-tokens.css';
 import './index.css';
 import './skins.css';   // 皮肤层:微信绿 / 企业微信蓝 (body[data-skin] 变量覆盖,必须在 index.css 之后)
 import './mobile-adapt.css';
+// 设计系统样式静态引入：随入口一起被发现/下载（此前 boot() 里 await import() 串行阻塞启动）。
+// 放在其余全局样式之后，保持原有层叠顺序（原先也是在上述样式之后注入）。
+import './ui-kit/design-system.css';
 import { isWindowsDesktop } from './utils/desktopPlatform';
+import { startAuthCheck } from './utils/authBootstrap';
 import { loadRemoteConfig, getConfig, readManualServer } from './utils/config';
 import { migrateStorage } from './utils/migrateStorage';
 import { initWebVitals } from './utils/webVitals';
@@ -45,12 +49,13 @@ if (import.meta.env.PROD && import.meta.env.VITE_SENTRY_DSN) {
 // 3. 启动 React
 
 (async function boot() {
+  // Windows 专属样式仍按需加载，但与下面的配置/语言包加载并行，渲染前再等它
+  let windowsCss = null;
   if (isWindowsDesktop()) {
     document.documentElement.classList.add('windows-desktop');
-    await import('./windows-desktop.css');
+    windowsCss = import('./windows-desktop.css').catch(() => {});
   }
   document.documentElement.classList.add('touliao-ui');
-  await import('./ui-kit/design-system.css');
   initAccountWindow();
   // 迁移旧版 vxin_* localStorage key
   migrateStorage();
@@ -58,6 +63,20 @@ if (import.meta.env.PROD && import.meta.env.VITE_SENTRY_DSN) {
   // 平台判断
   const isElectron = !!window.__ELECTRON_CONFIG__;
   const isMobile   = !!(window.Capacitor && window.Capacitor.isNativePlatform());
+
+  // 语言包预载与远程配置并行（非简体时才有网络请求；失败回落简体，不阻塞启动）
+  const localeReady = preloadSavedLocale().catch(() => false);
+
+  // 有已保存的登录（Bearer token / 最近登录记录）时，尽早并行拉取已登录主页分包，
+  // 不必等到配置 → 渲染 → /auth/me 返回后才开始下载 Home。
+  const hasSavedLogin = (() => {
+    try {
+      if (isBearerClient() && localStorage.getItem('touliao_electron_token')) return true;
+      const accounts = JSON.parse(localStorage.getItem('touliao_accounts_v2') || '[]');
+      return Array.isArray(accounts) && accounts.length > 0;
+    } catch { return false; }
+  })();
+  if (hasSavedLogin) import('./pages/AuthedHome').catch(() => {});
 
   // 1. 加载远程配置
   //    FE-001：Web 端不阻塞首屏——最多等 800ms，超时先用同源相对路径渲染，
@@ -138,6 +157,10 @@ if (import.meta.env.PROD && import.meta.env.VITE_SENTRY_DSN) {
     if (stored) axios.defaults.headers.common['Authorization'] = `Bearer ${stored}`;
   }
 
+  // 身份核验尽早发出（baseURL/拦截器/Bearer 均已就绪），与语言包、React 首次渲染并行；
+  // AuthProvider 挂载时复用这次请求（见 utils/authBootstrap.js）。
+  if (hasSavedLogin) startAuthCheck(axios);
+
   // 4. 平台初始化
   if (isElectron) {
     import('./utils/electron').then(mod => mod.initElectronFeatures()).catch(() => {});
@@ -149,8 +172,8 @@ if (import.meta.env.PROD && import.meta.env.VITE_SENTRY_DSN) {
     initImageOptimizer();
   }
 
-  // 6. 预载上次选择的语言包（非简体时才有网络请求；失败回落简体，不阻塞启动）
-  await preloadSavedLocale();
+  // 6. 等待已并行发起的语言包预载 / Windows 样式（通常早已完成）
+  await Promise.all([localeReady, windowsCss]);
 
   // 7. 渲染 React
   ReactDOM.createRoot(document.getElementById('root')).render(<App />);

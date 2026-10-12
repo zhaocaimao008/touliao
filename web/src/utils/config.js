@@ -76,26 +76,64 @@ let _loading  = null; // promise singleton
  * 加载远程配置（首次调用触发网络请求，并发调用复用同一个请求）
  * @returns {Promise<object>} 配置对象 { api, socket, cdn, version }
  */
+// 依次尝试每个引导地址，任意一个成功即写入 localStorage 缓存并返回；全部失败返回 null
+async function fetchRemoteConfig() {
+  for (const url of CONFIG_URLS) {
+    try {
+      const res = await fetch(url, { signal: timeoutSignal(5000) });
+      if (!res.ok) continue;
+      const data = await res.json();
+      const cfg = { ...DEFAULTS, ...data };
+      try {
+        localStorage.setItem(CACHE_KEY, JSON.stringify(cfg));
+        localStorage.setItem(CACHE_TS, Date.now().toString());
+      } catch { /* localStorage 不可用时静默忽略 */ }
+      return cfg;
+    } catch { /* 该地址不可达，尝试下一个 */ }
+  }
+  return null;
+}
+
+function readCachedConfig() {
+  try {
+    const cached = localStorage.getItem(CACHE_KEY);
+    if (!cached) return null;
+    const parsed = JSON.parse(cached);
+    return parsed && typeof parsed === 'object' ? { ...DEFAULTS, ...parsed } : null;
+  } catch { return null; }
+}
+
+const isElectronRuntime = () => typeof window !== 'undefined' && !!window.__ELECTRON_CONFIG__;
+
 export function loadRemoteConfig() {
   if (_loaded && _config) return Promise.resolve(_config);
   if (_loading) return _loading;
 
+  // Electron「缓存优先」：上次成功拉到的配置已持久化时，启动直接用缓存（不再等最长 3×5s
+  // 的远程拉取），后台再刷新缓存；新配置与缓存不同时下次启动生效。
+  // 没有缓存（首次安装）时保持原有行为。网页端不走这条路径。
+  if (isElectronRuntime()) {
+    const cached = readCachedConfig();
+    if (cached?.api) {
+      _config = cached;
+      _loaded = true;
+      _loading = Promise.resolve(_config);
+      fetchRemoteConfig().then(fresh => {
+        if (fresh && JSON.stringify(fresh) !== JSON.stringify(cached)) {
+          console.info('[config] 远程配置已更新，下次启动生效');
+        }
+      }).catch(() => {});
+      return _loading;
+    }
+  }
+
   _loading = (async () => {
     // 1. 依次尝试每个引导地址，任意一个成功即用
-    for (const url of CONFIG_URLS) {
-      try {
-        const res = await fetch(url, { signal: timeoutSignal(5000) });
-        if (!res.ok) continue;
-        const data = await res.json();
-        _config = { ...DEFAULTS, ...data };
-        // 缓存到 localStorage
-        try {
-          localStorage.setItem(CACHE_KEY, JSON.stringify(_config));
-          localStorage.setItem(CACHE_TS, Date.now().toString());
-        } catch { /* localStorage 不可用时静默忽略 */ }
-        _loaded = true;
-        return _config;
-      } catch { /* 该地址不可达，尝试下一个 */ }
+    const fresh = await fetchRemoteConfig();
+    if (fresh) {
+      _config = fresh;
+      _loaded = true;
+      return _config;
     }
 
     // 2. 回退到缓存（带过期校验）

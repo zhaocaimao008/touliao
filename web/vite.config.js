@@ -50,7 +50,12 @@ export default defineConfig(({ mode }) => ({
             { name: 'vendor-xlsx',   priority: 90, test: /node_modules[\\/]xlsx[\\/]/ },
             { name: 'vendor-jszip',  priority: 90, test: /node_modules[\\/]jszip[\\/]/ },
 
-            { name: 'vendor-misc',   priority: 80, test: /node_modules[\\/](axios|timeago\.js|dompurify|qrcode)[\\/]/ },
+            // dompurify 只被 DocumentRenderers（Excel 预览）动态 import；qrcode 当前无前端引用
+            // （二维码由服务端生成）。二者必须各自成块：若与 axios 同组，入口为拿 axios
+            // 会把它们一起拉下来，登录页白白多下载/解析。
+            { name: 'vendor-dompurify', priority: 85, test: /node_modules[\\/]dompurify[\\/]/ },
+            { name: 'vendor-qrcode',    priority: 85, test: /node_modules[\\/](qrcode|pngjs|dijkstrajs)[\\/]/ },
+            { name: 'vendor-misc',   priority: 80, test: /node_modules[\\/](axios|timeago\.js)[\\/]/ },
             { name: 'vendor',        priority: 10, test: /node_modules/ },
           ],
         },

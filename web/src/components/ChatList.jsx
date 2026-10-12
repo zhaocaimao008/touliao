@@ -19,6 +19,8 @@ import designTokens from '../ui-kit/tokens.json';
 import { groupSystemPreview } from '../utils/groupSystemText';
 import { applyConversationSettings, publishConversationSettings, subscribeConversationSettings } from '../utils/conversationSettings';
 import { captureSession, isSessionCurrent } from '../utils/sessionContext';
+import { resetReadState } from '../utils/readReporter';
+import { publishConversations } from '../utils/conversationsSnapshot';
 
 const rowHeight = () => window.innerWidth < designTokens.layout.breakpoints.compactDesktopMin
   ? designTokens.components.listRow.mobileMinimum : designTokens.components.listRow.desktopMinimum;
@@ -202,7 +204,9 @@ export default function ChatList({ onSelectConv, activeConvId, unread = {}, sear
   const fetchConvs = useCallback(async () => {
     try {
       const { data } = await axios.get('/api/messages/conversations', { params: { includeArchived: 1 } });
-      setConversations(Array.isArray(data) ? data : []);
+      const list = Array.isArray(data) ? data : [];
+      setConversations(list);
+      publishConversations(list); // 供 Home 复用（对端在线状态），避免重连时重复整表拉取
     } finally {
       setLoaded(true);   // 无论成功失败都结束骨架态，不卡在加载
     }
@@ -425,6 +429,8 @@ export default function ChatList({ onSelectConv, activeConvId, unread = {}, sear
 
   const toggleMarkUnread = async (conv) => {
     setCtxMenu(null);
+    // 用户手动改了已读/未读：重置已读节流器的去重基线，下次打开会话会重新上报
+    resetReadState(conv.id);
     try {
       if (conv.manually_unread) {
         await axios.post(`/api/messages/conversation/${conv.id}/read`);

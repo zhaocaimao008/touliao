@@ -1,13 +1,14 @@
 import { clientStorage as localStorage } from '../utils/clientStorage';
-import React, { createContext, useContext, useEffect, useRef, useState } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import axios from 'axios';
 import { clearCache } from '../utils/msgCache';
-import { clearCsrfToken, notifyCredentialsUpdated } from '../utils/axiosInterceptor';
+import { clearCsrfToken, notifyCredentialsUpdated, resetRefreshBlock } from '../utils/axiosInterceptor';
 import { invalidateMediaTickets } from '../utils/url';
 import { isBearerClient, isIsolatedWindow } from '../utils/clientStorage';
 import { pushScope } from '../utils/pushScope';
 import { activateSession, captureSession, invalidateSession, isOperationCurrent, isOperationGenerationCurrent, SESSION_OWNER_KEY } from '../utils/sessionContext';
 import { setLogoutReason, hasLogoutReason } from '../utils/logoutReason';
+import { takeAuthCheck } from '../utils/authBootstrap';
 
 // 所有请求自动携带 httpOnly Cookie（同源时浏览器自动附加，跨域需此选项）
 axios.defaults.withCredentials = true;
@@ -36,6 +37,7 @@ function clearCsrfCache() {
   sessionStorage.removeItem('csrf_token');
   localStorage.removeItem('touliao_csrf_cache');
   clearCsrfToken();
+  resetRefreshBlock(); // 会话边界：允许新凭证重新 refresh
 }
 
 function setElectronToken(token) {
@@ -85,12 +87,12 @@ export const AuthProvider = ({ children }) => {
   const [loading, setLoading]   = useState(true);
   const [outboxScope, setOutboxScope] = useState(null);
   const userRef = useRef(null);
-  const bindOwner = userData => {
+  const bindOwner = useCallback(userData => {
     userRef.current = userData;
     setOutboxScope(activateSession(
       new URL(axios.defaults.baseURL || '/', window.location.href).href.replace(/\/$/, ''), userData.id
     ));
-  };
+  }, []);
   useEffect(() => { userRef.current = user; }, [user]);
 
   // ── 401 自动踢出 ───────────────────────────────────────────────
@@ -113,6 +115,8 @@ export const AuthProvider = ({ children }) => {
         if (err.response?.status === 401 && userRef.current && !isAuthBootstrap) {
           if (err.config?._sessionStale) return Promise.reject(err);
           if (!hasLogoutReason()) setLogoutReason(); // 登录页据此提示「登录已失效」，而不是无声跳回
+          // 并发的多个 401 只登出一次（userRef 由 effect 异步同步，这里立即置空）
+          userRef.current = null;
           invalidateSession();
           setUser(null);
           setElectronToken(null);
@@ -131,9 +135,11 @@ export const AuthProvider = ({ children }) => {
       const stored = localStorage.getItem(ELECTRON_TOKEN_KEY);
       if (stored) axios.defaults.headers.common['Authorization'] = `Bearer ${stored}`;
     }
-    const operation = captureSession();
+    // main.jsx 可能已在启动早期并行发出了 /api/auth/me：会话代次未变则直接复用
+    const early = takeAuthCheck();
+    const operation = early ? early.operation : captureSession();
     let disposed = false;
-    axios.get('/api/auth/me', { _sessionContext: operation })
+    (early ? early.promise : axios.get('/api/auth/me', { _sessionContext: operation }))
       .then(r => {
         if (disposed || !canPublishResponse(operation, r)) return;
         bindOwner(r.data);
@@ -150,23 +156,24 @@ export const AuthProvider = ({ children }) => {
         setLoading(false);
       });
     return () => { disposed = true; };
-  }, []);
+  }, [bindOwner]);
 
   // ── 登录成功回调（由 Login/Register 页面调用） ─────────────────
-  const login = (userData, token) => {
+  const login = useCallback((userData, token) => {
+    resetRefreshBlock(); // 新凭证：解除 refresh 熔断
     bindOwner(userData);
     setElectronToken(token || null);
     setUser(userData);
     setLoading(false);
     const next = upsertAccount(userData);
     setAccounts(next);
-  };
+  }, [bindOwner]);
 
   // ── 免密切换账号 ──────────────────────────────────────────────
   // 后端凭 httpOnly 的 wallet cookie 校验"本设备登录过该账号"，重签发 token。
   // 成功即换上新账号的 Cookie，reload 重建 socket / 拉取数据。
   // 失败（如 wallet 过期、该账号未在本设备登录过）抛错，调用方回退到密码登录。
-  const switchAccount = async (accountId) => {
+  const switchAccount = useCallback(async (accountId) => {
     if (isIsolatedWindow()) throw new Error('请在独立账号窗口中使用密码登录。');
     invalidateSession();
     const operation = captureSession();
@@ -180,19 +187,19 @@ export const AuthProvider = ({ children }) => {
     bindOwner(data.user);
     clearCsrfCache();
     window.location.reload();
-  };
+  }, [bindOwner]);
 
   // ── 移除"最近登录"记录 + 从本设备钱包删除（删除账号，不再可免密切换） ────
-  const removeAccount = (accountId) => {
+  const removeAccount = useCallback((accountId) => {
     const next = readAccounts().filter(a => a.id !== accountId);
     writeAccounts(next);
     setAccounts(next);
     // 后端清掉本设备对该账号的免密切换凭证（best-effort）
     axios.post('/api/auth/forget', { userId: accountId }).catch(() => {});
-  };
+  }, []);
 
   // ── 登出 ──────────────────────────────────────────────────────
-  const logout = async () => {
+  const logout = useCallback(async () => {
     invalidateSession();
     let operation = captureSession();
     try {
@@ -224,11 +231,11 @@ export const AuthProvider = ({ children }) => {
     clearCache();   // 隐私红线：登出清空离线消息缓存
     setElectronToken(null);
     setUser(null);
-  };
+  }, [removeAccount]);
 
   // ── 修改密码：后端改密后旧 token 立即黑名单化，Bearer 客户端(Electron/Capacitor)
   // 必须用响应里的新 token 覆盖本地，否则下一个请求就 401 被强制登出（对齐 change-server 的处理）。
-  const changePassword = async (oldPassword, newPassword) => {
+  const changePassword = useCallback(async (oldPassword, newPassword) => {
     const operation = captureSession();
     const response = await axios.put('/api/auth/change-password', { oldPassword, newPassword }, { _sessionContext: operation });
     if (!canPublishResponse(operation, response)) return;
@@ -236,10 +243,10 @@ export const AuthProvider = ({ children }) => {
     setElectronToken(data.token || null);
     if (data.sessionId) setUser(previous => ({ ...previous, sessionId: data.sessionId }));
     notifyCredentialsUpdated();
-  };
+  }, []);
 
   // ── 注销账户（需当前密码确认）：账号已删，本地收尾同 logout 但不再调 /logout ──
-  const deleteAccount = async (password) => {
+  const deleteAccount = useCallback(async (password) => {
     const requestScope = captureSession();
     const response = await axios.post('/api/auth/delete-account', { password }, { _sessionContext: requestScope });
     if (!canPublishResponse(requestScope, response)) return;
@@ -270,13 +277,13 @@ export const AuthProvider = ({ children }) => {
     clearCache();   // 隐私红线：账号已注销，清空离线消息缓存
     setElectronToken(null);
     setUser(null);
-  };
+  }, [removeAccount]);
 
   // ── 切换服务器（无需重装客户端） ─────────────────────────────
   // 1. 保存新 URL 到 localStorage（Electron 运行时）和 electron-store（下次启动）
   // 2. 更新 axios baseURL
   // 3. 清除当前登录态 → PrivateRoute 自动跳转登录页 → 用户用新服务器账号重新登录
-  const changeServer = async (newUrl) => {
+  const changeServer = useCallback(async (newUrl) => {
     const clean = newUrl.trim().replace(/\/$/, '');
     // 桌面端先经主进程确认（仅 https）；被拒则保持原服务器与登录态不变
     if (window.__ELECTRON_CONFIG__ && !await window.electronAPI?.setServerUrl?.(clean)) return false;
@@ -291,7 +298,7 @@ export const AuthProvider = ({ children }) => {
     clearCache();   // 切换服务器=换账号域，清离线消息缓存避免串号
     setUser(null);
     setAccounts([]);
-  };
+  }, []);
 
   useEffect(() => {
     const onStorage = event => {
@@ -306,7 +313,7 @@ export const AuthProvider = ({ children }) => {
   }, []);
 
   // ── 更新本地用户缓存（头像/昵称变更后调用） ─────────────────
-  const updateUser = (data) => {
+  const updateUser = useCallback((data) => {
     setUser(prev => {
       const updated = { ...prev, ...data };
       const next = readAccounts().map(a => a.id === updated.id ? { ...a, user: updated } : a);
@@ -315,24 +322,27 @@ export const AuthProvider = ({ children }) => {
       setTimeout(() => setAccounts(next), 0);
       return updated;
     });
-  };
+  }, []);
+
+  // value 只在真实状态变化时换引用（回调均为 useCallback 稳定），避免每次渲染级联重渲全部消费者
+  const value = useMemo(() => ({
+    user,
+    outboxScope,
+    login,
+    logout,
+    changePassword,
+    deleteAccount,
+    updateUser,
+    changeServer,
+    loading,
+    accounts,
+    switchAccount,
+    removeAccount,
+    maxAccounts: MAX_ACCOUNTS,
+  }), [user, outboxScope, login, logout, changePassword, deleteAccount, updateUser, changeServer, loading, accounts, switchAccount, removeAccount]);
 
   return (
-    <AuthContext.Provider value={{
-      user,
-      outboxScope,
-      login,
-      logout,
-      changePassword,
-      deleteAccount,
-      updateUser,
-      changeServer,
-      loading,
-      accounts,
-      switchAccount,
-      removeAccount,
-      maxAccounts: MAX_ACCOUNTS,
-    }}>
+    <AuthContext.Provider value={value}>
       {children}
     </AuthContext.Provider>
   );
