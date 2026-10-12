@@ -20,7 +20,7 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.ripple.rememberRipple
+import androidx.compose.material3.ripple
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -228,7 +228,7 @@ fun ProfileScreen(
                             .heightIn(min = 52.dp)
                             .clickable(
                                 interactionSource = remember { MutableInteractionSource() },
-                                indication = rememberRipple(bounded = true),
+                                indication = ripple(bounded = true),
                             ) { showLogoutDialog = true },
                         contentAlignment = Alignment.Center,
                     ) {
@@ -242,7 +242,7 @@ fun ProfileScreen(
                         .fillMaxWidth()
                         .clickable(
                             interactionSource = remember { MutableInteractionSource() },
-                            indication = rememberRipple(bounded = true),
+                            indication = ripple(bounded = true),
                         ) { showDeleteAccountDialog = true },
                     contentAlignment = Alignment.Center,
                 ) {

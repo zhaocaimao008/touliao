@@ -1,14 +1,13 @@
 [versions]
-agp = "8.1.4"
-kotlin = "1.9.22"
-ksp = "1.9.22-1.0.17"
-hilt = "2.50"
+agp = "8.5.2"
+kotlin = "2.0.21"
+ksp = "2.0.21-1.0.28"
+hilt = "2.52"
 hiltNavigation = "1.1.0"
 coreKtx = "1.12.0"
 lifecycle = "2.7.0"
 activityCompose = "1.8.2"
-composeBom = "2024.02.00"
-composeCompiler = "1.5.8"
+composeBom = "2024.09.03"
 navigation = "2.7.7"
 retrofit = "2.9.0"
 retrofitSerialization = "1.0.0"
@@ -67,11 +66,14 @@ getui-sdk = { group = "com.getui", name = "gtsdk", version.ref = "getui" }
 getui-gtc = { group = "com.getui", name = "gtc", version.ref = "getuiGtc" }
 
 junit = { group = "junit", name = "junit", version.ref = "junit" }
+hilt-android-testing = { group = "com.google.dagger", name = "hilt-android-testing", version.ref = "hilt" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }
 kotlin-android = { id = "org.jetbrains.kotlin.android", version.ref = "kotlin" }
 kotlin-serialization = { id = "org.jetbrains.kotlin.plugin.serialization", version.ref = "kotlin" }
+# Kotlin 2.0+ 起 Compose 编译器随 Kotlin 发布（默认开启 strong skipping）
+kotlin-compose = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
 ksp = { id = "com.google.devtools.ksp", version.ref = "ksp" }
 hilt = { id = "com.google.dagger.hilt.android", version.ref = "hilt" }
 google-services = { id = "com.google.gms.google-services", version.ref = "googleServices" }
