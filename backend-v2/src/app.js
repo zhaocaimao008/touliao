@@ -213,6 +213,32 @@ app.use((req, res, next) => {
   try { require('./modules/messages/burn.service').expireDueMessages(req.app.get('io')); next(); } catch (e) { next(e); }
 });
 
+// ── /uploads 交给 nginx 发送（X-Accel-Redirect，2026-10-12，默认关闭）──────────────
+// UPLOADS_X_ACCEL=1 时：上面的鉴权/权限/焚毁检查全部照旧在 Node 里做完，通过后不再由 express.static 读盘
+// 发字节，而是回一个空 body + `X-Accel-Redirect: /_protected_uploads/<相对路径>`，由 nginx 的 internal
+// location（alias 到 config.uploadsRoot）直接发文件（sendfile、Range、ETag 由 nginx 处理）。
+// Content-Type / Cache-Control 在这里设好，nginx 会原样透传；X-Content-Type-Options 需 nginx 侧 add_header。
+// 路径安全：逐段 decode，拒绝 ''/'.'/'..'/含 '/' '\\' NUL 的段，resolve 后必须仍在 uploadsRoot 内，且必须是已存在的普通文件
+// （不存在时 next() 交给 express.static → 404，与关闭时行为一致）。未设置该变量时本中间件直接 next()，零行为变化。
+const UPLOADS_ROOT_ABS = path.resolve(config.uploadsRoot);
+function uploadsXAccel(req, res, next) {
+  if (process.env.UPLOADS_X_ACCEL !== '1') return next();
+  if (req.method !== 'GET' && req.method !== 'HEAD') return next();
+  let segs;
+  try { segs = req.path.split('/').filter((s, i) => i > 0).map(decodeURIComponent); } catch { return res.status(400).json({ error: '无效路径' }); }
+  if (!segs.length || segs.some(s => !s || s === '.' || s === '..' || /[\/\\\0]/.test(s))) return res.status(404).json({ error: '资源不存在' });
+  const abs = path.resolve(UPLOADS_ROOT_ABS, ...segs);
+  if (!abs.startsWith(UPLOADS_ROOT_ABS + path.sep)) return res.status(404).json({ error: '资源不存在' });
+  let st;
+  try { st = fs.statSync(abs); } catch { return next(); }
+  if (!st.isFile()) return next();
+  res.type(path.extname(abs) || 'application/octet-stream');
+  // 与下方 express.static setHeaders 同一策略；uploadsCacheMiddleware 已包裹 setHeader（焚毁附件强制 no-store）
+  res.setHeader('Cache-Control', res.locals.burnAttachment ? 'private, no-store' : 'private, max-age=31536000, immutable');
+  res.setHeader('X-Accel-Redirect', '/_protected_uploads/' + segs.map(encodeURIComponent).join('/'));
+  res.status(200).end();
+}
+
 app.use('/uploads', async (req, res, next) => {
   if (req.query?.access_token !== undefined || req.query?.refresh_token !== undefined
     || (req.query?.token !== undefined && (typeof req.query.token !== 'string' || !req.query.token))) {
@@ -310,10 +336,11 @@ app.use('/uploads', async (req, res, next) => {
     }
     next();
   } catch (err) {
-    console.error('[uploads] blacklist check error:', err.message);
-    res.status(503).json({ error: '认证服务暂时不可用' });
+    require('./utils/throttledLog').throttledLog('warn', 'uploads503:blacklist',
+      `[uploads] 503 reason=blacklist_lookup_failed err=${err?.code || ''} ${err?.message || err}`);
+    res.status(503).json({ error: '认证服务暂时不可用', error_code: 'AUTH_UNAVAILABLE' });
   }
-}, uploadsCacheMiddleware, express.static(config.uploadsRoot, {
+}, uploadsCacheMiddleware, uploadsXAccel, express.static(config.uploadsRoot, {
   // uploads 均为 uuid 命名、内容永不变更 → 强缓存，消除每次加载的 304 回源往返，
   // 头像/图片打开会话即从本地缓存秒出。private：内容经鉴权，禁止共享缓存(CDN/代理)存储，
   // 只允许当前用户浏览器缓存（与该用户已被授权取得这些字节一致，无安全回归）。
@@ -402,10 +429,18 @@ app.get('/api/uploads/ticket', auth, (req, res) => {
 });
 
 // ── Web Vitals 上报端点（前端 sendBeacon，无需鉴权）───────────────
-// 内存环形缓冲记录最近 500 条，/api/metrics/vitals/recent 可查；不落库不阻塞。
+// 内存环形缓冲记录最近 500 条，/api/metrics/vitals/recent 可查。
+// 2026-10-12：合法条目（指标名白名单、数值有限）同时经写队列落 web_vitals 表（30 天保留，插入时按需修剪），
+// GET /api/metrics/vitals/stats?days=1|7（后台鉴权）给出各指标 p50/p75/p95。单 IP 每分钟 60 条。
+const telemetry = require('./modules/telemetry/telemetry.service');
+const vitalsLimiter = require('express-rate-limit')({
+  windowMs: 60 * 1000, max: 60, legacyHeaders: false,
+  skip: () => process.env.DISABLE_RATE_LIMIT === '1',
+  handler: (req, res) => res.status(204).end(), // sendBeacon 不看响应，超限静默丢弃
+});
 const vitalsBuffer = [];
 const VITALS_MAX = 500;
-app.post('/api/metrics/vitals', express.text({ type: 'text/plain', limit: '10kb' }), (req, res) => {
+app.post('/api/metrics/vitals', vitalsLimiter, express.text({ type: 'text/plain', limit: '10kb' }), (req, res) => {
   try {
     const body = typeof req.body === 'string' ? JSON.parse(req.body) : (req.body || {});
     if (body && body.name) {
@@ -415,11 +450,20 @@ app.post('/api/metrics/vitals', express.text({ type: 'text/plain', limit: '10kb'
         t: Date.now(),
       });
       if (vitalsBuffer.length > VITALS_MAX) vitalsBuffer.splice(0, vitalsBuffer.length - VITALS_MAX);
+      const v = telemetry.normalizeVital(body);
+      if (v) telemetry.recordVital(v).catch(() => {});
     }
     res.status(204).end();
   } catch { res.status(204).end(); } // 解析失败静默（sendBeacon 无响应处理）
 });
 app.get('/api/metrics/vitals/recent', adminAuth, (req, res) => res.json(vitalsBuffer.slice(-100)));
+app.get('/api/metrics/vitals/stats', adminAuth, (req, res, next) => {
+  try {
+    const days = req.query.days === '7' ? 7 : 1;
+    const uaClass = typeof req.query.ua === 'string' && /^[a-z-]{1,20}$/.test(req.query.ua) ? req.query.ua : undefined;
+    res.json(telemetry.vitalsStats(days, { uaClass }));
+  } catch (e) { next(e); }
+});
 
 // ── 路由 ────────────────────────────────────────────────────────
 app.use('/api/legal', require('./modules/legal/legal.routes'));
@@ -449,6 +493,7 @@ app.use('/api/stickers',      require('./modules/stickers/stickers.routes'));
 app.use('/api/redpackets',    require('./modules/redpackets/redpackets.routes'));
 app.use('/api/wallet',        require('./modules/wallet/wallet.routes'));
 app.use('/api/turn',          require('./modules/turn/turn.routes'));
+app.use('/api/calls',         require('./modules/telemetry/calls.routes')); // 通话质量上报 + 后台统计
 app.use('/api/admin',         require('./modules/admin/admin.routes'));
 app.use('/api/friend-labels', require('./modules/contacts/friend_labels.routes'));
 app.use('/api/monitoring',    require('./routes/monitoring.routes'));
@@ -470,7 +515,15 @@ app.use('/api/web3',          stub501);   // P13 Web3 集成 (mock)
 
 // 公开配置（前端读取功能开关，决定朋友圈/收藏入口显隐）
 const { getFeatures, getMinVersions } = require('./modules/admin/admin.service');
-app.get('/api/config', (req, res) => res.json({ features: getFeatures(), minVersion: getMinVersions() }));
+// 2026-10-12：features 追加服务端能力位（由 .env 决定，非后台开关）。客户端约定：
+//   features.cloudUpload === false → 不调 /api/upload/credential，直接走本机上传；
+//   features.webPush === false     → 不取 /api/notifications/vapid-public-key、不做 Web Push 订阅。
+const { isConfigured: cloudUploadConfigured } = require('./utils/cloudStorage');
+const { vapidPublicKey: webPushKey } = require('./modules/notifications/notifications.service');
+app.get('/api/config', (req, res) => res.json({
+  features: { ...getFeatures(), cloudUpload: !!cloudUploadConfigured(), webPush: !!webPushKey() },
+  minVersion: getMinVersions(),
+}));
 
 // 健康检查（含数据库探测 + schema drift 状态）
 // 注意：503 响应体禁止出现 "ok" 键/子串（deploy.yml 健康检查 grep '"ok":true' 精确匹配，

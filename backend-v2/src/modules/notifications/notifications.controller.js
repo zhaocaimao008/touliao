@@ -9,7 +9,8 @@ function pushSession(req) {
 
 exports.vapidPublicKey = asyncHandler(async (req, res) => {
   const key = svc.vapidPublicKey();
-  if (!key) return res.status(503).json({ error: 'Web Push 未配置' });
+  // 2026-10-12：保持 503 兼容旧客户端，补稳定机器码；客户端应先看 /api/config 的 features.webPush，false 时跳过注册
+  if (!key) return res.status(503).json({ error: 'Web Push 未配置', error_code: 'FEATURE_DISABLED', code: 'FEATURE_DISABLED', feature: 'webPush' });
   res.json({ publicKey: key });
 });
 
@@ -55,7 +56,7 @@ const DIAG_MAX_FILE = 5 * 1024 * 1024;   // 文件上限 5MB，到顶即停写
 
 function appendDiag(line) {
   const safe = line.replace(/[\r\n]+/g, ' ').slice(0, DIAG_MAX_LINE);
-  console.log(safe);
+  console.debug(safe); // 2026-10-12：didRegister 等诊断明细降为 debug（默认不进 out.log），文件里照常保留
   try {
     if (fs.existsSync(DIAG_LOG) && fs.statSync(DIAG_LOG).size > DIAG_MAX_FILE) return;
     fs.appendFileSync(DIAG_LOG, safe + '\n');

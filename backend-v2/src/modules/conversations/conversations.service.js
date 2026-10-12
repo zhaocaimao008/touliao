@@ -467,7 +467,8 @@ async function setBackground(userId, convId, background) {
 // 只信任「仍在本会话、未删除」的水位消息：messageId 当时没找到（已删/他会话/不存在）时那次根本没回填，或水位消息后来
 // 被撤回/清空，都查不到 → 退回原全会话路径（与改动前完全一致），下一次已读写入新水位后自然恢复有界。
 const _prevReadRowid = db.prepare(`
-  SELECT m.rowid AS rid FROM conversation_settings cs
+  SELECT m.rowid AS rid, cs.last_read_at AS readAt, cs.last_read_message_id AS msgId, cs.manually_unread AS mu
+  FROM conversation_settings cs
   JOIN messages m ON m.id = cs.last_read_message_id
   WHERE cs.user_id = ? AND cs.conversation_id = ? AND m.conversation_id = cs.conversation_id AND m.deleted = 0
 `);
@@ -503,7 +504,17 @@ async function markRead(io, userId, convId, messageId) {
     if (last) { readAt = last.created_at; readMsgId = last.id; readRowid = last.rid; }
   }
   // 必须在下方 upsert 之前读：读到的才是「上一次」的水位。并发的两次 /read 若读到同一个旧水位，各自补自己的区间，并集不变。
-  const prevRowid = readRowid != null ? (_prevReadRowid.get(userId, convId)?.rid ?? null) : null;
+  const prev = readRowid != null ? _prevReadRowid.get(userId, convId) : null;
+  const prevRowid = prev?.rid ?? null;
+
+  // 2026-10-12 已读风暴：/read 一天 1.1 万次，绝大多数是重复上报同一条（或更早的）消息。水位不前进且没有
+  // 「手动标为未读」待清除时，本次调用对库、缓存、其他端都没有任何可观测变化（回填区间与焚毁区间都为空），
+  // 直接返回已存水位：不写库、不失效会话缓存、不广播 message_read / sync:unread_cleared。
+  // 多端未读同步不受影响：水位真正前进的那一次照常广播；水位已在更后面时其他端早已收到过那次同步。
+  // 顺带修正：回读更早的消息不再把水位往回拨（原来会让已读过的会话重新出现未读）。
+  if (prev && prevRowid != null && prevRowid >= readRowid && !prev.mu) {
+    return { readAt: prev.readAt || readAt, lastReadMessageId: prev.msgId || readMsgId };
+  }
 
   // 等已读位置落库再失效缓存、再通知其他端（写队列约 8ms 一批，代价很小）。原先 fire-and-forget、
   // 提交前就失效缓存并立即返回：提交前到达的列表请求（客户端收到新消息/已读同步后常会立刻刷新列表）

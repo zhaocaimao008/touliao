@@ -223,7 +223,9 @@ function makeUploadGuard(dest) {
         const s = fs.statfsSync(dest);
         const free = s.bavail * s.bsize;
         if (free < MIN_DISK_FREE_BYTES) {
-          return res.status(503).json({ error: '服务器磁盘空间不足，请稍后再试' });
+          require('./throttledLog').throttledLog('warn', 'upload503:disk',
+            `[Upload] 503 reason=disk_low free=${free} min=${MIN_DISK_FREE_BYTES} path=${req.method} ${req.originalUrl.split('?')[0]}`);
+          return res.status(503).json({ error: '服务器磁盘空间不足，请稍后再试', error_code: 'DISK_LOW' });
         }
       }
     } catch { /* 无法探测时放行 */ }

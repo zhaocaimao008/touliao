@@ -13,7 +13,9 @@ const { isMember } = require('../messages/shared');
  */
 exports.credential = asyncHandler(async (req, res) => {
   if (!isConfigured()) {
-    return res.status(503).json({ error: '云存储未配置，请在服务器 .env 中设置 CLOUD_PROVIDER 及对应密钥', error_code: 'CLOUD_STORAGE_UNCONFIGURED' });
+    return res.status(503).json({ error: '云存储未配置，请在服务器 .env 中设置 CLOUD_PROVIDER 及对应密钥', error_code: 'CLOUD_STORAGE_UNCONFIGURED', code: 'FEATURE_DISABLED', feature: 'cloudUpload' });
+    // ↑ 2026-10-12：error_code 保持原值（web axiosInterceptor 已按它分支）；新增 code/feature 统一能力开关语义，
+    //   客户端应先看 GET /api/config 的 features.cloudUpload，为 false 时根本不要调本接口。
   }
   const { filename, contentType, conversationId, fileSize } = req.body;
   if (!filename || !contentType || !conversationId) {

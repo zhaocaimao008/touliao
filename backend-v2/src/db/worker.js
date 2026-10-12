@@ -97,7 +97,14 @@ function flushBatch(batch) {
         else result = runItem(item);
         if (item.reqId != null) parentPort.postMessage({ type: 'ack', ids: [item.reqId], result });
       } catch (itemErr) {
-        console.error('[dbWorker] SQL 执行失败:', item.sql || '(batch)', itemErr.message);
+        // 2026-10-12：(sender_id, client_msg_id) 唯一冲突是弱网重发的预期结果——调用方
+        // （realtime/handlers/message.js、file.js、messages.service.js）按 error 文本识别后回查并返回已存在的消息，
+        // 客户端拿到的是同一条消息。这里不再当 SQL 故障打 error（原来每天几条误报）。整项事务已回滚，语义不变。
+        if (/UNIQUE constraint failed: messages\.sender_id, messages\.client_msg_id/.test(itemErr.message || '')) {
+          if (process.env.LOG_LEVEL === 'debug') console.log('[dbWorker] 幂等重发命中 client_msg_id 唯一约束，交由调用方返回已存在消息');
+        } else {
+          console.error('[dbWorker] SQL 执行失败:', item.sql || '(batch)', itemErr.message);
+        }
         if (item.reqId != null) parentPort.postMessage({ type: 'ack', ids: [item.reqId], error: itemErr.message });
       }
     }

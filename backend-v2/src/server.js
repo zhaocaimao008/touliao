@@ -4,7 +4,11 @@
  */
 
 // ⚠️ 必须最先加载 .env，否则 TRACING_ENABLED 等环境变量在追踪初始化时尚未注入
-require('dotenv').config();
+// 2026-10-12：按 backend-v2 根目录绝对路径加载，不依赖 cwd（cwd 不同时某些进程读不到 .env，REDIS_URL 等出现「已配置却未生效」）
+require('dotenv').config({ path: require('path').resolve(__dirname, '../.env') });
+// console.debug 在 Node 里等同 console.log 会直接进 pm2 out.log；代码里写 console.debug 的本意都是「调试级」，
+// 默认（LOG_LEVEL 非 debug）静默，与 winston logger 的级别保持一致。
+if ((process.env.LOG_LEVEL || 'info') !== 'debug') console.debug = () => {};
 
 // ⚠️ 追踪插桩必须在所有 require 之前（auto-instrumentations 依赖此时序）
 const { tracing } = require('./integrations/tracing');
@@ -76,13 +80,18 @@ async function startServer() {
     maxHotMessages: 10000,
     hotDays: 7,
   });
-  // 异步执行缓存预热，不阻塞启动
-  cacheWarmer.warmAll().then(results => {
-    console.log('[P4.6] 缓存预热完成:', results.duration, 'ms');
-    cacheWarmer.startPeriodicWarming(60 * 60 * 1000); // 每小时更新一次
-  }).catch(err => {
-    console.warn('[P4.6] 缓存预热失败:', err.message);
-  });
+  // 异步执行缓存预热，不阻塞启动。2026-10-12：未配置 REDIS_URL（redisCache 没有 client）时不预热——
+  // 原来照样每小时 SELECT 上千用户/上万消息写进 no-op 对象，纯浪费。
+  if (redisCache.client) {
+    cacheWarmer.warmAll().then(results => {
+      console.log('[P4.6] 缓存预热完成:', results.duration, 'ms');
+      cacheWarmer.startPeriodicWarming(60 * 60 * 1000); // 每小时更新一次
+    }).catch(err => {
+      console.warn('[P4.6] 缓存预热失败:', err.message);
+    });
+  } else {
+    console.log('[P4.6] Redis 未配置，跳过缓存预热');
+  }
 
   // P4.7: 初始化网络感知重试
   const NetworkAwareRetry = require('./utils/networkAwareRetry');

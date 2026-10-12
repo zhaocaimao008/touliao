@@ -7,6 +7,7 @@
 const { ApiError } = require('../utils/http');
 const { codeForStatus } = require('../utils/errorCodes');
 const { error: logError } = require('../utils/logger');
+const { throttledLog } = require('../utils/throttledLog');
 
 // 404 兜底
 function notFoundHandler(req, res) {
@@ -21,6 +22,13 @@ function errorHandler(err, req, res, next) {
     const body = { error: err.message, error_code: err.code || codeForStatus(err.status) };
     // 红包领取冲突等场景需透传额外字段（如 amount）
     if (err.amount !== undefined) body.amount = err.amount;
+    // 2026-10-12：5xx 业务错误（媒体审核不可用/繁忙、限流存储不可用等）原来不落任何原因，access log 里只看到
+    // 「快速 503」。按 code+路径模板限频打一条 warn（1 分钟 1 条 + 期间被吞条数）。
+    if (err.status >= 500) {
+      const route = (req.baseUrl || '') + (req.route?.path || '');
+      throttledLog('warn', `apierr:${err.status}:${body.error_code}:${route}`,
+        `[ApiError] ${err.status} reason=${body.error_code} path=${req.method} ${route || req.originalUrl.split('?')[0]} msg=${err.message}`);
+    }
     return res.status(err.status).json(body);
   }
   // multer / 业务 throw 的普通 Error：若带 status 用之，否则 500

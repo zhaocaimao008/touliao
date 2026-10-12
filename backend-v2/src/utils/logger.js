@@ -95,6 +95,40 @@ function redactQuery(query) {
 // 因为那才是探针唯一值得看的时刻。
 const HEALTH_PROBE_PATHS = new Set(['/health', '/healthz', '/api/health', '/ping']);
 
+// 2026-10-12 日志降噪：out.log 一天 17MB，其中 1320 万字节是逐请求的 info 行（2xx/3xx），155 万是 warn（多为
+// 客户端带过期 token 的 401）。新级别：
+//   5xx 或 慢请求（> SLOW_REQUEST_MS，默认 1000ms） → warn（保留，真正要看的）
+//   401                                          → debug（预期内：未登录/过期 token，量大无信息量）
+//   其他 4xx                                      → info
+//   2xx/3xx                                      → debug
+// 另每 ACCESS_SUMMARY_MS（默认 5 分钟）输出一条 info 汇总：各状态段计数、慢请求数、4xx/5xx 最多的路径（ID 归一化）。
+const SLOW_REQUEST_MS = parseInt(process.env.SLOW_REQUEST_MS || '1000', 10);
+const ACCESS_SUMMARY_MS = parseInt(process.env.ACCESS_SUMMARY_MS || String(5 * 60 * 1000), 10);
+const ID_SEG = /\/(?:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}|\d+|[0-9a-f]{24,})(?=\/|$)/gi;
+let summary = null;
+function resetSummary() { summary = { total: 0, s2: 0, s3: 0, s4: 0, s401: 0, s5: 0, slow: 0, errPaths: new Map() }; }
+resetSummary();
+function flushSummary() {
+  if (summary.total > 0) {
+    const top = [...summary.errPaths.entries()].sort((a, b) => b[1] - a[1]).slice(0, 8)
+      .map(([k, n]) => `${k}×${n}`);
+    logger.info('HTTP summary', {
+      windowSec: Math.round(ACCESS_SUMMARY_MS / 1000), total: summary.total,
+      '2xx': summary.s2, '3xx': summary.s3, '4xx': summary.s4, '401': summary.s401, '5xx': summary.s5,
+      slow: summary.slow, topErrors: top.length ? top : undefined,
+    });
+  }
+  resetSummary();
+}
+if (process.env.NODE_ENV !== 'test' && ACCESS_SUMMARY_MS > 0) setInterval(flushSummary, ACCESS_SUMMARY_MS).unref();
+
+function requestLevel(status, duration) {
+  if (status >= 500 || duration > SLOW_REQUEST_MS) return 'warn';
+  if (status === 401) return 'debug';
+  if (status >= 400) return 'info';
+  return 'debug';
+}
+
 function requestLogger(req, res, next) {
   const start = Date.now();
 
@@ -102,7 +136,17 @@ function requestLogger(req, res, next) {
   res.on('finish', () => {
     const duration = Date.now() - start;
     if (res.statusCode < 400 && HEALTH_PROBE_PATHS.has(req.path)) return;
-    const logLevel = res.statusCode >= 400 ? 'warn' : 'info';
+    const st = res.statusCode;
+    summary.total++;
+    if (st >= 500) summary.s5++; else if (st >= 400) { summary.s4++; if (st === 401) summary.s401++; }
+    else if (st >= 300) summary.s3++; else summary.s2++;
+    if (duration > SLOW_REQUEST_MS) summary.slow++;
+    if (st >= 400 && st !== 401) {
+      const key = `${st} ${req.method} ${req.originalUrl.split('?')[0].replace(ID_SEG, '/:id')}`;
+      if (summary.errPaths.size < 500 || summary.errPaths.has(key)) summary.errPaths.set(key, (summary.errPaths.get(key) || 0) + 1);
+    }
+    const logLevel = requestLevel(st, duration);
+    if (!logger.isLevelEnabled(logLevel)) return;
 
     logger[logLevel]('HTTP Request', {
       requestId: req.id,
@@ -135,5 +179,7 @@ module.exports = {
   error,
   debug,
   requestLogger,
+  requestLevel,
+  flushSummary,
   logPerformance,
 };

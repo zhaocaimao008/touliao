@@ -1,6 +1,8 @@
 'use strict';
 const router = require('express').Router();
 const auth = require('../../middleware/auth');
+// 连续 401 退避（只挂 /me、/refresh：客户端死循环重试的重灾区）
+const authBackoff = require('../../middleware/authBackoff');
 const { loginLimiter, registerLimiter, switchLimiter, forgetLimiter, logoutLimiter, resetPasswordLimiter, captchaLimiter } = require('../../middleware/rateLimiters');
 const c = require('./auth.controller');
 
@@ -95,7 +97,7 @@ router.post('/reset-password', resetPasswordLimiter, c.resetPassword);
  *       200:
  *         description: User profile retrieved
  */
-router.get ('/me',              auth,            c.me);
+router.get ('/me',              authBackoff, auth, c.me);
 
 /**
  * @swagger
@@ -110,7 +112,7 @@ router.get ('/me',              auth,            c.me);
  *       200:
  *         description: New token issued
  */
-router.post('/refresh',         auth,            c.refresh);
+router.post('/refresh',         authBackoff, auth, c.refresh);
 
 /**
  * @swagger

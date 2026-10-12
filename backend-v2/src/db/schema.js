@@ -710,6 +710,8 @@ function applySchema(db) {
     // NULL = 未上报，推送侧按 DEFAULT_TIMEZONE 兜底。此前按服务器 UTC 计算，中国用户
     // 设 23:00~07:00 实际拦的是北京时间 07:00~15:00。
     "ALTER TABLE user_settings ADD COLUMN timezone TEXT DEFAULT NULL",
+    // 2026-10-12：web_vitals / call_reports（客户端遥测）
+    ...require('./migrations/batch5'),
   ];
 
   // ── 迁移执行：版本追踪 + 错误分级 ────────────────────────────────

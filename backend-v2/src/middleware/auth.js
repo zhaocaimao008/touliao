@@ -12,13 +12,22 @@ const config = require('../config');
 const { csrfCookieOptions } = require('../utils/cookies');
 const { isBlacklisted } = require('../utils/tokenBlacklist');
 const { userAuthorizationError } = require('../utils/userAuthorization');
+const { throttledLog } = require('../utils/throttledLog');
+
+// 2026-10-12：鉴权失败的 401 统一带稳定机器码 error_code='UNAUTHORIZED'（与 errorCodes.STATUS_CODE 一致）
+// 和细分 reason。客户端约定：401 且 error_code==='UNAUTHORIZED' → 本地会话已失效，应清登录态回登录页，
+// 不要再循环 /auth/refresh、/auth/me（服务端对这两个接口有连续 401 退避，见 middleware/authBackoff.js）。
+// error 文案保持不变，旧客户端照旧只读 error。
+function deny(res, error, reason) {
+  return res.status(401).json({ error, error_code: 'UNAUTHORIZED', reason });
+}
 
 module.exports = async function auth(req, res, next) {
   // Cookie first (web); fall back to Bearer header (Electron desktop)
   const bearerHeader = req.headers['authorization'];
   const token = req.cookies?.[config.cookieName] ||
     (bearerHeader?.startsWith('Bearer ') ? bearerHeader.slice(7) : null);
-  if (!token) return res.status(401).json({ error: '未授权' });
+  if (!token) return deny(res, '未授权', 'no_token');
 
   // 2026-10-11：先验签、再查黑名单（与 /uploads、socket 握手一致）。
   // 旧顺序下任意未签名的垃圾 cookie/Bearer 都会触发一次 SQLite 查询并以原串写入 cleanCache，
@@ -27,8 +36,8 @@ module.exports = async function auth(req, res, next) {
   let payload;
   try {
     payload = jwt.verify(token, config.jwtSecret, { algorithms: ['HS256'] });
-  } catch {
-    return res.status(401).json({ error: 'Token无效或已过期' });
+  } catch (e) {
+    return deny(res, 'Token无效或已过期', e?.name === 'TokenExpiredError' ? 'token_expired' : 'token_invalid');
   }
 
   try {
@@ -43,12 +52,15 @@ module.exports = async function auth(req, res, next) {
       // 真正需要清 cookie 的场景（登出/封号/改密/删会话）在各自的处理器里已经显式
       // clearCookie 过一次（见 auth.controller.js logout/deleteAccount/changePassword），
       // 不依赖这里兜底；这里只需要正确返回 401 拒绝即可，不必再清一次可能是别人刚种下的新 cookie。
-      return res.status(401).json({ error: '无效的Token，请重新登录' });
+      return deny(res, '无效的Token，请重新登录', 'token_revoked');
     }
 
     try {
       const denied = await userAuthorizationError(payload);
-      if (denied) return res.status(denied.status).json({ error: denied.error });
+      if (denied) {
+        if (denied.status === 401) return deny(res, denied.error, 'session_invalid');
+        return res.status(denied.status).json({ error: denied.error });
+      }
       req.user = payload;
       req.token = token;  // 保存 token 供 logout 使用
       req.csrfToken = req.user.csrf;
@@ -56,11 +68,12 @@ module.exports = async function auth(req, res, next) {
       res.setHeader('X-CSRF-Token', req.csrfToken);
       next();
     } catch {
-      return res.status(401).json({ error: 'Token无效或已过期' });
+      return deny(res, 'Token无效或已过期', 'token_invalid');
     }
   } catch (err) {
-    console.error('[Auth] Blacklist check error:', err);
+    // 2026-10-12：503 原因限频打点（同类原因 1 分钟 1 条 + 被吞条数），便于定位「快速 503」来自哪一层
+    throttledLog('warn', 'auth503:blacklist', `[Auth] 503 reason=blacklist_lookup_failed path=${req.method} ${req.originalUrl?.split('?')[0]} err=${err?.code || ''} ${err?.message || err}`);
     // ⚠ 不降级放行，拒绝请求（H2）
-    return res.status(503).json({ error: '认证服务暂时不可用，请稍后再试' });
+    return res.status(503).json({ error: '认证服务暂时不可用，请稍后再试', error_code: 'AUTH_UNAVAILABLE' });
   }
 };

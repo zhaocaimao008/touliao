@@ -21,13 +21,14 @@ function init() {
   if (client) return Promise.resolve();
   if (initPromise) return initPromise;
   // 只有显式配置 REDIS_URL 才连 Redis(否则纯内存模式,避免误连本机其他服务的 Redis)
-  if (!process.env.REDIS_URL) {
+  const { redisUrl } = require('./redisConfig');
+  if (!redisUrl()) {
     disabled = true;
     return Promise.resolve();
   }
 
   client = require('./redisClients').track(redis.createClient({
-    url: process.env.REDIS_URL,
+    url: redisUrl(),
     database: 0,
     socket: {
       connectTimeout: 1000,

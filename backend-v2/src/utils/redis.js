@@ -146,7 +146,8 @@ function createMockRedis() {
 module.exports = {
   get redis() {
     const client = getRedisClient();
-    if (!client && process.env.NODE_ENV !== 'test') {
+    // 未配置 REDIS_URL 时返回 no-op 是预期行为，不再告警（见 utils/redisConfig.js）
+    if (!client && process.env.NODE_ENV !== 'test' && require('./redisConfig').redisEnabled()) {
       console.warn('[redis] Redis client not initialized. Ensure redisCache.connect() is called in server.js');
     }
     return client || {

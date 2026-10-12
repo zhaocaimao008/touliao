@@ -21,23 +21,34 @@ class RedisCache {
   /**
    * 初始化 Redis 连接
    */
+  // 2026-10-12：与 tokenBlacklist/cache/rateLimiters 共用 utils/redisConfig（只认 REDIS_URL）。
+  // 原来这里读 REDIS_HOST/REDIS_PORT 并默认连 127.0.0.1:6379，REDIS_URL 未配置时也照连不误，
+  // Redis 不在时一天 1 万条 ECONNREFUSED + 2 万条 close/reconnecting。现在：
+  //   - 未配置 → 不建连接，client 保持 null（utils/redis.js 退回 no-op 对象，CacheWarmer 不启动）；
+  //   - 已配置 → 用 REDIS_URL（db 固定为 REDIS_CACHE_DB，默认 5，与原来一致）；
+  //   - 连接错误日志按 1 分钟限频并附被吞条数；close/reconnecting 只在「已连上 → 断开」时打一次。
+  isEnabled() {
+    return require('../utils/redisConfig').redisEnabled();
+  }
+
   async connect(config = {}) {
+    const { redisUrl } = require('../utils/redisConfig');
+    const url = redisUrl();
+    if (!url) {
+      if (process.env.NODE_ENV !== 'test') console.log('[RedisCache] REDIS_URL 未配置，Redis 缓存禁用');
+      return this;
+    }
+    const { throttledLog } = require('../utils/throttledLog');
     const defaultConfig = {
-      host: process.env.REDIS_HOST || '127.0.0.1',
-      port: parseInt(process.env.REDIS_PORT || '6379', 10),
       db: parseInt(process.env.REDIS_CACHE_DB || '5', 10),
-      password: process.env.REDIS_PASSWORD || undefined,
-      retryStrategy: (times) => {
-        const delay = Math.min(times * 50, 2000);
-        return delay;
-      },
+      retryStrategy: (times) => Math.min(times * 200, 5000),
       maxRetriesPerRequest: 3,
       enableReadyCheck: true,
       enableOfflineQueue: true,
       lazyConnect: false,
     };
 
-    this.client = new Redis({ ...defaultConfig, ...config });
+    this.client = new Redis(url, { ...defaultConfig, ...config });
 
     this.client.on('connect', () => {
       console.log('[RedisCache] Connected');
@@ -45,18 +56,18 @@ class RedisCache {
     });
 
     this.client.on('error', (err) => {
-      console.error('[RedisCache] Error:', err.message);
+      throttledLog('error', 'redisCache:error', `[RedisCache] Error: ${err.message}`);
       this.stats.errors++;
       this.isConnected = false;
     });
 
     this.client.on('close', () => {
-      console.log('[RedisCache] Connection closed');
+      if (this.isConnected) console.log('[RedisCache] Connection closed');
       this.isConnected = false;
     });
 
     this.client.on('reconnecting', () => {
-      console.debug('[RedisCache] Reconnecting...');
+      throttledLog('debug', 'redisCache:reconnecting', '[RedisCache] Reconnecting...');
     });
 
     // 等待连接就绪
