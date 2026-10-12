@@ -73,7 +73,8 @@ function purgeSqliteExpired() {
 
 async function initRedis() {
   // 只有显式配置 REDIS_URL 才用 Redis(默认内存/SQLite 模式,与 .env 注释一致,避免误连本机其他服务的 Redis)
-  if (!process.env.REDIS_URL) {
+  const { redisUrl } = require('./redisConfig');
+  if (!redisUrl()) {
     useRedis = false;
     console.debug('[TokenBlacklist] REDIS_URL 未配置, 使用 SQLite 存储');
     purgeSqliteExpired();
@@ -81,13 +82,13 @@ async function initRedis() {
   }
   try {
     redisClient = require('./redisClients').track(redis.createClient({
-      url: process.env.REDIS_URL,
+      url: redisUrl(),
       database: 1,  // 使用 db 1，cache 用 db 0
       connectTimeout: 2000,
     }));
 
     redisClient.on('error', err => {
-      console.warn('[TokenBlacklist] Redis error, falling back to SQLite:', err.message);
+      require('./throttledLog').throttledLog('warn', 'tokenBlacklist:redisErr', `[TokenBlacklist] Redis error, falling back to SQLite: ${err.message}`);
       useRedis = false;
     });
     redisClient.on('ready', () => {

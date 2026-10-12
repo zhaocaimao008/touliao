@@ -35,7 +35,10 @@ function createSharedStores(url, prefix = 'touliao:rl:') {
           store.init(options);
         }
         return await store[method](key);
-      } catch {
+      } catch (e) {
+        // 2026-10-12：限流存储（Redis db3）不可用时所有挂了限流的接口都会快速 503，原来没有任何原因日志
+        require('./throttledLog').throttledLog('warn', `rl503:${name}`,
+          `[RateLimit] 503 reason=store_unavailable limiter=${name} err=${e?.code || ''} ${e?.message || e}`);
         throw new ApiError(503, '限流服务暂时不可用，请稍后再试', 'RATE_LIMIT_UNAVAILABLE');
       }
     }

@@ -96,6 +96,21 @@ const activeCalls = new Map();
 
 const nowSec = () => Math.floor(Date.now() / 1000);
 
+// ICE 候选摘要：`candidate:<foundation> <component> <proto> <priority> <ip> <port> typ <type> [... tcptype <t>]`
+// → "srflx/udp"、"relay/tcp"、"host/tcp(passive)"；空串为 end-of-candidates。不输出 IP/端口。
+function describeCandidate(raw) {
+  if (typeof raw !== 'string' || !raw) return 'end-of-candidates';
+  const parts = raw.replace(/^a=/, '').trim().split(/\s+/);
+  const typIdx = parts.indexOf('typ');
+  const type = typIdx >= 0 ? parts[typIdx + 1] : '';
+  const proto = (parts[2] || '').toLowerCase();
+  const tcpIdx = parts.indexOf('tcptype');
+  const typeOk = /^(host|srflx|prflx|relay)$/.test(type) ? type : 'unknown';
+  const protoOk = /^(udp|tcp)$/.test(proto) ? proto : 'unknown';
+  const tcpType = tcpIdx >= 0 && /^(active|passive|so)$/.test(parts[tcpIdx + 1]) ? `(${parts[tcpIdx + 1]})` : '';
+  return `${typeOk}/${protoOk}${tcpType}`;
+}
+
 function emitAccountCallEnd(target, accountId, from, reason, callId) {
   target.to(`user_${accountId}`).emit('call:end', { from, reason, callId });
 }
@@ -406,8 +421,9 @@ function registerCallHandler(io, socket, registry) {
       console.log(`[${eventName}] DROP from=${userId} to=${to} code=${resolved.code}`);
       return;
     }
+    // 2026-10-12：候选不再截取原串前 60 字符（截不到 typ，还会把对端 IP 写进日志），只记类型与传输协议
     const detail = fieldName === 'candidate'
-      ? (p.candidate?.candidate || '').slice(0, 60)
+      ? describeCandidate(p.candidate?.candidate)
       : (p[fieldName]?.sdp || '').length;
     console.log(`[${eventName}] fwd ${userId}→${to} detail=${detail}`);
     io.to(`user_${to}`).emit(eventName, { from: userId, [fieldName]: p[fieldName], callId: resolved.callId });
@@ -527,3 +543,4 @@ registerCallHandler.resolveCooldownMs = resolveCooldownMs;
 registerCallHandler.cooldownInternals = { setCooldown, removeCooldown, callRateMap, callRateTimers, CALL_COOLDOWN_MS };
 
 module.exports = registerCallHandler;
+module.exports.describeCandidate = describeCandidate;

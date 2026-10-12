@@ -10,8 +10,9 @@
 const rateLimit = require('express-rate-limit');
 const { ipKeyGenerator } = require('express-rate-limit');
 const { createSharedStores } = require('../utils/sharedRateLimitStore');
-const sharedStores = process.env.REDIS_URL && process.env.DISABLE_RATE_LIMIT !== '1'
-  ? createSharedStores(process.env.REDIS_URL) : null;
+const { redisUrl } = require('../utils/redisConfig');
+const sharedStores = redisUrl() && process.env.DISABLE_RATE_LIMIT !== '1'
+  ? createSharedStores(redisUrl()) : null;
 const makeStore = prefix => sharedStores?.makeStore(prefix);
 const phoneKey = req => typeof req.body?.phone === 'string' && req.body.phone.length > 0 && req.body.phone.length <= 64
   ? req.body.phone : ipKeyGenerator(req.ip);

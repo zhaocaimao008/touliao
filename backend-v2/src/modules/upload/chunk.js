@@ -56,6 +56,12 @@ const received = (id) => { try { return fs.statSync(partPath(id)).size; } catch 
 const makeId = (userId, convId, hash) =>
   crypto.createHash('sha1').update(`${userId}:${convId}:${hash}`).digest('hex');
 
+// 2026-10-12：503 原因限频打点
+function diskLow(req, res) {
+  require('../../utils/throttledLog').throttledLog('warn', 'chunk503:disk', `[Upload] 503 reason=disk_low path=${req.method} ${req.originalUrl.split('?')[0]}`);
+  return res.status(503).json({ error: '服务器磁盘空间不足，请稍后再试', error_code: 'DISK_LOW' });
+}
+
 function init(req, res) {
   const { conversationId } = req.params;
   const { filename, size, hash, mime } = req.body || {};
@@ -69,7 +75,7 @@ function init(req, res) {
     return res.status(400).json({ error: `文件大小需为 1 ~ ${Math.floor(MAX_FILE / 1024 / 1024)}MB` });
   }
   // P1-03：磁盘剩余空间阈值（防磁盘耗尽 DoS）
-  if (!diskSafe()) return res.status(503).json({ error: '服务器磁盘空间不足，请稍后再试' });
+  if (!diskSafe()) return diskLow(req, res);
   // P1-03：单用户并发分片上传会话数上限（防多路小文件叠堆）
   let active = 0;
   for (const m of meta.values()) if (m.userId === req.user.id) active += 1;
@@ -115,7 +121,7 @@ async function chunk(req, res) {
   if (!Buffer.isBuffer(body) || body.length === 0) return res.status(400).json({ error: '空分片' });
   if (body.length > MAX_CHUNK) return res.status(413).json({ error: '单片过大' });
   if (cur + body.length > m.size) return res.status(400).json({ error: '超出声明大小' });
-  if (!diskSafe()) return res.status(503).json({ error: '服务器磁盘空间不足，请稍后再试' });
+  if (!diskSafe()) return diskLow(req, res);
   await fs.promises.appendFile(partPath(uploadId), body);
   return res.json({ received: received(uploadId) });
 }
