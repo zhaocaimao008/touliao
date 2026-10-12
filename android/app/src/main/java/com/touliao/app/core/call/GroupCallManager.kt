@@ -184,7 +184,8 @@ class GroupCallManager @Inject constructor(
 
     /** 建本地媒体前等待共享工厂（后台线程初始化）；失败则收尾，返回 false。 */
     private suspend fun ensureFactoryReady(attempt: Long): Boolean {
-        val ok = try { webRtc.await(); true } catch (e: Exception) {
+        // Throwable：.so 加载失败是 LinkageError（Error），只抓 Exception 会直接崩进程（同 CallManager.awaitFactory）
+        val ok = try { webRtc.await(); true } catch (e: Throwable) {
             if (e is kotlinx.coroutines.CancellationException) throw e
             Log.e(TAG, "WebRTC 初始化失败", e)
             false

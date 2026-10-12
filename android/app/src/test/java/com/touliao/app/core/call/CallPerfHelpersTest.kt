@@ -45,6 +45,16 @@ class CallPerfHelpersTest {
         assertEquals("ok", holder.await())
     }
 
+    @Test fun linkageErrorIsCachedAndNotRetried() = runBlocking {
+        val attempts = AtomicInteger()
+        val holder = OnceInitializer<Any>(Dispatchers.Default) {
+            attempts.incrementAndGet(); throw UnsatisfiedLinkError("libjingle_peerconnection_so")
+        }
+        repeat(3) { assertTrue(runCatching { holder.await() }.exceptionOrNull() is UnsatisfiedLinkError) }
+        assertEquals(1, attempts.get())
+        assertNull(holder.getOrNull())
+    }
+
     // ── 共享 ICE 选择逻辑 ──
     @Test fun iceSelectionPrefersFreshThenUnexpiredCacheThenFallback() {
         val fb = listOf("stun-fallback")

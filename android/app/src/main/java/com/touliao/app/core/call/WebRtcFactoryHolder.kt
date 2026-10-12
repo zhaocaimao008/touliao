@@ -18,23 +18,34 @@ import javax.inject.Singleton
 /**
  * 「首次使用才初始化、只初始化一次、可在后台线程挂起等待」的通用持有器。
  * 抽成与 WebRTC 无关的纯逻辑，便于单测（并发只建一次 / 失败可重试 / 未初始化时 getOrNull 不触发）。
+ *
+ * create 抛出的普通异常不缓存（下次重试）；[LinkageError]（如 .so 加载失败的 UnsatisfiedLinkError）
+ * 是永久性的，缓存下来后续直接抛，不再每通电话重跑 System.loadLibrary。
  */
 internal class OnceInitializer<T : Any>(
     private val dispatcher: CoroutineDispatcher = Dispatchers.Default,
     private val create: () -> T,
 ) {
     @Volatile private var value: T? = null
+    @Volatile private var permanentFailure: LinkageError? = null
     private val lock = Any()
 
     /** 已初始化则返回，否则 null（不触发初始化）。 */
     fun getOrNull(): T? = value
 
-    /** 同步获取（必要时在当前线程初始化）；create 抛异常时不缓存，下次调用重试。 */
+    /** 同步获取（必要时在当前线程初始化）；create 抛异常时不缓存，下次调用重试（LinkageError 除外）。 */
     fun get(): T {
         value?.let { return it }
+        permanentFailure?.let { throw it }
         synchronized(lock) {
             value?.let { return it }
-            return create().also { value = it }
+            permanentFailure?.let { throw it }
+            return try {
+                create().also { value = it }
+            } catch (e: LinkageError) {
+                permanentFailure = e
+                throw e
+            }
         }
     }
 

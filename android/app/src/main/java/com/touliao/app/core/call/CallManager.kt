@@ -254,8 +254,10 @@ class CallManager @Inject constructor(
     }
 
     /** 等待共享 WebRTC 工厂就绪（后台线程初始化）；失败返回 null，由调用方收尾。 */
+    // 捕获 Throwable：最可能的失败是 .so 加载失败（UnsatisfiedLinkError 等 LinkageError，属于 Error），
+    // 只抓 Exception 会让它逃出 AppScope 协程直接崩进程，到不了下面「通话组件初始化失败」的收尾。
     private suspend fun awaitFactory(): PeerConnectionFactory? =
-        try { webRtc.await() } catch (e: Exception) {
+        try { webRtc.await() } catch (e: Throwable) {
             if (e is kotlinx.coroutines.CancellationException) throw e
             Log.e(TAG, "WebRTC 初始化失败", e)
             null
