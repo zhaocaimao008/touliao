@@ -3,8 +3,6 @@ import { BrowserRouter, HashRouter, Routes, Route, Navigate, useLocation } from 
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { SettingsProvider } from './contexts/SettingsContext';
 import { I18nProvider, useI18n } from './contexts/I18nContext';
-import { SocketProvider } from './contexts/SocketContext';
-import { FilePreviewProvider } from './contexts/FilePreviewContext';
 import ElectronTitlebar from './components/ElectronTitlebar';
 import UpdateBanner from './components/UpdateBanner';
 import ErrorBoundary from './components/ErrorBoundary';
@@ -16,7 +14,9 @@ import { lazyWithRetry } from './utils/lazyWithRetry';
 const Login          = lazyWithRetry(() => import('./pages/Login'));
 const Register       = lazyWithRetry(() => import('./pages/Register'));
 const ForgotPassword = lazyWithRetry(() => import('./pages/ForgotPassword'));
-const Home           = lazyWithRetry(() => import('./pages/Home'));
+// 已登录外壳（SocketProvider + FilePreviewProvider + Home）整体懒加载：
+// socket.io-client 不再进入登录页首屏。main.jsx 在检测到已保存登录时会提前 import 同一模块。
+const AuthedHome     = lazyWithRetry(() => import('./pages/AuthedHome'));
 const JoinGroup      = lazyWithRetry(() => import('./pages/JoinGroup'));
 
 // Electron 使用 HashRouter（file:// 不支持 pushState）；Web 用 BrowserRouter
@@ -84,9 +84,7 @@ export default function App() {
                 <PrivateRoute>
                   {/* 内层边界：聊天主页崩溃时不连累已登录外壳，可单独重试 */}
                   <ErrorBoundary>
-                    <SocketProvider>
-                      <FilePreviewProvider><Home /></FilePreviewProvider>
-                    </SocketProvider>
+                    <AuthedHome />
                   </ErrorBoundary>
                 </PrivateRoute>
               } />

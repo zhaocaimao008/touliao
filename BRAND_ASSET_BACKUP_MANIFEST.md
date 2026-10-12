@@ -38,7 +38,7 @@
 | `web/public/icons/icon-512.png` | Web/PWA | PWA 512（any/maskable） | `a3bc903a3de137360582b373f9a47f666e9272931681b1c44eb7782d0b23b349` |
 | `web/public/manifest.json` | Web/PWA | PWA manifest | `f7bdd7831e9d31181597da523596bbde5bb64bf2a085a86bac7de0279e233913` |
 | `web/index.html` | Web | favicon/apple-touch-icon 引用 | `b6ec116790f6b77c745a0ad812b5cc2a857264a4e90ba7cbc30806e7db8dc263` |
-| `web/public/sw.js` | Web/PWA | Service Worker（缓存版本） | `25299f3b50ed4fe3f3263cab855c85123fc644c14cd8c621470241c9cf532bbc` |
+| `web/public/sw.js` | Web/PWA | Service Worker（缓存版本）。**不要恢复**：2026-10-12 起此路径是退役版 worker（见其文件头），恢复会把旧的缓存/fetch 拦截 worker 发回线上 | `25299f3b50ed4fe3f3263cab855c85123fc644c14cd8c621470241c9cf532bbc` |
 | `android/app/src/main/res/mipmap-mdpi/ic_launcher.png` | Android | 启动器图标(mdpi ) | `85c01e219800d9fad237fbec8f3aa927374836904058b352ba06496500b89ae7` |
 | `android/app/src/main/res/mipmap-mdpi/ic_launcher_round.png` | Android | 启动器图标(mdpi _round) | `85c01e219800d9fad237fbec8f3aa927374836904058b352ba06496500b89ae7` |
 | `android/app/src/main/res/mipmap-mdpi/ic_launcher_foreground.png` | Android | 启动器图标(mdpi _foreground) | `3360f6ff0abb6ee029387a55978852437bb1699279bad00ad080e25bc9ba3acb` |

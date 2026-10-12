@@ -2,6 +2,7 @@ import { DangerButton, PrimaryButton, SecondaryButton } from '../ui-kit/Button';
 import TouliaoField from '../ui-kit/Field';
 import { TextButton } from '../ui-kit/Button';
 import TouliaoSwitch from '../ui-kit/Switch';
+import { isFeatureDisabled } from '../utils/publicFeatures';
 import { SettingCell as CRow, SettingSection as Card } from '../ui-kit/Settings';
 import TouliaoIcon from '../ui-kit/Icon';
 import { clientStorage as localStorage } from '../utils/clientStorage';
@@ -768,14 +769,16 @@ function NotificationSettings({ onBack }) {
   // 浏览器通知（Web Push）：仅网页端；桌面端/原生壳走各自的通知通道
   const webPushSupported = typeof Notification !== 'undefined' && 'serviceWorker' in navigator
     && typeof PushManager !== 'undefined' && !window.__ELECTRON_CONFIG__ && !window.Capacitor?.isNativePlatform?.();
-  const [browserPerm, setBrowserPerm] = useState(() => (webPushSupported ? Notification.permission : 'unsupported'));
+  // 后端显式关闭 Web Push（features.webPush === false）时直接视为不支持，也不再探测公钥
+  const webPushDisabled = isFeatureDisabled('webPush');
+  const [browserPerm, setBrowserPerm] = useState(() => (webPushSupported && !webPushDisabled ? Notification.permission : 'unsupported'));
   // 服务端未配置 Web Push 时不给入口：否则权限给了、订阅却永远建不成
   useEffect(() => {
-    if (!webPushSupported) return;
+    if (!webPushSupported || webPushDisabled) return;
     axios.get('/api/notifications/vapid-public-key')
       .then(r => { if (!r.data?.publicKey) setBrowserPerm('unsupported'); })
       .catch(() => setBrowserPerm('unsupported'));
-  }, [webPushSupported]);
+  }, [webPushSupported, webPushDisabled]);
   const enableBrowserPush = () => {
     // Promise 执行器同步运行 → dispatchEvent 同步触发 Home 的监听，仍在点击手势内
     new Promise(resolve => window.dispatchEvent(new CustomEvent('touliao:enable-push', { detail: { resolve } })))

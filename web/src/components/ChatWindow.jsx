@@ -82,6 +82,32 @@ import { IcoImage, IcoFile, IcoVideo, IcoContacts } from './Icons';
 
 import MessageActionMenu from '../ui-kit/MessageActionMenu';
 import { lazyWithRetry } from '../utils/lazyWithRetry';
+import { reportRead, flushRead, setKeepaliveSender, lastReadableMessage } from '../utils/readReporter';
+import { isFeatureDisabled } from '../utils/publicFeatures';
+
+// 页面卸载时的已读投递：sendBeacon 无法携带自定义 header（CSRF token），用 fetch keepalive。
+setKeepaliveSender((convId, payload) => {
+  const path = `/api/messages/conversation/${convId}/read`;
+  // 使用完整 URL（Electron file:// 下相对路径会解析到 file:/// 导致失败）
+  const base = (axios.defaults.baseURL || '').replace(/\/+$/, '');
+  const fullUrl = base ? `${base}${path}` : path;
+  const csrfToken = document.cookie.split(';').map(c => c.trim())
+    .find(c => c.startsWith('csrf_token='))?.slice('csrf_token='.length);
+  // 原生 fetch 不经 axios 拦截器：桌面端/隔离窗口靠 Bearer 鉴权，需手动带上，否则恒 401
+  const authorization = axios.defaults.headers.common?.Authorization;
+  fetch(fullUrl, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(csrfToken ? { 'X-CSRF-Token': csrfToken } : {}),
+      ...(authorization ? { Authorization: authorization } : {}),
+      ...(isIsolatedWindow() ? { 'X-Touliao-Session': 'isolated' } : {}),
+    },
+    body: JSON.stringify(payload),
+    credentials: 'include',
+    keepalive: true,
+  }).catch(() => {});
+});
 
 // 发送图片前从本地 File 解码出真实像素宽高（w/h）。用于在拿到最终 url 后预置 aspect
 // 缓存，使图片消息 socket 回显的首帧就按真实比例预留高度，避免图片解码后撑高、
@@ -552,39 +578,21 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
     };
   }, [conversation.id]);
   useEffect(() => {
-    const sendRead = () => {
+    // 离开会话 / 页面卸载：把已看到的最新消息并入已读节流器并立即冲刷。
+    // readReporter 做单调去重——没有比上次上报更新的消息就不发（此前每次切换都无条件 POST）。
+    const convId = conversation.id;
+    const sendRead = (keepalive) => {
       try {
-        const lastMsg = messagesRef.current[messagesRef.current.length - 1];
-        if (!lastMsg) return;
-        const path = `/api/messages/conversation/${convIdRef.current}/read`;
-        const body = JSON.stringify({ messageId: lastMsg.id });
-        // 使用完整 URL（Electron file:// 下相对路径会解析到 file:/// 导致失败）
-        const base = (axios.defaults.baseURL || '').replace(/\/+$/, '');
-        const fullUrl = base ? `${base}${path}` : path;
-        // sendBeacon 无法携带自定义 header（CSRF token），统一改用 fetch keepalive
-        // keepalive=true 与 sendBeacon 同样可在页面卸载时可靠投递
-        const csrfToken = document.cookie.split(';').map(c => c.trim())
-          .find(c => c.startsWith('csrf_token='))?.slice('csrf_token='.length);
-        // 原生 fetch 不经 axios 拦截器：桌面端/隔离窗口靠 Bearer 鉴权，需手动带上，否则恒 401
-        const authorization = axios.defaults.headers.common?.Authorization;
-        fetch(fullUrl, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            ...(csrfToken ? { 'X-CSRF-Token': csrfToken } : {}),
-            ...(authorization ? { Authorization: authorization } : {}),
-            ...(isIsolatedWindow() ? { 'X-Touliao-Session': 'isolated' } : {}),
-          },
-          body,
-          credentials: 'include',
-          keepalive: true,
-        }).catch(() => {});
+        const lastMsg = lastReadableMessage(messagesRef.current, convId);
+        if (lastMsg) reportRead(convId, lastMsg);
+        flushRead(convId, { keepalive });
       } catch { /* 清理函数中的异常静默忽略，不影响 React 卸载流程 */ }
     };
-    window.addEventListener('beforeunload', sendRead);
+    const onUnload = () => sendRead(true);
+    window.addEventListener('beforeunload', onUnload);
     return () => {
-      window.removeEventListener('beforeunload', sendRead);
-      sendRead(); // 切换会话时触发
+      window.removeEventListener('beforeunload', onUnload);
+      sendRead(false); // 切换会话时触发
     };
   }, [conversation.id]);
 
@@ -774,8 +782,9 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
         }).catch(() => {});
       }
 
-      // 打开会话时标记已读（不带 messageId，后端自动取最新消息）
-      axios.post(`/api/messages/conversation/${conversation.id}/read`, {}, { signal: ac.signal }).catch(() => {});
+      // 打开会话时标记已读（不带 messageId，后端自动取最新消息）；经节流器合并/去重，
+      // 历史加载完成后 messages effect 的带 id 上报会覆盖这条，两者合并为一次请求。
+      reportRead(conversation.id, null);
     }, 0);
 
     // 快照 ref 指向的集合，避免 cleanup 运行时 ref.current 已被后续渲染替换
@@ -818,10 +827,11 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
     const outer = listOuterRef.current;
     const isAtBottom = !outer || (outer.scrollHeight - outer.scrollTop - outer.clientHeight < 400);
     if (!isAtBottom) return;
-    const lastMsg = messages[messages.length - 1];
-    if (markReadRef.current === lastMsg.id) return;
+    const lastMsg = lastReadableMessage(messages, conversation.id);
+    if (!lastMsg || markReadRef.current === lastMsg.id) return;
     markReadRef.current = lastMsg.id;
-    axios.post(`/api/messages/conversation/${conversation.id}/read`, { messageId: lastMsg.id }).catch(() => {});
+    // 防抖 + 单调去重 + 页面不可见时延后，见 utils/readReporter
+    reportRead(conversation.id, lastMsg);
   }, [messages, conversation.id]);
 
   // 备注变更后刷新聊天窗口头部（昵称/备注）
@@ -1828,7 +1838,13 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
   };
 
   // ── 云存储直传（XHR 支持进度回调）─────────────────────────────
+  const cloudUploadDisabled = features?.cloudUpload === false;
   const uploadToCloud = useCallback(async (fileOrBlob, contentType, filename, onProgress, request = {}) => {
+    // 后端显式声明未开云直传（features.cloudUpload === false）：不再请求凭证，直接抛无
+    // response 的错误，各调用方按既有逻辑回退本地上传（与 503/网络失败同路径）
+    if (cloudUploadDisabled || isFeatureDisabled('cloudUpload')) {
+      throw Object.assign(new Error('cloud upload disabled'), { code: 'CLOUD_UPLOAD_DISABLED' });
+    }
     const { data } = await axios.post('/api/upload/credential', {
       filename, contentType, conversationId: conversation.id,
       fileSize: fileOrBlob?.size,   // 后端据此校验上限（1GB）；不传则不校验
@@ -1840,7 +1856,7 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
     // thumbUploadUrl 仅图片扩展名(jpg/jpeg/png/webp)才有：云直传路径服务器不经手字节，
     // 无法像本地上传那样自己用 sharp 生成缩略图，由调用方在图片场景下画布生成后传上去。
     return { publicUrl: data.publicUrl, thumbUploadUrl: data.thumbUploadUrl };
-  }, [conversation.id, t]);
+  }, [conversation.id, t, cloudUploadDisabled]);
 
   // ── 聊天专属背景：设置/清除（按会话）──────────────────────────
   const setChatBackground = useCallback((url) => {

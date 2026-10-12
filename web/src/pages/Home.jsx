@@ -45,6 +45,8 @@ import { useI18n } from '../contexts/I18nContext';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { lazyWithRetry } from '../utils/lazyWithRetry';
 import useMomentUnread from '../hooks/useMomentUnread';
+import { getConversationsSnapshot, subscribeConversations } from '../utils/conversationsSnapshot';
+import { setPublicFeatures } from '../utils/publicFeatures';
 
 function WcEmpty({ onOpenContacts }) {
   const { t } = useI18n();
@@ -585,9 +587,21 @@ export default function Home() {
 
   // 启动预热 IndexedDB：切会话时消息缓存读取无 openDB 冷启动延迟（防「打开会话空白一下」）
   useEffect(() => { warmupCacheDB(); }, []);
+  // 首屏渲染后空闲时预取 ChatWindow 分包：首次点开会话不再等这个最大分包下载
+  useEffect(() => {
+    const prefetch = () => { import('../components/ChatWindow').catch(() => {}); };
+    if (typeof window.requestIdleCallback === 'function') {
+      const id = window.requestIdleCallback(prefetch, { timeout: 4000 });
+      return () => window.cancelIdleCallback?.(id);
+    }
+    const timer = setTimeout(prefetch, 1500);
+    return () => clearTimeout(timer);
+  }, []);
   const activeConvIdRef = useRef(null);
   const addBtnRef = useRef(null);
   useEffect(() => { activeConvIdRef.current = activeConv?.id ?? null; }, [activeConv?.id]);
+  const activeConvRef = useRef(null);
+  useEffect(() => { activeConvRef.current = activeConv; }, [activeConv]);
 
   // 已打开的会话也订阅好友在线状态；重连后补一次快照，避免漏掉离线期间的事件。
   const activePeerId = activeConv?.otherUser?.id;
@@ -600,24 +614,54 @@ export default function Home() {
     const online = ({ userId }) => { if (userId === activePeerId) { revision++; update('online'); } };
     const offline = ({ userId }) => { if (userId === activePeerId) { revision++; update('offline'); } };
     const disconnected = () => { revision++; update('unknown'); };
-    const refresh = async () => {
+    const peerIn = list => (Array.isArray(list) ? list : []).find(c => c.otherUser?.id === activePeerId)?.otherUser;
+    // 兜底：ChatList 未挂载（移动端全屏聊天）或其快照里没有该对端时才整表拉一次
+    const fetchFallback = async () => {
       const version = ++revision;
       try {
         const { data } = await axios.get('/api/messages/conversations', { params: { includeArchived: 1 }, signal: ac.signal });
-        const peer = data.find(c => c.otherUser?.id === activePeerId)?.otherUser;
+        const peer = peerIn(data);
         if (!ac.signal.aborted && revision === version && peer) update(peer.status);
       } catch { /* 实时事件仍可继续更新；请求失败不伪造在线状态 */ }
     };
+    // 重连后 ChatList 本身就会重拉会话列表（reconnectCount），复用它发布的快照，
+    // 不再为了一个对端的在线状态再整表拉一次 /api/messages/conversations
+    let fallbackTimer = null;
+    let connectAt = 0;
+    const unsubscribe = subscribeConversations(list => {
+      const peer = peerIn(list);
+      if (!peer) return;
+      clearTimeout(fallbackTimer); fallbackTimer = null;
+      revision++;
+      update(peer.status);
+    });
+    const onConnect = () => {
+      connectAt = Date.now();
+      clearTimeout(fallbackTimer);
+      fallbackTimer = setTimeout(() => {
+        fallbackTimer = null;
+        const snap = getConversationsSnapshot();
+        if (snap && snap.at >= connectAt && peerIn(snap.list)) return; // 快照已覆盖
+        fetchFallback();
+      }, 2500);
+    };
     socket.on('user_online', online);
     socket.on('user_offline', offline);
-    socket.on('connect', refresh);
+    socket.on('connect', onConnect);
     socket.on('disconnect', disconnected);
-    refresh();
+    // 首次打开：会话对象本身（来自 ChatList）已带 otherUser.status；仅缺失时才补查
+    if (activeConvRef.current?.otherUser?.status === undefined) {
+      const snap = getConversationsSnapshot();
+      const peer = snap && peerIn(snap.list);
+      if (peer) update(peer.status); else fetchFallback();
+    }
     return () => {
       ac.abort();
+      clearTimeout(fallbackTimer);
+      unsubscribe();
       socket.off('user_online', online);
       socket.off('user_offline', offline);
-      socket.off('connect', refresh);
+      socket.off('connect', onConnect);
       socket.off('disconnect', disconnected);
     };
   }, [socket, activePeerId]);
@@ -713,6 +757,7 @@ export default function Home() {
 
   // 功能开关：后台可隐藏朋友圈/收藏/群语音/群视频。若当前所在 tab 被关闭则退回消息页
   const applyFeatures = useCallback((f) => {
+    setPublicFeatures(f); // 供非组件代码（推送注册等）读取 cloudUpload/webPush 能力开关
     featureVersionRef.current++;
     setFeatures(f || {});
     setFeaturesReady(true);

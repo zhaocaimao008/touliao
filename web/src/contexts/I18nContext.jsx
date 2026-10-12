@@ -1,5 +1,5 @@
 import { clientStorage as localStorage } from '../utils/clientStorage';
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useCallback, useContext, useMemo, useState, useEffect } from 'react';
 
 const translations = {
   'zh-CN': {
@@ -1415,9 +1415,9 @@ const I18nContext = createContext({ t: k => k, lang: 'zh-CN', setLang: () => {} 
 export function I18nProvider({ children }) {
   const [lang, setLangState] = useState(savedLang);
   // 词典异步到位后触发重渲染（预载失败或未预载时，先用简体兜底）
-  const [, setLoadedTick] = useState(0);
+  const [loadedTick, setLoadedTick] = useState(0);
 
-  const setLang = async (l) => {
+  const setLang = useCallback(async (l) => {
     if (!isSupported(l)) return;   // 只接受受支持的语言,避免切到空词典
     if (!(await loadLocale(l))) return;
     setLangState(l);
@@ -1426,9 +1426,11 @@ export function I18nProvider({ children }) {
     if (window.__ELECTRON_CONFIG__) {
       window.electronAPI?.setTrayLocale?.(l).catch(() => {});
     }
-  };
+  }, []);
 
-  const t = (key, fallback) => lookup(lang, key, fallback);
+  // 词典迟到（loadedTick 变化）时必须换 t 引用，消费方才会重渲出新语言文案
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const t = useCallback((key, fallback) => lookup(lang, key, fallback), [lang, loadedTick]);
 
   useEffect(() => {
     document.documentElement.setAttribute('lang', lang);
@@ -1439,8 +1441,10 @@ export function I18nProvider({ children }) {
     }
   }, [lang]);
 
+  const value = useMemo(() => ({ t, lang, setLang, translations }), [t, lang, setLang]);
+
   return (
-    <I18nContext.Provider value={{ t, lang, setLang, translations }}>
+    <I18nContext.Provider value={value}>
       {children}
     </I18nContext.Provider>
   );

@@ -21,6 +21,7 @@ import {
 import { setDesktopCallActive } from '../utils/desktopCallState';
 import { fetchIceConfig, fallbackIceConfig } from '../utils/iceConfig';
 import { createCallResumeGate } from '../utils/callResumeGate';
+import { createCallQualityTracker } from '../utils/callQualityReport';
 import './GroupCallModal.css';
 import useCallAudioOutput from '../hooks/useCallAudioOutput';
 import useCallAudioLevels from '../hooks/useCallAudioLevels';
@@ -121,12 +122,25 @@ function useGroupCallWebRTC({ socket, user, session, nameOf: _nameOf, onClose })
   const signalingReadyRef = useRef(true);
   const canSignal = useCallback(() => signalingReadyRef.current && isSignalingOnline(socket), [socket]);
 
+  // 通话质量上报（utils/callQualityReport.js）：发起者记 caller、加入者记 callee
+  const qualityRef = useRef(null);
+  if (qualityRef.current == null) {
+    qualityRef.current = createCallQualityTracker({
+      role: mode === 'start' ? 'caller' : 'callee',
+      callType: isVideo ? 'video' : 'audio',
+      group: true,
+    });
+  }
+  const endReasonRef = useRef('');
+  const noteEndReason = useCallback((reason) => { if (!endReasonRef.current) endReasonRef.current = reason; }, []);
+
   const syncPeerStatus = useCallback(() => {
     if (closedRef.current) return;
     const states = Object.fromEntries([...pcsRef.current].map(([id, pc]) => [id, pc.connectionState]));
     setPeerStates(states);
     const values = Object.values(states);
     if (values.includes('connected')) {
+      qualityRef.current?.markConnected();
       setStatus('connected');
       setConnectedAt(prev => prev ?? Date.now());
     } else if (values.some(s => s === 'disconnected' || s === 'failed')) setStatus('reconnecting');
@@ -214,6 +228,7 @@ function useGroupCallWebRTC({ socket, user, session, nameOf: _nameOf, onClose })
       const count = peerRestartCountRef.current.get(peerId) || 0;
       if (count >= ICE_RESTART_MAX) { removePeer(peerId); return; }
       peerRestartCountRef.current.set(peerId, count + 1);
+      qualityRef.current?.markIceRestart();
       pc.restartIce();
       // restartIce() 只打标记，必须实际重协商 offer 对方才会重新打通（对齐 1:1/iOS/Android 修复）
       try {
@@ -263,6 +278,7 @@ function useGroupCallWebRTC({ socket, user, session, nameOf: _nameOf, onClose })
         const timers = peerRestartTimersRef.current.get(peerId);
         if (timers) { clearTimeout(timers.debounce); clearTimeout(timers.recover); peerRestartTimersRef.current.delete(peerId); }
         peerRestartCountRef.current.delete(peerId);
+        qualityRef.current?.sample(pc, peerId);   // 质量上报：接通即抓一次候选对
         reapplyCaps();   // A-3：本 pc 刚转 connected，按最新人数对全部已连接 pc（含本条）重放码率/降档
       } else if (s === 'disconnected') {
         if (!ownsRestart) { armPoliteWatchdog(); return; }
@@ -322,14 +338,18 @@ function useGroupCallWebRTC({ socket, user, session, nameOf: _nameOf, onClose })
     stopStream(upgradeStreamRef.current);
     localStreamRef.current = null;
     upgradeStreamRef.current = null;
+    // 质量上报：fire-and-forget（内部延后发送、吞掉一切异常），未入会/无 callId 时不发
+    try { qualityRef.current?.send(callIdRef.current, { endReason: endReasonRef.current || 'closed' }); } catch { /* 不影响挂断 */ }
   }, [socket]);
 
-  const hangup = useCallback(() => {
+  // reason 仅接受字符串（UI 直接 onClick={hangup} 时传入的是事件对象）
+  const hangup = useCallback((reason) => {
     if (closedRef.current) return;
+    noteEndReason(typeof reason === 'string' && reason ? reason : 'hangup');
     cleanup();
     setStatus('ended');
     onCloseRef.current?.();
-  }, [cleanup]);
+  }, [cleanup, noteEndReason]);
 
   useEffect(() => {
     if (!socket) return;
@@ -343,7 +363,7 @@ function useGroupCallWebRTC({ socket, user, session, nameOf: _nameOf, onClose })
         socket.emit('group_call:offer', { callId: callIdRef.current, to: peerId, offer: { type, sdp } });
       });
     };
-    const gate = createCallResumeGate({ onReady: resendPendingOffers, onRejected: hangup });
+    const gate = createCallResumeGate({ onReady: resendPendingOffers, onRejected: () => hangup('network') });
     const onDisconnect = () => {
       gate.stop();
       if (participatingRef.current) signalingReadyRef.current = false;
@@ -451,6 +471,18 @@ function useGroupCallWebRTC({ socket, user, session, nameOf: _nameOf, onClose })
   }, [status, desktopCallKey]);
   useEffect(() => () => setDesktopCallActive(desktopCallKey, false), [desktopCallKey]);
 
+  // 质量上报采样：通话进行中每 5s 对每条 pc 取一次 getStats（RTT/丢包/候选对），
+  // 结果只进 tracker，不触发渲染；挂断时由 cleanup 一次性上报。
+  const sampling = status === 'connected' || status === 'reconnecting';
+  useEffect(() => {
+    if (!sampling) return;
+    const id = setInterval(() => {
+      if (closedRef.current) return;
+      pcsRef.current.forEach((pc, peerId) => { qualityRef.current?.sample(pc, peerId); });
+    }, 5000);
+    return () => clearInterval(id);
+  }, [sampling]);
+
   // B-1：语音加入者升级视频——gUM 取视频轨并入 localStream（此后新 peer 的 createPC
   // 会自动 addTrack），再对 pcsRef 里每条已建立 pc addTrack 并逐个独立重协商（mesh 每
   // peer 一份 offer/answer，走群既有发 offer 路径 sendOfferToPeer）。reapplyCaps 使
@@ -521,9 +553,10 @@ function useGroupCallWebRTC({ socket, user, session, nameOf: _nameOf, onClose })
       joiningTimerRef.current = setTimeout(() => {
         if (!closedRef.current && !participatingRef.current) {
           showToast(t('groupCall.joinTimeout'), 'error');
-          hangup();
+          hangup('join_timeout');
         }
       }, 20000);
+      qualityRef.current?.markStart();   // setupMs 从发起/加入信令发出算起
       if (mode === 'start') socket.emit('group_call:start', { conversationId, type, requestId: startRequestIdRef.current });
       else socket.emit('group_call:join', { callId: callIdRef.current });
     } catch (error) {
@@ -652,13 +685,13 @@ function useGroupCallWebRTC({ socket, user, session, nameOf: _nameOf, onClose })
         video_disabled: t('groupCall.errorVideoDisabled'),
       }[reason] || t('groupCall.errorGeneric');
       showToast(msg, 'error');
-      hangup();
+      hangup(`error_${reason || 'generic'}`);
     };
     // 服务端强制结束（如超过时长上限）：提示并关闭界面
     const onEnded = ({ callId: cid, reason }) => {
       if (closedRef.current || !cid || cid !== callIdRef.current) return;
       showToast(reason === 'timeout' ? t('groupCall.endedTimeout') : t('call.callEnded'), 'info');
-      hangup();
+      hangup(reason === 'timeout' ? 'server_timeout' : 'remote_ended');
     };
     socket.on('group_call:started', onStarted);
     socket.on('group_call:peers', onPeers);

@@ -15,6 +15,9 @@ vi.mock('../utils/config', () => ({ getConfig: () => ({}), isConfigLoaded: () =>
 vi.mock('react', async importOriginal => ({ ...(await importOriginal()),
   useEffect: effect => hooks.effects.push(effect),
   useRef: value => ({ current: value }),
+  // Provider 的回调/value 现用 useCallback/useMemo 稳定化；脱离渲染调用时按恒等实现
+  useCallback: fn => fn,
+  useMemo: factory => factory(),
   useState: initial => {
     const index = hooks.states.length;
     hooks.states.push(typeof initial === 'function' ? initial() : initial);

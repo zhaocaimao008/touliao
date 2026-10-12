@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import axios from 'axios';
 import { pushScope, matchesPushTarget, waitForPushWorker } from '../utils/pushScope';
 import { captureSession, isOperationGenerationCurrent } from '../utils/sessionContext';
+import { waitForPublicFeatures } from '../utils/publicFeatures';
 
 // URL-safe Base64 → Uint8Array（VAPID 公钥转换）
 function urlBase64ToUint8Array(base64String) {
@@ -85,6 +86,14 @@ export function usePushNotification(user) {
     // 已授权过的老用户仍在此自动续订，不需要再点一次。
     async function setup() {
       try {
+        // 0. 后端显式声明 features.webPush === false：不拉公钥、不注册 SW、不出引导条
+        //    （features 缺失 = 旧后端，或 3s 内未拿到配置 → 维持原有探测行为）
+        const f = await waitForPublicFeatures(3000);
+        if (!current()) return;
+        if (f?.webPush === false) {
+          setPermission('unsupported');
+          return;
+        }
         // 1. 拉取 VAPID 公钥
         //    服务端未配置 Web Push（/vapid-public-key 返回 503/404）或返回体缺公钥时，
         //    **不能继续注册/引导**：否则「开启」后权限授予了、订阅却永远建不成——

@@ -107,7 +107,7 @@
 | `desktop-electron`（无 build/ 目录、无 splash.html） | Windows 无独立启动页 | N/A |
 | `web/index.html` | apple-touch-icon=/icons/icon-192.png；favicon=/favicon.png；无 favicon.ico/16/32 | 补齐引用 |
 | `web/public/manifest.json` | 512 同一文件兼作 maskable | maskable 改用独立安全区版本 |
-| `web/public/sw.js` | CACHE_NAME touliao-v2.0.21，预缓存 /icon.png | 升版本号 |
+| `web/public/sw.js` | CACHE_NAME touliao-v2.0.21，预缓存 /icon.png（2026-10-12 起已改为退役版 worker：无缓存、无预缓存，只清理老浏览器的根注册，见其文件头） | 当时升版本号；此后换品牌资产不再改 sw.js，图标/manifest 走 nginx `location /` 的 no-cache 每次重验证 |
 | Web 首屏/loading | index.html 无 Logo/loading 图 | 不存在，未新增 |
 | 安卓 `LoginScreen.kt:96`、iOS `LoginView.swift:~30` | 登录页品牌徽章为代码绘制（品牌色方块 + 通用聊天图标） | 改需动界面代码，本次未改，见替换报告 |
 

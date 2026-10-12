@@ -4,8 +4,14 @@ import reactHooks from 'eslint-plugin-react-hooks';
 import globals from 'globals';
 
 export default [
-  { ignores: ['dist/**', 'dist-electron/**', 'build/**', 'node_modules/**', 'android/**', 'ios/**', 'electron/**', 'public/sw.js', 'public/sw/**', 'scripts/check-capacitor-versions.mjs', '*.config.js', 'fix-css.py'] },
+  { ignores: ['dist/**', 'dist-electron/**', 'build/**', 'node_modules/**', 'android/**', 'ios/**', 'electron/**', 'public/sw/**', 'scripts/check-capacitor-versions.mjs', '*.config.js', 'fix-css.py'] },
   js.configs.recommended,
+  {
+    // public/sw.js（退役版 worker）：经典脚本，运行在 ServiceWorkerGlobalScope。npm run lint（CI 用）
+    // 会查它；ecmaVersion 2019 = 旧版 sw.js 已用到的语法上限，保证跑得动旧 worker 的浏览器都能装上。
+    files: ['public/sw.js'],
+    languageOptions: { ecmaVersion: 2019, sourceType: 'script', globals: { ...globals.serviceworker } },
+  },
   {
     files: ['src/**/*.{js,jsx}'],
     languageOptions: {

@@ -107,12 +107,25 @@ async function suitePWA() {
     r2.body.icons?.length >= 2 ? pass(`manifest icons: ${r2.body.icons.length} 个`) : fail('manifest icons', '数量不足');
   }
   
+  // /sw.js 已是退役版（见 web/public/sw.js 顶部注释）：老浏览器的根注册靠它清缓存并注销自己。
+  // nginx 开了 gzip_static，gzip 响应要单独查，防止上一版残留的 sw.js.gz 被优先发出。
+  const RETIRED_SW = 'touliao-sw-retired-';
   const r3 = await get(`${WEB_BASE}/sw.js`);
   r3.status === 200 ? pass('sw.js 200') : fail('sw.js', `${r3.status}`);
   if (typeof r3.raw === 'string') {
-    r3.raw.includes('touliao-v2.0.') ? pass('sw.js CACHE_NAME = touliao-*') : fail('sw.js CACHE_NAME', '仍是旧名');
-    r3.raw.includes('投聊新消息') ? pass('sw.js 推送文案已更新') : fail('sw.js 推送文案', '仍有旧文案');
+    r3.raw.includes(RETIRED_SW) ? pass('sw.js 为退役版') : fail('sw.js 退役标记', '仍是旧版离线缓存 worker');
+    /addEventListener\(\s*['"]fetch['"]/.test(r3.raw) ? fail('sw.js', '仍注册了 fetch 拦截') : pass('sw.js 不拦截 fetch');
   }
+  const r3gz = await fetch(`${WEB_BASE}/sw.js`, { headers: { 'Accept-Encoding': 'gzip' } })
+    .then(async r => ({ status: r.status, text: await r.text() }))
+    .catch(e => ({ status: 0, text: String(e) }));
+  r3gz.status === 200 && r3gz.text.includes(RETIRED_SW)
+    ? pass('sw.js（gzip 响应）为退役版')
+    : fail('sw.js（gzip 响应）', `${r3gz.status}，可能是残留的旧 sw.js.gz`);
+  const r3push = await get(`${WEB_BASE}/push-sw.js`);
+  r3push.status === 200 && typeof r3push.raw === 'string' && r3push.raw.includes('投聊新消息')
+    ? pass('push-sw.js 200 且推送文案为投聊')
+    : fail('push-sw.js', `${r3push.status}`);
   
   const r4 = await get(`${WEB_BASE}/assets/rememberedCreds-7GDeJUjC.js`).catch(() => ({ status: 404 }));
   if (r4.status === 200) {

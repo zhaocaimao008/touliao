@@ -1,5 +1,5 @@
 import { clientStorage as localStorage } from '../utils/clientStorage';
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useCallback, useContext, useMemo, useState, useEffect } from 'react';
 
 const SettingsContext = createContext({});
 
@@ -44,7 +44,7 @@ export function SettingsProvider({ children }) {
 
   const darkMode = themeMode === 'auto' ? systemDark : themeMode === 'dark';
   // 向后兼容：仍暴露 setDarkMode(bool)，映射到 themeMode
-  const setDarkMode = v => setThemeMode(v ? 'dark' : 'light');
+  const setDarkMode = useCallback(v => setThemeMode(v ? 'dark' : 'light'), []);
 
   useEffect(() => {
     document.body.classList.toggle('dark-mode', darkMode);
@@ -74,8 +74,14 @@ export function SettingsProvider({ children }) {
     localStorage.setItem('wc_notify', notifySound ? '1' : '0');
   }, [notifySound]);
 
+  // setXxx 均为 useState setter（稳定），只在真实设置变化时换 value 引用
+  const value = useMemo(
+    () => ({ darkMode, setDarkMode, themeMode, setThemeMode, skin, setSkin, fontSize, setFontSize, notifySound, setNotifySound }),
+    [darkMode, setDarkMode, themeMode, skin, fontSize, notifySound],
+  );
+
   return (
-    <SettingsContext.Provider value={{ darkMode, setDarkMode, themeMode, setThemeMode, skin, setSkin, fontSize, setFontSize, notifySound, setNotifySound }}>
+    <SettingsContext.Provider value={value}>
       {children}
     </SettingsContext.Provider>
   );

@@ -28,6 +28,7 @@ import {
   scheduleCurrentCallTimeout,
   stopStream,
 } from '../utils/callLifecycle';
+import { createCallQualityTracker } from '../utils/callQualityReport';
 import './CallModal.css';
 import { IcoVideo } from './Icons';
 
@@ -182,6 +183,20 @@ export default function CallModal({ socket, call, onClose, onReplyMessage }) {
   const politeRef = useRef(isPoliteForDirection(direction));
   const ownsIceRestart = canInitiateIceRestart(direction);
   const toneRef = useRef(null); // 循环提示音句柄 { stop }(回铃/来电共用)
+  // 通话质量上报（utils/callQualityReport.js）：通话中累积采样，结束后 fire-and-forget 一次
+  const qualityRef = useRef(null);
+  if (qualityRef.current == null) {
+    qualityRef.current = createCallQualityTracker({
+      role: direction === 'outgoing' ? 'caller' : 'callee',
+      callType: type === 'video' ? 'video' : 'audio',
+      group: false,
+    });
+  }
+  const endReasonRef = useRef('');   // 首个确定的结束原因（本端挂断/对端挂断/超时/网络…）
+  const noteEndReason = useCallback((reason) => { if (!endReasonRef.current) endReasonRef.current = reason; }, []);
+  const sendQualityReport = useCallback(() => {
+    try { qualityRef.current?.send(callId, { endReason: endReasonRef.current || 'unknown' }); } catch { /* 上报绝不影响挂断 */ }
+  }, [callId]);
 
   // 信令可发标记：断线期间不发 offer/ICE（socket.io 会把离线 emit 缓冲到重连后、resume
   // 之前冲出去，被服务端以"未绑定 Socket"丢弃）；重连后等 call:resume 确认再恢复。
@@ -356,12 +371,13 @@ export default function CallModal({ socket, call, onClose, onReplyMessage }) {
   const endCall = useCallback((notify, reason = '') => {
     // 幂等：挂断/超时/网络错误多次触发（双击挂断、ICE 状态机与手动挂断竞态）只收尾一次
     if (closedRef.current || statusRef.current === 'ended') return;
+    noteEndReason(reason || 'hangup');
     if (notify) socket?.emit('call:end', withCallId({ to: remoteId, reason }, callId));
     cleanup();
     if (reason) setEndReason(reason);
     setStatus('ended');
     endCallTimeoutRef.current = setTimeout(onClose, 1800);
-  }, [socket, remoteId, callId, cleanup, onClose]);
+  }, [socket, remoteId, callId, cleanup, onClose, noteEndReason]);
 
   useEffect(() => {
     if (!socket) return;
@@ -458,6 +474,7 @@ export default function CallModal({ socket, call, onClose, onReplyMessage }) {
         return;
       }
       iceRestartCountRef.current += 1;
+      qualityRef.current?.markIceRestart();
       pc.restartIce();
       // restartIce() 只打标记，必须实际重协商 offer 对方才会重新打通（对齐 iOS/Android 修复）
       try {
@@ -501,6 +518,9 @@ export default function CallModal({ socket, call, onClose, onReplyMessage }) {
         clearTimeout(disconnectRef.current);
         clearRecoverTimer();
         iceRestartCountRef.current = 0;
+        // 质量上报：首次接通记 setupMs；立即抓一次候选对（短通话可能等不到 2s 采样）
+        qualityRef.current?.markConnected();
+        qualityRef.current?.sample(pc);
         capVideoBitrate(pc);
         if (statusRef.current === 'connecting') setStatus('connected');
       } else if (s === 'disconnected') {
@@ -589,6 +609,7 @@ export default function CallModal({ socket, call, onClose, onReplyMessage }) {
     // 可停 → 通话结束后麦克风/摄像头仍被占用（浏览器指示灯常亮）。
     if (acceptBusyRef.current || statusRef.current !== 'incoming') return;
     acceptBusyRef.current = true;
+    qualityRef.current?.markStart();   // 被叫 setupMs 从接听算起
     try {
       setStatus('connecting');
       await initPC();
@@ -606,13 +627,14 @@ export default function CallModal({ socket, call, onClose, onReplyMessage }) {
       }
     } catch (e) {
       console.error('[call] accept 失败:', e);
+      noteEndReason('error');
       cleanup();
       setStatus('ended');
       setTimeout(onClose, 1800);
     } finally {
       acceptBusyRef.current = false;
     }
-  }, [socket, remoteId, callId, initPC, processOffer, cleanup, onClose]);
+  }, [socket, remoteId, callId, initPC, processOffer, cleanup, onClose, noteEndReason]);
 
   const reject = useCallback(() => {
     if (rejectBusyRef.current || statusRef.current !== 'incoming') return;
@@ -646,6 +668,7 @@ export default function CallModal({ socket, call, onClose, onReplyMessage }) {
       if (statusRef.current !== 'calling') return;
       clearTimeout(timeoutRef.current);
       if (!accepted) {
+        noteEndReason(busy ? 'busy' : (reason || 'rejected'));
         setEndReason(busy ? 'busy' : (reason || 'rejected'));
         setStatus('ended');
         cleanup();
@@ -718,6 +741,7 @@ export default function CallModal({ socket, call, onClose, onReplyMessage }) {
         ? !evtCallId || !callId || evtCallId === callId
         : matchesCallEnd({ from, callId: evtCallId, reason }, activeCallInfo);
       if (!matched) return;
+      noteEndReason(reason ? `remote_${reason}` : 'remote_hangup');
       if (reason) setEndReason(reason);
       setStatus('ended');
       cleanup();
@@ -742,12 +766,13 @@ export default function CallModal({ socket, call, onClose, onReplyMessage }) {
       socket.off('call:end',      onEnd);
       socket.off('call:switch-type', onSwitchType);
     };
-  }, [socket, remoteId, callId, activeCallInfo, cleanup, onClose, processOffer, endCall]);
+  }, [socket, remoteId, callId, activeCallInfo, cleanup, onClose, processOffer, endCall, noteEndReason]);
 
   // 挂载即发起/准备通话：initPC 建立 RTCPeerConnection、getUserMedia 等外部系统副作用，
   // 其内部 setState 属正当的取媒体流程，非可派生同步状态。
   useEffect(() => {
     if (direction === 'outgoing') {
+      qualityRef.current?.markStart();   // 主叫 setupMs 从拨出算起
       const generation = mediaGenerationRef.current;
       initPC().then(pc => {
         // 卸载后 initPC 可能已中止（aliveRef=false/呼叫世代已过期）或组件已收尾：
@@ -772,9 +797,16 @@ export default function CallModal({ socket, call, onClose, onReplyMessage }) {
     return () => {
       aliveRef.current = false; // 先置死再清理：让所有在途异步副作用(媒体/TURN/协商)自中止
       window.removeEventListener('beforeunload', onUnload);
+      noteEndReason('closed');
       cleanup();
+      sendQualityReport();      // 兜底：未经 'ended' 直接卸载的路径（幂等，只发一次）
     };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // 通话结束即上报质量（不等 1.8s 结束页卸载）；send 内部延后到下一个宏任务，不阻塞挂断
+  useEffect(() => {
+    if (status === 'ended') sendQualityReport();
+  }, [status, sendQualityReport]);
 
   // 提示音生命周期：主叫拨出等待→回铃音循环；被叫来电→来电铃声循环；
   // 接通瞬间→提示音一声；其余状态停音
@@ -943,6 +975,7 @@ export default function CallModal({ socket, call, onClose, onReplyMessage }) {
       if (!pc) return;
       try {
         const stats = await pc.getStats();
+        qualityRef.current?.ingestStats(stats);   // 复用同一份采样累积通话质量上报数据
         let rtt = null, lost = 0, received = 0;
         stats.forEach(s => {
           if (s.type === 'candidate-pair' && s.nominated && s.state === 'succeeded') rtt = (s.currentRoundTripTime || 0) * 1000;
