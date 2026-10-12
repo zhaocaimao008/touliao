@@ -519,6 +519,9 @@ function CreateGroupModal({ onClose, onCreated }) {
   );
 }
 
+// 打开会话时，会话快照里的对端在线状态在此时长内视为可信（之后补拉一次）
+const PRESENCE_SNAPSHOT_TTL_MS = 60 * 1000;
+
 export default function Home() {
   const { t, lang } = useI18n();
   const [tab, setTab] = useState('chats');
@@ -600,8 +603,31 @@ export default function Home() {
   const activeConvIdRef = useRef(null);
   const addBtnRef = useRef(null);
   useEffect(() => { activeConvIdRef.current = activeConv?.id ?? null; }, [activeConv?.id]);
-  const activeConvRef = useRef(null);
-  useEffect(() => { activeConvRef.current = activeConv; }, [activeConv]);
+
+  // 本次 socket 连接期间收到的好友上下线事件（userId -> { status, at }）。ChatList 不监听
+  // user_online/user_offline，其会话对象/快照里的 otherUser.status 可能是几小时前的；
+  // 打开会话时据此判断快照是否仍可信。断线期间会漏事件，故断线即清空、重连重新计时。
+  const presenceRef = useRef({ map: new Map(), connectAt: 0 });
+  useEffect(() => {
+    if (!socket) return;
+    const st = presenceRef.current;
+    st.map.clear();
+    st.connectAt = socket.connected ? Date.now() : 0;
+    const online = ({ userId }) => { st.map.set(userId, { status: 'online', at: Date.now() }); };
+    const offline = ({ userId }) => { st.map.set(userId, { status: 'offline', at: Date.now() }); };
+    const connected = () => { st.map.clear(); st.connectAt = Date.now(); };
+    const disconnected = () => { st.map.clear(); st.connectAt = 0; };
+    socket.on('user_online', online);
+    socket.on('user_offline', offline);
+    socket.on('connect', connected);
+    socket.on('disconnect', disconnected);
+    return () => {
+      socket.off('user_online', online);
+      socket.off('user_offline', offline);
+      socket.off('connect', connected);
+      socket.off('disconnect', disconnected);
+    };
+  }, [socket]);
 
   // 已打开的会话也订阅好友在线状态；重连后补一次快照，避免漏掉离线期间的事件。
   const activePeerId = activeConv?.otherUser?.id;
@@ -649,11 +675,22 @@ export default function Home() {
     socket.on('user_offline', offline);
     socket.on('connect', onConnect);
     socket.on('disconnect', disconnected);
-    // 首次打开：会话对象本身（来自 ChatList）已带 otherUser.status；仅缺失时才补查
-    if (activeConvRef.current?.otherUser?.status === undefined) {
+    // 首次打开：会话对象（来自 ChatList）里的 otherUser.status 可能早已过期（ChatList 只在
+    // 挂载/重连/结构变化时重拉，不跟踪上下线事件），不能直接信任。按新鲜度依次取：
+    //  1) 本次连接期间收到的该对端上下线事件（比快照新时）；
+    //  2) 本次连接建立后发布、且不超过 PRESENCE_SNAPSHOT_TTL_MS 的会话快照
+    //     （上下线事件只推给好友，非好友对端只能靠快照年龄兜底）；
+    //  3) 否则像以前一样补拉一次。
+    {
+      const st = presenceRef.current;
+      const ev = st.connectAt ? st.map.get(activePeerId) : null;
       const snap = getConversationsSnapshot();
-      const peer = snap && peerIn(snap.list);
-      if (peer) update(peer.status); else fetchFallback();
+      const snapFresh = !!(snap && st.connectAt && snap.at >= st.connectAt
+        && Date.now() - snap.at < PRESENCE_SNAPSHOT_TTL_MS);
+      const snapPeer = snapFresh ? peerIn(snap.list) : null;
+      if (ev && (!snapPeer || ev.at >= snap.at)) update(ev.status);
+      else if (snapPeer) update(snapPeer.status);
+      else fetchFallback();
     }
     return () => {
       ac.abort();
