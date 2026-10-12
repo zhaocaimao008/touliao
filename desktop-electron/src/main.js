@@ -42,10 +42,11 @@ const { validatePublicKeyPem } = require('./lib/validatePublicKeyPem');
 // 错位把下一行压进图片区）。而 disableHardwareAcceleration/disable-gpu-compositing 会把
 // 整个渲染打到软件光栅化：WebRTC 的 GPU 视频解码依赖硬件加速，8.1.15 起四端已升 720p 采集，
 // 桌面端仍禁硬加速 = 720p 强制软解，收流必糊（CPU 忙时更甚）。禁 compositing 同样强制软
-// 合成，与禁硬加速同罪，不能只留它一个。两者均退役，仅保留 disable-gpu-cache（几乎无副
-// 作用，防旧缓存图层复用，且下方 clearRenderCaches 每次启动本就在清这些目录）。
+// 合成，与禁硬加速同罪，不能只留它一个。两者均退役。
+// disable-gpu-cache 也已退役：GPUCache 是着色器编译缓存（按 GPU/驱动/Chromium 版本做键），
+// 不缓存页面图层，与残影无因果；禁用它只会让每次冷启动重新编译全部着色器、拖慢首屏。
+// 升级后的陈旧缓存由下方 clearRenderCaches（每个 App 版本清一次）兜底。
 // 若 Windows 气泡残影复发：先查 estimateHeight/CSS 图层修复与 GPU 驱动版本，不要再回到禁硬加速。
-app.commandLine.appendSwitch('disable-gpu-cache');
 // 显式开启高 DPI 感知：Windows 125%/150% 缩放下按物理像素渲染，
 // 避免 Chromium 默认模糊缩放导致的边框/气泡边缘错位重绘。
 app.commandLine.appendSwitch('high-dpi-support', '1');
@@ -179,7 +180,7 @@ const CONFIG_ORIGINS = [...new Set(
 
 // 安全：校验存储中的 serverUrl，防止被篡改的配置污染 CSP connect-src/origin 推导
 const _storedServerUrl = store.get('serverUrl');
-// SERVER_URL / API_ORIGIN / WS_ORIGIN 为 let：启动时 loadRemoteServerUrl() 可据远程配置更新。
+// SERVER_URL / API_ORIGIN / WS_ORIGIN 为 let：启动时 applyCachedServerConfig()/后台 refreshRemoteServerConfig() 更新。
 let SERVER_URL = isValidServerUrl(_storedServerUrl) ? _storedServerUrl : 'https://touliao.cc';
 
 // ── 安全：仅允许读取 temp 目录下的截图文件 ──────────────────
@@ -210,42 +211,72 @@ let CDN_ORIGIN = '';
 // 远程 config.json 下发的默认后端（未拉到时为内置默认域名）。
 let remoteServerOrigin = 'https://touliao.cc';
 
-// 启动时从 CONFIG_URLS 依次拉 config.json，取 api(回退 socket) 作为后端地址并据此
-// 刷新 SERVER_URL/API_ORIGIN/WS_ORIGIN（驱动 CSP connect-src）。须在 setupSecurity()
-// 与 createWindow() 之前 await 调用。远程全部不可达则沿用 store/默认（manual override
-// 仍生效，与渲染端 remote→cache→fallback 行为一致）。
+// 后端地址解析（驱动 CSP connect-src）分两步，冷启动不再等网络：
+//  1) applyCachedServerConfig()：建窗前同步执行，用手动服务器或上次成功拉取并持久化的
+//     remoteOrigins（api/ws/cdn）；从未拉到过则用 store.serverUrl/默认域名（与旧版超时回退一致）。
+//  2) refreshRemoteServerConfig()：建窗后后台拉 config.json，结果持久化供下次冷启动；
+//     若 api/ws/cdn 与本次启动所用不同，则立即更新全局（CSP 每次主文档响应现算）并重载
+//     主窗口一次（通话中不重载，下次重载/冷启动生效）。必须重载而非仅"下次启动生效"：
+//     渲染层自己也拉同一份 config.json，会直接改用新后端；当前文档 CSP 仍是旧 origin，
+//     不重载则新后端请求全被自家 CSP 拦下，直到用户重启。服务器迁移极少，重载极少触发。
+// 手动服务器优先于远程 config.json（manual override 仍生效，与渲染端 remote→cache→fallback 一致）。
 function applyServerOrigin(origin) {
   SERVER_URL = origin;
   API_ORIGIN = origin;
   WS_ORIGIN = origin.replace(/^http/, 'ws');
 }
 
-async function loadRemoteServerUrl() {
-  await Promise.race([
-    loadRemoteServerUrlInner(),
-    // 兜底超时：两个 config 源各 15s 超时，国内直连 jsDelivr 常年超时/被墙，
-    // 顺序 await 导致启动最长卡 30s，此间 createWindow() 都还没调用——表现为
-    // 双击图标后长时间无任何窗口（黑屏/无反应）。5s 后不再等待，直接用
-    // store/默认地址建窗，remote 配置若稍后到达仍会在下次冷启动生效。
-    new Promise((resolve) => setTimeout(resolve, 5000)),
-  ]);
+function manualServerOrigin() {
+  const manual = store.get('manualServerUrl');
+  try {
+    if (manual && isValidServerUrl(manual) && new URL(manual).protocol === 'https:') return new URL(manual).origin;
+  } catch {}
+  return '';
+}
+
+function applyCachedServerConfig() {
+  const manual = manualServerOrigin();
+  if (manual) {
+    applyServerOrigin(manual);
+    log.info(`[RemoteConfig] 使用手动服务器: ${SERVER_URL}`);
+    return;
+  }
+  const c = store.get('remoteOrigins');
+  if (!c || typeof c !== 'object' || !isValidServerUrl(c.api)) return;
+  try {
+    const api = new URL(c.api).origin;
+    applyServerOrigin(api);
+    remoteServerOrigin = api;
+    if (isValidServerUrl(c.ws)) WS_ORIGIN = new URL(c.ws).origin.replace(/^http/, 'ws');
+    if (c.cdn && isValidServerUrl(c.cdn)) CDN_ORIGIN = new URL(c.cdn).origin;
+    log.info(`[RemoteConfig] 使用缓存配置: ${SERVER_URL}`);
+  } catch {}
+}
+
+const serverOriginsKey = () => `${API_ORIGIN}|${WS_ORIGIN}|${CDN_ORIGIN}`;
+
+async function refreshRemoteServerConfig() {
+  const before = serverOriginsKey();
+  try { await loadRemoteServerUrlInner(); } catch (e) { log.warn('[RemoteConfig] 刷新失败:', e.message); }
+  if (serverOriginsKey() === before) return;
+  log.info(`[RemoteConfig] 后端地址已变更: ${before} -> ${serverOriginsKey()}`);
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+  if (inCall) { log.info('[RemoteConfig] 通话中，暂不重载，下次重载/冷启动生效'); return; }
+  mainWindow.loadFile(indexHtmlPath());
 }
 
 async function loadRemoteServerUrlInner() {
   // 用户在设置里确认切换过的私有服务器优先于远程 config.json；否则每次冷启动都被远程
   // 配置改回默认域名，CSP connect-src 不含该服务器，渲染层请求全被自家 CSP 拦下。
-  const manual = store.get('manualServerUrl');
-  if (manual && isValidServerUrl(manual) && new URL(manual).protocol === 'https:') {
-    applyServerOrigin(new URL(manual).origin);
-    log.info(`[RemoteConfig] 使用手动服务器: ${SERVER_URL}`);
-    return;
-  }
+  if (manualServerOrigin()) return;
   for (const url of CONFIG_URLS) {
     try {
       const buf = await fetchBuffer(url);
       const cfg = JSON.parse(buf.toString('utf8'));
       const api = (cfg.api && String(cfg.api).trim()) || (cfg.socket && String(cfg.socket).trim()) || '';
       if (api && isValidServerUrl(api)) {
+        // 后台拉取期间用户可能已在设置里切到手动服务器：以用户选择为准，不覆盖
+        if (manualServerOrigin()) return;
         SERVER_URL = new URL(api).origin;
         API_ORIGIN = SERVER_URL;
         remoteServerOrigin = SERVER_URL;
@@ -262,6 +293,8 @@ async function loadRemoteServerUrlInner() {
         // 云存储域名加入 CSP connect-src，使图片/文件直传(xhr PUT 预签名URL)不被拦截
         const cdn = (cfg.cdn && String(cfg.cdn).trim()) || '';
         if (cdn && isValidServerUrl(cdn)) { try { CDN_ORIGIN = new URL(cdn).origin; } catch {} }
+        // 持久化完整 origins，下次冷启动建窗前即可得到与本次一致的 CSP（含 ws/cdn）
+        store.set('remoteOrigins', { api: SERVER_URL, ws: new URL(wsBase).origin, cdn: CDN_ORIGIN });
         log.info(`[RemoteConfig] server = ${SERVER_URL} (from ${url})`);
         return;
       }
@@ -1440,22 +1473,27 @@ if (app.hasSingleInstanceLock()) {
 
   // ── 清理渲染缓存：修复旧缓存导致的气泡/图片残影重绘 ──
 // 桌面端曾出现消息气泡、图片局部残影错乱（旧 GPU/磁盘缓存里的损坏图层被复用）。
-// 每次启动清理 Chromium 磁盘/GPU 缓存目录（保留 localStorage/登录态，不清 userData 配置）。
+// 清理 Chromium 磁盘/GPU 缓存目录（保留 localStorage/登录态，不清 userData 配置）。
 // 仅清理 Cache/Code Cache/GPUCache/DawnCache 子目录，不动 indexdb/localStorage。
+// 只在 App 版本变化（含首次装上本版本）时清一次：升级后旧版 JS 字节码/HTTP 缓存/着色器
+// 缓存全部作废，保证"升级后界面不陈旧"；同版本冷启动不再清——否则每次都重编译 ~1MB JS、
+// 重下全部头像图片，首屏明显变慢。标记存于本 profile 的 store（userData 按 profile 隔离）。
+const RENDER_CACHE_VERSION_KEY = 'renderCacheClearedVersion';
+function shouldClearRenderCaches() {
+  return store.get(RENDER_CACHE_VERSION_KEY) !== app.getVersion();
+}
 async function clearRenderCaches() {
   const userData = app.getPath('userData');
   const cacheDirs = ['Cache', 'Code Cache', 'GPUCache', 'DawnCache', 'ShaderCache'];
-  for (const d of cacheDirs) {
-    const p = path.join(userData, d);
+  // 异步删除：缓存目录可达数百 MB，rmSync 会阻塞主进程事件循环
+  await Promise.all(cacheDirs.map(async (d) => {
     try {
-      if (fs.existsSync(p)) {
-        fs.rmSync(p, { recursive: true, force: true });
-        log.info('已清理渲染缓存目录:', d);
-      }
+      await fs.promises.rm(path.join(userData, d), { recursive: true, force: true });
     } catch (e) {
       log.warn('清理缓存目录失败(可能被占用,忽略):', d, e.message);
     }
-  }
+  }));
+  log.info('已清理渲染缓存目录（版本变更）:', app.getVersion());
   // 会话级缓存(内存中的 HTTP cache 等)也一并清空
   try {
     await session.defaultSession.clearCache();
@@ -1463,6 +1501,7 @@ async function clearRenderCaches() {
   } catch (e) {
     log.warn('clearCache 失败(忽略):', e.message);
   }
+  store.set(RENDER_CACHE_VERSION_KEY, app.getVersion());
 }
 
 app.whenReady().then(async () => {
@@ -1485,12 +1524,12 @@ app.whenReady().then(async () => {
       }
     }
 
-    // 先据远程 config.json 解析后端地址，再建窗口/装 CSP，使 connect-src 跟随远程配置
-    await loadRemoteServerUrl();
+    // 后端地址用手动/上次持久化的配置同步得出，不等网络；远程 config.json 建窗后后台刷新
+    applyCachedServerConfig();
 
-    // 启动时清理渲染缓存（残影修复）：必须在创建窗口之前执行，
+    // 版本变更时清理渲染缓存：必须在创建窗口之前执行，
     // 否则 Chromium 已打开缓存文件句柄，Windows 上删除会失败/部分生效
-    await clearRenderCaches();
+    if (shouldClearRenderCaches()) await clearRenderCaches();
 
     checkUpdateKeyStatus();
     setupSecurity();
@@ -1498,6 +1537,7 @@ app.whenReady().then(async () => {
     log.info('[Startup] Creating main window');
     createWindow();
     appStarted = true;
+    refreshRemoteServerConfig();   // 后台：不阻塞首屏，变更时见函数注释
     log.info('[Startup] Creating tray');
     createTray();
     log.info('[Startup] Registering integrations');
