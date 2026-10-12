@@ -20,6 +20,9 @@ class TouliaoApp : Application(), ImageLoaderFactory {
         fun messageNotificationBridge(): com.touliao.app.core.push.MessageNotificationBridge
         fun notificationHelper(): com.touliao.app.core.push.NotificationHelper
         fun pushManager(): com.touliao.app.core.push.PushManager
+        fun socketBackgroundPolicy(): com.touliao.app.core.realtime.SocketBackgroundPolicy
+        fun tokenStore(): com.touliao.app.core.storage.TokenStore
+        fun accountStore(): com.touliao.app.core.storage.AccountStore
     }
 
     override fun attachBaseContext(base: android.content.Context) {
@@ -30,23 +33,45 @@ class TouliaoApp : Application(), ImageLoaderFactory {
 
     override fun onCreate() {
         super.onCreate()
+        // Application.onCreate 会在每个进程执行（含个推自己的 :pushservice 进程）。此前非主进程也会
+        // 建 SessionManager → 再跑一遍 remoteConfig + /api/auth/me + 再连一条 socket（重复在线/重复请求）。
+        // :pushservice 只跑个推 SDK 的 PushService，不需要本 App 的任何初始化。
+        if (!isMainProcess()) return
         com.touliao.app.core.storage.ThemeStore.syncInitial(this)
         val entry = EntryPointAccessors.fromApplication(this, BridgeEntryPoint::class.java)
+        // 加密 prefs（MasterKey + Tink keyset）预热放后台线程：TokenStore/AccountStore 已改为首次访问才创建，
+        // 这里抢先在后台建好，主线程首次读 token 时通常已就绪（lazy 自带同步，不会重复初始化）。
+        Thread({
+            runCatching { entry.tokenStore().snapshot(); entry.accountStore().activeId() }
+        }, "secure-prefs-warmup").apply { priority = Thread.NORM_PRIORITY - 1 }.start()
         entry.notificationHelper()
         entry.messageNotificationBridge().install(this)
+        // 后台 60s 无通话自动断开 socket，回前台重连（消息/来电后台走 FCM / 个推）
+        entry.socketBackgroundPolicy().start()
         // 有 GMS 时手动启用 FCM 自动注册（Manifest 已关闭自动初始化防华为崩溃）
         initFirebaseIfGmsAvailable()
         // 个推 SDK 要求 initialize 只在主进程调用（非主进程会抛 Must be called in main process）。
-        // Application.onCreate 会在每个进程执行（含个推自己的 :pushservice 进程），必须过滤。
-        if (isMainProcess()) initGeTui()
+        initGeTui()
     }
 
-    /** 判断当前是否主进程（个推 initialize 强制要求主进程）。 */
+    /**
+     * 判断当前是否主进程（个推 initialize 强制要求主进程）。
+     * API 28+ 直接用 Application.getProcessName()（无 IPC）；旧系统读 /proc/self/cmdline，
+     * 最后才退回 ActivityManager.runningAppProcesses（一次 Binder 调用，且返回全部进程列表）。
+     */
     private fun isMainProcess(): Boolean {
-        val am = getSystemService(android.content.Context.ACTIVITY_SERVICE) as? android.app.ActivityManager ?: return true
-        val pid = android.os.Process.myPid()
-        val myName = am.runningAppProcesses?.firstOrNull { it.pid == pid }?.processName
-        return myName == null || myName == packageName
+        val name: String? = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.P) {
+            android.app.Application.getProcessName()
+        } else {
+            runCatching {
+                java.io.File("/proc/self/cmdline").readText().trimEnd('\u0000', ' ', '\n')
+            }.getOrNull()?.takeIf { it.isNotBlank() } ?: run {
+                val am = getSystemService(android.content.Context.ACTIVITY_SERVICE) as? android.app.ActivityManager
+                val pid = android.os.Process.myPid()
+                am?.runningAppProcesses?.firstOrNull { it.pid == pid }?.processName
+            }
+        }
+        return name == null || name == packageName
     }
 
     /**

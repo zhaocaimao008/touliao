@@ -487,14 +487,15 @@ fun ChatScreen(
                     }
                 }
                 MessageInputBar(
-                    value = state.input,
+                    // 输入文字是 VM 里的快照状态，只在这里读取 → 打字只重组输入栏（见 ChatViewModel.input）
+                    value = viewModel.input,
                     sending = state.sending,
                     recording = state.recording,
                     onValueChange = viewModel::onInputChange,
                     onSend = {
                         val t = editTarget
                         if (t != null) {
-                            viewModel.editMessage(t, state.input)
+                            viewModel.editMessage(t, viewModel.input)
                             editTarget = null
                             viewModel.onInputChange("")
                         } else {
@@ -677,90 +678,122 @@ fun ChatScreen(
                                         resolveUrl = viewModel::resolveMediaUrl,
                                         onPlayVoice = {}, onOpenFile = {}, onReply = {}, onRecall = {},
                                         onReact = {}, onCollectSticker = {},
-                                        redPacket = viewModel.parseRedPacket(msg),
+                                        redPacket = remember(msg.type, msg.content) { viewModel.parseRedPacket(msg) },
                                         onOpenRedPacket = {}, canPin = false, isPinned = false, onTogglePin = {},
                                         canEdit = false, onEdit = {}, onForward = {}, onCollect = {},
                                         highlighted = false, onImageClick = {}, onReplyClick = {},
                                         selectionMode = true,
-                                        transfer = viewModel.parseTransfer(msg),
+                                        transfer = remember(msg.type, msg.content) { viewModel.parseTransfer(msg) },
                                         onOpenMerged = {},
                                     )
                                 }
                             }
                             return@itemsIndexed
                         }
+                        // 2026-10-12 重组优化：回调按 msg remember（Message 为 @Immutable），同一条消息的
+                        // 回调实例跨重组保持不变 → MessageBubble 参数全等时可直接跳过重组。此前每次重组都
+                        // 新建 ~20 个捕获 viewModel 的 lambda，任何状态变化都会重绘全部可见气泡。
+                        // 回调内需要「最新列表」的地方读 viewModel.uiState.value，不捕获组合期的 state。
+                        val cb = remember(msg) {
+                            BubbleCallbacks(
+                                onNudge = { viewModel.nudge(msg.sender_id) },
+                                onPlayVoice = { viewModel.playVoice(msg.file_url) },
+                                onOpenFile = {
+                                    val resolved = viewModel.resolveMediaUrl(msg.file_url)
+                                    when {
+                                        resolved.isNullOrBlank() -> {}
+                                        msg.type == "video" -> videoPreview = resolved to msg.content
+                                        msg.content.substringAfterLast('.', "").lowercase() == "pdf" ->
+                                            pdfPreview = resolved to msg.content
+                                        else -> fileDetails = Triple(resolved, msg.content, humanFileSize(msg.file_size))
+                                    }
+                                },
+                                onReply = { viewModel.startReply(msg) },
+                                onRecall = { viewModel.recall(msg) },
+                                onReact = { emoji -> viewModel.react(msg, emoji) },
+                                onCollectSticker = { viewModel.collectSticker(msg.file_url) },
+                                onSaveImage = {
+                                    scope.launch {
+                                        com.touliao.app.core.util.saveImageToGallery(context, viewModel.resolveMediaUrl(msg.file_url), msg.content)
+                                    }
+                                },
+                                onCopyImage = {
+                                    scope.launch {
+                                        com.touliao.app.core.util.copyImageToClipboard(context, viewModel.resolveMediaUrl(msg.file_url))
+                                    }
+                                },
+                                onOpenRedPacket = { viewModel.openRedPacket(msg) },
+                                onTogglePin = { if (viewModel.isPinned(msg.id)) viewModel.unpinMessage(msg.id) else viewModel.pinMessage(msg) },
+                                onEdit = {
+                                    editTarget = msg
+                                    // 输入框内编辑: 原文直接进输入框, 用户改完点发送即保存
+                                    viewModel.onInputChange(msg.content)
+                                },
+                                onForward = { forwardTarget = msg; viewModel.loadForwardTargets() },
+                                onShare = {
+                                    if (msg.type == "text") {
+                                        com.touliao.app.core.util.shareText(context, msg.content)
+                                    } else {
+                                        scope.launch {
+                                            com.touliao.app.core.util.shareFile(
+                                                context,
+                                                viewModel.resolveMediaUrl(msg.file_url),
+                                                msg.content,
+                                            )
+                                        }
+                                    }
+                                },
+                                onCollect = { viewModel.collectMessage(msg) },
+                                onImageClick = {
+                                    val imgs = viewModel.uiState.value.messages.filter { it.type == "image" }
+                                    galleryImages = imgs.mapNotNull { viewModel.resolveMediaUrl(it.file_url) }
+                                    galleryStart = imgs.indexOfFirst { it.id == msg.id }.coerceAtLeast(0)
+                                },
+                                onReplyClick = { targetId -> jumpToMessage(targetId) },
+                                onMultiSelect = { viewModel.enterMultiSelect(msg) },
+                                onRetry = { viewModel.retryMessage(msg.id) },
+                                onOpenMerged = { mergedDetail = msg },
+                                onReadStatus = { viewModel.openReadStatus(msg) },
+                            )
+                        }
+                        // 红包/转账 content 是 JSON：按内容缓存解析结果，不在每次重组里反序列化
+                        val redPacket = remember(msg.type, msg.content) { viewModel.parseRedPacket(msg) }
+                        val transfer = remember(msg.type, msg.content) { viewModel.parseTransfer(msg) }
                         MessageBubble(
                             msg = msg,
                             isMine = isMine,
                             myId = viewModel.myId,
                             showReadStatus = showReadStatus,
-                            onNudge = { viewModel.nudge(msg.sender_id) },
+                            onNudge = cb.onNudge,
                             isRead = isMine && viewModel.isReadByPeer(msg),
                             resolveUrl = viewModel::resolveMediaUrl,
-                            onPlayVoice = { viewModel.playVoice(msg.file_url) },
-                            onOpenFile = {
-                                val resolved = viewModel.resolveMediaUrl(msg.file_url)
-                                when {
-                                    resolved.isNullOrBlank() -> {}
-                                    msg.type == "video" -> videoPreview = resolved to msg.content
-                                    msg.content.substringAfterLast('.', "").lowercase() == "pdf" ->
-                                        pdfPreview = resolved to msg.content
-                                    else -> fileDetails = Triple(resolved, msg.content, humanFileSize(msg.file_size))
-                                }
-                            },
-                            onReply = { viewModel.startReply(msg) },
-                            onRecall = { viewModel.recall(msg) },
+                            onPlayVoice = cb.onPlayVoice,
+                            onOpenFile = cb.onOpenFile,
+                            onReply = cb.onReply,
+                            onRecall = cb.onRecall,
                             canManage = state.canManageGroup,
-                            onReact = { emoji -> viewModel.react(msg, emoji) },
-                            onCollectSticker = { viewModel.collectSticker(msg.file_url) },
-                            onSaveImage = {
-                                scope.launch {
-                                    com.touliao.app.core.util.saveImageToGallery(context, viewModel.resolveMediaUrl(msg.file_url), msg.content)
-                                }
-                            },
-                            onCopyImage = {
-                                scope.launch {
-                                    com.touliao.app.core.util.copyImageToClipboard(context, viewModel.resolveMediaUrl(msg.file_url))
-                                }
-                            },
-                            redPacket = viewModel.parseRedPacket(msg),
-                            onOpenRedPacket = { viewModel.openRedPacket(msg) },
-                            transfer = viewModel.parseTransfer(msg),
+                            onReact = cb.onReact,
+                            onCollectSticker = cb.onCollectSticker,
+                            onSaveImage = cb.onSaveImage,
+                            onCopyImage = cb.onCopyImage,
+                            redPacket = redPacket,
+                            onOpenRedPacket = cb.onOpenRedPacket,
+                            transfer = transfer,
                             canPin = viewModel.isGroup && state.canManageGroup, // 服务端只允许群主/管理员置顶
                             isPinned = viewModel.isPinned(msg.id),
-                            onTogglePin = { if (viewModel.isPinned(msg.id)) viewModel.unpinMessage(msg.id) else viewModel.pinMessage(msg) },
+                            onTogglePin = cb.onTogglePin,
                             canEdit = viewModel.canEdit(msg),
-                            onEdit = {
-                                editTarget = msg
-                                // 输入框内编辑: 原文直接进输入框, 用户改完点发送即保存
-                                viewModel.onInputChange(msg.content)
-                            },
-                            onForward = { forwardTarget = msg; viewModel.loadForwardTargets() },
-                            onShare = {
-                                if (msg.type == "text") {
-                                    com.touliao.app.core.util.shareText(context, msg.content)
-                                } else {
-                                    scope.launch {
-                                        com.touliao.app.core.util.shareFile(
-                                            context,
-                                            viewModel.resolveMediaUrl(msg.file_url),
-                                            msg.content,
-                                        )
-                                    }
-                                }
-                            },
-                            onCollect = { viewModel.collectMessage(msg) },
+                            onEdit = cb.onEdit,
+                            onForward = cb.onForward,
+                            onShare = cb.onShare,
+                            onCollect = cb.onCollect,
                             highlighted = highlightedMsgId == msg.id,
-                            onImageClick = {
-                                val imgs = state.messages.filter { it.type == "image" }
-                                galleryImages = imgs.mapNotNull { viewModel.resolveMediaUrl(it.file_url) }
-                                galleryStart = imgs.indexOfFirst { it.id == msg.id }.coerceAtLeast(0)
-                            },
-                            onReplyClick = { targetId -> jumpToMessage(targetId) },
-                            onMultiSelect = { viewModel.enterMultiSelect(msg) },
-                            onRetry = { viewModel.retryMessage(msg.id) },
-                            onOpenMerged = { mergedDetail = msg },
-                            onReadStatus = { viewModel.openReadStatus(msg) },
+                            onImageClick = cb.onImageClick,
+                            onReplyClick = cb.onReplyClick,
+                            onMultiSelect = cb.onMultiSelect,
+                            onRetry = cb.onRetry,
+                            onOpenMerged = cb.onOpenMerged,
+                            onReadStatus = cb.onReadStatus,
                         )
                     }
                     items(state.pending, key = { it.tempId }) { p ->
@@ -1222,6 +1255,35 @@ private fun PinnedBanner(pinned: List<com.touliao.app.data.model.PinnedMessage>,
     }
 }
 
+/**
+ * 单条消息气泡的回调集合（2026-10-12）：在列表项里按 msg remember 一次，跨重组复用同一批 lambda 实例，
+ * 让 MessageBubble 在参数未变时可跳过重组。纯持有者，字段只读。
+ */
+@androidx.compose.runtime.Immutable
+private class BubbleCallbacks(
+    val onNudge: () -> Unit,
+    val onPlayVoice: () -> Unit,
+    val onOpenFile: () -> Unit,
+    val onReply: () -> Unit,
+    val onRecall: () -> Unit,
+    val onReact: (String) -> Unit,
+    val onCollectSticker: () -> Unit,
+    val onSaveImage: () -> Unit,
+    val onCopyImage: () -> Unit,
+    val onOpenRedPacket: () -> Unit,
+    val onTogglePin: () -> Unit,
+    val onEdit: () -> Unit,
+    val onForward: () -> Unit,
+    val onShare: () -> Unit,
+    val onCollect: () -> Unit,
+    val onImageClick: () -> Unit,
+    val onReplyClick: (String) -> Unit,
+    val onMultiSelect: () -> Unit,
+    val onRetry: () -> Unit,
+    val onOpenMerged: () -> Unit,
+    val onReadStatus: () -> Unit,
+)
+
 @OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
 private fun MessageBubble(
@@ -1330,8 +1392,13 @@ private fun MessageBubble(
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         // 被回复的是图片/表情 → 显示缩略图(对齐 Web 引用条, 修复"表情包没了")
                         if ((rt.type == "image" || rt.type == "sticker") && !rt.fileUrl.isNullOrBlank()) {
+                            val replyThumbContext = LocalContext.current
+                            val replyThumbUrl = resolveUrl(rt.fileUrl)
                             AsyncImage(
-                                model = resolveUrl(rt.fileUrl),
+                                // 引用条小缩略图同样关闭 crossfade（长列表滚动）
+                                model = remember(replyThumbUrl) {
+                                    coil.request.ImageRequest.Builder(replyThumbContext).data(replyThumbUrl).crossfade(false).build()
+                                },
                                 contentDescription = null,
                                 contentScale = ContentScale.Crop,
                                 modifier = Modifier.size(30.dp).clip(RoundedCornerShape(4.dp)),
@@ -1488,8 +1555,14 @@ private fun MessageContent(
                     val thumb = resolveUrl(com.touliao.app.core.util.thumbUrlOf(msg.file_url))
                     var thumbFailed by remember(msg.file_url) { mutableStateOf(false) }
                     val usingThumb = !thumbFailed && thumb != null && thumb != original
+                    val imageContext = LocalContext.current
+                    val imageUrl = if (usingThumb) thumb else original
                     SubcomposeAsyncImage(
-                        model = if (usingThumb) thumb else original,
+                        // 长列表气泡图关闭 crossfade（全局 ImageLoader 默认开启）：快速滑动时每张图
+                        // 都做 200ms 渐变动画 + 额外绘制层，滚动掉帧；缓存命中时直接显示更自然。
+                        model = remember(imageUrl) {
+                            coil.request.ImageRequest.Builder(imageContext).data(imageUrl).crossfade(false).build()
+                        },
                         contentDescription = "图片",
                         contentScale = ContentScale.Fit,
                         modifier = Modifier
@@ -1552,7 +1625,8 @@ private fun MessageContent(
                 "video" -> MediaCard(isMine, onClick = onOpenFile) { Row(verticalAlignment = Alignment.CenterVertically) { com.touliao.app.ui.TouliaoGlyph(com.touliao.app.ui.TouliaoIcons.Video, color = bubbleTextColor(isMine)); Spacer(Modifier.width(8.dp)); Text("视频", color = bubbleTextColor(isMine)) } }
                 // F4a 合并转发：聊天记录卡片（标题 + 前两条摘要 + 查看N条），点击弹详情
                 "merged" -> {
-                    val merged = com.touliao.app.data.model.parseMergedContent(msg.content)
+                    // JSON 解析按内容缓存，不在每次重组里反序列化
+                    val merged = remember(msg.content) { com.touliao.app.data.model.parseMergedContent(msg.content) }
                     Column(
                         Modifier
                             .widthIn(max = 260.dp)
@@ -1589,7 +1663,7 @@ private fun MessageContent(
                     }
                 }
                 "contact_card", "contact" -> {
-                    val card = parseContactCard(msg.content)
+                    val card = remember(msg.content) { parseContactCard(msg.content) }
                     MediaCard(isMine, onClick = {}) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             InitialAvatar(card.username.ifBlank { "?" }, size = 40.dp, avatarUrl = card.avatar)

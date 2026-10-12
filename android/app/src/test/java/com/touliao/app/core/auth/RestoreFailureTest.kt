@@ -11,7 +11,15 @@ class RestoreFailureTest {
     @Test fun only401InvalidatesCredentials() {
         assertEquals(RestoreFailure.EXPIRED, RestoreFailure.from(HttpException(Response.error<Any>(401,"{}".toResponseBody()))))
         assertEquals(RestoreFailure.FORBIDDEN, RestoreFailure.from(HttpException(Response.error<Any>(403,"{}".toResponseBody()))))
-        for(code in listOf(429,500,502,503)) assertEquals(RestoreFailure.SERVER, RestoreFailure.from(HttpException(Response.error<Any>(code,"{}".toResponseBody()))))
+        for(code in listOf(500,502,503)) assertEquals(RestoreFailure.SERVER, RestoreFailure.from(HttpException(Response.error<Any>(code,"{}".toResponseBody()))))
+        // 429 = 后端对坏 token 反复重试的限流：终止但不作废凭据（不是 EXPIRED）
+        assertEquals(RestoreFailure.RATE_LIMITED, RestoreFailure.from(HttpException(Response.error<Any>(429,"{}".toResponseBody()))))
+    }
+    @Test fun rateLimitedStopsPollingAfterOneAttempt() = kotlinx.coroutines.runBlocking {
+        var attempts=0; val errors=mutableListOf<RestoreFailure>()
+        restoreWithRetry(isCurrent={true}, load={attempts++; throw HttpException(Response.error<Any>(429,"{}".toResponseBody()))},
+            accept={fail()}, failure={errors.add(it)}, wait={fail("429 retried")})
+        assertEquals(1, attempts); assertEquals(listOf(RestoreFailure.RATE_LIMITED), errors)
     }
     @Test fun offlineTimeoutAndUnknownFailureRemainRetryable() {
         assertEquals(RestoreFailure.TIMEOUT,RestoreFailure.from(SocketTimeoutException()))

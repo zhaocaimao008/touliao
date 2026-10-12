@@ -1,8 +1,6 @@
 package com.touliao.app.core.storage
 
 import android.content.Context
-import androidx.security.crypto.EncryptedSharedPreferences
-import androidx.security.crypto.MasterKey
 import com.touliao.app.data.model.Message
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.serialization.builtins.ListSerializer
@@ -32,13 +30,9 @@ class MsgCacheStore @Inject constructor(
     private val server: ServerConfig,
 ) {
     // 键名带 schema 版本前缀；破坏性变更时改 KEY_PREFIX 弃用旧键。
-    private val prefs = EncryptedSharedPreferences.create(
-        context,
-        "vxin_msgcache_v2",
-        MasterKey.Builder(context).setKeyScheme(MasterKey.KeyScheme.AES256_GCM).build(),
-        EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
-        EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM,
-    )
+    // 2026-10-12：首次读写才创建（此前随单例构造在主线程建第三份 MasterKey/Tink，SocketManager/
+    // SessionManager 冷启动即注入它）。读写都在下面的单线程 io executor 上，首次创建也随之落在后台。
+    private val prefs by lazy { SecurePrefs.create(context, "vxin_msgcache_v2") }
     private val json = Json { ignoreUnknownKeys = true; encodeDefaults = true }
     private val listSerializer = ListSerializer(Message.serializer())
 
@@ -46,19 +40,33 @@ class MsgCacheStore @Inject constructor(
     // save/remove/clear 在 ChatViewModel 主线程协程里被高频调用，EncryptedSharedPreferences
     // (AES-256-GCM) 同步加解密整表会卡主线程。这里把三者的落盘逻辑整体挪到单线程 executor 执行；
     // 单线程 executor 天然按提交(调用)顺序串行执行，调用方无需感知、也不需要额外加锁。
-    // load() 保持同步（首屏 prime 需要返回值）。
+    // load() 保持同步可用；首屏 prime 改用 [loadAsync]（同一 executor，见下）。
     private val io = java.util.concurrent.Executors.newSingleThreadExecutor()
     private fun offload(block: () -> Unit) { io.execute { runCatching { block() } } }
 
     init {
-        // v1 使用明文 SharedPreferences；切换到加密存储后立即清除旧缓存。
-        context.deleteSharedPreferences("vxin_msgcache_v1")
+        // v1 使用明文 SharedPreferences；切换到加密存储后清除旧缓存（文件 IO，放后台执行）
+        offload { context.deleteSharedPreferences("vxin_msgcache_v1") }
     }
 
     /** 读取会话缓存（最近 50，created_at 升序）。任何异常 → 返回空。 */
     private fun scopedKey(conversationId: String): String = "account-v3:${server.baseUrl}:${accounts.activeId() ?: "anonymous"}:$conversationId"
 
-    fun load(conversationId: String): List<Message> = loadKey(scopedKey(conversationId))
+    fun load(conversationId: String): List<Message> = runCatching { loadKey(scopedKey(conversationId)) }.getOrDefault(emptyList())
+
+    /**
+     * 异步读取（2026-10-12）：解密 + 反序列化 50 条不再占主线程。跑在与 save/remove/clear 相同的
+     * 单线程 executor 上 → 读到的必然是「调用之前已提交的所有写入」之后的结果，顺序语义与同步 load 一致。
+     */
+    suspend fun loadAsync(conversationId: String): List<Message> {
+        val key = runCatching { scopedKey(conversationId) }.getOrNull() ?: return emptyList()
+        return kotlinx.coroutines.suspendCancellableCoroutine { continuation ->
+            io.execute {
+                val result = runCatching { loadKey(key) }.getOrDefault(emptyList())
+                continuation.resumeWith(Result.success(result))
+            }
+        }
+    }
 
     private fun loadKey(conversationId: String): List<Message> {
         if (conversationId.isBlank()) return emptyList()
