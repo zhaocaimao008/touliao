@@ -24,6 +24,11 @@
 }
 -keep class com.touliao.app.data.model.** { *; }
 
+# ---------- Hilt ViewModel ----------
+# Hilt 2.52 用 @LazyClassKey + R8 -identifiernamestring 改写 ViewModel 类名键；
+# 再保留类名作双保险（且崩溃堆栈更易读），代价可忽略。
+-keepnames @dagger.hilt.android.lifecycle.HiltViewModel class * extends androidx.lifecycle.ViewModel
+
 # ---------- Retrofit 2.9（自带规则不含 full mode 所需部分，取自 Retrofit 2.10+ 官方规则） ----------
 -keepclassmembers,allowshrinking,allowobfuscation interface * {
     @retrofit2.http.* <methods>;
