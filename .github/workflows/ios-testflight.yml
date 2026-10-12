@@ -17,7 +17,7 @@ on:
         required: false
         default: false
       run_simulator_tests:
-        description: '仅准备模式：运行模拟器测试；仅在相同应用源码已有通过证据时可关闭'
+        description: '归档前运行模拟器测试（准备模式与直接上传均适用；tag 发版总是运行）；仅在相同应用源码已有通过证据时可关闭'
         type: boolean
         required: false
         default: true
@@ -176,7 +176,8 @@ jobs:
     # Apple 自 2026-04 起要求用 iOS 26 SDK(Xcode 26)构建才能上传 App Store。
     # macos-15 仅带 Xcode 16(iOS 18 SDK)，会在上传校验时 409。改用 macos-26。
     runs-on: macos-26
-    timeout-minutes: 60
+    # 模拟器测试 + 归档上传 + 等构建处理 + 两次送审，60 分钟不够
+    timeout-minutes: 120
 
     steps:
       - name: Checkout
@@ -226,6 +227,24 @@ jobs:
       - name: 生成 Xcode 工程
         working-directory: ios
         run: xcodegen generate
+
+      # 2026-10-13：tag 发版此前不跑任何测试就归档上传——红灯构建也能送审。这里复用
+      # prepare_only 路径的同一套模拟器构建 + TouliaoTests，失败即终止，不归档、不上传、不送审。
+      # 手动触发时受 run_simulator_tests 控制（默认开启）；tag 触发总是运行。
+      - name: 模拟器构建与原生测试（失败则不归档、不上传）
+        if: ${{ github.event_name == 'push' || inputs.run_simulator_tests }}
+        env:
+          PREP_DIR: /tmp/touliao-release-tests
+          APP_VERSION: ${{ env.VERSION }}
+        run: bash ios/release-preparation/run.sh simulator
+
+      - name: 保存模拟器测试结果
+        if: ${{ failure() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: touliao-ios-release-tests
+          path: /tmp/touliao-release-tests/evidence/
+          if-no-files-found: ignore
 
       - name: 导入发布证书
         env:
@@ -380,3 +399,27 @@ jobs:
           eval "$(python3 scripts/tf-config-to-env.py)"
           # 轮询等待最新构建变 VALID（最多 ~18 分钟）
           python3 scripts/ios-testflight-submit.py
+
+      # ── 可选：同一构建直接提交 App Store 正式版审核 ─────────────────────────
+      # 只在 tag 触发且 ios/testflight-config.json 里 "submitAppStore": true 时运行；
+      # 手动补交/演练用 ios-appstore-submit.yml（默认 dry-run）。
+      # 脚本幂等：版本已建好/构建已挂/已在审核都会跳过；releaseType 沿用上一版本，不改发布方式。
+      - name: 读取 App Store 自动送审开关
+        id: appstore
+        run: |
+          ENABLED=$(python3 -c 'import json; print("true" if json.load(open("ios/testflight-config.json")).get("submitAppStore") is True else "false")')
+          if [ "${GITHUB_REF_TYPE}" != "tag" ]; then ENABLED=false; fi
+          echo "enabled=$ENABLED" >> "$GITHUB_OUTPUT"
+          echo "App Store 自动送审: $ENABLED"
+
+      - name: 提交 App Store 审核
+        if: ${{ steps.appstore.outputs.enabled == 'true' }}
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          ASC_API_KEY_BASE64: ${{ secrets.ASC_API_KEY_BASE64 }}
+        run: |
+          set -euo pipefail
+          pip3 install --quiet --break-system-packages pyjwt cryptography || pip3 install --quiet pyjwt cryptography
+          python3 -B scripts/test-ios-appstore-submit.py
+          python3 scripts/ios-appstore-submit.py --version "$VERSION" --build-number "$BUILD_NUMBER" --config ios/testflight-config.json

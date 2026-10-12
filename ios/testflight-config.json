@@ -12,5 +12,11 @@
   "contact_email": "4063461zhaocaimao@gmail.com",
   "contact_phone": "+85257425881",
   "review_notes": "已提供测试账号（手机号 13800138006 / 密码 Review2026ab），登录后可体验全部功能。国内即时通讯应用。",
-  "group_name": "公开测试"
+  "group_name": "公开测试",
+  "submitAppStore": true,
+  "appStoreWhatsNew": {
+    "zh-Hans": "本次更新：\n· 聊天图片加载更快、显示更清晰\n· 发送视频前自动转换为各端都能播放的格式，并显示处理进度，可随时取消\n· 语音、视频通话连接更稳定\n· 修复退出登录后桌面图标角标未清除的问题",
+    "en-US": "What's new:\n• Chat images load faster and look sharper\n• Videos are converted to a format every device can play before sending, with a progress indicator you can cancel\n• More reliable voice and video call connections\n• Fixed the app icon badge remaining after signing out",
+    "default": "本次更新：\n· 聊天图片加载更快、显示更清晰\n· 发送视频前自动转换为各端都能播放的格式，并显示处理进度，可随时取消\n· 语音、视频通话连接更稳定\n· 修复退出登录后桌面图标角标未清除的问题"
+  }
 }
