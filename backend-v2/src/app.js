@@ -217,7 +217,8 @@ app.use((req, res, next) => {
 // UPLOADS_X_ACCEL=1 时：上面的鉴权/权限/焚毁检查全部照旧在 Node 里做完，通过后不再由 express.static 读盘
 // 发字节，而是回一个空 body + `X-Accel-Redirect: /_protected_uploads/<相对路径>`，由 nginx 的 internal
 // location（alias 到 config.uploadsRoot）直接发文件（sendfile、Range、ETag 由 nginx 处理）。
-// Content-Type / Cache-Control 在这里设好，nginx 会原样透传；X-Content-Type-Options 需 nginx 侧 add_header。
+// Content-Type / Cache-Control 在这里设好，nginx 会原样透传；X-Accel 跳转会丢掉其余上游头（helmet、CORS），
+// 由 deploy/nginx/touliao-cc.conf 的 /_protected_uploads/ 固定加 nosniff、并用 $upstream_http_* 转发其余头。
 // 路径安全：逐段 decode，拒绝 ''/'.'/'..'/含 '/' '\\' NUL 的段，resolve 后必须仍在 uploadsRoot 内，且必须是已存在的普通文件
 // （不存在时 next() 交给 express.static → 404，与关闭时行为一致）。未设置该变量时本中间件直接 next()，零行为变化。
 const UPLOADS_ROOT_ABS = path.resolve(config.uploadsRoot);
