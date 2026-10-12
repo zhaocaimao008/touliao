@@ -11,10 +11,14 @@ use-auth-secret
 static-auth-secret={{SECRET}}
 cert=/etc/coturn/fullchain.pem
 pkey=/etc/coturn/privkey.pem
+# 中继端口：41000-44999（4000 个 UDP 端口）。避开 newchat coturn 的 40000-40100 和 vxin 的 49152+；
+# 41641 是 tailscale，coturn 绑定失败会自动跳过。Lightsail 防火墙必须同步放行 UDP 41000-44999。
 min-port=41000
-max-port=41999
+max-port=44999
 user-quota=16
-total-quota=256
+# 全局并发 allocation 上限（一路两端都走中继 = 2 个）。256 ≈ 128 路，提到 1024 ≈ 500 路。
+# 注意 bps-capacity（50MB/s 总带宽）仍是上限，超了会被限速。
+total-quota=1024
 max-bps=1048576
 bps-capacity=52428800
 fingerprint
@@ -22,8 +26,8 @@ stale-nonce=600
 no-cli
 no-rfc5780
 no-tcp-relay
-no-tlsv1
-no-tlsv1_1
+# no-tlsv1 / no-tlsv1_1 已在新版 coturn 移除（4.17.2 报 Bad configuration format 并忽略）。
+# 现版本默认最低 TLSv1.2（2026-10-12 实测 5349 拒绝 TLS1.0/1.1，接受 1.2/1.3），无需额外配置。
 no-multicast-peers
 denied-peer-ip=0.0.0.0-0.255.255.255
 denied-peer-ip=10.0.0.0-10.255.255.255
@@ -39,5 +43,13 @@ denied-peer-ip=fc00::-fdff:ffff:ffff:ffff:ffff:ffff:ffff:ffff
 denied-peer-ip=fe80::-febf:ffff:ffff:ffff:ffff:ffff:ffff:ffff
 log-file=stdout
 simple-log
+# verbose = 中等详细度（-v）：记录 ALLOCATE/REFRESH/权限/会话关闭及流量统计；
+# 不要用 Verbose（-V，逐包级）。stdout 由 docker json-file 轮转（compose.yml logging）。
+verbose
+# Prometheus 指标（4.17.2 构建已支持，见 turnserver -h）：只绑本机，host 网络 + iptables INPUT ACCEPT，
+# 绑 any 会经 Lightsail 之外的路径暴露。不开 username 标签（隐私 + 基数）。
+prometheus
+prometheus-address=127.0.0.1
+prometheus-port=9641
 pidfile=/tmp/turnserver.pid
 userdb=/tmp/turndb
