@@ -2,6 +2,7 @@ package com.touliao.app.core.storage
 
 import android.content.Context
 import android.content.SharedPreferences
+import android.util.Log
 import androidx.security.crypto.EncryptedSharedPreferences
 import androidx.security.crypto.MasterKey
 
@@ -23,17 +24,38 @@ internal object SecurePrefs {
                 .also { masterKey = it }
         }
 
-    fun create(context: Context, fileName: String): SharedPreferences =
+    /**
+     * 所有 EncryptedSharedPreferences.create 串行执行（与 MasterKey 共用同一把锁）。
+     * 改为懒创建后，预热线程 / AppScope（SessionManager→AccountStore）/ 主线程 / MsgCacheStore io
+     * 线程可能同时创建不同文件；Tink keyset 读写与 AndroidKeystore 在部分实现上并发会抛瞬时异常，
+     * 而 [createOrReset] 失败即删文件——瞬时竞态会变成静默登出。串行化后与改动前（主线程依次创建）等价。
+     */
+    fun create(context: Context, fileName: String): SharedPreferences = synchronized(this) {
         EncryptedSharedPreferences.create(
             context, fileName, masterKey(context),
             EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
             EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM,
         )
+    }
 
-    /** keyset 损坏的极少数情况：删掉重建，避免崩溃（与各 Store 原有兜底一致）。 */
-    fun createOrReset(context: Context, fileName: String): SharedPreferences =
-        runCatching { create(context, fileName) }.getOrElse {
-            context.deleteSharedPreferences(fileName)
-            create(context, fileName)
-        }
+    /**
+     * keyset 损坏的极少数情况：删掉重建，避免崩溃（与各 Store 原有兜底一致）。
+     * 删除前先重试一次：Keystore 偶发的瞬时失败不应清掉 token / 账号列表。
+     */
+    fun createOrReset(context: Context, fileName: String): SharedPreferences = synchronized(this) {
+        runCatching { create(context, fileName) }
+            .recoverCatching { first ->
+                Log.w(TAG, "创建 $fileName 失败，重试一次: ${first.javaClass.simpleName}")
+                Thread.sleep(RETRY_DELAY_MS)
+                create(context, fileName)
+            }
+            .getOrElse { e ->
+                Log.e(TAG, "创建 $fileName 连续失败，按 keyset 损坏删除重建", e)
+                context.deleteSharedPreferences(fileName)
+                create(context, fileName)
+            }
+    }
+
+    private const val TAG = "SecurePrefs"
+    private const val RETRY_DELAY_MS = 100L
 }
