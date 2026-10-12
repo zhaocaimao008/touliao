@@ -52,7 +52,7 @@
 - 投聊独立 coturn 已部署；不复用其他项目的容器、密钥或中继端口。配置包含短期 HMAC 凭据、有效 TLS 证书、私网 peer 限制及资源配额，证书续期 hook 仅重启投聊容器。
 - 本机 UDP/TCP 有效凭据分配成功、无效凭据被拒绝；TLS 1.3 证书严格验证通过。
 - [外网探测](https://github.com/zhaocaimao008/touliao/actions/runs/34971253081)三个入口全部超时。服务器角色调用 Lightsail 管理 API 返回 AccessDenied，没有防火墙管理权限。
-- 必须在投聊实例的云防火墙放行 TCP/UDP 3478、TCP 5349、UDP 41000-41999，然后重新运行 `TURN External Verification`，通过外网分配、拒绝伪造凭据及 relay-only 双向音视频验证。
+- 必须在投聊实例的云防火墙放行 TCP/UDP 3478、TCP 5349、UDP 41000-44999（2026-10-12 起 `deploy/touliao-turn/turnserver.conf.template` 的 min-port/max-port；以渲染后的 /etc/touliao-turn/turnserver.conf 为准），然后重新运行 `TURN External Verification`，通过外网分配、拒绝伪造凭据及 relay-only 双向音视频验证。
 - `/etc/touliao-turn/backend.env` 仅为私有待启用配置，没有写入生产后端。因此目前仍不能承诺受限 NAT/跨运营商通话可达。
 
 ## Windows 与手机

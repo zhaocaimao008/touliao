@@ -28,6 +28,12 @@ function install(name, contents) {
   fs.chmodSync(file, 0o640);
 }
 install('turnserver.conf', config);
+// 云防火墙（Lightsail 等）必须放行的端口以渲染出的配置为准；端口范围变过（41000-41999 → 41000-44999），
+// 文档容易滞后，这里直接打印给执行者。
+const portOf = (key) => (config.match(new RegExp(`^${key}=(\\d+)`, 'm')) || [])[1];
+const relayRange = `${portOf('min-port') || '?'}-${portOf('max-port') || '?'}`;
+fs.writeFileSync(path.join(root, 'firewall-ports.txt'), `TCP/UDP 3478, TCP 5349, UDP ${relayRange}\n`, { mode: 0o644 });
+console.error(`[touliao-turn] 云防火墙必须放行：TCP/UDP 3478、TCP 5349、UDP ${relayRange}（中继端口，见 ${root}/firewall-ports.txt）`);
 for (const name of ['fullchain.pem', 'privkey.pem']) install(name, fs.readFileSync(`/etc/letsencrypt/live/touliao.cc/${name}`));
 fs.writeFileSync(path.join(root, 'backend.env'), `TURN_SECRET=${secret}\nTURN_URLS=turn:touliao.cc:3478?transport=udp,turn:touliao.cc:3478?transport=tcp,turns:touliao.cc:5349?transport=tcp\nTURN_TTL=3600\n`, { mode: 0o600 });
 execFileSync('docker', ['compose', '-p', 'touliao-turn', '-f', path.join(__dirname, 'touliao-turn/compose.yml'), 'up', '-d'], { stdio: 'inherit' });

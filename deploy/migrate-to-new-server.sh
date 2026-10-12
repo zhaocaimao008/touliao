@@ -274,6 +274,10 @@ if [[ -n "$PUBLIC_IP" && -n "$LOCAL_IP" ]] && docker info >/dev/null 2>&1; then
   # 复用原密钥，只按新公网 IP 重新生成配置并启动（客户端 TURN 凭据不变）
   node "$REPO/deploy/install-touliao-turn.cjs" "$PUBLIC_IP" "$LOCAL_IP" >/dev/null
   ok "TURN 已按新公网 IP $PUBLIC_IP 启动"
+  # 中继端口范围以渲染出的配置为准（文档里的旧范围 41000-41999 已过时），提醒去云防火墙放行
+  TURN_MIN=$(sed -n 's/^min-port=//p' /etc/touliao-turn/turnserver.conf | head -1)
+  TURN_MAX=$(sed -n 's/^max-port=//p' /etc/touliao-turn/turnserver.conf | head -1)
+  warn "云防火墙必须放行：TCP/UDP 3478、TCP 5349、UDP ${TURN_MIN:-?}-${TURN_MAX:-?}（TURN 中继），否则需中继的通话连不上"
 else
   warn "TURN 未启动（公网IP=${PUBLIC_IP:-未知} 本机IP=${LOCAL_IP:-未知} docker=$(docker info >/dev/null 2>&1 && echo 可用 || echo 不可用)）：之后执行 sudo node $REPO/deploy/install-touliao-turn.cjs 公网IP 本机IP"
 fi

@@ -30,9 +30,10 @@ external-ip=<公网IP>
 # TLS 证书（turns:// 需要，可复用域名证书）
 cert=/etc/letsencrypt/live/turn.你的域名.com/fullchain.pem
 pkey=/etc/letsencrypt/live/turn.你的域名.com/privkey.pem
-# 中继端口范围（防火墙/安全组需放行 UDP）
-min-port=49152
-max-port=65535
+# 中继端口范围（防火墙/安全组需放行 UDP）。投聊自有部署用 deploy/touliao-turn/turnserver.conf.template
+# （41000-44999，避开同机 newchat 40000-40100 / vxin 49152+），这里保持一致：
+min-port=41000
+max-port=44999
 no-cli
 no-multicast-peers
 # 收敛攻击面：禁止中继到内网/环回
