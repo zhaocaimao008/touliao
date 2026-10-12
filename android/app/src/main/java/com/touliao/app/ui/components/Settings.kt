@@ -7,7 +7,7 @@ import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.ripple.rememberRipple
+import androidx.compose.material3.ripple
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -81,7 +81,7 @@ fun TouliaoSettingRow(
             .heightIn(min = TouliaoMetrics.settingHeight)
             .clickable(
                 interactionSource = remember { MutableInteractionSource() },
-                indication = rememberRipple(bounded = true),
+                indication = ripple(bounded = true),
                 onClick = onClick,
             )
             .padding(horizontal = TouliaoMetrics.space4, vertical = TouliaoMetrics.space2),

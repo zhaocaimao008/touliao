@@ -1,0 +1,45 @@
+# 投聊冷启动路径的手写 Baseline Profile（ART 人类可读格式，支持 * / ** 通配）。
+# Compose / AndroidX / Hilt 等库自带的 profile 由 AGP 自动合并，这里只覆盖应用自身代码：
+# Application/Activity、Hilt 组件、导航与主题、会话列表首屏及其依赖的核心模块。
+# 以后在 CI 上有设备时可改用 androidx.baselineprofile 插件生成的 profile 替换本文件。
+
+# Application / Activity
+HSPLcom/touliao/app/TouliaoApp*;->**(**)**
+HSPLcom/touliao/app/Hilt_TouliaoApp*;->**(**)**
+HSPLcom/touliao/app/MainActivity*;->**(**)**
+HSPLcom/touliao/app/Hilt_MainActivity*;->**(**)**
+HSPLcom/touliao/app/ComposableSingletons$MainActivityKt*;->**(**)**
+Lcom/touliao/app/TouliaoApp*;
+Lcom/touliao/app/MainActivity*;
+
+# Hilt 生成的组件
+HSPLcom/touliao/app/DaggerTouliaoApp_HiltComponents*;->**(**)**
+Lcom/touliao/app/DaggerTouliaoApp_HiltComponents*;
+Lcom/touliao/app/TouliaoApp_HiltComponents*;
+
+# 导航、主题与通用 UI
+HSPLcom/touliao/app/navigation/**;->**(**)**
+Lcom/touliao/app/navigation/**;
+HSPLcom/touliao/app/ui/**;->**(**)**
+Lcom/touliao/app/ui/**;
+
+# 会话列表首屏
+HSPLcom/touliao/app/feature/chat/ConversationList*;->**(**)**
+HSPLcom/touliao/app/feature/chat/ComposableSingletons$ConversationListScreenKt*;->**(**)**
+Lcom/touliao/app/feature/chat/ConversationList*;
+
+# 启动阶段用到的核心模块（登录态、存储、网络、实时连接、配置、崩溃记录、DI 模块）
+HSPLcom/touliao/app/core/auth/**;->**(**)**
+HSPLcom/touliao/app/core/storage/**;->**(**)**
+HSPLcom/touliao/app/core/network/**;->**(**)**
+HSPLcom/touliao/app/core/realtime/**;->**(**)**
+HSPLcom/touliao/app/core/config/**;->**(**)**
+HSPLcom/touliao/app/core/crash/**;->**(**)**
+HSPLcom/touliao/app/core/di/**;->**(**)**
+Lcom/touliao/app/core/**;
+
+# 会话列表数据：模型反序列化与仓库
+HSPLcom/touliao/app/data/model/**;->**(**)**
+HSPLcom/touliao/app/data/repository/**;->**(**)**
+Lcom/touliao/app/data/**;
+

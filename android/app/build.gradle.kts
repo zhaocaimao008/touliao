@@ -2,6 +2,7 @@ plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.serialization)
+    alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.ksp)
     alias(libs.plugins.hilt)
     alias(libs.plugins.google.services)
@@ -58,7 +59,18 @@ android {
             isMinifyEnabled = false
         }
         release {
-            isMinifyEnabled = false
+            // R8 代码混淆/裁剪 + 资源裁剪；规则见 proguard-rules.pro。
+            // mapping.txt 由 CI 作为 artifact 上传（android-r8-mapping），用于崩溃堆栈反混淆。
+            isMinifyEnabled = true
+            isShrinkResources = true
+            // 发布包只带真机 ABI：WebRTC libjingle_peerconnection_so 每个 ABI 6~13MB，
+            // x86/x86_64 只在模拟器/极少数 x86 设备上用到。CI 的 x86_64 模拟器冒烟测试用
+            // -PtouliaoAbis=arm64-v8a,armeabi-v7a,x86_64 另打一份（dex/资源/签名与正式包一致）。
+            // debug 不过滤，便于本地/CI 在 x86_64 模拟器上跑仪器测试。
+            val releaseAbis = (project.findProperty("touliaoAbis") as String?) ?: "arm64-v8a,armeabi-v7a"
+            ndk {
+                abiFilters += releaseAbis.split(",").map { it.trim() }.filter { it.isNotEmpty() }
+            }
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
             if (ksPath != null && file(ksPath).exists()) {
                 signingConfig = signingConfigs.getByName("release")
@@ -76,9 +88,6 @@ android {
     buildFeatures {
         compose = true
         buildConfig = true
-    }
-    composeOptions {
-        kotlinCompilerExtensionVersion = libs.versions.composeCompiler.get()
     }
     packaging {
         resources {
@@ -160,6 +169,6 @@ dependencies {
     androidTestImplementation("androidx.test:rules:1.5.0")
     androidTestImplementation("androidx.test.espresso:espresso-core:3.5.1")
     androidTestImplementation("androidx.test.ext:junit:1.1.5")
-    androidTestImplementation("com.google.dagger:hilt-android-testing:2.50")
-    kspAndroidTest("com.google.dagger:hilt-android-compiler:2.50")
+    androidTestImplementation(libs.hilt.android.testing)
+    kspAndroidTest(libs.hilt.compiler)
 }

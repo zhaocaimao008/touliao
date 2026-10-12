@@ -100,7 +100,7 @@ fun RowScope.FloatingNavItem(
                 onClick = onClick,
                 role = Role.Tab,
                 interactionSource = remember { MutableInteractionSource() },
-                indication = androidx.compose.material.ripple.rememberRipple(bounded = true),
+                indication = androidx.compose.material3.ripple(bounded = true),
             ),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center,
