@@ -22,8 +22,8 @@
     "ios:build": "cd ios && xcodebuild -workspace touliao.xcworkspace -scheme touliao -configuration Release",
     "android:run": "cd android && ./gradlew assembleDebug && adb install -r app/build/outputs/apk/debug/app-debug.apk",
     "ios:run": "cd ios && xcodebuild -workspace touliao.xcworkspace -scheme touliao",
-    "lint": "eslint src/",
-    "lint:fix": "eslint src/ --fix",
+    "lint": "eslint src/ public/sw.js",
+    "lint:fix": "eslint src/ public/sw.js --fix",
     "test": "vitest run --config vitest.config.mjs",
     "test:watch": "vitest --config vitest.config.mjs",
     "check:capacitor": "node scripts/check-capacitor-versions.mjs"

@@ -91,6 +91,9 @@ setupRealtime(io, app);
       ...(process.env.CHROMIUM_PATH ? { executablePath: process.env.CHROMIUM_PATH } : {}) });
     const context = await browser.newContext({ viewport: { width: 1280, height: 900 }, serviceWorkers: 'allow', permissions: ['notifications'] });
     await context.addInitScript(() => {
+      // Headless Chromium reports Notification.permission 'denied' even with the context permission
+      // granted (permissions.query says 'granted'), so the app would never subscribe.
+      if (typeof Notification !== 'undefined') Object.defineProperty(Notification, 'permission', { get: () => 'granted' });
       const subscriptions = new Map();
       Object.defineProperty(ServiceWorkerRegistration.prototype, 'pushManager', { get() {
         const scope = this.scope;
@@ -129,7 +132,6 @@ setupRealtime(io, app);
       await page.goto(`${base}/login${i ? `?accountWindow=${randomUUID()}` : ''}`);
       await page.getByTestId('login-phone-input').fill(users[i].phone);
       await page.getByTestId('login-password-input').fill(users[i].password);
-      await page.getByRole('checkbox', {name:'同意隐私政策和用户协议'}).check();
       await page.getByTestId('login-submit-btn').click();
       await page.getByTestId('account-switcher').waitFor({ timeout: 20000 });
       assert.equal((await identity(page)).id, users[i].id);
@@ -141,19 +143,24 @@ setupRealtime(io, app);
             headers: { 'content-type': 'application/json', date: new Date().toUTCString() },
           }));
           await caches.open('unrelated-same-origin-cache');
+          await caches.open('touliao-media-v1'); // same prefix, not a legacy /sw.js cache name
           await navigator.serviceWorker.register('/sw.js', { scope: '/' });
         });
         if (rootWorker !== retiredWorker) {
           await page.waitForFunction(() => !!navigator.serviceWorker.controller);
           rootWorker = retiredWorker;
-          await page.evaluate(async () => (await navigator.serviceWorker.getRegistration('/')).update());
+          await page.evaluate(async () => {
+            await caches.open('touliao-media-v1'); // the legacy worker deleted it on activation
+            await (await navigator.serviceWorker.getRegistration('/')).update();
+          });
         }
-        // Retirement removes only the root registration and this app's caches; push registrations stay.
+        // Retirement removes only the root registration and the legacy /sw.js caches; push registrations stay.
         await until(page, async () => {
           const scopes = (await navigator.serviceWorker.getRegistrations()).map(reg => new URL(reg.scope).pathname);
           const names = await caches.keys();
           return !scopes.includes('/') && scopes.some(scope => scope.startsWith('/push/'))
-            && !names.some(name => name.startsWith('touliao-')) && names.includes('unrelated-same-origin-cache');
+            && !names.some(name => /^touliao-(?:v2\.0\.\d+|api-v1)$/.test(name))
+            && ['unrelated-same-origin-cache', 'touliao-media-v1'].every(name => names.includes(name));
         }, 'root /sw.js retirement');
       }
     }
