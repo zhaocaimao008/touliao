@@ -1,4 +1,5 @@
 import XCTest
+import Kingfisher
 @testable import Touliao
 
 final class Batch3SessionMediaTests: XCTestCase {
@@ -27,6 +28,33 @@ final class Batch3SessionMediaTests: XCTestCase {
             XCTAssertFalse(resolved!.contains("synthetic-login"))
         }
     }
+    func testThumbUrlMatchesWebRule() {
+        XCTAssertEqual(MediaUrlResolver.thumbUrl("/uploads/files/abc.png"), "/uploads/files/abc_thumb.webp")
+        XCTAssertEqual(MediaUrlResolver.thumbUrl("/uploads/files/abc_thumb.webp"), "/uploads/files/abc_thumb.webp")
+        XCTAssertEqual(MediaUrlResolver.thumbUrl("/uploads/files/a.b.png"), "/uploads/files/a.b.png")
+        XCTAssertEqual(MediaUrlResolver.thumbUrl("https://cdn.invalid/uploads/files/abc.png"), "https://cdn.invalid/uploads/files/abc.png")
+        XCTAssertEqual(MediaUrlResolver.thumbUrl("file:///tmp/abc.png"), "file:///tmp/abc.png")
+        XCTAssertNil(MediaUrlResolver.thumbUrl(nil))
+    }
+
+    func testBubbleSourcesPreferThumbAndSkipKnownMissingThumb() {
+        let original = "https://bubble-test.invalid/uploads/files/u1.png"
+        let thumb = "https://bubble-test.invalid/uploads/files/u1_thumb.webp"
+        let first = MediaUrlResolver.bubbleSources(thumb: thumb, original: original)
+        XCTAssertTrue(first.primary?.cacheKey.hasSuffix(thumb) == true)
+        XCTAssertEqual(first.fallbacks.count, 1)
+        XCTAssertTrue(first.fallbacks.first?.cacheKey.hasSuffix(original) == true)
+
+        let same = MediaUrlResolver.bubbleSources(thumb: original, original: original)
+        XCTAssertTrue(same.primary?.cacheKey.hasSuffix(original) == true)
+        XCTAssertTrue(same.fallbacks.isEmpty)
+
+        MediaUrlResolver.markThumbMissing(thumb)
+        let afterMiss = MediaUrlResolver.bubbleSources(thumb: thumb, original: original)
+        XCTAssertTrue(afterMiss.primary?.cacheKey.hasSuffix(original) == true, "Known-missing thumbnails must not be requested again")
+        XCTAssertTrue(afterMiss.fallbacks.isEmpty)
+    }
+
     func testMediaRequestDoesNotSendAccountTokenToAnotherOrigin() {
         var token: String? = "synthetic-login"
         let credentials = KeychainStore(readToken: { token }, writeToken: { token = $0 })

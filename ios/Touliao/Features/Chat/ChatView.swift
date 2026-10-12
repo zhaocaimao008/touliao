@@ -1245,10 +1245,17 @@ private struct MessageBubble: View {
         case "image":
             // 2026-10-12：气泡先加载服务端缩略图(<uuid>_thumb.webp，iOS14+ ImageIO 原生解码 webp)，
             // 缩略图不存在(旧图 404)时自动换原图；按气泡尺寸降采样解码，省内存。全屏查看器仍用原图。
-            KFImage(source: MediaUrlResolver.kfSource(resolved: vm.resolveMediaUrl(MediaUrlResolver.thumbUrl(msg.fileUrl))))
-                .alternativeSources([MediaUrlResolver.kfSource(resolved: vm.resolveMediaUrl(msg.fileUrl))].compactMap { $0 })
-                .setProcessor(DownsamplingImageProcessor(size: CGSize(width: 280, height: 280)))
+            // 已确认没有缩略图的直接走原图；cacheOriginalImage 让兜底下载的原图字节按原图键落盘，
+            // 全屏查看/保存/分享可直接命中缓存，不再重下一遍（与改缩略图前的行为一致）。
+            let sources = MediaUrlResolver.bubbleSources(
+                thumb: vm.resolveMediaUrl(MediaUrlResolver.thumbUrl(msg.fileUrl)),
+                original: vm.resolveMediaUrl(msg.fileUrl)
+            )
+            KFImage(source: sources.primary)
+                .alternativeSources(sources.fallbacks)
+                .setProcessor(MediaUrlResolver.bubbleProcessor)
                 .scaleFactor(UIScreen.main.scale)
+                .cacheOriginalImage()
                 .resizable()
                 .scaledToFit()
                 .frame(maxWidth: 220, maxHeight: 280)

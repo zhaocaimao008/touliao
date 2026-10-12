@@ -72,6 +72,33 @@ enum MediaUrlResolver {
         return "\(dir)\(parts[0])_thumb.webp"
     }
 
+    /// 聊天气泡图统一的降采样处理器（气泡最大 280pt）。处理后的图在 Kingfisher 缓存里的键是
+    /// 「源 cacheKey + 处理器 identifier」，按键取缓存的地方（含测试）必须带上同一个处理器。
+    static let bubbleProcessor = DownsamplingImageProcessor(size: CGSize(width: 280, height: 280))
+
+    /// 气泡图的加载源：服务端缩略图优先、原图兜底。参数是已 resolve 的绝对 URL。
+    /// 缩略图推导不出来(与原图相同/为空)，或本进程已确认该缩略图不存在(旧图 404 等)时直接用原图，
+    /// 不再每次气泡出现都先打一发注定失败的请求、再等兜底。
+    static func bubbleSources(thumb: String?, original: String?) -> (primary: Source?, fallbacks: [Source]) {
+        let originalSource = kfSource(resolved: original)
+        guard let thumb, thumb != original, !isThumbMissing(thumb),
+              let thumbSource = kfSource(resolved: thumb) else { return (originalSource, []) }
+        return (thumbSource, [originalSource].compactMap { $0 })
+    }
+
+    private static let missingThumbLock = NSLock()
+    private static var missingThumbs = Set<String>()
+    static func markThumbMissing(_ absolute: String) {
+        missingThumbLock.lock(); defer { missingThumbLock.unlock() }
+        if missingThumbs.count >= 4096 { missingThumbs.removeAll(keepingCapacity: true) }
+        missingThumbs.insert(absolute)
+    }
+    static func isThumbMissing(_ resolved: String) -> Bool {
+        let key = resolve(resolved) ?? resolved
+        missingThumbLock.lock(); defer { missingThumbLock.unlock() }
+        return missingThumbs.contains(key)
+    }
+
     private struct MediaProvider: ImageDataProvider {
         let url: URL
         let owner: KeychainStore.Snapshot
@@ -82,7 +109,19 @@ enum MediaUrlResolver {
             session.dataTask(with: request(url, owner: owner)) { data, response, error in
                 guard KeychainStore.shared.isCurrent(owner) else { handler(.failure(CancellationError())); return }
                 if let error { handler(.failure(error)); return }
+                let isThumb = url.path.hasSuffix("_thumb.webp")
                 guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode), let data else {
+                    // 旧图/GIF 等没有缩略图：后端 404，云存储预签名 GET 对不存在的对象可能回 403。
+                    if isThumb, let status = (response as? HTTPURLResponse)?.statusCode, [403, 404, 410].contains(status) {
+                        markThumbMissing(url.absoluteString)
+                    }
+                    handler(.failure(APIError.network)); return
+                }
+                // 缩略图请求拿到 JSON/HTML(错误体或网关回退页)不是图片：直接判失败走原图，
+                // 不把它交给 ImageIO 降采样(只会得到 CGImageSource -50 再失败)。
+                if isThumb, let type = http.value(forHTTPHeaderField: "Content-Type")?.lowercased(),
+                   type.hasPrefix("application/json") || type.hasPrefix("text/") {
+                    markThumbMissing(url.absoluteString)
                     handler(.failure(APIError.network)); return
                 }
                 handler(.success(data))

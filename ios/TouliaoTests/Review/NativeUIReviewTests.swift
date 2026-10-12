@@ -29,6 +29,14 @@ private final class ReviewURLProtocol: URLProtocol {
             }
             Self.lock.lock(); Self.uploads.append((request, bytes)); Self.lock.unlock()
         }
+        // 与后端一致：/uploads 下不存在的文件(如旧图没有 _thumb.webp 缩略图)回 404，而不是 200 + JSON。
+        if Self.fixtures[path] == nil, path.hasPrefix("/uploads/") {
+            let missing = HTTPURLResponse(url: request.url!, statusCode: 404, httpVersion: nil, headerFields: ["Content-Type": "application/json"])!
+            client?.urlProtocol(self, didReceive: missing, cacheStoragePolicy: .notAllowed)
+            client?.urlProtocol(self, didLoad: Data("{\"error\":\"Not found\"}".utf8))
+            client?.urlProtocolDidFinishLoading(self)
+            return
+        }
         let value: Any
         if let fixture = Self.fixtures[path] { value = fixture }
         else if path.hasSuffix("/sync") { value = ["messages": [], "cursor": 0, "hasMore": false] }
@@ -138,6 +146,7 @@ final class NativeUIReviewTests: XCTestCase {
         XCTAssertTrue(paths.contains("/api/auth/me"))
         XCTAssertTrue(paths.contains("/api/messages/review-chat"), "Gallery must load real ChatViewModel history through the test transport")
         XCTAssertTrue(paths.contains("/uploads/ui-image.png"), "Image messages must download image bytes through the isolated transport")
+        XCTAssertTrue(paths.contains("/uploads/ui-image_thumb.webp"), "Image bubbles must try the server thumbnail before falling back to the original")
         try JSONSerialization.data(withJSONObject: ["environment": "iOS Simulator — native UIHostingController", "requestsIntercepted": paths], options: .prettyPrinted)
             .write(to: output.appendingPathComponent("environment.json"))
     }
@@ -376,7 +385,10 @@ final class NativeUIReviewTests: XCTestCase {
             XCTAssertTrue(messages.contains { $0.content == "收到，稍后把文件发给你。" }, "Chat rendering requires successfully loaded history")
         }
         if name.hasPrefix("image-message-") {
-            let loaded = try XCTUnwrap(ImageCache.default.retrieveImageInMemoryCache(forKey: "review-me:https://native-review.invalid/uploads/ui-image.png"), "A blank image placeholder must not count as a successful screenshot")
+            // 气泡图经降采样处理器解码，内存缓存键 = 原图 cacheKey + 处理器 identifier。
+            let loaded = try XCTUnwrap(ImageCache.default.retrieveImageInMemoryCache(forKey: "review-me:https://native-review.invalid/uploads/ui-image.png",
+                                                                                   options: [.processor(MediaUrlResolver.bubbleProcessor)]),
+                                       "A blank image placeholder must not count as a successful screenshot")
             XCTAssertGreaterThan(loaded.size.width, 0)
             XCTAssertEqual(loaded.size.width / loaded.size.height, 1.5, accuracy: 0.01)
         }
