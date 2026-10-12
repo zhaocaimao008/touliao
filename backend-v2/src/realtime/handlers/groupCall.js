@@ -51,6 +51,40 @@ function groupCallAllowed(type) {
 // registry.callForUser(userId)。
 const groupCalls = new Map();
 
+// 2026-10-12：群通话参与者历史（进程内）。groupCalls 只有「当前」成员且通话结束即删除，而通话质量
+// 上报（POST /api/calls/:callId/report）是在挂断/离开之后才发——到那时多半查不到人。这里记下每通
+// 群通话真正建成/加入过的 userId，通话结束后再保留 PARTICIPANT_HISTORY_TTL_MS，总量封顶，
+// 供 modules/telemetry 核验上报者确实参与过。进程重启即丢失（上报侧对此降级为 unverified，不拒绝）。
+const PARTICIPANT_HISTORY_TTL_MS = 2 * 60 * 60 * 1000;
+const PARTICIPANT_HISTORY_MAX = 5000;
+const participantHistory = new Map(); // callId -> { users: Set<userId>, endedAt: ms|null }
+
+function pruneParticipantHistory(now = Date.now()) {
+  for (const [id, h] of participantHistory) {
+    if (h.endedAt && now - h.endedAt > PARTICIPANT_HISTORY_TTL_MS) participantHistory.delete(id);
+  }
+  // 封顶：按插入顺序淘汰最旧的（Map 迭代序 = 插入序）
+  while (participantHistory.size > PARTICIPANT_HISTORY_MAX) participantHistory.delete(participantHistory.keys().next().value);
+}
+
+function rememberParticipant(callId, userId) {
+  let h = participantHistory.get(callId);
+  if (!h) {
+    h = { users: new Set(), endedAt: null };
+    participantHistory.set(callId, h);
+    pruneParticipantHistory();
+  }
+  h.users.add(userId);
+}
+
+/** 该用户是否（曾）是这通群通话的参与者：当前成员，或结束后保留期内的历史成员。 */
+function wasGroupCallParticipant(callId, userId, now = Date.now()) {
+  if (groupCalls.get(callId)?.members.has(userId)) return true;
+  const h = participantHistory.get(callId);
+  if (!h || !h.users.has(userId)) return false;
+  return !h.endedAt || now - h.endedAt <= PARTICIPANT_HISTORY_TTL_MS;
+}
+
 // 2026-10-11：发起频率限制（审计：group_call:start 此前没有任何每用户冷却，start→leave 循环
 // 每轮都全群响铃 invite + 写 group_call_logs + endCall 落一条 sequenced 通话消息，单个客户端可无限放大）。
 // 固定窗口计数：每用户每 GROUP_START_WINDOW_MS 内最多成功发起 GROUP_START_LIMIT 次。
@@ -90,6 +124,8 @@ function endCall(io, registry, callId, reason = 'ended') {
   io.to(call.conversationId).emit('group_call:ended', { callId, reason });
   groupCalls.delete(callId);
   registry.end(callId);
+  const hist = participantHistory.get(callId);
+  if (hist) hist.endedAt = Date.now();
   const endedAt = nowSec();
   write("UPDATE group_call_logs SET status='ended', ended_at=?, participant_count=? WHERE id=?",
     [endedAt, call.peak, callId]);
@@ -188,6 +224,7 @@ module.exports = function registerGroupCallHandler(io, socket, registry) {
       endCall(io, registry, callId, 'timeout');
     }, MAX_CALL_DURATION_MS);
     groupCalls.set(callId, call);
+    rememberParticipant(callId, userId);
     write('INSERT INTO group_call_logs (id,conversation_id,started_by,type,participant_count) VALUES (?,?,?,?,1)',
       [callId, conversationId, userId, t]);
 
@@ -223,6 +260,7 @@ module.exports = function registerGroupCallHandler(io, socket, registry) {
 
     const peers = [...call.members];                            // 既有成员（加入前）
     call.members.add(userId);
+    rememberParticipant(callId, userId);
     call.peak = Math.max(call.peak, call.members.size);
 
     // 回给加入者：当前已有成员列表（它将作为 answerer 等待这些人的 offer）+
@@ -305,5 +343,7 @@ module.exports = function registerGroupCallHandler(io, socket, registry) {
 };
 
 module.exports.handleGraceExpired = handleGraceExpired;
+module.exports.wasGroupCallParticipant = wasGroupCallParticipant;
+module.exports._participantHistory = { participantHistory, PARTICIPANT_HISTORY_TTL_MS, PARTICIPANT_HISTORY_MAX, pruneParticipantHistory };
 module.exports._state = { groupCalls, MAX_PARTICIPANTS }; // 供测试/监控（userCall 已移除，改用 registry.callForUser）
 module.exports.startRateLimit = { GROUP_START_LIMIT, GROUP_START_WINDOW_MS }; // 供测试（2026-10-11，见 test/perf-nudge.test.js）

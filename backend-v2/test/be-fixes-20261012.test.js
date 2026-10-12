@@ -144,6 +144,11 @@ describe('遥测', () => {
       endReason: 'hangup', iceRestarts: 1, localCandidateType: 'relay', remoteCandidateType: 'srflx',
       protocol: 'udp', relayProtocol: 'tls', rttMsAvg: 80, packetLossPct: 250, platform: 'android', appVersion: '8.1.44',
     };
+    // 2026-10-12 集成：上报需核验参与关系，先落两条 1v1 通话记录（u 为主叫）
+    const peer = await makeUser();
+    for (const id of ['c1', 'c2']) {
+      db.prepare("INSERT INTO call_logs (id,caller_id,callee_id,type,status) VALUES (?,?,?,'video','completed')").run(id, u.userId, peer.userId);
+    }
     expect((await request(app).post('/api/calls/c1/report').send(body)).status).toBe(401);
     expect((await request(app).post('/api/calls/c1/report').set('Authorization', `Bearer ${u.token}`)
       .send({ ...body, role: 'boss' })).status).toBe(400);
@@ -153,7 +158,7 @@ describe('遥测', () => {
     await request(app).post('/api/calls/c1/report').set('Authorization', `Bearer ${u.token}`).send({ ...body, durationSec: 31 });
     const rows = db.prepare('SELECT * FROM call_reports WHERE call_id=? AND user_id=?').all('c1', u.userId);
     expect(rows).toHaveLength(1);
-    expect(rows[0]).toMatchObject({ setup_ms: 120000, packet_loss_pct: 100, duration_sec: 31, relay_protocol: 'tls' });
+    expect(rows[0]).toMatchObject({ setup_ms: 120000, packet_loss_pct: 100, duration_sec: 31, relay_protocol: 'tls', verified: 1 });
     await request(app).post('/api/calls/c2/report').set('Authorization', `Bearer ${u.token}`)
       .send({ ...body, connected: false, platform: 'web', localCandidateType: null });
     const st = svc.callStats(7);

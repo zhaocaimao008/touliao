@@ -38,4 +38,7 @@ module.exports = [
     PRIMARY KEY (call_id, user_id)
   )`,
   'CREATE INDEX IF NOT EXISTS idx_call_reports_created ON call_reports(created_at)',
+  // 上报者是否经服务端记录核验为该通话参与者（1=已核验；0=查无记录，统计默认排除）。
+  // 见 modules/telemetry/telemetry.service.js verifyCallParticipation。
+  'ALTER TABLE call_reports ADD COLUMN verified INTEGER NOT NULL DEFAULT 0',
 ];

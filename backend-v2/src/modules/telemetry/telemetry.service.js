@@ -123,6 +123,50 @@ function normalizeCallReport(body) {
   };
 }
 
+/**
+ * 核验上报者是否参与过该通话（2026-10-12）。返回
+ *   { verdict: 'verified'|'unverified'|'rejected', source, isGroup?, role? }
+ * 依据（按可信度）：
+ *   1. call_logs（1v1，呼叫发起时落库，持久）：有记录 → 只有 caller/callee 算参与者，其余一律 rejected；
+ *      role 以记录为准。
+ *   2. group_call_logs（群通话，持久，但只记发起人与会话，不记每个参与者）：
+ *      发起人 → verified；进程内参与者历史（groupCall.wasGroupCallParticipant，结束后保留 2 小时）
+ *      → verified；不是该群当前成员 → rejected（加入群通话以群成员为前提）；
+ *      是群成员但无法证明加入过（如服务重启丢了内存历史）→ unverified。
+ *   3. 两张表都查不到：只看进程内群通话历史；仍无 → unverified。
+ * 为什么「查无记录」不拒绝：call_logs/group_call_logs 走异步写队列，写失败或极端时序下上报可能先于
+ * 落库；群通话没有持久的逐人参与记录。这类上报照存但 verified=0，callStats 默认排除——
+ * 既不丢真实数据，也不让伪造/误发的上报污染统计。只有持久记录能证明「不是参与者」时才 403。
+ */
+function verifyCallParticipation(userId, callId) {
+  const oneToOne = readDb.prepare('SELECT caller_id, callee_id FROM call_logs WHERE id=?').get(callId);
+  if (oneToOne) {
+    if (oneToOne.caller_id === userId) return { verdict: 'verified', source: 'call_logs', isGroup: false, role: 'caller' };
+    if (oneToOne.callee_id === userId) return { verdict: 'verified', source: 'call_logs', isGroup: false, role: 'callee' };
+    return { verdict: 'rejected', source: 'call_logs' };
+  }
+  const { wasGroupCallParticipant } = require('../../realtime/handlers/groupCall');
+  const group = readDb.prepare('SELECT conversation_id, started_by FROM group_call_logs WHERE id=?').get(callId);
+  if (group) {
+    if (group.started_by === userId) return { verdict: 'verified', source: 'group_call_logs', isGroup: true, role: 'caller' };
+    if (wasGroupCallParticipant(callId, userId)) return { verdict: 'verified', source: 'group_registry', isGroup: true, role: 'callee' };
+    const member = readDb.prepare('SELECT 1 FROM conversation_members WHERE conversation_id=? AND user_id=?')
+      .get(group.conversation_id, userId);
+    if (!member) return { verdict: 'rejected', source: 'conversation_members' };
+    return { verdict: 'unverified', source: 'group_member', isGroup: true };
+  }
+  if (wasGroupCallParticipant(callId, userId)) return { verdict: 'verified', source: 'group_registry', isGroup: true };
+  return { verdict: 'unverified', source: 'none' };
+}
+
+/** 按核验结果修正上报行：记录能确定的字段（是否群通话、主被叫）以服务端为准，并写 verified。 */
+function applyParticipation(row, participation) {
+  const out = { ...row, verified: participation.verdict === 'verified' ? 1 : 0 };
+  if (typeof participation.isGroup === 'boolean') out.is_group = participation.isGroup ? 1 : 0;
+  if (participation.role) out.role = participation.role;
+  return out;
+}
+
 async function saveCallReport(userId, callId, row) {
   const cols = ['call_id', 'user_id', ...Object.keys(row)];
   const vals = [callId, userId, ...Object.values(row)];
@@ -137,11 +181,17 @@ async function saveCallReport(userId, callId, row) {
 
 function median(sorted) { return percentile(sorted, 0.5); }
 
-/** 最近 days 天：总数、接通率、中继占比、接通耗时中位数，并按平台拆分。 */
-function callStats(days = 7) {
+/**
+ * 最近 days 天：总数、接通率、中继占比、接通耗时中位数，并按平台拆分。
+ * 默认只统计 verified=1（核验过参与关系）的上报；includeUnverified 时全部纳入。
+ * unverifiedReports 始终给出被排除的条数，便于观察核验覆盖率。
+ */
+function callStats(days = 7, { includeUnverified = false } = {}) {
   const since = Math.floor(Date.now() / 1000) - days * DAY;
   const rows = readDb.prepare(`SELECT platform, call_type, connected, setup_ms, local_candidate_type, remote_candidate_type
-    FROM call_reports WHERE created_at >= ? LIMIT 200000`).all(since);
+    FROM call_reports WHERE created_at >= ?${includeUnverified ? '' : ' AND verified = 1'} LIMIT 200000`).all(since);
+  const unverifiedReports = readDb.prepare('SELECT COUNT(*) AS n FROM call_reports WHERE created_at >= ? AND verified = 0')
+    .get(since).n;
   const agg = list => {
     const connected = list.filter(r => r.connected);
     const relayed = connected.filter(r => r.local_candidate_type === 'relay' || r.remote_candidate_type === 'relay');
@@ -161,12 +211,12 @@ function callStats(days = 7) {
     if (list.length) byPlatform[p] = agg(list);
   }
   return {
-    days, since, overall: agg(rows), byPlatform,
+    days, since, includeUnverified, unverifiedReports, overall: agg(rows), byPlatform,
     byCallType: Object.fromEntries(['audio', 'video'].map(t => [t, agg(rows.filter(r => r.call_type === t))])),
   };
 }
 
 module.exports = {
   normalizeVital, recordVital, vitalsStats, uaClass, pageOf,
-  normalizeCallReport, saveCallReport, callStats,
+  normalizeCallReport, saveCallReport, callStats, verifyCallParticipation, applyParticipation,
 };
