@@ -6,8 +6,11 @@
  * 循环重试。这里按「客户端 IP」与「所出示 token 的哈希」两个维度在进程内存里数连续 401：
  *   - 同一个 token 连续 401 达 TOKEN_MAX 次 → 该 token 直接 429（它已死，合法用户不会再用它）；
  *   - 同一 IP 连续 401 达 IP_MAX 次 → 该 IP 上「签名无效/无 token」的请求 429；
- *     出示签名有效且未过期 token 的请求照常放行（只做一次 HMAC 验签，不查库），
- *     避免同一 NAT 后面的正常用户被别人的死循环连坐。
+ *     出示签名有效 token（含已过期但签名真实的）的请求照常放行（只做一次 HMAC 验签，不查库），
+ *     避免同一 NAT 后面的正常用户被别人的死循环连坐。已过期的真 token 也放行：它会在 auth
+ *     拿到真正的 401 token_expired，各版本客户端都据此回登录页；若在这里给 429，iOS(main)/
+ *     Android 8.1.44 会当成临时服务端错误，在「服务暂时不可用，正在重试」里卡满整个退避期。
+ *     过期 token 若持续 401，仍会被 token 维度的计数单独退避。
  *   - 任一请求成功（2xx）即清零它的 IP 与 token 计数。
  * 429 响应带 Retry-After，body.error_code = 'AUTH_BACKOFF'。
  * 单进程内存实现（pm2 单实例 fork）；多实例时各实例各自计数，只是阈值相应放宽，不影响正确性。
@@ -61,7 +64,7 @@ function createAuthBackoff(opts = {}) {
 
   function signatureValid(token) {
     if (!token) return false;
-    try { jwt.verify(token, config.jwtSecret, { algorithms: ['HS256'] }); return true; } catch { return false; }
+    try { jwt.verify(token, config.jwtSecret, { algorithms: ['HS256'], ignoreExpiration: true }); return true; } catch { return false; }
   }
 
   let lastPrune = 0;
