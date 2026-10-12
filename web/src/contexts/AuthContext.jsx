@@ -9,6 +9,7 @@ import { pushScope } from '../utils/pushScope';
 import { activateSession, captureSession, invalidateSession, isOperationCurrent, isOperationGenerationCurrent, SESSION_OWNER_KEY } from '../utils/sessionContext';
 import { setLogoutReason, hasLogoutReason } from '../utils/logoutReason';
 import { takeAuthCheck } from '../utils/authBootstrap';
+import { resetAllReadState } from '../utils/readReporter';
 
 // 所有请求自动携带 httpOnly Cookie（同源时浏览器自动附加，跨域需此选项）
 axios.defaults.withCredentials = true;
@@ -38,6 +39,7 @@ function clearCsrfCache() {
   localStorage.removeItem('touliao_csrf_cache');
   clearCsrfToken();
   resetRefreshBlock(); // 会话边界：允许新凭证重新 refresh
+  resetAllReadState(); // 会话边界：已读去重基线/待发队列不得带入下一个账号
 }
 
 function setElectronToken(token) {

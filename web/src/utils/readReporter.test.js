@@ -11,7 +11,7 @@ globalThis.document = {
 };
 
 const {
-  reportRead, flushRead, resetReadState, lastReadableMessage, setKeepaliveSender,
+  reportRead, flushRead, resetReadState, resetAllReadState, lastReadableMessage, setKeepaliveSender,
   __resetReadReporterForTests, READ_DEBOUNCE_MS,
 } = await import('./readReporter.js');
 
@@ -104,5 +104,35 @@ describe('readReporter', () => {
     expect(lastReadableMessage(list).id).toBe('m1');
     expect(lastReadableMessage(list, 'other')).toBe(null);
     expect(lastReadableMessage([])).toBe(null);
+  });
+
+  it('重新打开会话（resetReadState）后即使没有更新消息也会再上报一次，用于清除他端「标为未读」', () => {
+    reportRead('c1', msg('m5', 5));
+    vi.advanceTimersByTime(READ_DEBOUNCE_MS);
+    expect(post).toHaveBeenCalledTimes(1);
+    // 不重置时：同一消息再次上报被去重
+    reportRead('c1', null);
+    reportRead('c1', msg('m5', 5));
+    vi.advanceTimersByTime(READ_DEBOUNCE_MS);
+    expect(post).toHaveBeenCalledTimes(1);
+    // 打开会话时重置基线
+    resetReadState('c1');
+    reportRead('c1', null);
+    reportRead('c1', msg('m5', 5));
+    vi.advanceTimersByTime(READ_DEBOUNCE_MS);
+    expect(post).toHaveBeenCalledTimes(2);
+    expect(post).toHaveBeenLastCalledWith('/api/messages/conversation/c1/read', { messageId: 'm5' });
+  });
+
+  it('resetAllReadState 清空全部基线与待发（会话边界不跨账号继承）', () => {
+    reportRead('c1', msg('m1', 1));
+    vi.advanceTimersByTime(READ_DEBOUNCE_MS);
+    reportRead('c2', msg('x1', 1));
+    resetAllReadState();
+    vi.advanceTimersByTime(READ_DEBOUNCE_MS * 5);
+    expect(post).toHaveBeenCalledTimes(1); // c2 的待发已被丢弃
+    reportRead('c1', msg('m1', 1));
+    vi.advanceTimersByTime(READ_DEBOUNCE_MS);
+    expect(post).toHaveBeenCalledTimes(2);
   });
 });

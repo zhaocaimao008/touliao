@@ -155,7 +155,13 @@ export function lastReadableMessage(messages, convId) {
   return null;
 }
 
-/** 外部（如右键「标记已读/未读」）改变服务端状态后，重置去重基线。 */
+/**
+ * 外部（如右键「标记已读/未读」）改变服务端状态后，重置去重基线。
+ * ChatWindow 每次打开会话也会调用：「打开 = 至少一次已读上报」（同 Android
+ * ReadReporter.onConversationOpened）。否则在别的设备/标签页「标为未读」
+ * （服务端 manually_unread=1，无 socket 事件）后，本标签页再打开该会话时两次上报
+ * 都被去重吞掉，服务端标记永远清不掉。
+ */
 export function resetReadState(convId) {
   const p = pending.get(convId);
   if (p) clearTimeout(p.timer);
@@ -163,9 +169,18 @@ export function resetReadState(convId) {
   reported.delete(convId);
 }
 
-/** 仅测试用 */
-export function __resetReadReporterForTests() {
+/**
+ * 会话边界（登录/登出/切换账号或服务器）：清空全部去重基线与待发队列。
+ * 模块级状态跨会话存活（登出→登录不刷新页面），不清会让新账号继承上个账号的
+ * 已读基线（该发的已读被去重吞掉），或把上个账号挂起的已读在新会话里发出。
+ */
+export function resetAllReadState() {
   for (const p of pending.values()) clearTimeout(p.timer);
   pending.clear();
   reported.clear();
+}
+
+/** 仅测试用 */
+export function __resetReadReporterForTests() {
+  resetAllReadState();
 }

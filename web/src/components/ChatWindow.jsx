@@ -82,7 +82,7 @@ import { IcoImage, IcoFile, IcoVideo, IcoContacts } from './Icons';
 
 import MessageActionMenu from '../ui-kit/MessageActionMenu';
 import { lazyWithRetry } from '../utils/lazyWithRetry';
-import { reportRead, flushRead, setKeepaliveSender, lastReadableMessage } from '../utils/readReporter';
+import { reportRead, flushRead, setKeepaliveSender, lastReadableMessage, resetReadState } from '../utils/readReporter';
 import { isFeatureDisabled } from '../utils/publicFeatures';
 
 // 页面卸载时的已读投递：sendBeacon 无法携带自定义 header（CSRF token），用 fetch keepalive。
@@ -577,6 +577,11 @@ export default function ChatWindow({ conversation: initialConv, features = {}, o
       setTypingName('');
     };
   }, [conversation.id]);
+  // 打开会话：重置该会话的已读去重基线，保证「每次打开至少上报一次已读」。
+  // 别的设备/标签页「标为未读」只改服务端 manually_unread、不推 socket 事件，
+  // 本标签页的旧基线会把这次打开的上报全部去重掉，导致服务端未读标记清不掉。
+  // 须声明在下方各已读 effect 之前（同一次提交里 effect 按声明顺序执行）。
+  useEffect(() => { resetReadState(conversation.id); }, [conversation.id]);
   useEffect(() => {
     // 离开会话 / 页面卸载：把已看到的最新消息并入已读节流器并立即冲刷。
     // readReporter 做单调去重——没有比上次上报更新的消息就不发（此前每次切换都无条件 POST）。
