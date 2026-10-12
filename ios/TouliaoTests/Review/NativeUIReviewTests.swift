@@ -146,7 +146,8 @@ final class NativeUIReviewTests: XCTestCase {
         XCTAssertTrue(paths.contains("/api/auth/me"))
         XCTAssertTrue(paths.contains("/api/messages/review-chat"), "Gallery must load real ChatViewModel history through the test transport")
         XCTAssertTrue(paths.contains("/uploads/ui-image.png"), "Image messages must download image bytes through the isolated transport")
-        XCTAssertTrue(paths.contains("/uploads/ui-image_thumb.webp"), "Image bubbles must try the server thumbnail before falling back to the original")
+        // 气泡直接对原图降采样解码；480px 的服务端缩略图在 2x/3x 屏上会被放大发糊，iOS 不再请求它。
+        XCTAssertFalse(paths.contains("/uploads/ui-image_thumb.webp"), "Image bubbles must decode the downsampled original, not the low-res server thumbnail")
         try JSONSerialization.data(withJSONObject: ["environment": "iOS Simulator — native UIHostingController", "requestsIntercepted": paths], options: .prettyPrinted)
             .write(to: output.appendingPathComponent("environment.json"))
     }

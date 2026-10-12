@@ -1,4 +1,5 @@
 import XCTest
+import UIKit
 import Kingfisher
 @testable import Touliao
 
@@ -28,31 +29,27 @@ final class Batch3SessionMediaTests: XCTestCase {
             XCTAssertFalse(resolved!.contains("synthetic-login"))
         }
     }
-    func testThumbUrlMatchesWebRule() {
-        XCTAssertEqual(MediaUrlResolver.thumbUrl("/uploads/files/abc.png"), "/uploads/files/abc_thumb.webp")
-        XCTAssertEqual(MediaUrlResolver.thumbUrl("/uploads/files/abc_thumb.webp"), "/uploads/files/abc_thumb.webp")
-        XCTAssertEqual(MediaUrlResolver.thumbUrl("/uploads/files/a.b.png"), "/uploads/files/a.b.png")
-        XCTAssertEqual(MediaUrlResolver.thumbUrl("https://cdn.invalid/uploads/files/abc.png"), "https://cdn.invalid/uploads/files/abc.png")
-        XCTAssertEqual(MediaUrlResolver.thumbUrl("file:///tmp/abc.png"), "file:///tmp/abc.png")
-        XCTAssertNil(MediaUrlResolver.thumbUrl(nil))
-    }
-
-    func testBubbleSourcesPreferThumbAndSkipKnownMissingThumb() {
-        let original = "https://bubble-test.invalid/uploads/files/u1.png"
-        let thumb = "https://bubble-test.invalid/uploads/files/u1_thumb.webp"
-        let first = MediaUrlResolver.bubbleSources(thumb: thumb, original: original)
-        XCTAssertTrue(first.primary?.cacheKey.hasSuffix(thumb) == true)
-        XCTAssertEqual(first.fallbacks.count, 1)
-        XCTAssertTrue(first.fallbacks.first?.cacheKey.hasSuffix(original) == true)
-
-        let same = MediaUrlResolver.bubbleSources(thumb: original, original: original)
-        XCTAssertTrue(same.primary?.cacheKey.hasSuffix(original) == true)
-        XCTAssertTrue(same.fallbacks.isEmpty)
-
-        MediaUrlResolver.markThumbMissing(thumb)
-        let afterMiss = MediaUrlResolver.bubbleSources(thumb: thumb, original: original)
-        XCTAssertTrue(afterMiss.primary?.cacheKey.hasSuffix(original) == true, "Known-missing thumbnails must not be requested again")
-        XCTAssertTrue(afterMiss.fallbacks.isEmpty)
+    /// 气泡降采样后的像素必须覆盖气泡在 2x/3x 屏上的实际像素(否则放大发糊)，同时远小于原图(省内存)。
+    func testBubbleDownsamplingKeepsBubblePixelsSharpOn2xAnd3x() throws {
+        let format = UIGraphicsImageRendererFormat()
+        format.scale = 1
+        for source in [CGSize(width: 3000, height: 2000), CGSize(width: 2000, height: 3000)] {
+            let big = UIGraphicsImageRenderer(size: source, format: format).image { context in
+                UIColor.systemTeal.setFill(); context.fill(CGRect(origin: .zero, size: source))
+            }
+            let data = try XCTUnwrap(big.jpegData(compressionQuality: 0.8))
+            for scale: CGFloat in [2, 3] {
+                let options = KingfisherParsedOptionsInfo([.scaleFactor(scale)])
+                let image = try XCTUnwrap(MediaUrlResolver.bubbleProcessor.process(item: .data(data), options: options))
+                let cg = try XCTUnwrap(image.cgImage)
+                let bubble = MediaUrlResolver.bubbleMaxPointSize
+                // scaledToFit 在 220×280pt 框内：横图受宽度约束、竖图受高度约束。
+                let fit = min(bubble.width / source.width, bubble.height / source.height)
+                XCTAssertGreaterThanOrEqual(CGFloat(cg.width), (source.width * fit * scale).rounded(.down) - 1, "scale \(scale) \(source)")
+                XCTAssertGreaterThanOrEqual(CGFloat(cg.height), (source.height * fit * scale).rounded(.down) - 1, "scale \(scale) \(source)")
+                XCTAssertLessThanOrEqual(CGFloat(max(cg.width, cg.height)), max(bubble.width, bubble.height) * scale + 1)
+            }
+        }
     }
 
     func testMediaRequestDoesNotSendAccountTokenToAnotherOrigin() {

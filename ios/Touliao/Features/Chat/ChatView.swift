@@ -1243,22 +1243,17 @@ private struct MessageBubble: View {
     @ViewBuilder private var content: some View {
         switch msg.type {
         case "image":
-            // 2026-10-12：气泡先加载服务端缩略图(<uuid>_thumb.webp，iOS14+ ImageIO 原生解码 webp)，
-            // 缩略图不存在(旧图 404)时自动换原图；按气泡尺寸降采样解码，省内存。全屏查看器仍用原图。
-            // 已确认没有缩略图的直接走原图；cacheOriginalImage 让兜底下载的原图字节按原图键落盘，
-            // 全屏查看/保存/分享可直接命中缓存，不再重下一遍（与改缩略图前的行为一致）。
-            let sources = MediaUrlResolver.bubbleSources(
-                thumb: vm.resolveMediaUrl(MediaUrlResolver.thumbUrl(msg.fileUrl)),
-                original: vm.resolveMediaUrl(msg.fileUrl)
-            )
-            KFImage(source: sources.primary)
-                .alternativeSources(sources.fallbacks)
+            // 2026-10-12：气泡加载原图，但按气泡像素尺寸降采样解码(ImageIO thumbnail，不先解出整张大图)，
+            // 3x 屏也清晰、内存只占气泡大小。不用服务端 _thumb.webp：它长边只有 480px，低于 2x/3x
+            // 气泡的实际像素，放大会糊；先缩略图再原图又会多一次请求和一次闪动。
+            // cacheOriginalImage 让原图字节按原图键落盘，全屏查看/保存/分享直接命中缓存，不再重下。
+            KFImage(source: MediaUrlResolver.kfSource(resolved: vm.resolveMediaUrl(msg.fileUrl)))
                 .setProcessor(MediaUrlResolver.bubbleProcessor)
                 .scaleFactor(UIScreen.main.scale)
                 .cacheOriginalImage()
                 .resizable()
                 .scaledToFit()
-                .frame(maxWidth: 220, maxHeight: 280)
+                .frame(maxWidth: MediaUrlResolver.bubbleMaxPointSize.width, maxHeight: MediaUrlResolver.bubbleMaxPointSize.height)
                 .clipShape(RoundedRectangle(cornerRadius: VxinRadius.badge))
                 .onTapGesture { vm.openImage(msg) }
         case "voice":
