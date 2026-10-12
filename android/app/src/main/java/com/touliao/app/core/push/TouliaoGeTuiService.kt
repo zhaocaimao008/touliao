@@ -26,6 +26,7 @@ class TouliaoGeTuiService : GTIntentService() {
     interface GeTuiEntryPoint {
         fun pushManager(): PushManager
         fun notificationHelper(): NotificationHelper
+        fun socketBackgroundPolicy(): com.touliao.app.core.realtime.SocketBackgroundPolicy
     }
 
     private fun entry(ctx: Context) =
@@ -58,6 +59,8 @@ class TouliaoGeTuiService : GTIntentService() {
                     callType = json.optString("callType", "audio"),
                     recipientId = recipient,
                 )
+                // 同 FCM：后台省电断开了 socket 时临时重连，以便收到取消/他端接听并收起通知
+                entry(context).socketBackgroundPolicy().onCallPush()
                 return
             }
             entry(context).notificationHelper().showMessageNotification(

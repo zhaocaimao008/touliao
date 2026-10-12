@@ -10,6 +10,7 @@ import com.touliao.app.core.call.GroupCallStage
 import com.touliao.app.core.di.AppScope
 import com.touliao.app.core.util.AppForeground
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
@@ -39,6 +40,31 @@ class SocketBackgroundPolicy @Inject constructor(
 ) {
     @Volatile private var suspendedForBackground = false
     @Volatile private var started = false
+    @Volatile private var callPushJob: Job? = null
+
+    /**
+     * 后台收到来电推送（FCM / 个推）：若实时连接已因后台省电断开，临时重连，让 call:end
+     * （主叫取消、本账号其他设备接听/拒绝）能送达并收起来电通知；通话收尾后若仍在后台，
+     * 等 [BACKGROUND_GRACE_MS] 再断开。回到前台由 [start] 的前台分支接管。
+     */
+    fun onCallPush() {
+        if (!suspendedForBackground) return
+        if (sessionManager.get().state.value !is AuthState.Authenticated) return
+        if (!socketManager.hasSession()) {
+            Log.i(TAG, "后台来电推送：临时恢复实时连接以接收通话状态")
+            socketManager.connect()
+        }
+        callPushJob?.cancel()
+        callPushJob = scope.launch {
+            delay(BACKGROUND_GRACE_MS)
+            combine(callManager.get().state, groupCallManager.get().state) { c, g ->
+                isCallActive(c.stage) || isGroupCallActive(g.stage)
+            }.first { active -> !active }
+            if (!AppForeground.isForeground && suspendedForBackground && socketManager.disconnectForBackground()) {
+                Log.i(TAG, "来电推送后的临时连接已无通话：再次断开")
+            }
+        }
+    }
 
     fun start() {
         if (started) return
@@ -46,6 +72,8 @@ class SocketBackgroundPolicy @Inject constructor(
         scope.launch {
             AppForeground.state.collectLatest { foreground ->
                 if (foreground) {
+                    callPushJob?.cancel()
+                    callPushJob = null
                     if (suspendedForBackground) {
                         suspendedForBackground = false
                         // 后台期间被登出/拒绝访问则不重连（connect 自身也会校验 token）；

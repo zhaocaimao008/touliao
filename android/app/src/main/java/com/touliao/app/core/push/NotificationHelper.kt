@@ -124,8 +124,14 @@ class NotificationHelper @Inject constructor(
      * data 来自后端 data-only FCM（type=call）。点击/接听/拒绝均拉起 MainActivity 并带 extra，
      * 由 MainActivity 交给 CallManager 进入 INCOMING（accept 时并置接听意图）。
      */
+    // 当前展示中的来电通知（push 通路下 CallManager 不进 INCOMING，需靠它在 call:end 时收起通知）
+    @Volatile private var shownCallId: String = ""
+    @Volatile private var shownCallFrom: String = ""
+
     fun showCallNotification(callId: String, from: String, callerName: String, callType: String, recipientId: String? = accountStore.activeId()) {
         if (!acceptsRecipient(recipientId)) return
+        shownCallId = callId
+        shownCallFrom = from
         fun callIntent(action: String) = Intent(context, MainActivity::class.java).apply {
             this.action = action
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
@@ -156,6 +162,9 @@ class NotificationHelper @Inject constructor(
             .setDefaults(NotificationCompat.DEFAULT_ALL)
             .setContentIntent(fullScreen)
             .setFullScreenIntent(fullScreen, true)
+            // 后台断开 socket 后，push 通路的来电收不到取消事件时也不会永久挂着：与 CallManager
+            // INCOMING 看门狗同为 60s（主叫侧早已超时结束）
+            .setTimeoutAfter(CALL_NOTIFICATION_TIMEOUT_MS)
             .addAction(android.R.drawable.ic_menu_call, "接听", accept)
             .addAction(android.R.drawable.ic_menu_close_clear_cancel, "拒绝", decline)
             .build()
@@ -167,7 +176,27 @@ class NotificationHelper @Inject constructor(
 
     /** 接听/拒绝后清除来电通知 */
     fun cancelCallNotification() {
+        shownCallId = ""
+        shownCallFrom = ""
         NotificationManagerCompat.from(context).cancel(CALL_NOTIFICATION_ID)
+    }
+
+    /**
+     * 收到 call:end 时，若它对应当前展示的来电通知则收起（push 拉起的来电通知，CallManager 仍是 IDLE）。
+     * callId 都有时按 callId 匹配；否则按主叫匹配。[selfDeviceSync]（本账号其他设备接听/拒绝）的 from
+     * 是自己，只能按 callId 匹配，callId 缺失时视为当前这通。
+     */
+    fun cancelCallNotificationFor(callId: String, from: String, selfDeviceSync: Boolean): Boolean {
+        val id = shownCallId
+        val peer = shownCallFrom
+        if (id.isEmpty() && peer.isEmpty()) return false
+        val match = when {
+            callId.isNotEmpty() && id.isNotEmpty() -> callId == id
+            selfDeviceSync -> true
+            else -> from.isNotEmpty() && from == peer
+        }
+        if (match) cancelCallNotification()
+        return match
     }
 
     private fun createChannel() {
@@ -220,6 +249,7 @@ class NotificationHelper @Inject constructor(
         // Firebase's OS-displayed notification uses id=0 with the same account/chat tag.
         const val MESSAGE_NOTIFICATION_ID = 0
         const val CALL_NOTIFICATION_ID = 424242
+        const val CALL_NOTIFICATION_TIMEOUT_MS = 60_000L   // 与 CallManager.INCOMING_TIMEOUT_MS 一致
         const val SUMMARY_NOTIFICATION_ID = 424200        // 群组汇总通知 ID（固定，更新时覆盖）
         const val GROUP_KEY_MESSAGES = "com.touliao.app.MESSAGES"   // 消息通知分组键
 

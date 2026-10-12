@@ -3,6 +3,7 @@ package com.touliao.app.core.push
 import com.google.firebase.messaging.FirebaseMessagingService
 import com.google.firebase.messaging.RemoteMessage
 import com.touliao.app.core.call.CallManager
+import com.touliao.app.core.realtime.SocketBackgroundPolicy
 import dagger.hilt.android.AndroidEntryPoint
 import javax.inject.Inject
 
@@ -18,6 +19,7 @@ class TouliaoMessagingService : FirebaseMessagingService() {
     @Inject lateinit var pushManager: PushManager
     @Inject lateinit var notificationHelper: NotificationHelper
     @Inject lateinit var callManager: CallManager
+    @Inject lateinit var socketBackgroundPolicy: SocketBackgroundPolicy
 
     override fun onNewToken(token: String) {
         pushManager.onNewToken(token)
@@ -45,6 +47,8 @@ class TouliaoMessagingService : FirebaseMessagingService() {
                 callType = data["callType"] ?: "audio",
                 recipientId = data["recipientId"],
             )
+            // 后台省电断开了 socket 时临时重连：主叫取消/其他设备接听的 call:end 才能送达并收起通知
+            socketBackgroundPolicy.onCallPush()
             return
         }
         val title = message.notification?.title ?: data["senderName"] ?: "新消息"

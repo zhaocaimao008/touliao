@@ -789,6 +789,10 @@ class CallManager @Inject constructor(
                     (e.callId.isEmpty() || e.callId == s.callId)
                 if (matchesPeerCall || matchesOtherDeviceOutgoing) {
                     cleanup(CallStage.ENDED, e.reason.ifBlank { "remote_hangup" })
+                } else if (s.stage == CallStage.IDLE || s.stage == CallStage.ENDED) {
+                    // 后台 push 通路弹出的来电通知（未进 INCOMING）：主叫取消 / 其他设备已接听或拒绝
+                    // → 收起通知，不留一个点开后对着已结束通话响铃的全屏来电
+                    notificationHelper.cancelCallNotificationFor(e.callId, e.from, isSelfDeviceSync)
                 }
             }
         }
