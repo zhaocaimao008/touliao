@@ -118,8 +118,6 @@ import com.touliao.app.ui.theme.VxinTextDisabled
 import com.touliao.app.ui.theme.VxinTextSize
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.SolidColor
-import com.touliao.app.ui.theme.VxinSurfaceDark
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import kotlin.math.PI
@@ -759,7 +757,7 @@ fun ChatScreen(
             ) {
                 Surface(
                     shape = com.touliao.app.ui.theme.VxinRadius.full,
-                    color = if (isSystemInDarkTheme()) VxinSurfaceDark else Color.White,
+                    color = com.touliao.app.ui.theme.LocalTouliaoPalette.current.surface,  // 跟随 App 外观（日/夜/跟随系统），而非系统暗色
                     shadowElevation = 4.dp,
                     modifier = Modifier.clickable {
                         listHaptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)  // 点按回底轻震
@@ -1457,27 +1455,38 @@ private fun MessageContent(
 ) {
     Column(horizontalAlignment = if (isMine) Alignment.End else Alignment.Start) {
             when (msg.type) {
-                "image" -> SubcomposeAsyncImage(
-                    model = resolveUrl(msg.file_url),
-                    contentDescription = "图片",
-                    contentScale = ContentScale.Fit,
-                    modifier = Modifier
-                        .widthIn(max = 220.dp)
-                        .heightIn(max = 280.dp)
-                        .clip(RoundedCornerShape(com.touliao.app.ui.theme.VxinRadius.badge))
-                        .clickable { onImageClick() },
-                    loading = {
-                        // 加载中灰底占位 + 转圈(对齐微信,避免空白闪烁)
-                        Box(Modifier.size(140.dp).background(MaterialTheme.colorScheme.surfaceVariant), contentAlignment = Alignment.Center) {
-                            CircularProgressIndicator(Modifier.size(22.dp), strokeWidth = 2.dp)
-                        }
-                    },
-                    error = {
-                        Box(Modifier.size(140.dp).background(MaterialTheme.colorScheme.surfaceVariant), contentAlignment = Alignment.Center) {
-                            Text("图片加载失败", color = VxinTextSecondary, fontSize = com.touliao.app.ui.theme.VxinTextSize.sm)
-                        }
-                    },
-                )
+                "image" -> {
+                    // 气泡只加载服务端缩略图（<uuid>_thumb.webp，几十 KB），不再拉原图；全屏查看器仍用原图。
+                    // 旧图没有缩略图会 404 → onError 记下后切回原图重新加载（与 Web <img onError> 回退一致）。
+                    val original = resolveUrl(msg.file_url)
+                    val thumb = resolveUrl(com.touliao.app.core.util.thumbUrlOf(msg.file_url))
+                    var thumbFailed by remember(msg.file_url) { mutableStateOf(false) }
+                    val usingThumb = !thumbFailed && thumb != null && thumb != original
+                    SubcomposeAsyncImage(
+                        model = if (usingThumb) thumb else original,
+                        contentDescription = "图片",
+                        contentScale = ContentScale.Fit,
+                        modifier = Modifier
+                            .widthIn(max = 220.dp)
+                            .heightIn(max = 280.dp)
+                            .clip(RoundedCornerShape(com.touliao.app.ui.theme.VxinRadius.badge))
+                            .clickable { onImageClick() },
+                        onError = { if (usingThumb) thumbFailed = true },
+                        loading = {
+                            // 加载中灰底占位 + 转圈(对齐微信,避免空白闪烁)
+                            Box(Modifier.size(140.dp).background(MaterialTheme.colorScheme.surfaceVariant), contentAlignment = Alignment.Center) {
+                                CircularProgressIndicator(Modifier.size(22.dp), strokeWidth = 2.dp)
+                            }
+                        },
+                        error = {
+                            Box(Modifier.size(140.dp).background(MaterialTheme.colorScheme.surfaceVariant), contentAlignment = Alignment.Center) {
+                                // 缩略图失败、正在切回原图时仍显示转圈，不闪「加载失败」
+                                if (usingThumb) CircularProgressIndicator(Modifier.size(22.dp), strokeWidth = 2.dp)
+                                else Text("图片加载失败", color = VxinTextSecondary, fontSize = com.touliao.app.ui.theme.VxinTextSize.sm)
+                            }
+                        },
+                    )
+                }
                 "voice" -> Column(horizontalAlignment = if (isMine) Alignment.End else Alignment.Start) {
                     // 2026-08-29 重做：不再用固定"🎙 语音"文字气泡——真实语音时长气泡，
                     // 宽度随时长(1~30s映射到最小~最大宽度)、显示"8″"这类真实秒数，

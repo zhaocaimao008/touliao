@@ -1,6 +1,7 @@
 import Foundation
 import CoreTransferable
 import UniformTypeIdentifiers
+import AVFoundation
 
 /// 2026-08-29 iOS视频发送修复新增：PhotosPickerItem 选中视频后，用 FileRepresentation
 /// （而非 Data.self）拿到系统临时文件，再流式拷贝到投聊自己的目录，得到稳定可读路径。
@@ -56,8 +57,49 @@ struct PickedVideoFile: Transferable {
                 try? FileManager.default.removeItem(at: dest)
                 throw CocoaError(.fileReadCorruptFile)
             }
+            // 2026-10-12：统一导出为 H.264 mp4 + faststart(moov 前置)，接收端边下边播；
+            // 导出失败(罕见编码/空间不足等)就原样上传拷贝，不阻断发送。
+            if let mp4 = await PickedVideoTranscoder.exportCompatibleMP4(from: dest) {
+                try? FileManager.default.removeItem(at: dest)
+                return Self(url: mp4, suggestedFileName: "video_\(Int(Date().timeIntervalSince1970)).mp4")
+            }
             return Self(url: dest, suggestedFileName: "video_\(Int(Date().timeIntervalSince1970)).\(ext)")
         }
+    }
+}
+
+/// 2026-10-12新增：把选中的视频导出成 H.264 mp4（shouldOptimizeForNetworkUse = faststart）。
+/// 已是 H.264 且不超过 1080p 的走 Passthrough 只重封装(不重编码、不掉画质、很快)；
+/// 其余(HEVC/4K 等)用 1920x1080 预设重编码。任何失败返回 nil，调用方回退上传原文件。
+enum PickedVideoTranscoder {
+    static func exportCompatibleMP4(from source: URL) async -> URL? {
+        let asset = AVURLAsset(url: source)
+        let preset = await isH264WithinLimit(asset) ? AVAssetExportPresetPassthrough : AVAssetExportPreset1920x1080
+        guard let session = AVAssetExportSession(asset: asset, presetName: preset),
+              session.supportedFileTypes.contains(.mp4) else { return nil }
+        let dest = PickedVideoCleanup.stagingDir.appendingPathComponent("video_\(UUID().uuidString).mp4")
+        session.outputURL = dest
+        session.outputFileType = .mp4
+        session.shouldOptimizeForNetworkUse = true
+        await withCheckedContinuation { (cont: CheckedContinuation<Void, Never>) in
+            session.exportAsynchronously { cont.resume() }
+        }
+        let attrs = try? FileManager.default.attributesOfItem(atPath: dest.path)
+        let outSize = (attrs?[.size] as? NSNumber)?.int64Value ?? 0
+        guard session.status == .completed, outSize > 0 else {
+            print("[Video] 导出 mp4 失败，回退原文件: \(session.error?.localizedDescription ?? "status=\(session.status.rawValue)")")
+            try? FileManager.default.removeItem(at: dest)
+            return nil
+        }
+        return dest
+    }
+
+    /// 视频轨已是 H.264 且长边 ≤ 1920 → 只需重封装。读不到轨道信息时按"需要重编码"处理。
+    private static func isH264WithinLimit(_ asset: AVURLAsset) async -> Bool {
+        guard let track = try? await asset.loadTracks(withMediaType: .video).first,
+              let loaded = try? await track.load(.formatDescriptions, .naturalSize) else { return false }
+        let isH264 = loaded.0.contains { CMFormatDescriptionGetMediaSubType($0) == kCMVideoCodecType_H264 }
+        return isH264 && max(abs(loaded.1.width), abs(loaded.1.height)) <= 1920
     }
 }
 

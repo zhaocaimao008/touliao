@@ -2,6 +2,7 @@ package com.touliao.app.core.push
 
 import com.google.firebase.messaging.FirebaseMessagingService
 import com.google.firebase.messaging.RemoteMessage
+import com.touliao.app.core.call.CallManager
 import dagger.hilt.android.AndroidEntryPoint
 import javax.inject.Inject
 
@@ -16,6 +17,7 @@ class TouliaoMessagingService : FirebaseMessagingService() {
 
     @Inject lateinit var pushManager: PushManager
     @Inject lateinit var notificationHelper: NotificationHelper
+    @Inject lateinit var callManager: CallManager
 
     override fun onNewToken(token: String) {
         pushManager.onNewToken(token)
@@ -26,6 +28,16 @@ class TouliaoMessagingService : FirebaseMessagingService() {
         if (!notificationHelper.acceptsRecipient(data["recipientId"])) return
         // 来电推送（后端 data-only：type=call）→ 走全屏来电通知，不当普通消息处理
         if (data["type"] == "call") {
+            // 鍚庣鐜板姣忔鏉ョ數閮芥帹閫侊紙涓嶅啀鐪?socket 鏄惁鍦ㄧ嚎锛夛細鍓嶅彴涓嶅脊鍏ㄥ睆閫氱煡浠ュ厤涓?socket 鏉ョ數鍙屽搷锛?            // 鐩存帴浜ょ粰 CallManager锛堝悓 peer/callId 鍘婚噸锛泂ocket 鍗婃鏃剁敱姝よˉ涓婃潵鐢碉級
+            if (MessageNotificationBridge.appForeground) {
+                callManager.incomingFromPush(
+                    from = data["from"].orEmpty(),
+                    callType = data["callType"] ?: "audio",
+                    callerName = data["callerName"].orEmpty(),
+                    callId = data["callId"].orEmpty(),
+                )
+                return
+            }
             notificationHelper.showCallNotification(
                 callId = data["callId"].orEmpty(),
                 from = data["from"].orEmpty(),

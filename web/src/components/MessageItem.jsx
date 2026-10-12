@@ -1,6 +1,6 @@
 import TouliaoIcon from '../ui-kit/Icon';
 
-import React, { memo } from 'react';
+import React, { memo, useEffect, useState } from 'react';
 import Avatar from './Avatar';
 import { mediaUrl, resolveMediaUrl, getThumbUrl, useMediaCredentials } from '../utils/url';
 import { formatFull } from '../utils/time';
@@ -23,6 +23,65 @@ export const TimeDivider = memo(function TimeDivider({ time }) {
     </div>
   );
 });
+
+// 视频气泡封面：后端为视频生成 <uuid>_thumb.webp 海报（与图片缩略图同命名，见 getThumbUrl）。
+// 旧视频没有海报 → 先用 Image() 探测：成功则 poster + preload="none"（不再为每个气泡拉视频
+// metadata）；失败/探测中保持原行为 preload="metadata" + #t=0.1 抓首帧。结果按缩略图路径缓存。
+const posterProbe = new Map(); // thumbPath -> 'ok' | 'fail' | Promise
+function probePoster(thumbPath, src) {
+  const cached = posterProbe.get(thumbPath);
+  if (cached) return cached;
+  const p = new Promise(resolve => {
+    const img = new Image();
+    img.onload = () => resolve({ ok: true, w: img.naturalWidth, h: img.naturalHeight });
+    img.onerror = () => resolve({ ok: false });
+    img.src = src;
+  }).then(r => { posterProbe.set(thumbPath, r.ok ? 'ok' : 'fail'); return r; });
+  posterProbe.set(thumbPath, p);
+  return p;
+}
+
+function BubbleVideoThumb({ fileUrl, vidSrc, onMeta }) {
+  const thumbPath = getThumbUrl(fileUrl);
+  const hasThumb = !!thumbPath && thumbPath !== fileUrl;
+  const thumbSrc = hasThumb ? mediaUrl(thumbPath) : undefined;
+  const known = hasThumb ? posterProbe.get(thumbPath) : 'fail';
+  const [probed, setProbed] = useState(null); // { path, ok }
+  const status = typeof known === 'string' ? known
+    : probed && probed.path === thumbPath ? (probed.ok ? 'ok' : 'fail') : 'pending';
+  useEffect(() => {
+    if (status !== 'pending' || !thumbSrc) return undefined;
+    let alive = true;
+    probePoster(thumbPath, thumbSrc).then(r => {
+      if (!alive) return;
+      if (r.ok && r.w && r.h) onMeta?.(r.w, r.h);
+      setProbed({ path: thumbPath, ok: r.ok });
+    });
+    return () => { alive = false; };
+  }, [status, thumbPath, thumbSrc, onMeta]);
+
+  const usePoster = status === 'ok' && !!thumbSrc;
+  // 用 #t=0.1 让浏览器抓取首帧作为封面缩略图（无海报时的回退路径）
+  // 防御: file_url 缺失(撤回/删除后缓存残留)时 vidSrc 为 undefined,不得调 .includes
+  const frameSrc = (vidSrc || '').includes('#') ? vidSrc : `${vidSrc || ''}#t=0.1`;
+  return (
+    <video
+      key={usePoster ? 'poster' : 'frame'}
+      src={usePoster ? vidSrc : frameSrc}
+      poster={usePoster ? thumbSrc : undefined}
+      preload={usePoster ? 'none' : status === 'pending' ? 'none' : 'metadata'}
+      muted
+      playsInline
+      tabIndex={-1}
+      className="wc-msg-video"
+      style={{ display: 'block', width: '100%', height: '100%', objectFit: 'cover', pointerEvents: 'none' }}
+      onLoadedMetadata={e => {
+        const v = e.currentTarget;
+        onMeta?.(v.videoWidth, v.videoHeight);
+      }}
+    />
+  );
+}
 
 const MessageItem = memo(function MessageItem({ item, cbRef, measure }) {
   useMediaCredentials();
@@ -327,9 +386,10 @@ const MessageItem = memo(function MessageItem({ item, cbRef, measure }) {
               const vidSrc = mediaUrl(msg.file_url);
               // 复用图片的宽高比缓存，视频加载 metadata 前也能预留正确高度,消除布局抖动
               const vAspect = getAspect(vidSrc);
-              // 用 #t=0.1 让浏览器抓取首帧作为封面缩略图（不自动播放，点击才全屏播放）
-              // 防御: file_url 缺失(撤回/删除后缓存残留)时 vidSrc 为 undefined,不得调 .includes
-              const posterSrc = (vidSrc || '').includes('#') ? vidSrc : `${vidSrc || ''}#t=0.1`;
+              const onVideoMeta = (w, h) => {
+                rememberAspect(vidSrc, w, h);
+                measure?.(); // 海报/metadata 到达→按真实宽高比撑开后同步重测本行
+              };
               const openPreview = () => cbs.setVideoUrl?.({ url: msg.file_url, name: msg.content });
               return (
                 <div
@@ -343,21 +403,8 @@ const MessageItem = memo(function MessageItem({ item, cbRef, measure }) {
                     ...(vAspect ? { aspectRatio: String(vAspect), width: 'min(240px, 62vw)' } : { width: 'min(240px, 62vw)' }),
                   }}
                 >
-                  {/* 首帧缩略图（preload=metadata + #t=0.1 抓封面，不播放、不显控件） */}
-                  <video
-                    src={posterSrc}
-                    preload="metadata"
-                    muted
-                    playsInline
-                    tabIndex={-1}
-                    className="wc-msg-video"
-                    style={{ display: 'block', width: '100%', height: '100%', objectFit: 'cover', pointerEvents: 'none' }}
-                    onLoadedMetadata={e => {
-                      const v = e.currentTarget;
-                      rememberAspect(vidSrc, v.videoWidth, v.videoHeight);
-                      measure?.(); // 视频 metadata 到达→按真实宽高比撑开后同步重测本行
-                    }}
-                  />
+                  {/* 封面：有 _thumb.webp 海报用 poster+preload=none，否则 preload=metadata + #t=0.1 抓首帧；不播放、不显控件 */}
+                  <BubbleVideoThumb fileUrl={msg.file_url} vidSrc={vidSrc} onMeta={onVideoMeta} />
                   {/* 中央播放按钮浮层 */}
                   <span aria-hidden="true" style={{
                     position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)',

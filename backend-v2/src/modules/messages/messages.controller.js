@@ -3,6 +3,7 @@ const path = require('path');
 const config = require('../../config');
 const { asyncHandler, badRequest } = require('../../utils/http');
 const { makeChatUploader, makeImageUploader, makeUploadGuard, sanitizeFilename, decodeMultipartName, thumbUrlIfExists } = require('../../utils/upload');
+const { processUploadedVideo } = require('../../utils/videoProcess');
 const { isMember, privateSendGuard } = require('./shared');
 const { registerFile } = require('../../utils/fileRegistry');
 const svc = require('./messages.service');
@@ -122,11 +123,20 @@ exports.uploadHandle = asyncHandler(async (req, res) => {
              : mime.startsWith('audio/') ? 'voice'
              : mime.startsWith('video/') ? 'video' : 'file';
   const safeOriginalName = sanitizeFilename(decodeMultipartName(req.file.originalname));
+  // 视频：faststart 重封装 + 封面帧 <uuid>_thumb.webp + ffprobe 时长（见 utils/videoProcess.js，
+  // 全部 fail-open）。登记 file_registry 之前做完，文件对外可见时已是最终字节。
+  let fileSize = req.file.size, probedDuration = 0;
+  if (type === 'video') {
+    const v = await processUploadedVideo(req.file.path);
+    if (v.size) fileSize = v.size;
+    probedDuration = v.duration;
+  }
   const url = `/uploads/files/${req.file.filename}`;
   registerFile({ path: url, ownerId: req.user.id, conversationId, kind: 'files' });
-  // 图片：generateThumbnail 已在 uploadMiddlewares 里跑过（makeChatUploader 内置），
+  // 图片：generateThumbnail 已在 uploadMiddlewares 里跑过（makeChatUploader 内置）；
+  // 视频：封面帧由上面 processUploadedVideo 生成（同一 _thumb.webp 命名约定）。
   // 若确实生成了缩略图，一并登记——否则 /uploads 访问鉴权会把缩略图当"未登记"404。
-  if (type === 'image') {
+  if (type === 'image' || type === 'video') {
     const thumbUrl = thumbUrlIfExists(req.file.path, url);
     if (thumbUrl) registerFile({ path: thumbUrl, ownerId: req.user.id, conversationId, kind: 'files' });
   }
@@ -136,11 +146,14 @@ exports.uploadHandle = asyncHandler(async (req, res) => {
   // 不信任客户端声称的任意大数：限制在合理范围(0~24h)内，超出视为无效直接丢弃(仍能发送，只是没时长)。
   let duration = parseInt(req.body.duration, 10);
   if (!Number.isFinite(duration) || duration < 0 || duration > 86400) duration = 0;
+  // 客户端没传时长的视频，用服务端 ffprobe 结果补上（服务端探测值比客户端声称更可信，但
+  // 为不改变既有客户端行为，客户端已传的合法值优先）。
+  if (!duration && probedDuration > 0 && probedDuration <= 86400) duration = Math.max(1, Math.round(probedDuration));
 
   // 离线推送已收口到 saveUploadedFile 内（2026-10-11，同时覆盖表情/分片上传），这里不能再推，否则重复通知
   const msg = await svc.saveUploadedFile(io(req), conversationId, req.user.id, {
     type, content: safeOriginalName, fileUrl: url, reply_to_id: req.body.reply_to_id,
-    fileMime: mime, fileSize: req.file.size, duration,
+    fileMime: mime, fileSize, duration,
   });
 
   res.json(msg);

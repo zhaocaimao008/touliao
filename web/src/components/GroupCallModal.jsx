@@ -19,6 +19,7 @@ import {
   isSignalingOnline,
 } from '../utils/callNegotiation';
 import { setDesktopCallActive } from '../utils/desktopCallState';
+import { fetchIceConfig, fallbackIceConfig } from '../utils/iceConfig';
 import { createCallResumeGate } from '../utils/callResumeGate';
 import './GroupCallModal.css';
 import useCallAudioOutput from '../hooks/useCallAudioOutput';
@@ -26,19 +27,6 @@ import useCallAudioLevels from '../hooks/useCallAudioLevels';
 
 installPrewarm();
 
-// 仅在拉取 /api/turn/credentials 失败时兜底
-const FALLBACK_ICE = { iceServers: [
-  { urls: 'stun:stun.l.google.com:19302' },
-  { urls: 'stun:stun1.l.google.com:19302' },
-] };
-
-async function fetchIceConfig() {
-  try {
-    const { data } = await axios.get('/api/turn/credentials');
-    if (data && Array.isArray(data.iceServers) && data.iceServers.length) return { iceServers: data.iceServers };
-  } catch { /* 兜底 */ }
-  return FALLBACK_ICE;
-}
 
 // A-3（2026-09-05）：mesh 群通话每条 pc 的发送码率上限按当前人数降档——N 路同时编码
 // 共享同一份 CPU，人越多每路预算必须越低，否则全员互相拖垮：
@@ -103,7 +91,7 @@ function useGroupCallWebRTC({ socket, user, session, nameOf: _nameOf, onClose })
   const selfHasVideoRef = useRef(isVideo);
   const upgradingRef = useRef(false);        // 防升级按钮连点重复 gUM/重协商
   const upgradeStreamRef = useRef(null);     // 升级取到的视频流引用，防 GC 停轨（对齐 1v1 videoAddStreamRef）
-  const iceCfgRef = useRef(FALLBACK_ICE);
+  const iceCfgRef = useRef(fallbackIceConfig());
   const pcsRef = useRef(new Map());
   const remoteSetRef = useRef(new Set());
   const pendingIceRef = useRef(new Map());

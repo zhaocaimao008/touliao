@@ -102,14 +102,33 @@ final class CallManager: NSObject, ObservableObject {
     /// （如被叫切视频的重协商不能因撞车丢失）。
     private var pendingRenegotiation = false
 
-    // STUN-only 兜底；通话前 refreshIceServers() 会向后端拉取含 TURN 的完整列表
-    private let fallbackIceServers = [RTCIceServer(urlStrings: ["stun:stun.l.google.com:19302"])]
+    /// STUN-only 兜底；通话前 refreshIceServers() 会向后端拉取含 TURN 的完整列表。
+    /// 2026-10-12：自家 coturn(与 API 同域，默认 touliao.cc:3478)的 STUN 排第一，Google STUN 次之
+    /// ——国内网络 Google STUN 经常不通，兜底时至少还能拿到 srflx 候选。
+    private static func makeFallbackIceServers() -> [RTCIceServer] {
+        var urls: [String] = []
+        if let host = URL(string: ServerConfig.shared.baseURL)?.host, !host.isEmpty, !host.contains(":") {
+            urls.append("stun:\(host):3478")
+        }
+        urls.append("stun:stun.l.google.com:19302")
+        return urls.map { RTCIceServer(urlStrings: [$0]) }
+    }
     private var iceServers: [RTCIceServer]
 
-    /// 通话建立前刷新 ICE（含时效 TURN 凭证）。失败保留兜底，不阻断通话。
+    /// 2026-10-12：后端下发的 ICE(含时效 TURN 凭证)按响应里的 ttl 缓存，绑定当前账号身份；
+    /// 拉取失败时只在缓存未过期时复用，过期即视为没有，不再拿上一通的过期凭证去连 TURN。
+    private struct CachedIce {
+        let servers: [RTCIceServer]
+        let expiresAt: Date
+        let identityEpoch: UInt64
+        let origin: String
+    }
+    private var cachedIce: CachedIce?
+
+    /// 通话建立前刷新 ICE（含时效 TURN 凭证）。失败用未过期缓存或兜底 STUN，不阻断通话。
     private func refreshIceServers() async {
         do {
-            let creds: TurnCredentials = try await APIClient.shared.send("api/turn/credentials")
+            let creds = try await fetchTurnCredentials()
             let servers = creds.iceServers.compactMap { dto -> RTCIceServer? in
                 guard !dto.urls.isEmpty else { return nil }
                 if let u = dto.username, let c = dto.credential {
@@ -117,14 +136,49 @@ final class CallManager: NSObject, ObservableObject {
                 }
                 return RTCIceServer(urlStrings: dto.urls)
             }
-            if !servers.isEmpty { iceServers = servers }
+            if !servers.isEmpty {
+                iceServers = servers
+                let owner = KeychainStore.shared.snapshot()
+                let ttl = TimeInterval(max(creds.ttl ?? 0, 0))
+                cachedIce = ttl > 0
+                    ? CachedIce(servers: servers, expiresAt: Date().addingTimeInterval(ttl), identityEpoch: owner.identityEpoch, origin: owner.origin)
+                    : nil
+                return
+            }
+            print("[Call] TURN 凭证响应里没有可用的 iceServers")
         } catch {
-            // 离线/未配 TURN：保留兜底 STUN
+            print("[Call] 拉取 TURN 凭证失败: \(error.localizedDescription)")
+        }
+        let owner = KeychainStore.shared.snapshot()
+        // 留 60s 余量：凭证在建连途中过期同样会导致 TURN 分配失败
+        if let cached = cachedIce, cached.expiresAt > Date().addingTimeInterval(60),
+           cached.identityEpoch == owner.identityEpoch, cached.origin == owner.origin {
+            iceServers = cached.servers
+            print("[Call] 使用缓存的 ICE 配置（TURN 凭证未过期）")
+        } else {
+            cachedIce = nil
+            iceServers = Self.makeFallbackIceServers()
+            print("[Call] 回退到 STUN-only ICE（无 TURN 中继，对称 NAT/蜂窝网络下可能连不通）")
+        }
+    }
+
+    /// GET api/turn/credentials。401 时：iOS 端没有静默续期 token 的机制(/api/auth/refresh 本身需要有效
+    /// token，且 APIClient 收到 401 已按会话失效处理)，所以只在「请求发出后凭据已被替换」(切号/重新登录
+    /// 竞态，旧 token 被拒)时用新凭据重试一次；凭据未变或已被清空则直接失败走兜底。
+    private func fetchTurnCredentials() async throws -> TurnCredentials {
+        let owner = KeychainStore.shared.snapshot()
+        do {
+            return try await APIClient.shared.send("api/turn/credentials")
+        } catch APIError.unauthorized {
+            let current = KeychainStore.shared.snapshot()
+            guard current != owner, current.token != nil else { throw APIError.unauthorized }
+            print("[Call] TURN 凭证 401，凭据已更新，用新凭据重试一次")
+            return try await APIClient.shared.send("api/turn/credentials")
         }
     }
 
     private override init() {
-        iceServers = fallbackIceServers
+        iceServers = Self.makeFallbackIceServers()
         RTCInitFieldTrialDictionary(callFieldTrials)   // 须在创建 factory 之前
         RTCInitializeSSL()
         factory = RTCPeerConnectionFactory(

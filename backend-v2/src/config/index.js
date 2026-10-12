@@ -142,8 +142,10 @@ const config = {
     // TURN 服务器 URL（逗号分隔），如 turn:turn.example.com:3478,turns:turn.example.com:5349
     urls: (process.env.TURN_URLS || '').split(',').map(s => s.trim()).filter(Boolean),
     ttl: parseInt(process.env.TURN_TTL, 10) || 3600, // 凭证有效期（秒）
-    // 公共/自建 STUN 兜底（逗号分隔），始终下发
-    stun: (process.env.STUN_URLS || 'stun:stun.l.google.com:19302,stun:stun1.l.google.com:19302')
+    // 公共/自建 STUN 兜底（逗号分隔），始终下发。
+    // 未配 STUN_URLS 时：自建 coturn（TURN_URLS 首个主机的 3478，coturn 默认同时提供 STUN）
+    // 排第一——stun.l.google.com 在国内被墙，ICE 收集会卡在超时上；Google 仅作境外兜底。
+    stun: (process.env.STUN_URLS || defaultStunUrls(process.env.TURN_URLS))
       .split(',').map(s => s.trim()).filter(Boolean),
   },
 
@@ -183,6 +185,15 @@ if (process.env.NODE_ENV === 'production') {
   if (!config.admin.ipWhitelist.length) {
     console.warn('[config] 警告：ADMIN_IP_WHITELIST 未配置，后台可从任意 IP 登录。建议设置（如 45.77.131.33,8.8.8.8）');
   }
+}
+
+// 默认 STUN 列表：TURN_URLS 首个 turn(s): 主机的 stun:<host>:3478 在前，Google 公共 STUN 兜底。
+// 只取主机名（支持 [IPv6]），忽略 ?transport= 等参数与原端口（TURNS 5349 不提供明文 STUN）。
+function defaultStunUrls(turnUrls) {
+  const google = 'stun:stun.l.google.com:19302,stun:stun1.l.google.com:19302';
+  const first = String(turnUrls || '').split(',').map(s => s.trim()).find(Boolean);
+  const m = first && first.match(/^turns?:(\[[^\]]+\]|[^:?\/]+)/i);
+  return m ? `stun:${m[1]}:3478,${google}` : google;
 }
 
 module.exports = config;

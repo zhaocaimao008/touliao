@@ -750,7 +750,8 @@ struct ChatView: View {
             .accessibilityIdentifier("chat-attach-image")
             .accessibilityLabel("发送图片")
 
-            PhotosPicker(selection: $videoItem, matching: .videos) {
+            // 2026-10-12：.compatible 让系统把 HEVC 原片转成 H.264 再交给我们，避免安卓/网页端放不了。
+            PhotosPicker(selection: $videoItem, matching: .videos, preferredItemEncoding: .compatible) {
                 funcItem(icon: "video", label: "视频")
             }
             .accessibilityIdentifier("chat-attach-video")
@@ -1242,7 +1243,12 @@ private struct MessageBubble: View {
     @ViewBuilder private var content: some View {
         switch msg.type {
         case "image":
-            KFImage(source: MediaUrlResolver.kfSource(resolved: vm.resolveMediaUrl(msg.fileUrl)))
+            // 2026-10-12：气泡先加载服务端缩略图(<uuid>_thumb.webp，iOS14+ ImageIO 原生解码 webp)，
+            // 缩略图不存在(旧图 404)时自动换原图；按气泡尺寸降采样解码，省内存。全屏查看器仍用原图。
+            KFImage(source: MediaUrlResolver.kfSource(resolved: vm.resolveMediaUrl(MediaUrlResolver.thumbUrl(msg.fileUrl))))
+                .alternativeSources([MediaUrlResolver.kfSource(resolved: vm.resolveMediaUrl(msg.fileUrl))].compactMap { $0 })
+                .setProcessor(DownsamplingImageProcessor(size: CGSize(width: 280, height: 280)))
+                .scaleFactor(UIScreen.main.scale)
                 .resizable()
                 .scaledToFit()
                 .frame(maxWidth: 220, maxHeight: 280)

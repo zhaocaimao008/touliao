@@ -18,7 +18,6 @@ const { v4: uuidv4 } = require('uuid');
 const config = require('../../config');
 const { readDb } = require('../../db/connection');
 const { write } = require('../../db/writer');
-const presence = require('../presence');
 const { pushCallInvite } = require('../../utils/push');
 const { guardPayload, guardId } = require('../guard');
 const { writeCallMessage } = require('../callMessage');
@@ -31,8 +30,10 @@ function privateCallAllowed(type) {
   return v !== 'off';
 }
 
-// 通话超时：120s 未应答则自动取消（防 activeCalls Map 无限增长 + call_logs 悬空记录）。
-// 可经环境变量注入(仅测试用短值;生产不设则保持 120s,行为不变)。
+// 通话超时：50s 未应答则自动取消（防 activeCalls Map 无限增长 + call_logs 悬空记录）。
+// 2026-10-12：默认由 120s 改为 50s——四端主叫/被叫 UI 均在 45s 自行挂断，服务端再多挂
+// 75s 只会让对端"幽灵来电"/占线判定滞后；50s 比客户端略长，保证正常由客户端先挂断。
+// 可经环境变量注入(仅测试用短值;生产不设则保持 50s)。
 // 合法性保护：NaN/负数/小于 1s/超大值(>1h)一律回退默认并告警——
 // 防生产 .env 手滑或部署环境继承把通话超时设成 0/负值(所有来电创建即超时)
 // 或超大值(Node setTimeout 超 2^31-1ms≈24.8天 会溢出成 1ms,同样灾难)。
@@ -46,7 +47,7 @@ function resolveTimeoutMs(raw, fallback, min) {
   }
   return n;
 }
-const CALL_TIMEOUT_MS = resolveTimeoutMs(process.env.CALL_TIMEOUT_MS, 120_000, 1_000);
+const CALL_TIMEOUT_MS = resolveTimeoutMs(process.env.CALL_TIMEOUT_MS, 50_000, 1_000);
 
 // 防骚扰：同一主叫每 5s 只能发起一次通话（不影响 activeCalls 逻辑，仅拦截高频重拨）。
 // 可经环境变量注入(测试设 0 关闭;生产不设则保持 5s,行为不变)。
@@ -307,12 +308,12 @@ function registerCallHandler(io, socket, registry) {
     // 来电推送本质是给"移动端"补的兜底通路（Web/桌面端走 call:incoming 已足够），
     // 因此改为按平台维度判定：只要 android/ios 任一移动平台没有活跳 socket，就发
     // 推送去唤起该移动设备，不因同账号 Web/桌面在线而被压制。
-    const platforms = presence.onlinePlatforms(to);
-    const mobileConnected = platforms.has('android') || platforms.has('ios');
-    if (!mobileConnected) {
-      pushCallInvite({ toUserId: to, fromUserId: userId, callerName: callerInfo?.username || '', callType: t, callId: id })
-        .catch(e => console.warn('[call] 来电推送失败:', e.message));
-    }
+    // 2026-10-12：进一步改为【总是】发高优先级来电推送（VoIP/FCM/个推）。"移动端 socket
+    // 在线"并不可靠——App 刚切后台/熄屏时 socket 可能还挂着心跳但 JS/UI 已被冻结，
+    // call:incoming 送达却弹不出来电界面。四端均按 callId 去重（socket 与推送先到者生效），
+    // 推送负载各通道都带 callId（见 utils/push.js pushCallInvite / getuiPush.pushCallToCid）。
+    pushCallInvite({ toUserId: to, fromUserId: userId, callerName: callerInfo?.username || '', callType: t, callId: id })
+      .catch(e => console.warn('[call] 来电推送失败:', e.message));
     // 主叫侧回执携带 callId：随后随 accept/reject/hangup 回传做过期应答校验（对齐被叫侧）。
     // 旧客户端不传 ack 回调则跳过，无兼容风险。同时回传 resumeToken（Q06 全修）：
     // 只经这条直连 ack 回给发起方自己这一条 Socket，绝不进 call:incoming/call:outgoing

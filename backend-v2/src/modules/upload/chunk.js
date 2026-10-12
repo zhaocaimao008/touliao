@@ -14,6 +14,7 @@ const config = require('../../config');
 const { isMember } = require('../messages/shared');
 const { verifyChatFile, ALLOWED_CHAT_EXTS, sanitizeFilename, MAX_UPLOAD_BYTES, MAX_CONCURRENT_UPLOADS, MIN_DISK_FREE_BYTES, stripImageMetadata, generateThumbnail, thumbUrlIfExists } = require('../../utils/upload');
 const { registerFile } = require('../../utils/fileRegistry');
+const { processUploadedVideo } = require('../../utils/videoProcess');
 
 const MAX_FILE = MAX_UPLOAD_BYTES; // 单文件上限（默认 200MB，可配 MAX_UPLOAD_BYTES）
 const MAX_CHUNK = 8 * 1024 * 1024; // 单片上限 8MB
@@ -170,11 +171,19 @@ async function finish(req, res) {
   // 缩略图同口径：与直传聊天图片一致用 480（见 utils/upload.js makeExifStripMiddleware 注释）。
   await generateThumbnail(finalPath, mime, 480);
   const type = mime.startsWith('image/') ? 'image' : mime.startsWith('audio/') ? 'voice' : mime.startsWith('video/') ? 'video' : 'file';
+  // 视频：faststart 重封装 + 封面帧 <uuid>_thumb.webp + ffprobe 时长（见 utils/videoProcess.js，
+  // 全部 fail-open）。登记 file_registry 之前做完，文件对外可见时已是最终字节。
+  let fileSize = m.size, duration = 0;
+  if (type === 'video') {
+    const v = await processUploadedVideo(finalPath);
+    if (v.size) fileSize = v.size; // 重封装后字节数会略有变化，以磁盘实际为准
+    if (v.duration > 0 && v.duration <= 86400) duration = Math.max(1, Math.round(v.duration));
+  }
   const fileUrl = `/uploads/files/${finalName}`;
   registerFile({ path: fileUrl, ownerId: req.user.id, conversationId, kind: 'files' });
-  // 若确实生成了缩略图，一并登记——否则 /uploads 访问鉴权会把缩略图当"未登记"404
+  // 若确实生成了缩略图（图片缩略图 / 视频封面帧），一并登记——否则 /uploads 访问鉴权会把缩略图当"未登记"404
   // （见 app.js resolveUploadAccess，files 类别只信 file_registry 精确路径匹配）。
-  if (type === 'image') {
+  if (type === 'image' || type === 'video') {
     const thumbUrl = thumbUrlIfExists(finalPath, fileUrl);
     if (thumbUrl) registerFile({ path: thumbUrl, ownerId: req.user.id, conversationId, kind: 'files' });
   }
@@ -183,7 +192,7 @@ async function finish(req, res) {
   const io = req.app.get('io');
   const msg = await svc.saveUploadedFile(io, conversationId, req.user.id, {
     type, content: sanitizeFilename(m.filename), fileUrl, reply_to_id: req.body?.reply_to_id,
-    fileMime: mime, fileSize: m.size,
+    fileMime: mime, fileSize, duration,
   });
   return res.json(msg);
   } finally { finishing.delete(uploadId); }

@@ -205,34 +205,70 @@ class CallManager @Inject constructor(
     val voiceCallVolumeZero = MutableStateFlow(false)
     val state: StateFlow<CallState> = _state.asStateFlow()
 
-    // STUN-only 兜底；通话前 refreshIceServers() 会向后端拉取含 TURN 的完整列表
+    // STUN-only 兜底；通话前 refreshIceServers() 会向后端拉取含 TURN 的完整列表。
+    // 自家 coturn（与 TURN 同机，3478 同时提供 STUN）放第一位：国内网络下 Google STUN 常不可达。
     private val fallbackIceServers = listOf(
+        PeerConnection.IceServer.builder("stun:$FALLBACK_STUN_HOST:3478").createIceServer(),
         PeerConnection.IceServer.builder("stun:stun.l.google.com:19302").createIceServer(),
     )
     @Volatile
     private var iceServers: List<PeerConnection.IceServer> = fallbackIceServers
+    // 上次成功拉到的 ICE（含时效 TURN 凭证）及其过期时刻（elapsedRealtime）。过期即视为没有——
+    // 此前失败时一直沿用旧凭证，超过 TTL 后 coturn 拒绝认证，等于静默丢了 TURN。
+    @Volatile private var cachedIce: List<PeerConnection.IceServer>? = null
+    @Volatile private var cachedIceExpiresAt = 0L
 
-    /** 通话建立前刷新 ICE（含时效 TURN 凭证）。失败保留兜底，不阻断通话。 */
+    /** 通话建立前刷新 ICE（含时效 TURN 凭证）。失败时用未过期缓存，否则兜底 STUN，不阻断通话。 */
     private suspend fun refreshIceServers() {
-        try {
-            val creds = turnApi.getCredentials()
-            val servers = creds.iceServers.mapNotNull { dto ->
-                if (dto.urls.isEmpty()) return@mapNotNull null
-                PeerConnection.IceServer.builder(dto.urls).apply {
-                    dto.username?.let { setUsername(it) }
-                    dto.credential?.let { setPassword(it) }
-                }.createIceServer()
-            }
-            if (servers.isNotEmpty()) iceServers = servers
+        val fresh = try {
+            fetchIceServers()
         } catch (e: Exception) {
-            Log.w("CallManager", "refreshIceServers failed, using fallback STUN", e)
+            if (e is kotlinx.coroutines.CancellationException) throw e
+            Log.w(TAG, "refreshIceServers failed", e)
+            null
         }
+        if (fresh != null) { iceServers = fresh; return }
+        val cached = cachedIce
+        if (cached != null && android.os.SystemClock.elapsedRealtime() < cachedIceExpiresAt) {
+            Log.w(TAG, "ICE: using cached TURN credentials (still within TTL)")
+            iceServers = cached
+        } else {
+            cachedIce = null
+            Log.w(TAG, "ICE fallback: no valid TURN credentials, STUN-only ($FALLBACK_STUN_HOST:3478, then Google)")
+            iceServers = fallbackIceServers
+        }
+    }
+
+    private suspend fun fetchIceServers(): List<PeerConnection.IceServer>? {
+        val creds = try {
+            turnApi.getCredentials()
+        } catch (e: retrofit2.HttpException) {
+            // 401：App 没有 refresh-token 机制，AuthInterceptor 会把「本次请求所用且仍为当前」的 token
+            // 作废并走登出。只有请求途中 token 已被替换（改密 applyNewToken / 切号）时本地仍有 token，
+            // 这种情况用新 token 重试一次；否则重试必然再 401，直接抛出走兜底。
+            if (e.code() != 401 || sessionManager.credentialSnapshot().token == null) throw e
+            Log.w(TAG, "turn credentials 401 with a replaced token, retrying once")
+            turnApi.getCredentials()
+        }
+        val servers = creds.iceServers.mapNotNull { dto ->
+            if (dto.urls.isEmpty()) return@mapNotNull null
+            PeerConnection.IceServer.builder(dto.urls).apply {
+                dto.username?.let { setUsername(it) }
+                dto.credential?.let { setPassword(it) }
+            }.createIceServer()
+        }
+        if (servers.isEmpty()) return null
+        // 预留 60s 余量：凭证在通话建立后还要撑过 ICE restart 的重新认证
+        cachedIceExpiresAt = android.os.SystemClock.elapsedRealtime() + (creds.ttl - 60).coerceAtLeast(0) * 1000L
+        cachedIce = servers
+        return servers
     }
 
     init {
         ensureFactory()
         observeSignaling()
         sessionManager.onIdentityCleanup {
+            cachedIce = null   // TURN 用户名绑定 userId，换号后旧凭证不可再用
             if (_state.value.stage != CallStage.IDLE && _state.value.stage != CallStage.ENDED) cleanup(CallStage.ENDED)
         }
     }
@@ -1167,6 +1203,8 @@ class CallManager @Inject constructor(
     private companion object {
         const val STREAM_ID = "stream0"
         const val TAG = "CallManager"
+        // TURN 服务器主机（backend-v2 TURN_URLS 同一主机），ICE 兜底时用其 3478 STUN
+        const val FALLBACK_STUN_HOST = "touliao.cc"
         // ICE restart 参数(与四端统一):防抖 3s / 恢复窗口 15s / 最大 3 次
         const val ICE_RESTART_DEBOUNCE_MS = 3000L
         const val ICE_RESTART_WINDOW_MS = 15000L

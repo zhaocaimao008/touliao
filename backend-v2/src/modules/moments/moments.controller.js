@@ -2,6 +2,7 @@
 const { asyncHandler, badRequest } = require('../../utils/http');
 const { registerFile } = require('../../utils/fileRegistry');
 const { thumbUrlIfExists } = require('../../utils/upload');
+const { processUploadedVideo } = require('../../utils/videoProcess');
 const svc = require('./moments.service');
 
 const io = req => req.app.get('io');
@@ -46,7 +47,11 @@ exports.uploadVideo = asyncHandler(async (req, res) => {
     require('fs').unlink(req.file.path, () => {});
     throw badRequest('文件为空，请重新选择');
   }
+  // faststart 重封装 + 封面帧 <uuid>_thumb.webp（fail-open，见 utils/videoProcess.js），登记前做完
+  await processUploadedVideo(req.file.path);
   const url = `/uploads/moments/${req.file.filename}`;
   registerFile({ path: url, ownerId: req.user.id, kind: 'moments' });
+  const thumbUrl = thumbUrlIfExists(req.file.path, url);
+  if (thumbUrl) registerFile({ path: thumbUrl, ownerId: req.user.id, kind: 'moments' });
   res.json({ url });
 });

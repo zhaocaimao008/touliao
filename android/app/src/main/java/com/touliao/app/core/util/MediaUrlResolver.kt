@@ -43,3 +43,17 @@ class MediaUrlResolver @Inject constructor(
         }
     }
 }
+
+/**
+ * 由原图 URL 推导服务端缩略图 URL：/uploads/<category>/<uuid>.<ext> → 同目录 <uuid>_thumb.webp。
+ * 与 Web web/src/utils/url.js getThumbUrl 逐条对齐（后端命名约定见 backend-v2 upload.js generateThumbnail）。
+ * 纯字符串变换：旧图（缩略图功能上线前上传的）没有对应文件会 404，调用方必须在加载失败时回退原图。
+ */
+private val THUMB_SOURCE = Regex("^(.*/)([^/.]+)\\.[a-zA-Z0-9]+$")
+fun thumbUrlOf(url: String?): String? {
+    if (url.isNullOrEmpty()) return url
+    if (!url.startsWith("/uploads/")) return url   // 只有本站已上传文件路径才可能有缩略图
+    if (url.endsWith("_thumb.webp")) return url     // 已是缩略图，防重复推导
+    val m = THUMB_SOURCE.matchEntire(url) ?: return url
+    return "${m.groupValues[1]}${m.groupValues[2]}_thumb.webp"
+}

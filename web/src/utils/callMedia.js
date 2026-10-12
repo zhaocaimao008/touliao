@@ -38,9 +38,13 @@ export async function capVideoBitrate(pc, maxBps = 2_500_000, degrade = false) {
       p.encodings[0].maxBitrate = maxBps;
       if (degrade) p.encodings[0].scaleResolutionDownBy = 2;
       else delete p.encodings[0].scaleResolutionDownBy;
-      // Chrome 扩展字段（RTCRtpSendParameters.degradationPreference）：带宽不够时优先保
-      // 分辨率、牺牲帧率；非标准字段，不存在的浏览器自动跳过。
-      if ('degradationPreference' in p) p.degradationPreference = 'maintain-resolution';
+      // Chrome 扩展字段（RTCRtpSendParameters.degradationPreference），非标准字段，不存在的
+      // 浏览器自动跳过。摄像头用 'balanced'（弱网同时降帧率与分辨率，避免画面卡成幻灯片）；
+      // 仅屏幕共享类轨道（contentHint=detail/text）保分辨率、牺牲帧率。
+      if ('degradationPreference' in p) {
+        const hint = sender.track.contentHint;
+        p.degradationPreference = hint === 'detail' || hint === 'text' ? 'maintain-resolution' : 'balanced';
+      }
       sender.setParameters(p).catch(() => {});
     });
   } catch { /* 浏览器不支持即忽略 */ }

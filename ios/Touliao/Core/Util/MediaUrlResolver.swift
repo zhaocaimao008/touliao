@@ -58,6 +58,20 @@ enum MediaUrlResolver {
     }
     static func kfSource(raw: String?) -> Source? { kfSource(resolved: resolve(raw)) }
 
+    /// 由原图 URL 推导服务端缩略图 URL，规则与 web/src/utils/url.js getThumbUrl 完全一致：
+    /// /uploads/<dir>/<name>.<ext> → 同目录 <name>_thumb.webp；非 /uploads/ 开头、已是缩略图、
+    /// 文件名不是「无点主名.字母数字扩展名」时原样返回。旧图没有缩略图会 404，调用方必须回退原图。
+    static func thumbUrl(_ url: String?) -> String? {
+        guard let url, url.hasPrefix("/uploads/") else { return url }
+        if url.hasSuffix("_thumb.webp") { return url }
+        guard let slash = url.lastIndex(of: "/") else { return url }
+        let dir = url[...slash]
+        let parts = url[url.index(after: slash)...].split(separator: ".", omittingEmptySubsequences: false)
+        guard parts.count == 2, !parts[0].isEmpty, !parts[1].isEmpty,
+              parts[1].allSatisfy({ $0.isASCII && ($0.isLetter || $0.isNumber) }) else { return url }
+        return "\(dir)\(parts[0])_thumb.webp"
+    }
+
     private struct MediaProvider: ImageDataProvider {
         let url: URL
         let owner: KeychainStore.Snapshot

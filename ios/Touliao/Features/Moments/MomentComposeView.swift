@@ -170,7 +170,8 @@ struct MomentComposeView: View {
                             Text(url.lastPathComponent).touliaoText(.caption).foregroundColor(.vxinTextSecondary).lineLimit(1)
                         } else {
                             // 选视频：FileRepresentation 落盘（不整体进内存），iCloud 视频系统自动下载
-                            PhotosPicker(selection: $videoItem, matching: .videos) {
+                            // 2026-10-12：.compatible → 系统把 HEVC 原片转成 H.264（与聊天视频一致）
+                            PhotosPicker(selection: $videoItem, matching: .videos, preferredItemEncoding: .compatible) {
                                 Label("选择视频", touliaoIcon: "video")
                             }
                         }

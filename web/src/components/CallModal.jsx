@@ -3,7 +3,6 @@ import useFocusTrap from '../hooks/useFocusTrap';
 import TouliaoIcon from '../ui-kit/Icon';
 
 import React, { useState, useEffect, useRef, useCallback, useMemo, useId } from 'react';
-import axios from 'axios';
 import Avatar from './Avatar';
 import { mediaUrl, useMediaCredentials } from '../utils/url';
 import { matchesCall, matchesCallEnd, withCallId } from '../utils/callSignaling';
@@ -20,6 +19,7 @@ import {
   statusAfterAnswer,
 } from '../utils/callNegotiation';
 import { setDesktopCallActive } from '../utils/desktopCallState';
+import { fetchIceConfig } from '../utils/iceConfig';
 import { createCallResumeGate } from '../utils/callResumeGate';
 import { useI18n } from '../contexts/I18nContext';
 import {
@@ -35,22 +35,6 @@ import { IcoVideo } from './Icons';
 // 见 callTones.js 头部说明)。sticky activation 后创建即 running,回铃音/来电
 // 铃声无需再请求手势。
 installPrewarm();
-
-const FALLBACK_ICE = {
-  iceServers: [
-    { urls: 'stun:stun.l.google.com:19302' },
-    { urls: 'stun:stun1.l.google.com:19302' },
-  ],
-};
-
-async function fetchIceConfig() {
-  try {
-    const { data } = await axios.get('/api/turn/credentials');
-    if (data && Array.isArray(data.iceServers) && data.iceServers.length)
-      return { iceServers: data.iceServers };
-  } catch { /* fall through to default ICE servers */ }
-  return FALLBACK_ICE;
-}
 
 // 未接听自动挂断: 与 iOS/Android 统一为 45s (2026-09-07 AUDIT 四端超时不一致项拍板)
 const CALL_TIMEOUT_MS = 45000;
