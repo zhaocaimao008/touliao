@@ -179,7 +179,7 @@ struct ChatView: View {
         .onDisappear { VisibleConversation.shared.leave(vm.conversationId); vm.onLeave() }
         .onChange(of: photoItems) { items in handlePhotos(items) }
         .onChange(of: videoItem) { item in handleVideo(item) }
-        // 处理视频期间显示进度浮层；离开页面不取消（与之前一样，处理完照常上传）。
+        // 处理视频期间显示进度浮层；离开页面不取消，处理完仍发到开始时的那个会话（见 handleVideo）。
         .overlay { VideoPreparationHUD(preparation: videoPrep) }
         .alert("视频导入失败", isPresented: Binding(get: { videoImportError != nil }, set: { if !$0 { videoImportError = nil } })) {
             Button("好", role: .cancel) {}
@@ -758,6 +758,8 @@ struct ChatView: View {
             PhotosPicker(selection: $videoItem, matching: .videos, preferredItemEncoding: .current) {
                 funcItem(icon: "video", label: "视频")
             }
+            // 处理中不能再选第二个视频（否则会静默取消正在处理的那个）
+            .disabled(videoPrep.isActive)
             .accessibilityIdentifier("chat-attach-video")
             .accessibilityLabel("发送视频")
 
@@ -902,26 +904,30 @@ struct ChatView: View {
     /// 切后台有后台任务保护；转码失败回退原片上传。大小校验放在转码之后（转码通常会变小）。
     private func handleVideo(_ item: PhotosPickerItem?) {
         guard let item else { return }
-        videoItem = nil   // 立即复位，允许处理中/之后再次选择（onChange 收到 nil 直接返回）
+        videoItem = nil   // 立即复位（onChange 收到 nil 直接返回）；处理中视频入口禁用
+        // 开始时就持有本会话的 ViewModel：用户中途离开页面，处理完也发到原会话，
+        // 不经已卸载视图的 @StateObject（那样会拿到一个新的、未连接的实例）。
+        let model = vm
         videoPrep.start(item, onReady: { picked in
-            sendPreparedVideo(picked)
+            Self.sendPreparedVideo(picked, to: model) { videoImportError = $0 }
         }, onError: { message in
             videoImportError = message
         })
     }
 
-    private func sendPreparedVideo(_ picked: PickedVideoFile) {
+    @MainActor private static func sendPreparedVideo(_ picked: PickedVideoFile, to vm: ChatViewModel,
+                                          onError: @escaping (String) -> Void) {
         guard let sizeAttr = try? FileManager.default.attributesOfItem(atPath: picked.url.path),
               let fileSize = sizeAttr[.size] as? Int64, fileSize > 0 else {
-            videoImportError = "视频文件读取失败"
+            onError("视频文件读取失败")
             PickedVideoCleanup.removeFile(picked.url)
             return
         }
         // 与后端 MAX_UPLOAD_BYTES 默认值一致的前置校验(200MB)：避免明知会失败还发起一次几百MB的
         // 上传空跑；真实上限以服务端为准，这里只是提前给出清晰提示，不在客户端重新定义业务规则。
-        let maxBytes: Int64 = 200 * 1024 * 1024
+        let maxBytes = PickedVideoTranscoder.maxUploadBytes
         if fileSize > maxBytes {
-            videoImportError = "视频超过200MB限制(当前\(ByteCountFormatter.string(fromByteCount: fileSize, countStyle: .file)))，请选择更小的视频"
+            onError("视频超过200MB限制(当前\(ByteCountFormatter.string(fromByteCount: fileSize, countStyle: .file)))，请选择更小的视频")
             PickedVideoCleanup.removeFile(picked.url)
             return
         }

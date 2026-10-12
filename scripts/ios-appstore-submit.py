@@ -9,14 +9,17 @@
   3. 找或建 appStoreVersion（platform=IOS, versionString=--version）：
      - 同版本号已存在且可编辑 → 直接用
      - 同版本号已在审核/待发布/已上架 → 挂的就是这个构建则视为已提交（退出码 0），否则报错要人工处理
-     - 另有一个可编辑版本（每个平台只能有一个）→ 只改它的 versionString
-     - 另有版本在审核/待发布 → 报错（Apple 不允许此时新建版本，不自动撤回）
-     - 都没有 → 新建；releaseType 沿用上一版本的设置（MANUAL/AFTER_APPROVAL），不改发布方式
+     - 另有一个可编辑版本（每个平台只能有一个）且版本号低于目标 → 只改它的 versionString；
+       版本号不低于目标（如手工准备的 8.2.0 草稿）→ 报错，交人工决定，绝不静默改名
+     - 另有版本在审核/待发布 → 退出码 3「被占用」（Apple 不允许此时新建版本，不自动撤回）
+     - 都没有 → 新建；releaseType 沿用上一版本（MANUAL/AFTER_APPROVAL；SCHEDULED 的日期不可复用 → 改 MANUAL），
+       上一版本用了分阶段发布则新版本也开启分阶段发布
   4. 每个已有本地化写入「此版本的新内容」(whatsNew)：ios/testflight-config.json 的 appStoreWhatsNew
      （字符串，或 {"zh-Hans": ..., "en-US": ..., "default": ...}），或 --whats-new-file
   5. 版本缺审核联系信息(appStoreReviewDetail)时，用 testflight-config.json 的联系人/演示账号补上（已有不动）
   6. 把构建挂到版本上（PATCH appStoreVersions/{id}/relationships/build）
-  7. 复用未提交的 reviewSubmission（或被拒待处理的那条）/ 新建一条 → 加入该版本 → submitted=true
+  7. 复用未提交的 reviewSubmission（只含本版本的草稿，或被拒待处理的那条）/ 新建一条 → 加入该版本 → submitted=true
+     （submitted PATCH 不盲目重试：出错后重新读取提交状态，已进审核队列即视为成功）
 
 环境变量：ASC_KEY_ID、ASC_ISSUER_ID，以及 ASC_P8_PATH（.p8 文件）或 ASC_API_KEY_BASE64（.p8 的 base64）。
 可选 ASC_APP_ID（跳过按 bundle 查 App）。
@@ -24,7 +27,8 @@
   python3 scripts/ios-appstore-submit.py --version 8.1.41 --dry-run
   python3 scripts/ios-appstore-submit.py --version 8.1.41 --build-number 1760300000
 
-退出码：0 = 已提交 / 之前已提交 / dry-run 完成；1 = 出错（日志里有原因与 ASC 返回的错误）。
+退出码：0 = 已提交 / 之前已提交 / dry-run 完成；1 = 出错（日志里有原因与 ASC 返回的错误）；
+       3 = 被占用：另一版本/另一条提交仍在审核或待发布，现在无法提交（稍后用 ios-appstore-submit.yml 重跑）。
 """
 import argparse
 import base64
@@ -54,7 +58,9 @@ RELEASED_STATES = {
     "DEVELOPER_REMOVED_FROM_SALE", "NOT_APPLICABLE",
 }
 SUBMISSION_IN_REVIEW = ("WAITING_FOR_REVIEW", "IN_REVIEW")
-SUBMISSION_OPEN = ("READY_FOR_REVIEW", "UNRESOLVED_ISSUES") + SUBMISSION_IN_REVIEW
+SUBMISSION_BUSY = ("CANCELING", "COMPLETING")   # 过渡态：等它结束再提交
+SUBMISSION_OPEN = ("READY_FOR_REVIEW", "UNRESOLVED_ISSUES") + SUBMISSION_IN_REVIEW + SUBMISSION_BUSY
+EXIT_BLOCKED = 3
 DRY_RUN_VERSION_ID = "DRY-RUN-NEW-VERSION"
 DRY_RUN_SUBMISSION_ID = "DRY-RUN-NEW-SUBMISSION"
 
@@ -73,6 +79,10 @@ def step(msg):
 
 class SubmitError(Exception):
     pass
+
+
+class BlockedError(SubmitError):
+    """另一版本/提交仍在审核或待发布：不是脚本或配置错误，稍后重跑即可。"""
 
 
 class ApiError(SubmitError):
@@ -135,10 +145,10 @@ class AscClient:
     def post(self, path, body):
         return self.request("POST", path, body=body)
 
-    def patch(self, path, body):
-        return self.request("PATCH", path, body=body)
+    def patch(self, path, body, retry=True):
+        return self.request("PATCH", path, body=body, retry=retry)
 
-    def request(self, method, path, params=None, body=None):
+    def request(self, method, path, params=None, body=None, retry=True):
         if method != "GET" and self.dry_run:
             shown = json.dumps(redact(body), ensure_ascii=False) if body is not None else ""
             log(f"   [dry-run] 将 {method} {path} {shown[:400]}")
@@ -160,7 +170,7 @@ class AscClient:
                     return json.loads(raw) if raw else {}
             except urllib.error.HTTPError as e:
                 raw = e.read()
-                retryable = e.code == 429 or (method != "POST" and e.code >= 500)
+                retryable = e.code == 429 or (retry and method != "POST" and e.code >= 500)
                 if retryable and attempt < 3:
                     wait = 5 * (2 ** attempt)
                     log(f"   {method} {path} -> {e.code}，{wait}s 后重试")
@@ -168,7 +178,7 @@ class AscClient:
                     continue
                 raise ApiError(method, path, e.code, raw)
             except urllib.error.URLError as e:
-                if method != "POST" and attempt < 3:
+                if retry and method != "POST" and attempt < 3:
                     self.sleep(5 * (2 ** attempt))
                     continue
                 raise SubmitError(f"{method} {path} 网络错误: {e.reason}")
@@ -182,6 +192,13 @@ def redact(value):
     if isinstance(value, list):
         return [redact(v) for v in value]
     return value
+
+
+def version_tuple(s):
+    try:
+        return tuple(int(x) for x in (s or "").split("."))
+    except ValueError:
+        return None
 
 
 def version_state(v):
@@ -291,6 +308,10 @@ def ensure_version(client, app_id, version, build_id):
     if editable:
         other = editable[0]
         old = other["attributes"].get("versionString")
+        old_t, new_t = version_tuple(old), version_tuple(version)
+        if old_t is None or new_t is None or old_t >= new_t:
+            raise SubmitError(f"已有可编辑版本 {old}（{version_state(other)}），版本号不低于 {version}；"
+                              "可能是手工准备的版本，不自动改名，请在 App Store Connect 人工处理")
         client.patch(f"/appStoreVersions/{other['id']}", {"data": {
             "type": "appStoreVersions", "id": other["id"], "attributes": {"versionString": version}}})
         ok(f"已有可编辑版本 {old}（{version_state(other)}），版本号改为 {version}（每个平台只能有一个可编辑版本）")
@@ -299,24 +320,51 @@ def ensure_version(client, app_id, version, build_id):
     blocking = [v for v in versions if version_state(v) in IN_FLIGHT_STATES]
     if blocking:
         b = blocking[0]
-        raise SubmitError(f"版本 {b['attributes'].get('versionString')} 仍是 {version_state(b)}，"
-                          "Apple 不允许此时新建版本；等它发布/撤回后再运行")
+        raise BlockedError(f"版本 {b['attributes'].get('versionString')} 仍是 {version_state(b)}，"
+                           "Apple 不允许此时新建版本；等它发布/撤回后再运行 ios-appstore-submit.yml")
 
     attributes = {"platform": "IOS", "versionString": version}
     released = sorted((v for v in versions if version_state(v) in RELEASED_STATES),
                       key=lambda v: v["attributes"].get("createdDate") or "", reverse=True)
-    release_type = released[0]["attributes"].get("releaseType") if released else None
+    previous = released[0] if released else None
+    release_type = previous["attributes"].get("releaseType") if previous else None
     if release_type in ("MANUAL", "AFTER_APPROVAL"):
         attributes["releaseType"] = release_type
         log(f"   沿用上一版本的发布方式 releaseType={release_type}")
+    elif release_type == "SCHEDULED":
+        # 定时发布的日期属于上一版本，不能复用；改成手动发布，绝不默认成「审核通过即上架」
+        attributes["releaseType"] = "MANUAL"
+        log("   上一版本是定时发布（SCHEDULED），日期不可复用 → 新版本改为手动发布 MANUAL")
+    phased = previous_phased_release(client, previous["id"]) if previous else None
     created = client.post("/appStoreVersions", {"data": {
         "type": "appStoreVersions", "attributes": attributes,
         "relationships": {"app": {"data": {"type": "apps", "id": app_id}}}}})
     if created is None:
-        ok(f"[dry-run] 将新建版本 {version}")
+        ok(f"[dry-run] 将新建版本 {version}" + ("（并开启分阶段发布）" if phased else ""))
         return DRY_RUN_VERSION_ID, False
-    ok(f"已新建版本 {version}（{created['data']['id']}）")
-    return created["data"]["id"], False
+    vid = created["data"]["id"]
+    ok(f"已新建版本 {version}（{vid}）")
+    if phased:
+        try:
+            client.post("/appStoreVersionPhasedReleases", {"data": {
+                "type": "appStoreVersionPhasedReleases", "attributes": {"phasedReleaseState": "INACTIVE"},
+                "relationships": {"appStoreVersion": {"data": {"type": "appStoreVersions", "id": vid}}}}})
+            ok("沿用上一版本：开启分阶段发布（7 天逐步放量）")
+        except SubmitError as e:
+            log(f"::warning::上一版本用了分阶段发布，但新版本开启失败，请在 App Store Connect 手动开启：{e}")
+    return vid, False
+
+
+def previous_phased_release(client, version_id):
+    """上一版本是否用了分阶段发布（读不到按没有处理，只打日志）。"""
+    try:
+        data = (client.get(f"/appStoreVersions/{version_id}/appStoreVersionPhasedRelease") or {}).get("data")
+    except SubmitError as e:
+        log(f"   读取上一版本分阶段发布设置失败（按未开启处理）：{e}")
+        return None
+    if data:
+        log(f"   上一版本使用了分阶段发布（{(data.get('attributes') or {}).get('phasedReleaseState')}）")
+    return data
 
 
 def ensure_whats_new(client, version_id, whats_new):
@@ -368,11 +416,32 @@ def ensure_build_attached(client, version_id, build_id):
     ok("构建已挂到版本")
 
 
-def submission_has_version(client, submission_id, version_id):
+def submission_item_versions(client, submission_id):
+    """该提交里每个 item 挂的 appStoreVersion id（非版本类 item 记为 None）。"""
     items = client.get(f"/reviewSubmissions/{submission_id}/items",
                        {"include": "appStoreVersion", "limit": "50"})["data"]
-    return any(((i.get("relationships", {}).get("appStoreVersion") or {}).get("data") or {}).get("id") == version_id
-               for i in items)
+    return [((i.get("relationships", {}).get("appStoreVersion") or {}).get("data") or {}).get("id") for i in items]
+
+
+def submission_has_version(client, submission_id, version_id):
+    return version_id in submission_item_versions(client, submission_id)
+
+
+def mark_submitted(client, sid, version_id):
+    """PATCH submitted=true 不盲目重试：首个请求可能已生效却返回 5xx/超时，重试会 409。
+    出错后重新读取提交状态，已进审核队列且含本版本即视为成功。"""
+    try:
+        return client.patch(f"/reviewSubmissions/{sid}", {"data": {
+            "type": "reviewSubmissions", "id": sid, "attributes": {"submitted": True}}}, retry=False)
+    except (SubmitError, OSError) as e:
+        log(f"   提交请求出错（{e}），重新读取提交状态确认…")
+        client.sleep(10)
+        current = client.get(f"/reviewSubmissions/{sid}")
+        state = (current or {}).get("data", {}).get("attributes", {}).get("state")
+        if state in SUBMISSION_IN_REVIEW and submission_has_version(client, sid, version_id):
+            log(f"   提交实际已生效（{state}）")
+            return current
+        raise
 
 
 def ensure_submitted(client, app_id, version_id):
@@ -389,10 +458,16 @@ def ensure_submitted(client, app_id, version_id):
             if has:
                 ok("本版本已在审核队列中，无需重复提交")
                 return "already_submitted"
-            raise SubmitError(f"已有一条 {state} 的审核提交（{s['id']}），Apple 不允许同时再提交；等它结束后重跑")
+            raise BlockedError(f"已有一条 {state} 的审核提交（{s['id']}），Apple 不允许同时再提交；等它结束后重跑")
+        if state in SUBMISSION_BUSY:
+            raise BlockedError(f"审核提交 {s['id']} 正处于 {state}，等它结束后重跑")
         if state == "UNRESOLVED_ISSUES" and has:
             target = s
         elif state == "READY_FOR_REVIEW" and target is None:
+            others = [v for v in submission_item_versions(client, s["id"]) if v != version_id]
+            if others:
+                raise SubmitError(f"已有一条未提交的审核草稿 {s['id']}，里面还有别的项目（{others}）；"
+                                  "不自动连带提交，请在 App Store Connect 人工处理")
             target = s
     if target is None:
         created = client.post("/reviewSubmissions", {"data": {
@@ -413,8 +488,7 @@ def ensure_submitted(client, app_id, version_id):
                 "appStoreVersion": {"data": {"type": "appStoreVersions", "id": version_id}},
             }}})
         ok("版本已加入审核提交")
-    result = client.patch(f"/reviewSubmissions/{sid}", {"data": {
-        "type": "reviewSubmissions", "id": sid, "attributes": {"submitted": True}}})
+    result = mark_submitted(client, sid, version_id)
     if result is None:
         return "dry_run"
     ok(f"已提交 App Store 审核 🎉 状态 {result['data']['attributes'].get('state')}")
@@ -501,6 +575,9 @@ def main(argv=None, client=None):
     except KeyError as e:
         log(f"❌ 缺少环境变量 {e}")
         return 1
+    except BlockedError as e:
+        log(f"⏸ {e}")
+        return EXIT_BLOCKED
     except SubmitError as e:
         log(f"❌ {e}")
         return 1

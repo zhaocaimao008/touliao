@@ -404,6 +404,8 @@ jobs:
       # 只在 tag 触发且 ios/testflight-config.json 里 "submitAppStore": true 时运行；
       # 手动补交/演练用 ios-appstore-submit.yml（默认 dry-run）。
       # 脚本幂等：版本已建好/构建已挂/已在审核都会跳过；releaseType 沿用上一版本，不改发布方式。
+      # 上一版本仍在审核/待发布时脚本退出码 3：此时构建已上传、已送 Beta 审核，本任务不算失败，
+      # 只出 ::warning::，等上一版本结束后手动跑 ios-appstore-submit.yml 补交（脚本绝不自动撤回上一版本）。
       - name: 读取 App Store 自动送审开关
         id: appstore
         run: |
@@ -422,4 +424,10 @@ jobs:
           set -euo pipefail
           pip3 install --quiet --break-system-packages pyjwt cryptography || pip3 install --quiet pyjwt cryptography
           python3 -B scripts/test-ios-appstore-submit.py
-          python3 scripts/ios-appstore-submit.py --version "$VERSION" --build-number "$BUILD_NUMBER" --config ios/testflight-config.json
+          rc=0
+          python3 scripts/ios-appstore-submit.py --version "$VERSION" --build-number "$BUILD_NUMBER" --config ios/testflight-config.json || rc=$?
+          if [ "$rc" = "3" ]; then
+            echo "::warning::App Store 正式版未提交：上一版本/另一条审核提交仍在审核或待发布。构建 $BUILD_NUMBER 已上传且已送 TestFlight；上一版本结束后运行 ios-appstore-submit.yml（version=$VERSION, build_number=$BUILD_NUMBER, dry_run=false）补交。"
+            exit 0
+          fi
+          exit "$rc"

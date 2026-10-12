@@ -77,7 +77,21 @@ enum PickedVideoTranscoder {
         return isH264 ? AVAssetExportPresetPassthrough : AVAssetExportPresetHighestQuality
     }
 
-    /// 导出成功返回新 mp4 并删除源文件；失败/无视频轨返回原文件；被取消返回 nil（源文件已删除）。
+    /// 与后端 MAX_UPLOAD_BYTES 默认值一致(200MB)；聊天发送前的前置校验同用这个值。
+    static let maxUploadBytes: Int64 = 200 * 1024 * 1024
+
+    /// 纯函数，单测覆盖：HEVC 转 H.264 体积常变大 1.5~2 倍。导出结果超过上传上限、而原片本身没超时，
+    /// 改传原片——不能让 8.1.40 能发的视频因为转码反而被"超过200MB"拒掉。
+    static func shouldKeepSource(sourceBytes: Int64, exportedBytes: Int64, limit: Int64 = maxUploadBytes) -> Bool {
+        exportedBytes > limit && sourceBytes > 0 && sourceBytes <= limit
+    }
+
+    static func fileSize(_ url: URL) -> Int64 {
+        ((try? FileManager.default.attributesOfItem(atPath: url.path))?[.size] as? NSNumber)?.int64Value ?? 0
+    }
+
+    /// 导出成功返回新 mp4 并删除源文件；失败/无视频轨、或导出后超限而原片不超限时返回原文件；
+    /// 被取消返回 nil（源文件已删除）。
     static func prepareForUpload(_ picked: PickedVideoFile,
                                  progress: @escaping @Sendable @MainActor (Double) -> Void) async -> PickedVideoFile? {
         let result = await exportCompatibleMP4(from: picked.url, progress: progress)
@@ -87,6 +101,12 @@ enum PickedVideoTranscoder {
             return nil
         }
         guard let mp4 = result else { return picked }
+        // 先确认导出结果可用，再删原片
+        if shouldKeepSource(sourceBytes: fileSize(picked.url), exportedBytes: fileSize(mp4)) {
+            print("[Video] 转码后超过上传上限而原片未超，改传原片")
+            PickedVideoCleanup.removeFile(mp4)
+            return picked
+        }
         PickedVideoCleanup.removeFile(picked.url)
         return PickedVideoFile(url: mp4, suggestedFileName: "video_\(Int(Date().timeIntervalSince1970)).mp4")
     }
@@ -98,17 +118,18 @@ enum PickedVideoTranscoder {
         let preset = presetName(isH264: info.isH264, longEdge: info.longEdge)
         // 切后台时争取执行时间：Passthrough 通常能在后台跑完；重编码依赖硬件编码器，
         // 后台可能被系统打断(AVError.operationInterrupted)，那就等回到前台再导出一次。
-        let background = await BackgroundTaskToken.begin(name: "touliao-video-export")
+        // 每次尝试各自申请后台任务：上一次的令牌可能已过期被系统收回，重试不能裸跑。
         var output: URL?
         for attempt in 0..<2 {
+            let background = await BackgroundTaskToken.begin(name: "touliao-video-export")
             let outcome = await runExport(asset: asset, preset: preset, progress: progress)
+            await background.end()
             if case .done(let url) = outcome { output = url; break }
             guard case .failed(let interrupted) = outcome, attempt == 0, !Task.isCancelled else { break }
             let inBackground = await MainActor.run { UIApplication.shared.applicationState != .active }
             guard interrupted || inBackground, await waitUntilActive() else { break }
             print("[Video] 导出被切后台打断，回到前台后重试一次")
         }
-        await background.end()
         return output
     }
 

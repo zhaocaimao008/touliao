@@ -15,8 +15,8 @@
   "group_name": "公开测试",
   "submitAppStore": true,
   "appStoreWhatsNew": {
-    "zh-Hans": "本次更新：\n· 聊天图片加载更快、显示更清晰\n· 发送视频前自动转换为各端都能播放的格式，并显示处理进度，可随时取消\n· 语音、视频通话连接更稳定\n· 修复退出登录后桌面图标角标未清除的问题",
-    "en-US": "What's new:\n• Chat images load faster and look sharper\n• Videos are converted to a format every device can play before sending, with a progress indicator you can cancel\n• More reliable voice and video call connections\n• Fixed the app icon badge remaining after signing out",
-    "default": "本次更新：\n· 聊天图片加载更快、显示更清晰\n· 发送视频前自动转换为各端都能播放的格式，并显示处理进度，可随时取消\n· 语音、视频通话连接更稳定\n· 修复退出登录后桌面图标角标未清除的问题"
+    "zh-Hans": "本次更新：\n· 发送消息时保留换行，多行文字不再挤成一段\n· 发送视频前自动转换为各端都能播放的格式，并显示处理进度，可随时取消\n· 聊天图片按屏幕清晰度显示，减少内存占用\n· 桌面图标角标显示真实未读数，读过的会话通知会自动清除\n· 消息通知遵循你的提示音设置\n· 语音、视频通话连接更稳定",
+    "en-US": "What's new:\n• Line breaks are kept when you send a message\n• Videos are converted to a format every device can play before sending, with a progress indicator you can cancel\n• Chat images are displayed at screen resolution and use less memory\n• The app icon badge shows your real unread count, and notifications for chats you've read are cleared\n• Message notifications follow your sound setting\n• More reliable voice and video call connections",
+    "default": "本次更新：\n· 发送消息时保留换行，多行文字不再挤成一段\n· 发送视频前自动转换为各端都能播放的格式，并显示处理进度，可随时取消\n· 聊天图片按屏幕清晰度显示，减少内存占用\n· 桌面图标角标显示真实未读数，读过的会话通知会自动清除\n· 消息通知遵循你的提示音设置\n· 语音、视频通话连接更稳定"
   }
 }

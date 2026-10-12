@@ -15,6 +15,19 @@ final class VideoTranscodeTests: XCTestCase {
         XCTAssertEqual(PickedVideoTranscoder.presetName(isH264: false, longEdge: 1920), AVAssetExportPresetHighestQuality)
     }
 
+    func testOversizedExportFallsBackToSourceOnlyWhenSourceFits() {
+        let mb: Int64 = 1024 * 1024
+        let limit = PickedVideoTranscoder.maxUploadBytes
+        XCTAssertEqual(limit, 200 * mb)
+        // HEVC 150MB → H.264 260MB：改传原片
+        XCTAssertTrue(PickedVideoTranscoder.shouldKeepSource(sourceBytes: 150 * mb, exportedBytes: 260 * mb))
+        // 导出没超限：用导出结果（即使比原片大，兼容性优先）
+        XCTAssertFalse(PickedVideoTranscoder.shouldKeepSource(sourceBytes: 100 * mb, exportedBytes: 180 * mb))
+        // 原片本身也超限：保留导出结果，由上层统一提示超限
+        XCTAssertFalse(PickedVideoTranscoder.shouldKeepSource(sourceBytes: 400 * mb, exportedBytes: 260 * mb))
+        XCTAssertFalse(PickedVideoTranscoder.shouldKeepSource(sourceBytes: 0, exportedBytes: 260 * mb))
+    }
+
     func testH264SourceIsRemuxedToMP4WithProgressAndSourceRemoved() async throws {
         let source = PickedVideoCleanup.stagingDir.appendingPathComponent("test_\(UUID().uuidString).mov")
         try await Self.writeTinyH264Movie(to: source)

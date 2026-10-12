@@ -38,7 +38,7 @@ class FakeASC:
     """按路径路由的假 ASC，状态可变，记录每个请求。"""
 
     def __init__(self, versions=(), builds=None, attached=None, localizations=None, review_detail=True,
-                 submissions=(), fail_first_get=None):
+                 submissions=(), fail_first_get=None, phased=(), fail_submit_patch=None):
         self.calls = []
         self.versions = [copy.deepcopy(v) for v in versions]
         self.builds = builds if builds is not None else [build("B41", "1760000000", "VALID")]
@@ -47,6 +47,8 @@ class FakeASC:
         self.review_detail = review_detail
         self.submissions = [copy.deepcopy(s) for s in submissions]
         self.fail_first_get = fail_first_get
+        self.phased = set(phased)                 # 有分阶段发布的版本 id
+        self.fail_submit_patch = fail_submit_patch  # (status, applied)：PATCH submitted 返回该错误码，applied 表示实际已生效
         self.build_polls = 0
         self.counter = 0
 
@@ -139,9 +141,26 @@ class FakeASC:
             s = next(s for s in self.submissions if s["id"] == rel["reviewSubmission"]["data"]["id"])
             s["items"].append(rel["appStoreVersion"]["data"]["id"])
             return 201, {"data": {"id": self.new_id("I")}}
+        if parts[0] == "appStoreVersions" and parts[2:] == ["appStoreVersionPhasedRelease"]:
+            return 200, {"data": {"id": f"P-{parts[1]}", "type": "appStoreVersionPhasedReleases",
+                                  "attributes": {"phasedReleaseState": "COMPLETE"}} if parts[1] in self.phased else None}
+        if method == "POST" and path == "/appStoreVersionPhasedReleases":
+            self.phased.add(body["data"]["relationships"]["appStoreVersion"]["data"]["id"])
+            return 201, {"data": {"id": self.new_id("P")}}
+        if method == "GET" and parts[0] == "reviewSubmissions" and len(parts) == 2:
+            s = next(s for s in self.submissions if s["id"] == parts[1])
+            return 200, {"data": {"id": s["id"], "type": "reviewSubmissions", "attributes": {"state": s["state"]}}}
         if method == "PATCH" and parts[0] == "reviewSubmissions":
             s = next(s for s in self.submissions if s["id"] == parts[1])
             assert body["data"]["attributes"] == {"submitted": True}
+            if s["state"] not in ("READY_FOR_REVIEW", "UNRESOLVED_ISSUES"):
+                return 409, {"errors": [{"code": "STATE_ERROR", "title": "already submitted"}]}
+            if self.fail_submit_patch:
+                status, applied = self.fail_submit_patch
+                self.fail_submit_patch = None
+                if applied:
+                    s["state"] = "WAITING_FOR_REVIEW"
+                return status, {"errors": [{"code": "UNEXPECTED_ERROR", "title": "boom"}]}
             s["state"] = "WAITING_FOR_REVIEW"
             return 200, {"data": {"id": s["id"], "type": "reviewSubmissions", "attributes": {"state": "WAITING_FOR_REVIEW"}}}
         return 404, {"errors": [{"code": "NOT_FOUND", "title": f"unrouted {method} {path}"}]}
@@ -240,9 +259,74 @@ class SubmitTests(unittest.TestCase):
 
     def test_other_version_in_review_blocks_creation(self):
         fake = FakeASC(versions=[version("V40", "8.1.40", "WAITING_FOR_REVIEW")])
-        with self.assertRaises(mod.SubmitError):
+        with self.assertRaises(mod.BlockedError):
             run(fake)
         self.assertEqual(fake.writes(), [])
+
+    def test_blocked_exit_code_is_distinct_for_release_workflow(self):
+        for versions in ([version("V40", "8.1.40", "WAITING_FOR_REVIEW")],
+                         [version("V40", "8.1.40", "PENDING_DEVELOPER_RELEASE")]):
+            fake = FakeASC(versions=versions)
+            client = mod.AscClient(lambda: "test-token", urlopen=fake, sleep=lambda s: None)
+            code = mod.main(["--version", "8.1.41", "--config", os.path.join(HERE, "..", "ios", "testflight-config.json")],
+                            client=client)
+            self.assertEqual(code, mod.EXIT_BLOCKED)
+            self.assertEqual(fake.writes(), [])
+
+    def test_higher_or_equal_editable_draft_is_never_renamed(self):
+        fake = FakeASC(versions=[LIVE_8140, version("V42", "8.2.0", "PREPARE_FOR_SUBMISSION")])
+        with self.assertRaises(mod.SubmitError) as ctx:
+            run(fake)
+        self.assertNotIsInstance(ctx.exception, mod.BlockedError)
+        self.assertEqual(fake.writes(), [])
+        self.assertEqual(fake.versions[1]["attributes"]["versionString"], "8.2.0")
+
+    def test_scheduled_release_type_becomes_manual_and_phased_release_is_copied(self):
+        prev = version("V40", "8.1.40", "READY_FOR_DISTRIBUTION", releaseType="SCHEDULED",
+                       earliestReleaseDate="2026-09-21T00:00:00Z")
+        fake = FakeASC(versions=[prev], phased={"V40"})
+        result, _ = run(fake)
+        post = next(c for c in fake.calls if c[:2] == ("POST", "/appStoreVersions"))
+        self.assertEqual(post[3]["data"]["attributes"]["releaseType"], "MANUAL")
+        self.assertIn(result["version"], fake.phased)
+        self.assertIn(("POST", "/appStoreVersionPhasedReleases"), fake.writes())
+
+    def test_no_phased_release_when_previous_had_none(self):
+        fake = FakeASC(versions=[LIVE_8140])
+        run(fake)
+        self.assertNotIn(("POST", "/appStoreVersionPhasedReleases"), fake.writes())
+
+    def test_submission_in_transition_blocks(self):
+        for state in ("CANCELING", "COMPLETING"):
+            fake = FakeASC(versions=[version("V41", "8.1.41", "PREPARE_FOR_SUBMISSION")],
+                           localizations={"V41": [loc("L-zh", "zh-Hans")]},
+                           submissions=[{"id": "S2", "state": state, "items": ["V-other"]}])
+            with self.assertRaises(mod.BlockedError):
+                run(fake)
+            self.assertNotIn(("POST", "/reviewSubmissions"), fake.writes())
+
+    def test_draft_submission_with_other_items_is_not_reused(self):
+        fake = FakeASC(versions=[version("V41", "8.1.41", "PREPARE_FOR_SUBMISSION")],
+                       localizations={"V41": [loc("L-zh", "zh-Hans")]},
+                       submissions=[{"id": "S6", "state": "READY_FOR_REVIEW", "items": ["V-other"]}])
+        with self.assertRaises(mod.SubmitError):
+            run(fake)
+        self.assertNotIn(("PATCH", "/reviewSubmissions/S6"), fake.writes())
+        self.assertNotIn(("POST", "/reviewSubmissionItems"), fake.writes())
+
+    def test_submit_patch_5xx_that_actually_applied_counts_as_success(self):
+        fake = FakeASC(versions=[version("V41", "8.1.41", "PREPARE_FOR_SUBMISSION")],
+                       localizations={"V41": [loc("L-zh", "zh-Hans")]}, fail_submit_patch=(500, True))
+        result, _ = run(fake)
+        self.assertEqual(result["status"], "submitted")
+        patches = [c for c in fake.writes() if c[0] == "PATCH" and c[1].startswith("/reviewSubmissions/")]
+        self.assertEqual(len(patches), 1, "submitted PATCH must not be retried blindly")
+
+    def test_submit_patch_5xx_that_did_not_apply_fails(self):
+        fake = FakeASC(versions=[version("V41", "8.1.41", "PREPARE_FOR_SUBMISSION")],
+                       localizations={"V41": [loc("L-zh", "zh-Hans")]}, fail_submit_patch=(500, False))
+        with self.assertRaises(mod.SubmitError):
+            run(fake)
 
     def test_open_draft_submission_is_reused_and_only_submitted(self):
         fake = FakeASC(versions=[version("V41", "8.1.41", "READY_FOR_REVIEW")], attached={"V41": "B41"},
@@ -266,7 +350,7 @@ class SubmitTests(unittest.TestCase):
         fake = FakeASC(versions=[version("V41", "8.1.41", "PREPARE_FOR_SUBMISSION")],
                        localizations={"V41": [loc("L-zh", "zh-Hans")]},
                        submissions=[{"id": "S3", "state": "IN_REVIEW", "items": ["V-other"]}])
-        with self.assertRaises(mod.SubmitError):
+        with self.assertRaises(mod.BlockedError):
             run(fake)
         self.assertNotIn(("PATCH", "/reviewSubmissions/S3"), fake.writes())
 
