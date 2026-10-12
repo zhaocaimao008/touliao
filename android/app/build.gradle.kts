@@ -58,7 +58,10 @@ android {
             isMinifyEnabled = false
         }
         release {
-            isMinifyEnabled = false
+            // R8 代码混淆/裁剪 + 资源裁剪；规则见 proguard-rules.pro。
+            // mapping.txt 由 CI 作为 artifact 上传（android-r8-mapping），用于崩溃堆栈反混淆。
+            isMinifyEnabled = true
+            isShrinkResources = true
             // 发布包只带真机 ABI：WebRTC libjingle_peerconnection_so 每个 ABI 6~13MB，
             // x86/x86_64 只在模拟器/极少数 x86 设备上用到。CI 的 x86_64 模拟器冒烟测试用
             // -PtouliaoAbis=arm64-v8a,armeabi-v7a,x86_64 另打一份（dex/资源/签名与正式包一致）。
