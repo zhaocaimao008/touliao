@@ -163,22 +163,42 @@ function history(convId, userId, { before, after, limit, beforeId, afterId }, io
 // 会静默截断（非分页，只是丢弃超出部分）；由于确认无已知调用方，暂不新增无人
 // 会用到的游标分页机制，只把上限放宽为更宽松的安全余量。若未来发现有活跃调用方，
 // 应改造为 syncConversation() 同款 cursor + has_more 分页，而非继续放宽 LIMIT。
+// 2026-10-12：响应体保持数组不变（兼容旧调用方），命中上限时改为显式标记而非静默丢弃：
+// 响应头 X-Missed-Truncated: 1 + X-Missed-Next-After: <created_at>，调用方用该值作
+// 下一次 after 续拉。created_at 只到秒，截断点所在那一秒的消息整体留到下一页，
+// 避免 created_at > after 续拉时漏掉同秒的剩余消息。
+const MISSED_LIMIT = 1000;
+
 function missed(io, userId, after) {
+  return missedPage(io, userId, after).messages;
+}
+
+function missedPage(io, userId, after) {
   if (after <= 0) throw badRequest('after 参数无效');
   const convRows = db.prepare('SELECT conversation_id FROM conversation_members WHERE user_id=?').all(userId);
-  if (!convRows.length) return [];
+  if (!convRows.length) return { messages: [], truncated: false, nextAfter: null };
 
   const convIds = convRows.map(r => r.conversation_id);
   const ph = convIds.map(() => '?').join(',');
-  const messages = db.prepare(`
+  const rows = db.prepare(`
     SELECT m.*, COALESCE(u.username, '') as senderName, COALESCE(u.avatar, '') as senderAvatar
     FROM messages m LEFT JOIN users u ON u.id = m.sender_id
     WHERE m.conversation_id IN (${ph}) AND m.deleted = 0 AND m.created_at > ?
       AND NOT EXISTS (SELECT 1 FROM user_message_deletions d WHERE d.message_id=m.id AND d.user_id=?)
       AND m.rowid > COALESCE((SELECT cleared_rowid FROM conversation_clears
                                    WHERE user_id=? AND conversation_id=m.conversation_id), 0)
-    ORDER BY m.created_at ASC LIMIT 1000
-  `).all(...convIds, after, userId, userId);
+    ORDER BY m.created_at ASC LIMIT ?
+  `).all(...convIds, after, userId, userId, MISSED_LIMIT + 1);
+
+  const truncated = rows.length > MISSED_LIMIT;
+  let messages = truncated ? rows.slice(0, MISSED_LIMIT) : rows;
+  if (truncated) {
+    const boundary = rows[MISSED_LIMIT].created_at;
+    const kept = messages.filter(m => m.created_at < boundary);
+    // 整页都在同一秒时无法按秒切分，只能原样返回（下一页仍会从该秒之后开始）
+    if (kept.length) messages = kept;
+  }
+  const nextAfter = truncated ? messages[messages.length - 1].created_at : null;
 
   const replyIds = [...new Set(messages.filter(m => m.reply_to_id).map(m => m.reply_to_id))];
   const replyMap = new Map();
@@ -231,7 +251,7 @@ function missed(io, userId, after) {
     }
   }
   require('./burn.service').recordDelivery(userId,enriched,io);
-  return enriched;
+  return { messages: enriched, truncated, nextAfter };
 }
 
 // ── HTTP 发送（fallback）────────────────────────────────────────
@@ -1380,7 +1400,7 @@ function getMentions(userId, { offset = 0, limit = 20, before, beforeId }) {
 }
 
 module.exports = {
-  history, missed, send, saveUploadedFile, forward, batchDelete,
+  history, missed, missedPage, MISSED_LIMIT, send, saveUploadedFile, forward, batchDelete,
   remove, react, edit, collect, searchGlobal, searchInConversation, aroundMessage,
   exportConversation, getConversationFiles, getMentions, adminRecall, getReadStates,
 };

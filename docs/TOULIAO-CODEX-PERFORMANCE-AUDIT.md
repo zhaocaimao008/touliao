@@ -19,6 +19,16 @@
 4. 增量查询 limit 100/300 无统一续页，峰值时不是“慢”，而是截断。
 5. 生产库外键关闭且有大量孤儿，查询 INNER JOIN 会隐藏数据；迁移/备份恢复后结果可能进一步漂移。
 
+## 复核状态（2026-10-12）
+
+| 风险 | 状态 | 证据 |
+| --- | --- | --- |
+| 1. DB Worker listener / open handle | 已解决 | `writer.shutdown()` 返回 Promise，等 Worker 真正 `exit` 后 resolve（480d4539）；Jest `setupFilesAfterEnv` 统一 teardown 已加载的 writer（f3784741、23dc5881），`test/db-writer-lifecycle.test.js` 覆盖。全量 Jest 181 suites / 1659 tests，`MaxListenersExceededWarning` 0 次，未加 `--forceExit` 也能自行退出（唯一失败为 p1-07 typing 限流计时用例，与此项无关）。 |
+| 2. 进程内状态 | 未处理 | 本次未涉及。 |
+| 3. 大群 notify 客户端不一致 | 未处理 | 本次未涉及。 |
+| 4. 增量查询截断 | 已解决 | 四端断线补拉走 `GET /messages/:conversationId/sync`：`server_sequence` cursor + `has_more`，单页上限 500（`sync.service.js`），Web/Android/iOS 均处理续页。遗留的 `GET /messages/missed` 无客户端调用方，上限 1000；命中上限时返回 `X-Missed-Truncated: 1` 与 `X-Missed-Next-After`，截断点所在那一秒整体留到下一页，用该值作 `after` 续拉不丢不重（`test/missed-truncation.test.js`）。响应体仍为数组。 |
+| 5. 外键关闭 / 孤儿数据 | 已解决 | 主连接（`db/connection.js`）与写 Worker（`db/worker.js`）启动时均 `PRAGMA foreign_keys = ON`；31 张表声明了外键。对生产库只读快照执行 `PRAGMA foreign_key_check` 为 0 行；messages→users/conversations、conversation_members→users/conversations、conversation_events/message_deliveries/message_reactions→messages 手工核查孤儿均为 0。读路径的 `sender_id` INNER JOIN 已改为 LEFT JOIN + COALESCE（480d4539）。 |
+
 ## 建议验证
 
 - 用 `--detectOpenHandles`、heap snapshot 和 Worker 数量曲线定位 Jest/生产生命周期；不要提高 listener 上限掩盖。

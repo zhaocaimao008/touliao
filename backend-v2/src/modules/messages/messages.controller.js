@@ -30,8 +30,14 @@ exports.aroundMessage = asyncHandler(async (req, res) => {
   res.json(result);
 });
 
-exports.missed = asyncHandler(async (req, res) =>
-  res.json(svc.missed(io(req), req.user.id, parseInt(req.query.after) || 0)));
+exports.missed = asyncHandler(async (req, res) => {
+  const page = svc.missedPage(io(req), req.user.id, parseInt(req.query.after) || 0);
+  if (page.truncated) {
+    res.set('X-Missed-Truncated', '1');
+    res.set('X-Missed-Next-After', String(page.nextAfter));
+  }
+  res.json(page.messages);
+});
 
 exports.send = asyncHandler(async (req, res) =>
   res.json(await svc.send(io(req), req.params.conversationId, req.user.id, req.body)));
