@@ -29,9 +29,12 @@ const app = require('../backend-v2/src/app');
 const setupRealtime = require('../backend-v2/src/realtime');
 const web = path.resolve(process.env.TOULIAO_WEB_BUILD || path.join(__dirname, '../web/dist'));
 const site = express();
-if (process.env.TOULIAO_LEGACY_SW) {
-  site.get('/sw.js', (_req, res) => res.sendFile(path.resolve(process.env.TOULIAO_LEGACY_SW)));
-}
+// /sw.js is the retirement worker for root registrations left by builds before 9a915ac2.
+// With TOULIAO_LEGACY_SW (e.g. `git show 3a3a23d7:web/public/sw.js`) the smoke first installs
+// that legacy worker, then serves the built retirement worker to the browser's update check.
+const retiredWorker = path.join(web, 'sw.js');
+let rootWorker = process.env.TOULIAO_LEGACY_SW ? path.resolve(process.env.TOULIAO_LEGACY_SW) : retiredWorker;
+site.get('/sw.js', (_req, res) => res.set('Cache-Control', 'no-cache').sendFile(rootWorker));
 site.use(['/api', '/uploads'], (req, res, next) => {
   req.url = req.originalUrl;
   app(req, res, next);
@@ -113,6 +116,13 @@ setupRealtime(io, app);
       const response = await fetch('/api/auth/me', { headers });
       return { status: response.status, id: (await response.json()).id };
     });
+    // page.waitForFunction treats a returned Promise as truthy, so async browser conditions are polled here.
+    const until = async (page, condition, label) => {
+      for (const deadline = Date.now() + 20000; Date.now() < deadline; await new Promise(resolve => setTimeout(resolve, 50))) {
+        if (await page.evaluate(condition)) return;
+      }
+      throw new Error(`timed out waiting for ${label}`);
+    };
     for (let i = 0; i < users.length; i++) {
       const page = await context.newPage();
       pages.push(page);
@@ -124,26 +134,39 @@ setupRealtime(io, app);
       await page.getByTestId('account-switcher').waitFor({ timeout: 20000 });
       assert.equal((await identity(page)).id, users[i].id);
       if (i === 0) {
+        // State of a browser that used the web app before 9a915ac2: a root /sw.js registration plus its caches.
         await page.evaluate(async () => {
-          await navigator.serviceWorker.register('/sw.js', { scope: '/' });
-          await navigator.serviceWorker.ready;
           const cache = await caches.open('touliao-api-v1');
           await cache.put('/api/config', new Response(JSON.stringify({ features: {} }), {
             headers: { 'content-type': 'application/json', date: new Date().toUTCString() },
           }));
+          await caches.open('unrelated-same-origin-cache');
+          await navigator.serviceWorker.register('/sw.js', { scope: '/' });
         });
-        await page.waitForFunction(() => !!navigator.serviceWorker.controller);
+        if (rootWorker !== retiredWorker) {
+          await page.waitForFunction(() => !!navigator.serviceWorker.controller);
+          rootWorker = retiredWorker;
+          await page.evaluate(async () => (await navigator.serviceWorker.getRegistration('/')).update());
+        }
+        // Retirement removes only the root registration and this app's caches; push registrations stay.
+        await until(page, async () => {
+          const scopes = (await navigator.serviceWorker.getRegistrations()).map(reg => new URL(reg.scope).pathname);
+          const names = await caches.keys();
+          return !scopes.includes('/') && scopes.some(scope => scope.startsWith('/push/'))
+            && !names.some(name => name.startsWith('touliao-')) && names.includes('unrelated-same-origin-cache');
+        }, 'root /sw.js retirement');
       }
     }
     for (let i = 0; i < pages.length; i++) {
       await pages[i].reload();
       await pages[i].getByTestId('account-switcher').waitFor();
       assert.equal((await identity(pages[i])).id, users[i].id);
+      assert.equal(await pages[i].evaluate(() => !!navigator.serviceWorker.controller), false, 'no page stays under a root worker');
     }
     const connectedIds = new Set([...io.sockets.sockets.values()].map(socket => socket.user.id));
     assert.ok(users.every(user => connectedIds.has(user.id)), 'all three accounts have distinct connected sockets');
     const { db } = require('../backend-v2/src/db/connection');
-    for (const page of pages) await page.waitForFunction(async () => (await navigator.serviceWorker.getRegistrations()).filter(reg => new URL(reg.scope).pathname.startsWith('/push/')).length === 3);
+    for (const page of pages) await until(page, async () => (await navigator.serviceWorker.getRegistrations()).filter(reg => new URL(reg.scope).pathname.startsWith('/push/')).length === 3, 'three isolated push registrations');
     for (let i = 0; i < 100 && db.prepare('SELECT COUNT(*) AS n FROM push_subscriptions').get().n < 3; i++) await new Promise(resolve => setTimeout(resolve, 50));
     const pushRows = db.prepare('SELECT user_id,endpoint,session_id FROM push_subscriptions').all();
     assert.equal(pushRows.length, 3, 'three distinct push subscriptions coexist');
@@ -199,7 +222,7 @@ setupRealtime(io, app);
     await pages[1].screenshot({ path: path.join(temp, 'login-mobile.png'), fullPage: true });
     assert.ok(await pages[1].evaluate(() => document.documentElement.scrollWidth <= innerWidth));
     await pages[2].screenshot({ path: path.join(temp, 'independent-account.png') });
-    console.log(JSON.stringify({ independentAccounts: 3, csrfEnabled: true, sharedServiceWorker: true, isolatedPushRegistrations: 3, externalPushGatewayMocked: true, logoutIsolated: true, socketsIsolated: true, bidirectionalChat: true, avatarLoaded: true, spreadsheetPreview: true, previewSurvivesResize: true, screenshots: temp }));
+    console.log(JSON.stringify({ independentAccounts: 3, csrfEnabled: true, legacyRootWorkerRetired: true, isolatedPushRegistrations: 3, externalPushGatewayMocked: true, logoutIsolated: true, socketsIsolated: true, bidirectionalChat: true, avatarLoaded: true, spreadsheetPreview: true, previewSurvivesResize: true, screenshots: temp }));
   } finally {
     if (browser) await browser.close();
     await new Promise(resolve => io.close(resolve));

@@ -2,6 +2,13 @@ import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import viteCompression from 'vite-plugin-compression';
 
+// Service Worker 脚本（public/sw.js、public/push-sw.js）每次构建都必须产出新的 .gz：线上 nginx
+// 开了 gzip_static，deploy.yml 用 `rsync -a`（不带 --delete）发布 dist/。脚本一旦小于压缩阈值
+// 而不再产出 .gz，/var/www 里上一版的 sw.js.gz 会留下并被优先发给所有支持 gzip 的浏览器，
+// 浏览器拿到的仍是旧 worker，退役版 sw.js 永远生效不了。所以这两个文件不设阈值。
+const SW_SCRIPT = /[\\/](?:sw|push-sw)\.js$/;
+const COMPRESSIBLE = /\.(?:js|mjs|json|css|html)$/i; // vite-plugin-compression 的默认过滤
+
 export default defineConfig(({ mode }) => ({
   // desktop(Electron file:// 加载) 必须用相对路径，否则 /assets/... 指向磁盘根目录白屏
   base: mode === 'desktop' ? './' : '/',
@@ -10,7 +17,9 @@ export default defineConfig(({ mode }) => ({
   },
   plugins: [
     react(),
-    viteCompression({ algorithm: 'gzip', ext: '.gz', threshold: 1024, deleteOriginFile: false }),
+    viteCompression({ algorithm: 'gzip', ext: '.gz', threshold: 1024, deleteOriginFile: false,
+      filter: file => COMPRESSIBLE.test(file) && !SW_SCRIPT.test(file) }),
+    viteCompression({ algorithm: 'gzip', ext: '.gz', threshold: 0, deleteOriginFile: false, filter: SW_SCRIPT }),
   ],
   build: {
     outDir: 'dist',

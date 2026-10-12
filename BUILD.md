@@ -24,7 +24,8 @@ touliao/
 │   ├── public/
 │   │   ├── manifest.json         # PWA 配置
 │   │   ├── icons/                # 应用图标
-│   │   └── sw.js                 # Service Worker（离线回退 + Web Push；唯一被注册的那个）
+│   │   ├── push-sw.js            # Web Push worker（按账号/会话/窗口注册在 /push/... 作用域）
+│   │   └── sw.js                 # 退役版 worker：清理老浏览器的根作用域注册与缓存，勿删（见文件头）
 │   ├── index.html
 │   └── vite.config.js
 │
