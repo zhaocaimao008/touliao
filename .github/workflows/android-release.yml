@@ -111,12 +111,36 @@ jobs:
       - name: Enable emulator acceleration
         run: sudo chmod a+rw /dev/kvm
 
+      # 升级冒烟要先装「当前线上包」(previous.apk)。正式包自 8.1.5x 起只带 arm64-v8a/armeabi-v7a，
+      # 而 API 29 default x86_64 镜像没有 ARM 翻译，装 ARM-only 的旧包会 INSTALL_FAILED_NO_MATCHING_ABIS，
+      # 从这之后的每一次发版都会卡在这里。按旧包实际带的 ABI 选镜像：
+      #   旧包带 x86_64（或不含原生库）→ 沿用已验证的 API 29 default；
+      #   旧包只有 ARM 库 → API 30 google_apis x86_64（Android 11 起 x86_64 镜像自带 ARM 翻译，可 adb root）。
+      # 新包始终是带 lib/x86_64 的冒烟包，两种镜像都原生运行。
+      - name: Choose upgrade-smoke emulator image for the previous APK's ABIs
+        id: smoke_image
+        run: |
+          python3 - android-release-evidence/previous.apk >> "$GITHUB_OUTPUT" <<'PY'
+          import sys, zipfile
+          with zipfile.ZipFile(sys.argv[1]) as z:
+              abis = sorted({n.split('/')[1] for n in z.namelist() if n.startswith('lib/') and n.count('/') >= 2})
+          native_x86 = not abis or 'x86_64' in abis
+          print(f"abis={','.join(abis) or 'none'}")
+          print(f"api={29 if native_x86 else 30}")
+          print(f"target={'default' if native_x86 else 'google_apis'}")
+          print(f"translation={'false' if native_x86 else 'true'}")
+          PY
+          cat "$GITHUB_OUTPUT"
+
       - name: Installed release APK startup and in-place upgrade regression
         uses: reactivecircus/android-emulator-runner@v2
+        env:
+          SMOKE_ENVIRONMENT: Android API ${{ steps.smoke_image.outputs.api }} ${{ steps.smoke_image.outputs.target }} x86_64 emulator
+          SMOKE_ARM_TRANSLATION: ${{ steps.smoke_image.outputs.translation }}
         with:
-          api-level: 29
+          api-level: ${{ steps.smoke_image.outputs.api }}
           arch: x86_64
-          target: default
+          target: ${{ steps.smoke_image.outputs.target }}
           disable-animations: true
           # 安装的是与正式包 dex/资源/签名逐项一致、仅额外带 lib/x86_64 的冒烟包（见上一步校验）
           script: bash scripts/android-upgrade-smoke.sh android-release-evidence/previous.apk ${{ runner.temp }}/smoke-apk/app-release-x86_64.apk
