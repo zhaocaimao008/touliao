@@ -40,6 +40,11 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '22'
+          # 缓存 npm 下载：10-13 两次在 web npm ci 卡 14-20 分钟后 ECONNRESET
+          cache: npm
+          cache-dependency-path: |
+            web/package-lock.json
+            desktop-electron/package-lock.json
 
       - name: Install web deps
         working-directory: web
