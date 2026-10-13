@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 """ios-appstore-submit.py 的单测：urllib 传输层全部替换成内存里的假 App Store Connect，
 绝不访问真实 API。运行：python3 scripts/test-ios-appstore-submit.py"""
+import contextlib
 import copy
 import importlib.util
 import io
@@ -38,7 +39,8 @@ class FakeASC:
     """按路径路由的假 ASC，状态可变，记录每个请求。"""
 
     def __init__(self, versions=(), builds=None, attached=None, localizations=None, review_detail=True,
-                 submissions=(), fail_first_get=None, phased=(), fail_submit_patch=None):
+                 submissions=(), fail_first_get=None, phased=(), fail_submit_patch=None, approve_on_cancel=False):
+        self.approve_on_cancel = approve_on_cancel  # 取消请求恰好撞上过审：返回 409，版本变 PENDING_DEVELOPER_RELEASE
         self.calls = []
         self.versions = [copy.deepcopy(v) for v in versions]
         self.builds = builds if builds is not None else [build("B41", "1760000000", "VALID")]
@@ -149,7 +151,28 @@ class FakeASC:
             return 201, {"data": {"id": self.new_id("P")}}
         if method == "GET" and parts[0] == "reviewSubmissions" and len(parts) == 2:
             s = next(s for s in self.submissions if s["id"] == parts[1])
+            if s["state"] == "CANCELING":
+                # 模拟 Apple：取消要过一会儿才完成，完成后版本变回 DEVELOPER_REJECTED
+                s["cancel_polls"] -= 1
+                if s["cancel_polls"] < 0:
+                    s["state"] = "COMPLETE"
+                    for v in self.versions:
+                        if v["id"] in s["items"]:
+                            v["attributes"]["appVersionState"] = "DEVELOPER_REJECTED"
             return 200, {"data": {"id": s["id"], "type": "reviewSubmissions", "attributes": {"state": s["state"]}}}
+        if method == "PATCH" and parts[0] == "reviewSubmissions" and body["data"]["attributes"] == {"canceled": True}:
+            s = next(s for s in self.submissions if s["id"] == parts[1])
+            if self.approve_on_cancel:
+                for v in self.versions:
+                    if v["id"] in s["items"]:
+                        v["attributes"]["appVersionState"] = "PENDING_DEVELOPER_RELEASE"
+                s["state"] = "COMPLETE"
+                return 409, {"errors": [{"code": "STATE_ERROR", "title": "cannot cancel"}]}
+            if s["state"] not in ("WAITING_FOR_REVIEW", "IN_REVIEW"):
+                return 409, {"errors": [{"code": "STATE_ERROR", "title": "not cancelable"}]}
+            s["state"] = "CANCELING"
+            s["cancel_polls"] = 1
+            return 200, {"data": {"id": s["id"], "type": "reviewSubmissions", "attributes": {"state": "CANCELING"}}}
         if method == "PATCH" and parts[0] == "reviewSubmissions":
             s = next(s for s in self.submissions if s["id"] == parts[1])
             assert body["data"]["attributes"] == {"submitted": True}
@@ -197,6 +220,7 @@ def run(fake, dry_run=False, **kwargs):
 
 
 LIVE_8140 = version("V40", "8.1.40", "READY_FOR_DISTRIBUTION", releaseType="MANUAL", createdDate="2026-09-20T00:00:00Z")
+LIVE_8139 = version("V39", "8.1.39", "READY_FOR_DISTRIBUTION", releaseType="MANUAL", createdDate="2026-09-10T00:00:00Z")
 
 
 class SubmitTests(unittest.TestCase):
@@ -413,6 +437,112 @@ class SubmitTests(unittest.TestCase):
         client = mod.AscClient(lambda: "test-token", dry_run=True, urlopen=fake, sleep=lambda s: None)
         code = mod.main(["--version", "8.1.41", "--dry-run", "--config", os.path.join(HERE, "..", "ios", "testflight-config.json")], client=client)
         self.assertEqual(code, 0)
+        self.assertEqual(fake.writes(), [])
+
+    # ── --withdraw-version：显式撤回指定版本 ─────────────────────────────────
+    @staticmethod
+    def withdraw_fake(state="WAITING_FOR_REVIEW", sub_state=None, items=("V40",), **kw):
+        return FakeASC(versions=[LIVE_8139, version("V40", "8.1.40", state, releaseType="MANUAL")],
+                       attached={"V40": "B40"}, localizations={"V40": [loc("L-zh", "zh-Hans"), loc("L-en", "en-US")]},
+                       submissions=[{"id": "S40", "state": sub_state or state, "items": list(items)}], **kw)
+
+    def test_withdraw_then_submit(self):
+        for sub_state in ("WAITING_FOR_REVIEW", "IN_REVIEW"):
+            fake = self.withdraw_fake(state=sub_state)
+            result, sleeps = run(fake, withdraw="8.1.40")
+            self.assertEqual(result["status"], "submitted", sub_state)
+            self.assertEqual(result["withdrawn"], {"version_id": "V40", "submission_id": "S40"})
+            cancel = next(c for c in fake.calls if c[0] == "PATCH" and c[1] == "/reviewSubmissions/S40")
+            self.assertEqual(cancel[3]["data"], {"type": "reviewSubmissions", "id": "S40", "attributes": {"canceled": True}})
+            self.assertEqual(fake.writes()[0], ("PATCH", "/reviewSubmissions/S40"), "撤回必须先于其它写操作")
+            self.assertEqual(sleeps, [15])
+            v40 = fake.versions[1]["attributes"]
+            self.assertEqual(v40["versionString"], "8.1.41")  # 撤回后的 8.1.40 改名为 8.1.41
+            self.assertEqual(fake.attached["V40"], "B41")
+            self.assertNotIn(("POST", "/appStoreVersions"), fake.writes())
+            self.assertTrue(all(l["attributes"]["whatsNew"] for l in fake.localizations["V40"]))
+            self.assertEqual(fake.writes()[-3:], [("POST", "/reviewSubmissions"), ("POST", "/reviewSubmissionItems"),
+                                                  ("PATCH", "/reviewSubmissions/S1")])
+            self.assertEqual(fake.submissions[-1]["items"], ["V40"])
+            self.assertEqual(fake.submissions[-1]["state"], "WAITING_FOR_REVIEW")
+
+    def test_withdraw_dry_run_prints_plan_and_never_writes(self):
+        fake = self.withdraw_fake()
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            result, _ = run(fake, dry_run=True, withdraw="8.1.40")
+        self.assertEqual(result["status"], "dry_run")
+        self.assertEqual(fake.writes(), [])
+        text = out.getvalue()
+        self.assertIn("将取消审核提交 S40", text)
+        self.assertIn('[dry-run] 将 PATCH /reviewSubmissions/S40 {"data": {"type": "reviewSubmissions", "id": "S40", '
+                      '"attributes": {"canceled": true}}}', text)
+        self.assertIn("[dry-run] 将 PATCH /appStoreVersions/V40", text)          # 改名 8.1.40 → 8.1.41
+        self.assertIn("[dry-run] 将 PATCH /appStoreVersions/V40/relationships/build", text)
+        self.assertIn("[dry-run] 将 POST /reviewSubmissions ", text)
+        self.assertNotIn("无需重复提交", text)
+        self.assertEqual(fake.versions[1]["attributes"]["versionString"], "8.1.40")
+
+    def test_withdraw_refuses_unknown_version_same_version_and_extra_items(self):
+        cases = [(self.withdraw_fake(), "8.1.38"),
+                 (self.withdraw_fake(), "8.1.41"),
+                 (self.withdraw_fake(items=("V40", "V-other")), "8.1.40"),
+                 (self.withdraw_fake(items=("V40", None)), "8.1.40")]
+        for fake, flag in cases:
+            with self.assertRaises(mod.SubmitError) as ctx:
+                run(fake, withdraw=flag)
+            self.assertNotIsInstance(ctx.exception, mod.BlockedError)
+            self.assertEqual(fake.writes(), [], flag)
+            self.assertEqual(fake.submissions[0]["state"], "WAITING_FOR_REVIEW")
+
+    def test_withdraw_skipped_when_already_released(self):
+        fake = self.withdraw_fake(state="READY_FOR_DISTRIBUTION", sub_state="COMPLETE")
+        result, _ = run(fake, withdraw="8.1.40")
+        self.assertIsNone(result["withdrawn"])
+        self.assertEqual(result["status"], "submitted")
+        self.assertNotIn(("PATCH", "/reviewSubmissions/S40"), fake.writes())
+        self.assertIn(("POST", "/appStoreVersions"), fake.writes())   # 8.1.40 已上架 → 正常新建 8.1.41
+        self.assertEqual(fake.versions[1]["attributes"]["versionString"], "8.1.40")
+
+    def test_withdraw_skipped_when_approved_pending_release_and_race(self):
+        fake = self.withdraw_fake(state="PENDING_DEVELOPER_RELEASE", sub_state="COMPLETE")
+        with self.assertRaises(mod.BlockedError):
+            run(fake, withdraw="8.1.40")
+        self.assertEqual(fake.writes(), [])
+        # 取消请求刚好撞上过审：不重试，不报撤回失败，交给正常流程（此时为「被占用」）
+        fake = self.withdraw_fake(approve_on_cancel=True)
+        with self.assertRaises(mod.BlockedError):
+            run(fake, withdraw="8.1.40")
+        self.assertEqual(fake.writes(), [("PATCH", "/reviewSubmissions/S40")])
+
+    def test_withdraw_timeout_is_blocked_not_error(self):
+        fake = self.withdraw_fake()
+        fake_cancel_never_finishes = 10 ** 6
+        orig = fake.route
+
+        def route(method, path, q, body):
+            status, payload = orig(method, path, q, body)
+            if method == "PATCH" and path == "/reviewSubmissions/S40":
+                fake.submissions[0]["cancel_polls"] = fake_cancel_never_finishes
+            return status, payload
+        fake.route = route
+        with self.assertRaises(mod.BlockedError):
+            run(fake, withdraw="8.1.40", withdraw_wait_max=60)
+        self.assertEqual(fake.writes(), [("PATCH", "/reviewSubmissions/S40")])
+
+    def test_without_flag_nothing_is_withdrawn(self):
+        fake = self.withdraw_fake()
+        with self.assertRaises(mod.BlockedError):
+            run(fake)
+        self.assertEqual(fake.writes(), [])
+
+    def test_cli_withdraw_flag_dry_run(self):
+        fake = self.withdraw_fake()
+        client = mod.AscClient(lambda: "test-token", dry_run=True, urlopen=fake, sleep=lambda s: None)
+        cfg = os.path.join(HERE, "..", "ios", "testflight-config.json")
+        self.assertEqual(mod.main(["--version", "8.1.41", "--withdraw-version", "8.1.40", "--dry-run", "--config", cfg],
+                                  client=client), 0)
+        self.assertEqual(mod.main(["--version", "8.1.41", "--withdraw-version", "x", "--config", cfg], client=client), 1)
         self.assertEqual(fake.writes(), [])
 
     def test_whats_new_locale_fallback(self):
