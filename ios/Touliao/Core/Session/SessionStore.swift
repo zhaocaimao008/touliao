@@ -33,6 +33,7 @@ final class SessionStore: ObservableObject {
         CallManager.shared.resetForAccountChange()
         GroupCallManager.shared.resetForAccountChange()
         PushManager.shared.clearDisplayedNotifications()
+        PushManager.shared.resetBadge()
     }
 
     private func beginIdentityChange() {

@@ -22,9 +22,12 @@ jobs:
   # 与 TestFlight 发版同一编译器（Xcode 26 / iOS 26 SDK）的编译门禁：
   # 只有这里才会编译 `#if compiler(>=6.2)` 保护的 iOS 26 API（如 Liquid Glass 的 glassEffect），
   # 否则这类代码要到打 ios-v tag 发版时才第一次被编译。
+  # 2026-10-13：同时跑 TouliaoTests，且直接调用 ios-v tag 发版前测试门禁的同一个脚本
+  # （ios/release-preparation/run.sh simulator，同一 runner/Xcode/模拟器选择规则），
+  # 让发版门禁在打 tag 之前就已在分支 CI 上被证明能过。
   build-xcode26:
     runs-on: macos-26
-    timeout-minutes: 45
+    timeout-minutes: 75
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -39,17 +42,21 @@ jobs:
       - name: Generate Xcode project
         working-directory: ios
         run: xcodegen generate
-      - name: Build (iOS Simulator, Xcode 26, no signing)
-        working-directory: ios
-        run: |
-          set -o pipefail
-          xcodebuild build \
-            -project Touliao.xcodeproj \
-            -scheme Touliao \
-            -destination 'generic/platform=iOS Simulator' \
-            -configuration Debug \
-            CODE_SIGNING_ALLOWED=NO \
-            | tee xcodebuild-26.log | tail -40
+      - name: Build + TouliaoTests (Xcode 26 simulator, same script as the release gate)
+        env:
+          PREP_DIR: ${{ runner.temp }}/touliao-release-tests
+          APP_VERSION: 0.0.0
+        run: bash ios/release-preparation/run.sh simulator
+      - name: Upload Xcode 26 test evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: xcode26-simulator-tests
+          path: |
+            ${{ runner.temp }}/touliao-release-tests/evidence/simulator.json
+            ${{ runner.temp }}/touliao-release-tests/evidence/simulator-tests.log
+            ${{ runner.temp }}/touliao-release-tests/evidence/SimulatorTests.xcresult/
+          if-no-files-found: ignore
 
   build:
     # macos-15 自带 Xcode 16，可读取 XcodeGen 生成的新工程格式(objectVersion 77)

@@ -1,0 +1,54 @@
+name: iOS App Store 提交审核
+
+# 手动把已上传到 App Store Connect 的构建提交 App Store 正式版审核（scripts/ios-appstore-submit.py）。
+# 默认 dry_run=true：只读，打印将要做的写操作；确认无误后把 dry_run 取消勾选再跑一次。
+# tag 发版(ios-testflight.yml)在 ios/testflight-config.json "submitAppStore": true 时会自动调用同一脚本。
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: '版本号，如 8.1.41（必填）'
+        required: true
+      build_number:
+        description: '构建号；留空 = 该版本最新 VALID 构建'
+        required: false
+        default: ''
+      dry_run:
+        description: '只读演练，不做任何修改'
+        type: boolean
+        required: false
+        default: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ios-appstore-submit
+  cancel-in-progress: false
+
+jobs:
+  submit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install --quiet pyjwt cryptography
+      - name: 送审脚本单测（假 ASC，不访问网络）
+        run: python3 -B scripts/test-ios-appstore-submit.py
+      - name: 提交 App Store 审核
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          ASC_API_KEY_BASE64: ${{ secrets.ASC_API_KEY_BASE64 }}
+          VERSION: ${{ inputs.version }}
+          BUILD: ${{ inputs.build_number }}
+          DRY_RUN: ${{ inputs.dry_run }}
+        run: |
+          set -euo pipefail
+          ARGS=(--version "$VERSION" --config ios/testflight-config.json)
+          if [ -n "$BUILD" ]; then ARGS+=(--build-number "$BUILD"); fi
+          if [ "$DRY_RUN" = "true" ]; then ARGS+=(--dry-run); fi
+          python3 scripts/ios-appstore-submit.py "${ARGS[@]}"
