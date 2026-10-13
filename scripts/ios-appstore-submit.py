@@ -488,8 +488,16 @@ def ensure_whats_new(client, version_id, whats_new):
         if loc["attributes"].get("whatsNew") == text:
             ok(f"{locale} 已是最新文案")
             continue
-        client.patch(f"/appStoreVersionLocalizations/{loc['id']}", {"data": {
-            "type": "appStoreVersionLocalizations", "id": loc["id"], "attributes": {"whatsNew": text}}})
+        try:
+            client.patch(f"/appStoreVersionLocalizations/{loc['id']}", {"data": {
+                "type": "appStoreVersionLocalizations", "id": loc["id"], "attributes": {"whatsNew": text}}})
+        except ApiError as e:
+            # App 的首个 App Store 版本（从未上架过）不允许填写「此版本的新内容」：Apple 返回 409 STATE_ERROR。
+            # 这不影响送审，跳过并继续。
+            if e.status == 409 and "STATE_ERROR" in e.codes:
+                log(f"   ⚠️ {locale} 当前不允许编辑 whatsNew（通常是首个上架版本），跳过：{e}")
+                continue
+            raise
         ok(f"{locale} whatsNew 已写入")
 
 
