@@ -13,6 +13,10 @@ on:
         description: '构建号；留空 = 该版本最新 VALID 构建'
         required: false
         default: ''
+      withdraw_version:
+        description: '先撤回这个版本的审核再提交（如 8.1.40）；留空 = 不撤回任何东西'
+        required: false
+        default: ''
       dry_run:
         description: '只读演练，不做任何修改'
         type: boolean
@@ -46,9 +50,11 @@ jobs:
           VERSION: ${{ inputs.version }}
           BUILD: ${{ inputs.build_number }}
           DRY_RUN: ${{ inputs.dry_run }}
+          WITHDRAW: ${{ inputs.withdraw_version }}
         run: |
           set -euo pipefail
           ARGS=(--version "$VERSION" --config ios/testflight-config.json)
           if [ -n "$BUILD" ]; then ARGS+=(--build-number "$BUILD"); fi
+          if [ -n "$WITHDRAW" ]; then ARGS+=(--withdraw-version "$WITHDRAW"); fi
           if [ "$DRY_RUN" = "true" ]; then ARGS+=(--dry-run); fi
           python3 scripts/ios-appstore-submit.py "${ARGS[@]}"

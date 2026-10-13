@@ -11,7 +11,10 @@
      - 同版本号已在审核/待发布/已上架 → 挂的就是这个构建则视为已提交（退出码 0），否则报错要人工处理
      - 另有一个可编辑版本（每个平台只能有一个）且版本号低于目标 → 只改它的 versionString；
        版本号不低于目标（如手工准备的 8.2.0 草稿）→ 报错，交人工决定，绝不静默改名
-     - 另有版本在审核/待发布 → 退出码 3「被占用」（Apple 不允许此时新建版本，不自动撤回）
+     - 另有版本在审核/待发布 → 退出码 3「被占用」（Apple 不允许此时新建版本，默认不自动撤回）
+     - 显式 --withdraw-version X：在第 3 步之前先取消「只含版本 X」的那条审核提交（WAITING_FOR_REVIEW/IN_REVIEW），
+       轮询到 X 变回可编辑（DEVELOPER_REJECTED）再继续，X 随后按上一条被改名为新版本；
+       X 已过审/已上架/已可编辑 → 不撤回，正常继续；找不到 X、提交里还有别的项目 → 报错，什么都不撤回
      - 都没有 → 新建；releaseType 沿用上一版本（MANUAL/AFTER_APPROVAL；SCHEDULED 的日期不可复用 → 改 MANUAL），
        上一版本用了分阶段发布则新版本也开启分阶段发布
   4. 每个已有本地化写入「此版本的新内容」(whatsNew)：ios/testflight-config.json 的 appStoreWhatsNew
@@ -282,11 +285,113 @@ def attached_build_id(client, version_id):
     return ((rel or {}).get("data") or {}).get("id")
 
 
-def ensure_version(client, app_id, version, build_id):
-    """返回 (version_id, already_submitted)。"""
+WITHDRAWABLE_SUBMISSION = SUBMISSION_IN_REVIEW
+# 已过审（待发布/处理中）：不再撤回，交给正常流程（会按「被占用」或已上架处理）
+APPROVED_STATES = ("PENDING_DEVELOPER_RELEASE", "PENDING_APPLE_RELEASE", "ACCEPTED",
+                   "PROCESSING_FOR_APP_STORE", "PROCESSING_FOR_DISTRIBUTION")
+WITHDRAW_LOOKUP_STATES = ("WAITING_FOR_REVIEW", "IN_REVIEW", "UNRESOLVED_ISSUES", "READY_FOR_REVIEW", "CANCELING")
+
+
+def list_versions(client, app_id):
+    return client.get(f"/apps/{app_id}/appStoreVersions", {"filter[platform]": "IOS", "limit": "200"})["data"]
+
+
+def withdraw_version(client, app_id, withdraw, target, wait_max=600, interval=15):
+    """显式 opt-in：把 --withdraw-version 指定的那一个版本从审核中撤回（取消其 reviewSubmission）。
+    返回 None（无需撤回：已过审/已上架/已可编辑）或 {"version_id", "submission_id"}。
+    只动名字对上的那一个版本；提交里还有别的项目、找不到、状态不明 → 报错，绝不连带撤回。"""
+    step(f"撤回版本 {withdraw} 的审核（--withdraw-version）")
+    if withdraw == target:
+        raise SubmitError(f"--withdraw-version {withdraw} 与要提交的版本相同，拒绝撤回")
+    versions = list_versions(client, app_id)
+    matches = [v for v in versions if v["attributes"].get("versionString") == withdraw]
+    if not matches:
+        raise SubmitError(f"找不到版本 {withdraw}（--withdraw-version），不撤回任何东西")
+    if len(matches) > 1:
+        raise SubmitError(f"版本号 {withdraw} 对应多个 appStoreVersion，拒绝自动撤回")
+    v = matches[0]
+    vid, state = v["id"], version_state(v)
+    log(f"   版本 {withdraw} 当前 {state}（{vid}）")
+    if state in RELEASED_STATES or state in APPROVED_STATES:
+        ok(f"版本 {withdraw} 已过审/已发布（{state}），无需撤回，按正常流程继续")
+        return None
+    if state in EDITABLE_STATES:
+        ok(f"版本 {withdraw} 已不在审核中（{state}），无需撤回")
+        return None
+    if state not in WITHDRAWABLE_SUBMISSION:
+        raise SubmitError(f"版本 {withdraw} 处于 {state}，不是可撤回的审核状态，请人工处理")
+
+    subs = client.get(f"/apps/{app_id}/reviewSubmissions", {
+        "filter[platform]": "IOS", "filter[state]": ",".join(WITHDRAW_LOOKUP_STATES),
+        "include": "items", "limit": "50"})["data"]
+    owning = []
+    for s in subs:
+        items = submission_item_versions(client, s["id"])
+        if vid in items:
+            owning.append((s, items))
+    if not owning:
+        raise SubmitError(f"版本 {withdraw} 是 {state}，但找不到包含它的审核提交，请人工处理")
+    if len(owning) > 1:
+        raise SubmitError(f"有多条审核提交包含版本 {withdraw}（{[s['id'] for s, _ in owning]}），拒绝自动撤回")
+    sub, items = owning[0]
+    sid, sstate = sub["id"], sub["attributes"].get("state")
+    others = [i for i in items if i != vid]
+    if others:
+        raise SubmitError(f"审核提交 {sid} 里除版本 {withdraw} 外还有其他项目（{others}），拒绝撤回")
+    if sstate in WITHDRAWABLE_SUBMISSION:
+        log(f"   将取消审核提交 {sid}（{sstate}，只含版本 {withdraw} {vid}）")
+        if client.dry_run:
+            client.patch(f"/reviewSubmissions/{sid}", {"data": {
+                "type": "reviewSubmissions", "id": sid, "attributes": {"canceled": True}}})
+            ok(f"[dry-run] 将撤回版本 {withdraw} 的审核（取消提交 {sid}），之后按 {withdraw} 已可编辑继续演练")
+            return {"version_id": vid, "submission_id": sid}
+        try:
+            client.patch(f"/reviewSubmissions/{sid}", {"data": {
+                "type": "reviewSubmissions", "id": sid, "attributes": {"canceled": True}}}, retry=False)
+        except (SubmitError, OSError) as e:
+            log(f"   取消请求出错（{e}），重新读取状态确认…")
+            client.sleep(10)
+            cur = version_state(next((x for x in list_versions(client, app_id) if x["id"] == vid), v))
+            if cur in RELEASED_STATES or cur in APPROVED_STATES:
+                ok(f"版本 {withdraw} 已变为 {cur}（多半刚过审），不再撤回，按正常流程继续")
+                return None
+            sstate_now = ((client.get(f"/reviewSubmissions/{sid}") or {}).get("data", {})
+                          .get("attributes", {}).get("state"))
+            if sstate_now in WITHDRAWABLE_SUBMISSION:
+                raise
+            log(f"   提交 {sid} 已是 {sstate_now}，取消实际已生效")
+        ok(f"已请求取消审核提交 {sid}")
+    elif sstate == "CANCELING":
+        log(f"   审核提交 {sid} 已在 CANCELING，等待完成")
+    else:
+        raise SubmitError(f"版本 {withdraw} 是 {state}，但其提交 {sid} 是 {sstate}，请人工处理")
+
+    waited = 0
+    while True:
+        sstate = ((client.get(f"/reviewSubmissions/{sid}") or {}).get("data", {}).get("attributes", {}).get("state"))
+        cur = version_state(next((x for x in list_versions(client, app_id) if x["id"] == vid), v))
+        log(f"   提交 {sid} {sstate}，版本 {withdraw} {cur}（{waited}s）")
+        if cur in EDITABLE_STATES and sstate not in WITHDRAWABLE_SUBMISSION + SUBMISSION_BUSY:
+            ok(f"版本 {withdraw} 已撤回（{cur}）")
+            return {"version_id": vid, "submission_id": sid}
+        if cur in RELEASED_STATES or cur in APPROVED_STATES:
+            ok(f"版本 {withdraw} 在撤回前已过审（{cur}），按正常流程继续")
+            return None
+        if waited >= wait_max:
+            raise BlockedError(f"等待撤回完成超时（{wait_max}s，提交 {sstate}，版本 {cur}）；稍后带同样参数重跑即可")
+        client.sleep(interval)
+        waited += interval
+
+
+def ensure_version(client, app_id, version, build_id, assume_states=None):
+    """返回 (version_id, already_submitted)。assume_states：dry-run 撤回后假定的版本状态 {version_id: state}。"""
     step(f"找或建 App Store 版本 {version}")
-    versions = client.get(f"/apps/{app_id}/appStoreVersions",
-                          {"filter[platform]": "IOS", "limit": "200"})["data"]
+    versions = list_versions(client, app_id)
+    for v in versions:
+        if assume_states and v["id"] in assume_states:
+            v["attributes"]["appVersionState"] = assume_states[v["id"]]
+            v["attributes"].pop("appStoreState", None)
+            log(f"   [dry-run] 假定版本 {v['attributes'].get('versionString')} 撤回后为 {assume_states[v['id']]}")
     for v in versions:
         log(f"   现有版本 {v['attributes'].get('versionString')} {version_state(v)} ({v['id']})")
     same = next((v for v in versions if v["attributes"].get("versionString") == version), None)
@@ -383,8 +488,16 @@ def ensure_whats_new(client, version_id, whats_new):
         if loc["attributes"].get("whatsNew") == text:
             ok(f"{locale} 已是最新文案")
             continue
-        client.patch(f"/appStoreVersionLocalizations/{loc['id']}", {"data": {
-            "type": "appStoreVersionLocalizations", "id": loc["id"], "attributes": {"whatsNew": text}}})
+        try:
+            client.patch(f"/appStoreVersionLocalizations/{loc['id']}", {"data": {
+                "type": "appStoreVersionLocalizations", "id": loc["id"], "attributes": {"whatsNew": text}}})
+        except ApiError as e:
+            # App 的首个 App Store 版本（从未上架过）不允许填写「此版本的新内容」：Apple 返回 409 STATE_ERROR。
+            # 这不影响送审，跳过并继续。
+            if e.status == 409 and "STATE_ERROR" in e.codes:
+                log(f"   ⚠️ {locale} 当前不允许编辑 whatsNew（通常是首个上架版本），跳过：{e}")
+                continue
+            raise
         ok(f"{locale} whatsNew 已写入")
 
 
@@ -444,14 +557,18 @@ def mark_submitted(client, sid, version_id):
         raise
 
 
-def ensure_submitted(client, app_id, version_id):
-    """返回 'submitted' | 'already_submitted' | 'dry_run'。"""
+def ensure_submitted(client, app_id, version_id, ignore_submissions=()):
+    """返回 'submitted' | 'already_submitted' | 'dry_run'。
+    ignore_submissions：dry-run 中已「假定取消」的提交，不参与判断。"""
     step("提交 App Store 审核（reviewSubmissions）")
     subs = client.get(f"/apps/{app_id}/reviewSubmissions",
                       {"filter[platform]": "IOS", "filter[state]": ",".join(SUBMISSION_OPEN), "limit": "50"})["data"]
     target = None
     for s in subs:
         state = s["attributes"].get("state")
+        if s["id"] in ignore_submissions:
+            log(f"   [dry-run] 现有提交 {s['id']} {state} 假定已撤回，忽略")
+            continue
         has = submission_has_version(client, s["id"], version_id) if version_id != DRY_RUN_VERSION_ID else False
         log(f"   现有提交 {s['id']} {state}{'（含本版本）' if has else ''}")
         if state in SUBMISSION_IN_REVIEW:
@@ -496,11 +613,17 @@ def ensure_submitted(client, app_id, version_id):
 
 
 def submit(client, *, bundle, version, whats_new, build_number=None, app_id=None, review_detail=None,
-           wait_max=1800, interval=30):
+           wait_max=1800, interval=30, withdraw=None, withdraw_wait_max=600, withdraw_interval=15):
     app = find_app(client, bundle, app_id)
     build = find_build(client, app, version, build_number, wait_max, interval)
     ok(f"构建 {build['attributes'].get('version')}（{build['id']}，{build['attributes'].get('processingState')}）")
-    version_id, already = ensure_version(client, app, version, build["id"])
+    withdrawn = None
+    if withdraw:
+        withdrawn = withdraw_version(client, app, withdraw, version, withdraw_wait_max, withdraw_interval)
+    dry_withdrawn = withdrawn if (withdrawn and client.dry_run) else None
+    version_id, already = ensure_version(
+        client, app, version, build["id"],
+        assume_states={dry_withdrawn["version_id"]: "DEVELOPER_REJECTED"} if dry_withdrawn else None)
     if already:
         return {"status": "already_submitted", "app": app, "version": version_id, "build": build["id"]}
     ensure_encryption_answer(client, build)
@@ -510,10 +633,14 @@ def submit(client, *, bundle, version, whats_new, build_number=None, app_id=None
         log(f"   [dry-run] 新版本建好后会挂构建 {build['id']}")
     else:
         ensure_build_attached(client, version_id, build["id"])
-    status = ensure_submitted(client, app, version_id)
+    status = ensure_submitted(client, app, version_id,
+                              ignore_submissions=(dry_withdrawn["submission_id"],) if dry_withdrawn else ())
     if client.dry_run:
         status = "dry_run"
-    return {"status": status, "app": app, "version": version_id, "build": build["id"]}
+    result = {"status": status, "app": app, "version": version_id, "build": build["id"]}
+    if withdraw:
+        result["withdrawn"] = withdrawn
+    return result
 
 
 def review_detail_from_config(cfg):
@@ -543,11 +670,16 @@ def main(argv=None, client=None):
     p.add_argument("--dry-run", action="store_true", help="只读：打印将要做的写操作，不调用任何写接口")
     p.add_argument("--wait-max", type=int, default=1800, help="等待构建处理为 VALID 的最长秒数")
     p.add_argument("--poll-interval", type=int, default=30)
+    p.add_argument("--withdraw-version", default="",
+                   help="显式指定：先把这个版本（如 8.1.40）从审核中撤回再提交；只撤回这一个，默认不撤回任何东西")
+    p.add_argument("--withdraw-wait-max", type=int, default=600, help="等待撤回完成的最长秒数")
     args = p.parse_args(argv)
 
     try:
         if not re.fullmatch(r"\d+\.\d+(\.\d+)?", args.version):
             raise SubmitError(f"版本号格式不对：{args.version}")
+        if args.withdraw_version and not re.fullmatch(r"\d+\.\d+(\.\d+)?", args.withdraw_version):
+            raise SubmitError(f"--withdraw-version 格式不对：{args.withdraw_version}")
         if args.build_number and not re.fullmatch(r"\d+(\.\d+)*", args.build_number):
             raise SubmitError(f"构建号格式不对：{args.build_number}")
         cfg = {}
@@ -564,6 +696,7 @@ def main(argv=None, client=None):
             raise SubmitError("缺少更新说明：在 ios/testflight-config.json 加 appStoreWhatsNew，或传 --whats-new-file")
 
         log(f"App Store 提交：bundle={bundle} version={args.version} build={args.build_number or '最新 VALID'}"
+            f"{f' withdraw={args.withdraw_version}' if args.withdraw_version else ''}"
             f"{'（dry-run，只读）' if args.dry_run else ''}")
         if client is None:
             token = make_token_provider(os.environ["ASC_KEY_ID"], os.environ["ASC_ISSUER_ID"], load_private_key())
@@ -571,7 +704,8 @@ def main(argv=None, client=None):
         result = submit(client, bundle=bundle, version=args.version, whats_new=whats_new,
                         build_number=args.build_number or None, app_id=args.app_id or None,
                         review_detail=review_detail_from_config(cfg),
-                        wait_max=args.wait_max, interval=args.poll_interval)
+                        wait_max=args.wait_max, interval=args.poll_interval,
+                        withdraw=args.withdraw_version or None, withdraw_wait_max=args.withdraw_wait_max)
     except KeyError as e:
         log(f"❌ 缺少环境变量 {e}")
         return 1
