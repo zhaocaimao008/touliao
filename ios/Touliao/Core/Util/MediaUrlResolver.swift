@@ -58,19 +58,20 @@ enum MediaUrlResolver {
     }
     static func kfSource(raw: String?) -> Source? { kfSource(resolved: resolve(raw)) }
 
-    /// 由原图 URL 推导服务端缩略图 URL，规则与 web/src/utils/url.js getThumbUrl 完全一致：
-    /// /uploads/<dir>/<name>.<ext> → 同目录 <name>_thumb.webp；非 /uploads/ 开头、已是缩略图、
-    /// 文件名不是「无点主名.字母数字扩展名」时原样返回。旧图没有缩略图会 404，调用方必须回退原图。
-    static func thumbUrl(_ url: String?) -> String? {
-        guard let url, url.hasPrefix("/uploads/") else { return url }
-        if url.hasSuffix("_thumb.webp") { return url }
-        guard let slash = url.lastIndex(of: "/") else { return url }
-        let dir = url[...slash]
-        let parts = url[url.index(after: slash)...].split(separator: ".", omittingEmptySubsequences: false)
-        guard parts.count == 2, !parts[0].isEmpty, !parts[1].isEmpty,
-              parts[1].allSatisfy({ $0.isASCII && ($0.isLetter || $0.isNumber) }) else { return url }
-        return "\(dir)\(parts[0])_thumb.webp"
-    }
+    /// 聊天气泡最大显示尺寸（pt），与 ChatView 图片气泡的 .frame(maxWidth:maxHeight:) 一致。
+    static let bubbleMaxPointSize = CGSize(width: 220, height: 280)
+
+    /// 聊天气泡图统一的降采样处理器：直接对【原图】按气泡像素尺寸解码。
+    /// DownsamplingImageProcessor 的 size 以 pt 计，长边上限 = max(w,h) × scaleFactor，
+    /// 调用方必须同时传 .scaleFactor(屏幕 scale)：3x 屏长边 840px、2x 屏 560px，
+    /// 都不小于气泡实际像素(3x 最大 660×840)，不会糊；内存仍只占气泡大小而非原图大小。
+    /// 2026-10-12：不再用服务端 _thumb.webp(长边固定 480px，低于 2x/3x 气泡像素，放大发糊)。
+    /// 处理后的图在 Kingfisher 缓存里的键是「源 cacheKey + 处理器 identifier」，
+    /// 按键取缓存的地方（含测试）必须带上同一个处理器。
+    static let bubbleProcessor = DownsamplingImageProcessor(
+        size: CGSize(width: max(bubbleMaxPointSize.width, bubbleMaxPointSize.height),
+                     height: max(bubbleMaxPointSize.width, bubbleMaxPointSize.height))
+    )
 
     private struct MediaProvider: ImageDataProvider {
         let url: URL

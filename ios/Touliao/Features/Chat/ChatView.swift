@@ -23,6 +23,7 @@ struct ChatView: View {
     @State private var stickerPhotoItem: PhotosPickerItem?
     @State private var videoItem: PhotosPickerItem?     // 2026-08-29 视频发送修复新增
     @State private var videoImportError: String?
+    @StateObject private var videoPrep = VideoPreparation()   // 选中视频后的读取/转码进度
     @State private var showFileImporter = false
     @State private var showStickerPanel = false
     @State private var showFuncPanel = false
@@ -178,6 +179,8 @@ struct ChatView: View {
         .onDisappear { VisibleConversation.shared.leave(vm.conversationId); vm.onLeave() }
         .onChange(of: photoItems) { items in handlePhotos(items) }
         .onChange(of: videoItem) { item in handleVideo(item) }
+        // 处理视频期间显示进度浮层；离开页面不取消，处理完仍发到开始时的那个会话（见 handleVideo）。
+        .overlay { VideoPreparationHUD(preparation: videoPrep) }
         .alert("视频导入失败", isPresented: Binding(get: { videoImportError != nil }, set: { if !$0 { videoImportError = nil } })) {
             Button("好", role: .cancel) {}
         } message: { Text(videoImportError ?? "") }
@@ -750,10 +753,13 @@ struct ChatView: View {
             .accessibilityIdentifier("chat-attach-image")
             .accessibilityLabel("发送图片")
 
-            // 2026-10-12：.compatible 让系统把 HEVC 原片转成 H.264 再交给我们，避免安卓/网页端放不了。
-            PhotosPicker(selection: $videoItem, matching: .videos, preferredItemEncoding: .compatible) {
+            // 2026-10-12：.current 拿原片，由 VideoPreparation 带进度只导出一次 H.264 mp4
+            // （HEVC/4K 转成安卓/网页端都能放的格式）；不用 .compatible，否则 4K 会被系统和我们各转一遍。
+            PhotosPicker(selection: $videoItem, matching: .videos, preferredItemEncoding: .current) {
                 funcItem(icon: "video", label: "视频")
             }
+            // 处理中不能再选第二个视频（否则会静默取消正在处理的那个）
+            .disabled(videoPrep.isActive)
             .accessibilityIdentifier("chat-attach-video")
             .accessibilityLabel("发送视频")
 
@@ -893,47 +899,47 @@ struct ChatView: View {
     /// 2026-08-29 视频发送修复新增：用 FileRepresentation(见 PickedVideoFile) 拿到磁盘文件，
     /// 不整体读进内存；正确识别真实 MIME(而非固定当成图片)；本地生成一帧缩略图；
     /// 走 vm.uploadVideo 的磁盘流式上传路径。iCloud 视频由系统在 loadTransferable 期间自动下载
-    /// (可能耗时，picker 内会显示下载进度)，不需要额外处理；下载/读取失败时给出提示而不是无反应。
+    /// (可能耗时)；下载/读取失败时给出提示而不是无反应。
+    /// 2026-10-12（8.1.41）：读取与转 H.264 mp4 交给 VideoPreparation，界面显示进度浮层、可取消、
+    /// 切后台有后台任务保护；转码失败回退原片上传。大小校验放在转码之后（转码通常会变小）。
     private func handleVideo(_ item: PhotosPickerItem?) {
         guard let item else { return }
-        Task {
-            defer { videoItem = nil }
-            let picked: PickedVideoFile
-            do {
-                guard let file = try await item.loadTransferable(type: PickedVideoFile.self) else {
-                    videoImportError = "无法读取所选视频，请重试或更换一个视频"
-                    return
-                }
-                picked = file
-            } catch {
-                videoImportError = "视频导入失败：\(error.localizedDescription)"
-                return
-            }
+        videoItem = nil   // 立即复位（onChange 收到 nil 直接返回）；处理中视频入口禁用
+        // 开始时就持有本会话的 ViewModel：用户中途离开页面，处理完也发到原会话，
+        // 不经已卸载视图的 @StateObject（那样会拿到一个新的、未连接的实例）。
+        let model = vm
+        videoPrep.start(item, onReady: { picked in
+            Self.sendPreparedVideo(picked, to: model) { videoImportError = $0 }
+        }, onError: { message in
+            videoImportError = message
+        })
+    }
 
-            guard let sizeAttr = try? FileManager.default.attributesOfItem(atPath: picked.url.path),
-                  let fileSize = sizeAttr[.size] as? Int64, fileSize > 0 else {
-                videoImportError = "视频文件读取失败"
-                PickedVideoCleanup.removeFile(picked.url)
-                return
-            }
-            // 与后端 MAX_UPLOAD_BYTES 默认值一致的前置校验(200MB)：避免明知会失败还发起一次几百MB的
-            // 上传空跑；真实上限以服务端为准，这里只是提前给出清晰提示，不在客户端重新定义业务规则。
-            let maxBytes: Int64 = 200 * 1024 * 1024
-            if fileSize > maxBytes {
-                videoImportError = "视频超过200MB限制(当前\(ByteCountFormatter.string(fromByteCount: fileSize, countStyle: .file)))，请选择更小的视频"
-                PickedVideoCleanup.removeFile(picked.url)
-                return
-            }
-
-            let ext = picked.url.pathExtension.lowercased()
-            let mime = UTType(filenameExtension: ext)?.preferredMIMEType ?? "video/mp4"
-            let thumb = Self.videoThumbnail(url: picked.url)
-            // 2026-08-29：cleanupOldFiles 挪到 uploadVideo 之前——即便 PickedVideoFile 里已经把
-            // 拷贝的 mtime 重置为"现在"，先清理旧文件、再产出这次要上传的新文件，从时序上彻底
-            // 消除"新文件被当成旧文件误删"这类竞态的可能性，不依赖 mtime 是否被正确重置。
-            PickedVideoCleanup.cleanupOldFiles()
-            vm.uploadVideo(fileURL: picked.url, fileName: picked.suggestedFileName, mimeType: mime, preview: thumb)
+    @MainActor private static func sendPreparedVideo(_ picked: PickedVideoFile, to vm: ChatViewModel,
+                                          onError: @escaping (String) -> Void) {
+        guard let sizeAttr = try? FileManager.default.attributesOfItem(atPath: picked.url.path),
+              let fileSize = sizeAttr[.size] as? Int64, fileSize > 0 else {
+            onError("视频文件读取失败")
+            PickedVideoCleanup.removeFile(picked.url)
+            return
         }
+        // 与后端 MAX_UPLOAD_BYTES 默认值一致的前置校验(200MB)：避免明知会失败还发起一次几百MB的
+        // 上传空跑；真实上限以服务端为准，这里只是提前给出清晰提示，不在客户端重新定义业务规则。
+        let maxBytes = PickedVideoTranscoder.maxUploadBytes
+        if fileSize > maxBytes {
+            onError("视频超过200MB限制(当前\(ByteCountFormatter.string(fromByteCount: fileSize, countStyle: .file)))，请选择更小的视频")
+            PickedVideoCleanup.removeFile(picked.url)
+            return
+        }
+
+        let ext = picked.url.pathExtension.lowercased()
+        let mime = UTType(filenameExtension: ext)?.preferredMIMEType ?? "video/mp4"
+        let thumb = Self.videoThumbnail(url: picked.url)
+        // 2026-08-29：cleanupOldFiles 挪到 uploadVideo 之前——即便 PickedVideoFile 里已经把
+        // 拷贝的 mtime 重置为"现在"，先清理旧文件、再产出这次要上传的新文件，从时序上彻底
+        // 消除"新文件被当成旧文件误删"这类竞态的可能性，不依赖 mtime 是否被正确重置。
+        PickedVideoCleanup.cleanupOldFiles()
+        vm.uploadVideo(fileURL: picked.url, fileName: picked.suggestedFileName, mimeType: mime, preview: thumb)
     }
 
     /// 本地生成视频首帧缩略图，供上传中气泡预览用。取不到帧不影响发送流程。
@@ -1243,15 +1249,17 @@ private struct MessageBubble: View {
     @ViewBuilder private var content: some View {
         switch msg.type {
         case "image":
-            // 2026-10-12：气泡先加载服务端缩略图(<uuid>_thumb.webp，iOS14+ ImageIO 原生解码 webp)，
-            // 缩略图不存在(旧图 404)时自动换原图；按气泡尺寸降采样解码，省内存。全屏查看器仍用原图。
-            KFImage(source: MediaUrlResolver.kfSource(resolved: vm.resolveMediaUrl(MediaUrlResolver.thumbUrl(msg.fileUrl))))
-                .alternativeSources([MediaUrlResolver.kfSource(resolved: vm.resolveMediaUrl(msg.fileUrl))].compactMap { $0 })
-                .setProcessor(DownsamplingImageProcessor(size: CGSize(width: 280, height: 280)))
+            // 2026-10-12：气泡加载原图，但按气泡像素尺寸降采样解码(ImageIO thumbnail，不先解出整张大图)，
+            // 3x 屏也清晰、内存只占气泡大小。不用服务端 _thumb.webp：它长边只有 480px，低于 2x/3x
+            // 气泡的实际像素，放大会糊；先缩略图再原图又会多一次请求和一次闪动。
+            // cacheOriginalImage 让原图字节按原图键落盘，全屏查看/保存/分享直接命中缓存，不再重下。
+            KFImage(source: MediaUrlResolver.kfSource(resolved: vm.resolveMediaUrl(msg.fileUrl)))
+                .setProcessor(MediaUrlResolver.bubbleProcessor)
                 .scaleFactor(UIScreen.main.scale)
+                .cacheOriginalImage()
                 .resizable()
                 .scaledToFit()
-                .frame(maxWidth: 220, maxHeight: 280)
+                .frame(maxWidth: MediaUrlResolver.bubbleMaxPointSize.width, maxHeight: MediaUrlResolver.bubbleMaxPointSize.height)
                 .clipShape(RoundedRectangle(cornerRadius: VxinRadius.badge))
                 .onTapGesture { vm.openImage(msg) }
         case "voice":

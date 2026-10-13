@@ -1,4 +1,6 @@
 import XCTest
+import UIKit
+import Kingfisher
 @testable import Touliao
 
 final class Batch3SessionMediaTests: XCTestCase {
@@ -27,6 +29,29 @@ final class Batch3SessionMediaTests: XCTestCase {
             XCTAssertFalse(resolved!.contains("synthetic-login"))
         }
     }
+    /// 气泡降采样后的像素必须覆盖气泡在 2x/3x 屏上的实际像素(否则放大发糊)，同时远小于原图(省内存)。
+    func testBubbleDownsamplingKeepsBubblePixelsSharpOn2xAnd3x() throws {
+        let format = UIGraphicsImageRendererFormat()
+        format.scale = 1
+        for source in [CGSize(width: 3000, height: 2000), CGSize(width: 2000, height: 3000)] {
+            let big = UIGraphicsImageRenderer(size: source, format: format).image { context in
+                UIColor.systemTeal.setFill(); context.fill(CGRect(origin: .zero, size: source))
+            }
+            let data = try XCTUnwrap(big.jpegData(compressionQuality: 0.8))
+            for scale: CGFloat in [2, 3] {
+                let options = KingfisherParsedOptionsInfo([.scaleFactor(scale)])
+                let image = try XCTUnwrap(MediaUrlResolver.bubbleProcessor.process(item: .data(data), options: options))
+                let cg = try XCTUnwrap(image.cgImage)
+                let bubble = MediaUrlResolver.bubbleMaxPointSize
+                // scaledToFit 在 220×280pt 框内：横图受宽度约束、竖图受高度约束。
+                let fit = min(bubble.width / source.width, bubble.height / source.height)
+                XCTAssertGreaterThanOrEqual(CGFloat(cg.width), (source.width * fit * scale).rounded(.down) - 1, "scale \(scale) \(source)")
+                XCTAssertGreaterThanOrEqual(CGFloat(cg.height), (source.height * fit * scale).rounded(.down) - 1, "scale \(scale) \(source)")
+                XCTAssertLessThanOrEqual(CGFloat(max(cg.width, cg.height)), max(bubble.width, bubble.height) * scale + 1)
+            }
+        }
+    }
+
     func testMediaRequestDoesNotSendAccountTokenToAnotherOrigin() {
         var token: String? = "synthetic-login"
         let credentials = KeychainStore(readToken: { token }, writeToken: { token = $0 })

@@ -97,4 +97,12 @@ final class PushManager {
         // Synchronous on MainActor: an older async badge request cannot overwrite a newer read.
         UIApplication.shared.applicationIconBadgeNumber = min(99, max(0, count))
     }
+
+    /// 登出 / 切换账号 / 注销 / 被踢下线时清零桌面角标，旧账号的未读数不能留在图标上。
+    /// 8.1.40 前每次回前台都 setBadgeCount(0)；09bee09e 改成按未读总数设置后，updateBadge 在
+    /// 未登录时直接 return，登出路径再没人把角标归零，这里补回来。
+    @MainActor
+    func resetBadge() {
+        UIApplication.shared.applicationIconBadgeNumber = 0
+    }
 }

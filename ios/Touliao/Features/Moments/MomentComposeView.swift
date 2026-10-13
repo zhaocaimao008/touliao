@@ -106,6 +106,7 @@ struct MomentComposeView: View {
     @StateObject private var vm = MomentComposeViewModel()
     @State private var pickerItems: [PhotosPickerItem] = []
     @State private var videoItem: PhotosPickerItem?
+    @StateObject private var videoPrep = VideoPreparation()
     @State private var showFriendPicker = false
 
     var body: some View {
@@ -119,7 +120,11 @@ struct MomentComposeView: View {
                     // 媒体模式切换（F5）：图片/视频互斥，对齐 Web radiogroup
                     Picker("媒体类型", selection: Binding(
                         get: { vm.mediaMode },
-                        set: { vm.switchMediaMode($0) }
+                        set: { mode in
+                            // 离开视频模式时停掉正在处理的视频，免得处理完把隐藏的视频挂到图片动态上
+                            if mode != "video" { videoPrep.cancel() }
+                            vm.switchMediaMode(mode)
+                        }
                     )) {
                         Text("图片").tag("images")
                         Text("视频").tag("video")
@@ -170,8 +175,8 @@ struct MomentComposeView: View {
                             Text(url.lastPathComponent).touliaoText(.caption).foregroundColor(.vxinTextSecondary).lineLimit(1)
                         } else {
                             // 选视频：FileRepresentation 落盘（不整体进内存），iCloud 视频系统自动下载
-                            // 2026-10-12：.compatible → 系统把 HEVC 原片转成 H.264（与聊天视频一致）
-                            PhotosPicker(selection: $videoItem, matching: .videos, preferredItemEncoding: .compatible) {
+                            // 2026-10-12：.current 拿原片，VideoPreparation 带进度只转一次 H.264（与聊天视频一致）
+                            PhotosPicker(selection: $videoItem, matching: .videos, preferredItemEncoding: .current) {
                                 Label("选择视频", touliaoIcon: "video")
                             }
                         }
@@ -228,11 +233,11 @@ struct MomentComposeView: View {
         .touliaoPage()
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("取消") { vm.clearVideo(); dismiss() }
+                    Button("取消") { videoPrep.cancel(); vm.clearVideo(); dismiss() }
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button(vm.publishing ? "发布中…" : "发表") { vm.publish { onPublished() } }
-                        .disabled(vm.publishing || (vm.content.trimmingCharacters(in: .whitespaces).isEmpty && vm.images.isEmpty && vm.videoURL == nil))
+                        .disabled(vm.publishing || videoPrep.isActive || (vm.content.trimmingCharacters(in: .whitespaces).isEmpty && vm.images.isEmpty && vm.videoURL == nil))
                 }
             }
             .onChange(of: pickerItems) { items in
@@ -246,11 +251,13 @@ struct MomentComposeView: View {
             }
             .onChange(of: videoItem) { item in
                 guard let item else { return }
-                Task {
-                    defer { videoItem = nil }
-                    // 与聊天视频发送同款路径：FileRepresentation 拿稳定磁盘文件 + 首帧缩略图
-                    guard let picked = try? await item.loadTransferable(type: PickedVideoFile.self) else {
-                        vm.error = "无法读取所选视频，请重试或更换一个视频"
+                videoItem = nil
+                vm.error = nil
+                // 与聊天视频发送同款路径：FileRepresentation 拿稳定磁盘文件 → VideoPreparation
+                // 带进度导出一次 H.264 mp4（失败回退原片）→ 校验大小 + 首帧缩略图
+                videoPrep.start(item, onReady: { picked in
+                    guard vm.mediaMode == "video" else {   // 处理期间已切回图片模式
+                        PickedVideoCleanup.removeFile(picked.url)
                         return
                     }
                     if let validationError = MomentComposeViewModel.validateVideo(picked.url) {
@@ -263,8 +270,12 @@ struct MomentComposeView: View {
                     vm.videoURL = picked.url
                     vm.videoName = picked.suggestedFileName
                     vm.videoThumb = Self.videoThumbnail(url: picked.url)
-                }
+                }, onError: { message in
+                    vm.error = message
+                })
             }
+            .overlay { VideoPreparationHUD(preparation: videoPrep) }
+            .onDisappear { videoPrep.cancel() }
         }
     }
 

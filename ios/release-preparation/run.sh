@@ -41,7 +41,7 @@ case "${1:?Missing stage}" in
     ;;
   simulator)
     xcodebuild clean build -project ios/Touliao.xcodeproj -scheme Touliao -destination 'generic/platform=iOS Simulator' -configuration Debug -derivedDataPath "$PREP_DIR/simulator-data" CODE_SIGNING_ALLOWED=NO | tee "$EVIDENCE_DIR/simulator-build.log"
-    SIMULATOR_ID=$(xcrun simctl list devices available -j | python3 -c 'import json,sys; devices=[d for runtime,ds in json.load(sys.stdin)["devices"].items() if "iOS" in runtime for d in ds if d["name"].startswith("iPhone")]; assert devices,"No iPhone simulator"; print(devices[-1]["udid"])')
+    SIMULATOR_ID=$(xcrun simctl list devices available -j | python3 ios/release-preparation/pick-simulator.py)
     xcrun simctl boot "$SIMULATOR_ID"
     xcrun simctl bootstatus "$SIMULATOR_ID" -b
     xcrun simctl list devices booted -j > "$EVIDENCE_DIR/simulator.json"
