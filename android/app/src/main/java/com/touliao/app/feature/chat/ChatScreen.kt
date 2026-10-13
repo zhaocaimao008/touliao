@@ -31,6 +31,7 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.foundation.layout.Arrangement
@@ -289,8 +290,9 @@ fun ChatScreen(
         if (imeVisible && totalCount > 0) listState.scrollToItem(lastListIndex)
     }
     // 两个面板互斥：表情面板 / 功能(+)面板（状态提到这里，消息列表才能跟随）
-    var showEmojiPanel by remember { mutableStateOf(false) }
-    var showFuncPanel by remember { mutableStateOf(false) }
+    // rememberSaveable：跟随系统切深色、改字号/语言或进程被杀恢复后，面板开关不丢（INPUT-1）
+    var showEmojiPanel by rememberSaveable { mutableStateOf(false) }
+    var showFuncPanel by rememberSaveable { mutableStateOf(false) }
     // 面板展开同键盘：底栏变高、列表视口变矮，此前最新几条会被面板挡住。
     // 等两帧让视口按新高度完成布局，再贴底（先滚会被随后的视口收缩抵消）。
     LaunchedEffect(showEmojiPanel, showFuncPanel) {
@@ -328,6 +330,18 @@ fun ChatScreen(
 
     // 多选态：系统返回键先退出多选(而非离开会话)
     androidx.activity.compose.BackHandler(enabled = state.multiSelect) { viewModel.exitMultiSelect() }
+    // INPUT-1：返回键按「多选 → 面板 → 录音」逐层退出，最后才离开会话。
+    // 三个开关互斥（不靠注册顺序）：多选态时输入栏和面板都不显示，面板状态可能仍为 true，不能抢多选的返回键。
+    val inputPanelOpen = showEmojiPanel || showFuncPanel
+    // 表情/+面板打开时：返回只收起面板（此前直接离开会话）
+    androidx.activity.compose.BackHandler(enabled = !state.multiSelect && inputPanelOpen) {
+        showEmojiPanel = false; showFuncPanel = false
+    }
+    // 录音中：返回取消本段录音（丢弃不发送）。先收面板再取消录音——收面板不丢数据，取消录音会丢。
+    androidx.activity.compose.BackHandler(enabled = !state.multiSelect && !inputPanelOpen && state.recording) {
+        viewModel.cancelRecording()
+        com.touliao.app.ui.components.TouliaoFeedback.show(context, "已取消录音")
+    }
 
     // 跳到指定消息并高亮(供「回复引用」「搜索结果」共用)。仅在已加载消息里查找。
     val jumpToMessage: (String) -> Unit = { targetId ->
@@ -654,6 +668,7 @@ fun ChatScreen(
                         val showReadStatus = isMine && msg.id == lastOwnMsgId
                         if (state.multiSelect) {
                             // 多选模式：整行可点勾选，左侧圆形选择指示器
+                            // （selectionMode = true 时气泡内部不挂任何点击，点气泡任何位置都落到这一行）
                             val checked = msg.id in state.selectedIds
                             Row(
                                 Modifier.fillMaxWidth()
@@ -1284,9 +1299,10 @@ private class BubbleCallbacks(
     val onReadStatus: () -> Unit,
 )
 
+// internal（原 private）：仅为让 androidTest 的 BubbleGestureTest 直接渲染单条气泡做手势回归，不供其它页面复用
 @OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
-private fun MessageBubble(
+internal fun MessageBubble(
     msg: Message,
     isMine: Boolean,
     myId: String,
@@ -1335,7 +1351,8 @@ private fun MessageBubble(
         horizontalArrangement = if (isMine) Arrangement.End else Arrangement.Start,
     ) {
         if (!isMine) {
-            Box(Modifier.combinedClickable(onClick = {}, onDoubleClick = onNudge)) {
+            // 多选态不挂手势：点头像也穿透到外层整行勾选（clickable(enabled = false) 仍会挂手势检测、吞掉按下事件，所以直接不挂）
+            Box(if (selectionMode) Modifier else Modifier.combinedClickable(onClick = {}, onDoubleClick = onNudge)) {
                 InitialAvatar(name = msg.senderName.ifBlank { "?" }, size = 36.dp, avatarUrl = resolveUrl(msg.senderAvatar))
             }
             Spacer(Modifier.size(6.dp))
@@ -1358,7 +1375,8 @@ private fun MessageBubble(
                             // 视觉尺寸不变，触控区域扩到 ≥48dp
                             .minimumInteractiveComponentSize()
                             .clip(RoundedCornerShape(com.touliao.app.ui.theme.VxinRadius.tag))
-                            .clickable(onClick = onRetry)
+                            // 多选态不挂点击，让给外层整行勾选
+                            .then(if (selectionMode) Modifier else Modifier.clickable(onClick = onRetry))
                             .testTag("msg-send-failed-${msg.id}")
                             .padding(horizontal = 4.dp, vertical = 1.dp),
                     )
@@ -1386,7 +1404,8 @@ private fun MessageBubble(
                 Box(
                     Modifier.widthIn(max = 260.dp).clip(RoundedCornerShape(com.touliao.app.ui.theme.VxinRadius.sm))
                         .background(MaterialTheme.colorScheme.surfaceVariant)
-                        .clickable { rt.id.takeIf { it.isNotBlank() }?.let(onReplyClick) }
+                        // 多选态不挂点击，让给外层整行勾选
+                        .then(if (selectionMode) Modifier else Modifier.clickable { rt.id.takeIf { it.isNotBlank() }?.let(onReplyClick) })
                         .padding(horizontal = 8.dp, vertical = 4.dp),
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
@@ -1413,9 +1432,9 @@ private fun MessageBubble(
                 }
                 Spacer(Modifier.size(2.dp))
             }
-            // 红包消息：点击打开领取弹窗，无长按菜单
+            // 红包消息：点击打开领取弹窗，无长按菜单；多选态不挂点击，让给外层整行勾选
             if (redPacket != null) {
-                RedPacketCard(redPacket, isMine, onClick = onOpenRedPacket)
+                RedPacketCard(redPacket, isMine, onClick = if (selectionMode) null else onOpenRedPacket)
                 return@Column
             }
             // 转账消息：绿色卡片，转账即到账，无需操作，无长按菜单
@@ -1427,13 +1446,39 @@ private fun MessageBubble(
             val haptic = LocalHapticFeedback.current
             // 长按缩放反馈：菜单打开时气泡轻微缩小(对齐微信长按手感)
             val bubbleScale by animateFloatAsState(if (menuOpen) 0.96f else 1f, label = "bubbleScale")
+            // BUBBLE-1：整条气泡只有这一个手势入口。内容层（图片/MediaCard/聊天记录卡片）不再各自挂 clickable——
+            // 子节点按下即消费事件，这里的长按此前等不到，媒体气泡长按弹不出菜单。单击在这里按类型分发（见 BubbleTap.kt）。
+            val tap = bubbleTapOf(msg.type)
+            val touchShape = bubbleTouchShape(msg.type, isMine)
             Box {
                 Box(
                     Modifier
-                        .graphicsLayer { scaleX = bubbleScale; scaleY = bubbleScale }
-                        .combinedClickable(onClick = {}, onLongClick = { if (!selectionMode) { haptic.performHapticFeedback(HapticFeedbackType.LongPress); menuOpen = true } }),
+                        .graphicsLayer {
+                            scaleX = bubbleScale; scaleY = bubbleScale
+                            // 按内容同形裁剪：按压涟漪不溢出圆角（此前媒体气泡的涟漪由内层 clickable 自带裁剪）
+                            shape = touchShape; clip = true
+                        }
+                        .then(
+                            // 多选态不挂手势：点击穿透到外层整行勾选；长按本就不弹菜单
+                            if (selectionMode) Modifier
+                            else Modifier.combinedClickable(
+                                onClickLabel = tap?.label,
+                                onLongClickLabel = BUBBLE_LONG_CLICK_LABEL,
+                                onLongClick = { haptic.performHapticFeedback(HapticFeedbackType.LongPress); menuOpen = true },
+                                onClick = {
+                                    when (tap) {
+                                        BubbleTap.IMAGE -> onImageClick()
+                                        BubbleTap.VOICE -> onPlayVoice()
+                                        BubbleTap.FILE, BubbleTap.VIDEO -> onOpenFile()
+                                        BubbleTap.MERGED -> onOpenMerged()
+                                        null -> {}   // 文本、名片：单击无动作（与原行为一致）
+                                    }
+                                },
+                            ),
+                        )
+                        .testTag("msg-content-${msg.id}"),
                 ) {
-                    MessageContent(msg, isMine, resolveUrl, onPlayVoice, onOpenFile, onImageClick, onOpenMerged)
+                    MessageContent(msg, isMine, resolveUrl)
                 }
                 // (highlight via Row background above)
                 DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
@@ -1490,7 +1535,8 @@ private fun MessageBubble(
                             Modifier.padding(end = 4.dp).clip(RoundedCornerShape(com.touliao.app.ui.theme.VxinRadius.badge))
                                 .background(if (mine) VxinBrand.copy(alpha = 0.15f) else MaterialTheme.colorScheme.surfaceVariant)
                                 .then(if (mine) Modifier.border(0.5.dp, VxinBrand.copy(alpha = 0.6f), RoundedCornerShape(com.touliao.app.ui.theme.VxinRadius.badge)) else Modifier)
-                                .clickable { onReact(r.emoji) }
+                                // 多选态不挂点击，让给外层整行勾选
+                                .then(if (selectionMode) Modifier else Modifier.clickable { onReact(r.emoji) })
                                 .padding(horizontal = 6.dp, vertical = 1.dp),
                         ) { Text("${r.emoji} ${r.count}", fontSize = com.touliao.app.ui.theme.VxinTextSize.xs, color = if (mine) VxinBrand else Color.Unspecified) }
                     }
@@ -1536,15 +1582,15 @@ private val contactCardJson = Json { ignoreUnknownKeys = true }
 private fun parseContactCard(content: String): ContactCardContent =
     runCatching { contactCardJson.decodeFromString<ContactCardContent>(content) }.getOrNull() ?: ContactCardContent()
 
+/**
+ * 气泡内容，只负责显示。点击和长按统一由外层 MessageBubble 的 combinedClickable 处理（BUBBLE-1），
+ * 这里不要再给铺满气泡的元素挂 clickable，否则会吃掉外层长按。
+ */
 @Composable
 private fun MessageContent(
     msg: Message,
     isMine: Boolean,
     resolveUrl: (String?) -> String?,
-    onPlayVoice: () -> Unit,
-    onOpenFile: () -> Unit,
-    onImageClick: () -> Unit = {},
-    onOpenMerged: () -> Unit = {},
 ) {
     Column(horizontalAlignment = if (isMine) Alignment.End else Alignment.Start) {
             when (msg.type) {
@@ -1568,8 +1614,7 @@ private fun MessageContent(
                         modifier = Modifier
                             .widthIn(max = 220.dp)
                             .heightIn(max = 280.dp)
-                            .clip(RoundedCornerShape(com.touliao.app.ui.theme.VxinRadius.badge))
-                            .clickable { onImageClick() },
+                            .clip(RoundedCornerShape(com.touliao.app.ui.theme.VxinRadius.badge)),
                         onError = { if (usingThumb) thumbFailed = true },
                         loading = {
                             // 加载中灰底占位 + 转圈(对齐微信,避免空白闪烁)
@@ -1590,7 +1635,7 @@ private fun MessageContent(
                     // 2026-08-29 重做：不再用固定"🎙 语音"文字气泡——真实语音时长气泡，
                     // 宽度随时长(1~30s映射到最小~最大宽度)、显示"8″"这类真实秒数，
                     // 对齐成熟IM语义(播放三角+时长)而非emoji图标。
-                    MediaCard(isMine, onClick = onPlayVoice) {
+                    MediaCard(isMine) {
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(6.dp),
@@ -1607,7 +1652,7 @@ private fun MessageContent(
                         }
                     }
                 }
-                "file" -> MediaCard(isMine, onClick = onOpenFile) {
+                "file" -> MediaCard(isMine) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Box(
                             Modifier.size(28.dp).background(VxinBrand.copy(alpha = 0.1f), androidx.compose.foundation.shape.RoundedCornerShape(6.dp)),
@@ -1622,7 +1667,7 @@ private fun MessageContent(
                         }
                     }
                 }
-                "video" -> MediaCard(isMine, onClick = onOpenFile) { Row(verticalAlignment = Alignment.CenterVertically) { com.touliao.app.ui.TouliaoGlyph(com.touliao.app.ui.TouliaoIcons.Video, color = bubbleTextColor(isMine)); Spacer(Modifier.width(8.dp)); Text("视频", color = bubbleTextColor(isMine)) } }
+                "video" -> MediaCard(isMine) { Row(verticalAlignment = Alignment.CenterVertically) { com.touliao.app.ui.TouliaoGlyph(com.touliao.app.ui.TouliaoIcons.Video, color = bubbleTextColor(isMine)); Spacer(Modifier.width(8.dp)); Text("视频", color = bubbleTextColor(isMine)) } }
                 // F4a 合并转发：聊天记录卡片（标题 + 前两条摘要 + 查看N条），点击弹详情
                 "merged" -> {
                     // JSON 解析按内容缓存，不在每次重组里反序列化
@@ -1632,7 +1677,6 @@ private fun MessageContent(
                             .widthIn(max = 260.dp)
                             .clip(RoundedCornerShape(com.touliao.app.ui.theme.VxinRadius.md))
                             .background(bubbleBrush(isMine))
-                            .clickable { onOpenMerged() }
                             .padding(horizontal = 12.dp, vertical = 10.dp),
                     ) {
                         Text(
@@ -1664,7 +1708,7 @@ private fun MessageContent(
                 }
                 "contact_card", "contact" -> {
                     val card = remember(msg.content) { parseContactCard(msg.content) }
-                    MediaCard(isMine, onClick = {}) {
+                    MediaCard(isMine) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             InitialAvatar(card.username.ifBlank { "?" }, size = 40.dp, avatarUrl = card.avatar)
                             Spacer(Modifier.size(10.dp))
@@ -1782,17 +1826,28 @@ private fun highlightMentions(content: String, isMine: Boolean): androidx.compos
     }
 }
 
+// 不再自带 clickable：单击/长按统一由外层 MessageBubble 处理（BUBBLE-1）
 @Composable
-private fun MediaCard(isMine: Boolean, onClick: () -> Unit, content: @Composable () -> Unit) {
+private fun MediaCard(isMine: Boolean, content: @Composable () -> Unit) {
     Box(
         modifier = Modifier
             .widthIn(max = 240.dp)
             // v4：纯色填充、无阴影无描边（对齐 Web/iOS）
             .clip(bubbleShape(isMine))
             .background(bubbleBrush(isMine))
-            .clickable(onClick = onClick)
             .padding(horizontal = 14.dp, vertical = 12.dp),
     ) { content() }
+}
+
+/**
+ * 气泡手势层的裁剪形状，与 MessageContent 里各类内容自身的圆角一致（BUBBLE-1），
+ * 让外层 combinedClickable 的按压涟漪不溢出气泡圆角。
+ */
+@Composable
+private fun bubbleTouchShape(type: String, isMine: Boolean): androidx.compose.ui.graphics.Shape = when (type) {
+    "image" -> RoundedCornerShape(com.touliao.app.ui.theme.VxinRadius.badge)
+    "merged" -> RoundedCornerShape(com.touliao.app.ui.theme.VxinRadius.md)
+    else -> bubbleShape(isMine)   // 文本 / 语音 / 文件 / 视频 / 名片
 }
 
 // 气泡背景：对齐 web AURORA——我的=极光靛渐变；对方=白(暗色下深灰)
@@ -2213,14 +2268,14 @@ private val RedPacketGold = Color(0xFFFCE2A8)
 private fun RedPacketCard(
     content: com.touliao.app.data.model.RedPacketContent,
     isMine: Boolean,
-    onClick: () -> Unit,
+    onClick: (() -> Unit)?,   // null = 不可点（多选态，点击让给外层整行勾选）
 ) {
     Row(
         modifier = Modifier
             .widthIn(max = 240.dp)
             .clip(RoundedCornerShape(com.touliao.app.ui.theme.VxinRadius.badge))
             .background(RedPacketRed)
-            .clickable(onClick = onClick)
+            .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
             .padding(12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {

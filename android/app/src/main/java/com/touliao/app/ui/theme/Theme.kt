@@ -1,6 +1,7 @@
 package com.touliao.app.ui.theme
 
 import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Typography
 import androidx.compose.material3.darkColorScheme
@@ -8,6 +9,7 @@ import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -16,7 +18,15 @@ import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.shape.RoundedCornerShape
 
-private fun colors(p: TouliaoPalette, dark: Boolean) = if (dark) darkColorScheme(
+/**
+ * 深色主题「错误色上的文字」：深色错误色 #FF6B7D 偏亮，白字只有 2.74:1（< 4.5:1），改用深红黑字（6.66:1）。
+ * tokens.json 没有 onDanger 这一项，DesignTokens.kt 又是生成物，所以只在这里改 Android 的主题映射，
+ * 不动 Web/iOS/Windows 共用的源色。浅色主题错误色 #B82237 上白字 6.3:1，保持不变。
+ * 读 colorScheme.onError 的地方：会话列表未读角标、重发感叹号、系统 Badge（底部导航 / 新的朋友 / 朋友圈通知）。
+ */
+internal val TouliaoDarkOnDanger = Color(0xFF2A0A10)
+
+internal fun touliaoColorScheme(p: TouliaoPalette, dark: Boolean): ColorScheme = if (dark) darkColorScheme(
     primary = p.primary, onPrimary = p.primaryForeground,
     primaryContainer = p.primarySoft, onPrimaryContainer = p.primaryText,
     secondary = p.primary, onSecondary = p.primaryForeground,
@@ -25,7 +35,7 @@ private fun colors(p: TouliaoPalette, dark: Boolean) = if (dark) darkColorScheme
     surface = p.surface, onSurface = p.text,
     surfaceVariant = p.surfaceSecondary, onSurfaceVariant = p.readableMuted,
     surfaceTint = p.primary,
-    error = p.readableDanger, onError = p.primaryForeground,
+    error = p.readableDanger, onError = TouliaoDarkOnDanger,
     errorContainer = p.dangerSoft, onErrorContainer = p.readableDanger,
     outline = p.borderStrong, outlineVariant = p.border,
 ) else lightColorScheme(
@@ -86,7 +96,7 @@ fun VxinTheme(
             if (darkTheme) androidx.compose.material3.dynamicDarkColorScheme(context)
             else androidx.compose.material3.dynamicLightColorScheme(context)
         }
-        else -> colors(palette, darkTheme)
+        else -> touliaoColorScheme(palette, darkTheme)
     }
     androidx.compose.runtime.CompositionLocalProvider(LocalTouliaoPalette provides palette) {
         MaterialTheme(

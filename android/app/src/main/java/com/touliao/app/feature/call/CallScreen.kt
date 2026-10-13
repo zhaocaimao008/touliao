@@ -1,7 +1,6 @@
 package com.touliao.app.feature.call
 
 import androidx.compose.material3.MaterialTheme
-import android.Manifest
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -37,6 +36,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
@@ -80,9 +82,14 @@ fun CallHost(
     val showVolumeHint = voiceVolumeZero &&
         (state.stage == CallStage.OUTGOING || state.stage == CallStage.CONNECTING)
 
+    // 每通电话只申请一次权限(CALL-M1)：标记放在小窗分支之前，从小窗恢复全屏时不再重复弹系统权限框/
+    // "去设置"对话框。IDLE 时上面提前 return 会丢弃该标记；ENDED 时在下面复位，紧接着的下一通重新申请。
+    var permRequestedThisCall by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(false) }
+
     // 结束态：短暂展示后自动关闭
     LaunchedEffect(state.stage) {
         if (state.stage == CallStage.ENDED) {
+            permRequestedThisCall = false
             // 有失败原因（如对方忙线）时多停留一会儿，保证看得到
             kotlinx.coroutines.delay(if (state.endMessage.isNotEmpty()) 2000 else 800)
             viewModel.consumeEnded()
@@ -99,42 +106,48 @@ fun CallHost(
 
     com.touliao.app.ui.components.DarkMediaSystemBars()
 
-    // 权限：进入即申请（接听 / 呼叫均需要）
+    // 权限：进入即申请（接听 / 呼叫均需要）。麦克风/摄像头为必需，蓝牙(BLUETOOTH_CONNECT)为可选，见 CallPermissions
     val perms = remember(state.isVideo) {
-        val base = if (state.isVideo) arrayOf(Manifest.permission.RECORD_AUDIO, Manifest.permission.CAMERA)
-        else arrayOf(Manifest.permission.RECORD_AUDIO)
-        // 蓝牙耳机音频路由需要 BLUETOOTH_CONNECT(Android 12+)；老系统上此权限不存在，系统会自动忽略。
-        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
-            base + Manifest.permission.BLUETOOTH_CONNECT
-        } else base
+        CallPermissions.toRequest(state.isVideo, android.os.Build.VERSION.SDK_INT)
     }
     val callScreenContext = androidx.compose.ui.platform.LocalContext.current
     val activity = callScreenContext as? android.app.Activity
-    var showPermDeniedDialog by remember { mutableStateOf(false) }
+    // 非空 = 弹"去设置"对话框，值为被永久拒绝的必需权限中文名
+    var permDeniedDialogName by remember { mutableStateOf<String?>(null) }
     val permLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { res ->
         // 授权后补起通话前台服务（RECORD_AUDIO 未授权时 CallManager 建流阶段会跳过）+ 刷新蓝牙可用性
         viewModel.onPermissionsResult()
         // 此前结果被完全忽略——被拒绝后通话界面照常呈现，用户只会看到"听不到对方声音/
         // 对方看不到自己"却毫无线索。这不拦断通话流程（对方可能仍在等接听），只提示原因。
-        if (!res.values.all { it }) {
-            // 永久拒绝（不再询问）→ 弹框引导去设置；普通拒绝 → Toast 提示
+        // 只看必需权限：只拒绝"附近的设备"(蓝牙)时静默降级——不显示蓝牙按钮，不报缺少麦克风/摄像头。
+        val denied = CallPermissions.deniedRequired(res)
+        val message = CallPermissions.deniedMessage(denied)
+        if (message != null) {
+            // 永久拒绝（不再询问）→ 弹框引导去设置；普通拒绝 → Toast 提示（均只针对必需权限判断）
             val permanentlyDenied = activity?.let { act ->
-                res.filter { !it.value }.keys.any { perm ->
+                denied.any { perm ->
                     !androidx.core.app.ActivityCompat.shouldShowRequestPermissionRationale(act, perm)
                 }
             } ?: false
             if (permanentlyDenied) {
-                showPermDeniedDialog = true
+                permDeniedDialogName = CallPermissions.displayName(denied)
             } else {
-                com.touliao.app.ui.components.TouliaoFeedback.show(callScreenContext, "缺少麦克风/摄像头权限，通话可能无法正常进行", com.touliao.app.ui.components.FeedbackKind.ERROR)
+                com.touliao.app.ui.components.TouliaoFeedback.show(callScreenContext, message, com.touliao.app.ui.components.FeedbackKind.ERROR)
             }
         }
     }
-    LaunchedEffect(Unit) { permLauncher.launch(perms) }
-    if (showPermDeniedDialog) {
+    // 每通电话只申请一次（见 permRequestedThisCall）；结束态不申请。
+    // key 含"是否结束态"：上一通 ENDED 直接进入下一通 INCOMING 时全屏分支不离开组合，靠它重新触发。
+    LaunchedEffect(permRequestedThisCall, state.stage == CallStage.ENDED) {
+        if (!permRequestedThisCall && state.stage != CallStage.ENDED) {
+            permRequestedThisCall = true
+            permLauncher.launch(perms)
+        }
+    }
+    permDeniedDialogName?.let { name ->
         com.touliao.app.ui.components.PermissionDeniedDialog(
-            permissionName = "麦克风/摄像头",
-            onDismiss = { showPermDeniedDialog = false },
+            permissionName = name,
+            onDismiss = { permDeniedDialogName = null },
         )
     }
 
@@ -143,7 +156,7 @@ fun CallHost(
     // 绝不在返回键上挂断。小窗态在上面已 return，不注册本回调，返回键交还给 App。
     BackHandler {
         if (state.stage == CallStage.OUTGOING || state.stage == CallStage.CONNECTING || state.stage == CallStage.CONNECTED) {
-            viewModel.setMinimized(true)
+            minimizeCall(activity, viewModel)
         }
     }
 
@@ -224,9 +237,9 @@ fun CallHost(
             Box(
                 Modifier.align(Alignment.TopStart).safeDrawingPadding().padding(start = 16.dp, top = 8.dp)
                     .size(com.touliao.app.ui.theme.TouliaoMetrics.touchTarget).clip(CircleShape).background(Color.White.copy(alpha = 0.15f))
-                    .clickable { viewModel.setMinimized(true) },
+                    .clickable(role = Role.Button) { minimizeCall(activity, viewModel) },
                 contentAlignment = Alignment.Center,
-            ) { com.touliao.app.ui.TouliaoGlyph(com.touliao.app.ui.TouliaoIcons.Minimize, color = com.touliao.app.ui.IconColor.OnDark, size = com.touliao.app.ui.IconSize.Md) }
+            ) { com.touliao.app.ui.TouliaoGlyph(com.touliao.app.ui.TouliaoIcons.Minimize, color = com.touliao.app.ui.IconColor.OnDark, size = com.touliao.app.ui.IconSize.Md, label = "收起通话") }
         }
 
         // 控制按钮（systemBarsPadding 避免按钮被底部手势条遮挡）
@@ -296,6 +309,27 @@ private fun RoundButton(label: String, color: Color, onClick: () -> Unit) {
     com.touliao.app.ui.components.CallActionButton(label, color, onClick)
 }
 
+/**
+ * 收起为小窗(CALL-2)。来电越过锁屏接听后设备仍处于锁屏时，先请求解锁、解锁成功才收起：
+ * 收起后露出的是会话列表/聊天页，不能展示在锁屏上；用户取消解锁则留在通话页。
+ * 收起本身是安全的——MainActivity 在通话收起时会撤掉"越过锁屏显示"，所以请求解锁失败
+ * (onDismissError) 或 API 26 以下没有 requestDismissKeyguard 时直接收起，系统锁屏随即盖回。
+ */
+private fun minimizeCall(activity: android.app.Activity?, viewModel: CallViewModel) {
+    if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+        val keyguard = activity?.getSystemService(android.content.Context.KEYGUARD_SERVICE) as? android.app.KeyguardManager
+        if (activity != null && keyguard != null && keyguard.isKeyguardLocked) {
+            keyguard.requestDismissKeyguard(activity, object : android.app.KeyguardManager.KeyguardDismissCallback() {
+                override fun onDismissSucceeded() { viewModel.setMinimized(true) }
+                override fun onDismissError() { viewModel.setMinimized(true) }
+                // onDismissCancelled：用户取消解锁，留在通话页
+            })
+            return
+        }
+    }
+    viewModel.setMinimized(true)
+}
+
 /** 1v1 与群通话浮层挂在同一个 ComposeView 上，按引用计数开关 keepScreenOn，避免一方结束时清掉另一方的常亮(仅主线程访问) */
 private var keepScreenOnRefs = 0
 
@@ -347,12 +381,20 @@ private fun VideoView(
 /**
  * 通话小窗：可拖拽悬浮气泡，默认停靠右上角；拖动跟手，松手停在拖到的位置(不做边缘吸附，
  * 保持简单，对齐iOS CallMinimizedBubble)。视频通话已接通时显示对方画面缩略图，其余显示头像。
- * 单指轻点(累计位移<阈值)恢复全屏；用同一个pointerInput手动区分点击/拖拽，避免和
- * clickable抢手势(detectDragGestures会独占触摸序列，clickable的tap识别器永远等不到事件)。
+ * CALL-1：点击与拖动拆成两个手势。此前只靠 detectDragGestures 的 onDragEnd 判断"位移<阈值"算点击，
+ * 但拖动回调要手指先越过 touch slop 才触发，单纯点一下毫无反应，收起后回不到挂断键。
+ * 现在外层 pointerInput 只管拖，内层 clickable 管点：拖动越过 slop 会消费事件，clickable 随之取消；
+ * 单纯点按则正常触发 clickable，恢复全屏。clickable 同时提供读屏的按钮角色与操作说明。
  */
 @Composable
 private fun CallMinimizedBubble(viewModel: CallViewModel, state: com.touliao.app.core.call.CallState) {
     val bubbleSizeDp = 64.dp
+    val peer = state.peerName.ifBlank { "对方" }
+    val bubbleDescription = when (state.stage) {
+        CallStage.CONNECTED -> "与${peer}通话中，点按返回"
+        CallStage.ENDED -> "与${peer}的通话已结束"
+        else -> "正在连接${peer}，点按返回"
+    }
     androidx.compose.foundation.layout.BoxWithConstraints(Modifier.fillMaxSize()) {
         val density = androidx.compose.ui.platform.LocalDensity.current
         val bubblePx = with(density) { bubbleSizeDp.toPx() }
@@ -364,7 +406,6 @@ private fun CallMinimizedBubble(viewModel: CallViewModel, state: com.touliao.app
 
         var dragX by remember { mutableStateOf(0f) }
         var dragY by remember { mutableStateOf(0f) }
-        var totalDrag by remember { mutableStateOf(0f) }
 
         val centerX = (defaultXPx + dragX).coerceIn(marginPx, (maxWidthPx - marginPx).coerceAtLeast(marginPx))
         val centerY = (defaultYPx + dragY).coerceIn(marginPx, (maxHeightPx - marginPx).coerceAtLeast(marginPx))
@@ -380,17 +421,18 @@ private fun CallMinimizedBubble(viewModel: CallViewModel, state: com.touliao.app
                 .size(bubbleSizeDp)
                 .clip(RoundedCornerShape(16.dp))
                 .background(TouliaoMedia.surface)
+                // 外层：只处理拖动(越过 touch slop 后消费事件，内层点击随之取消)
                 .pointerInput(Unit) {
-                    detectDragGestures(
-                        onDragStart = { totalDrag = 0f },
-                        onDragEnd = { if (totalDrag < 8f) viewModel.setMinimized(false) },
-                    ) { change, amount ->
+                    detectDragGestures { change, amount ->
                         change.consume()
                         dragX += amount.x
                         dragY += amount.y
-                        totalDrag += kotlin.math.abs(amount.x) + kotlin.math.abs(amount.y)
                     }
-                },
+                }
+                // 内层：单纯点按恢复全屏
+                .clickable(role = Role.Button, onClickLabel = "返回通话界面") { viewModel.setMinimized(false) }
+                // 读屏只念一句"与 X 通话中，点按返回"，不再逐个念头像首字/加载圈(clickable 在外层，其按钮语义保留)
+                .clearAndSetSemantics { contentDescription = bubbleDescription },
             contentAlignment = Alignment.Center,
         ) {
             if (state.isVideo && state.remoteVideoActive && state.stage == CallStage.CONNECTED) {

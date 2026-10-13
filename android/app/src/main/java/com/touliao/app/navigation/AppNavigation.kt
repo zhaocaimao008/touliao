@@ -15,6 +15,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -331,12 +332,22 @@ private fun MainFlow(features: Features, unreadTotal: Int = 0, appViewModel: App
                 )
             }
             composable(Routes.MENTIONS) {
+                // 与 MentionsScreen 默认参数取到的是同一个实例（同一个返回栈条目）
+                val mentionsViewModel: com.touliao.app.feature.chat.MentionsViewModel = hiltViewModel()
+                val mentionsScope = rememberCoroutineScope()
                 com.touliao.app.feature.chat.MentionsScreen(
                     onBack = { navController.popBackStack() },
                     onOpenConversation = { convId, convName ->
-                        // 跳转对应会话（不携带 peerUserId，因为 @我 可能来自群聊）
-                        navController.navigate(Routes.chat(convId, convName, "private"))
+                        // @我 条目不带会话类型，原来固定按私聊打开，群聊就没有群信息/@ 选人、通话走 1v1。
+                        // 按会话列表回填 type/peerUserId 再跳转；协程随本页销毁而取消，离开后不会再跳
+                        mentionsScope.launch {
+                            val target = mentionsViewModel.resolveChatTarget(convId, convName)
+                            navController.navigate(Routes.chat(target.conversationId, target.title, target.type, target.peerUserId)) {
+                                launchSingleTop = true
+                            }
+                        }
                     },
+                    viewModel = mentionsViewModel,
                 )
             }
             composable(Routes.SEARCH) {

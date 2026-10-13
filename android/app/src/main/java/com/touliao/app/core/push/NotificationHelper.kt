@@ -121,8 +121,9 @@ class NotificationHelper @Inject constructor(
 
     /**
      * 来电通知：全屏意图 + 接听/拒绝。App 在后台/锁屏时由系统直接拉起来电界面。
-     * data 来自后端 data-only FCM（type=call）。点击/接听/拒绝均拉起 MainActivity 并带 extra，
+     * data 来自后端 data-only FCM（type=call）。点击/接听拉起 MainActivity 并带 extra，
      * 由 MainActivity 交给 CallManager 进入 INCOMING（accept 时并置接听意图）。
+     * 拒绝（CALL-2）发广播给不导出的 [CallDeclineReceiver] 直接拒接，不拉起界面、锁屏上无需先解锁。
      */
     // 当前展示中的来电通知（push 通路下 CallManager 不进 INCOMING，需靠它在 call:end 时收起通知）
     @Volatile private var shownCallId: String = ""
@@ -132,9 +133,8 @@ class NotificationHelper @Inject constructor(
         if (!acceptsRecipient(recipientId)) return
         shownCallId = callId
         shownCallFrom = from
-        fun callIntent(action: String) = Intent(context, MainActivity::class.java).apply {
+        fun Intent.withCallExtras(action: String): Intent = apply {
             this.action = action
-            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
             putExtra(EXTRA_CALL_ID, callId)
             putExtra(EXTRA_CALL_FROM, from)
             putExtra(EXTRA_CALL_NAME, callerName)
@@ -142,11 +142,18 @@ class NotificationHelper @Inject constructor(
             putExtra(EXTRA_RECIPIENT_ID, recipientId)
             data = android.net.Uri.Builder().scheme("touliao").authority("call").appendPath(recipientId).appendPath(callId).build()
         }
+        fun callIntent(action: String) = Intent(context, MainActivity::class.java).withCallExtras(action).apply {
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+        }
+        // 拒绝：显式广播给不导出的接收器（前台广播，尽快执行）；不能沿用上面的 Activity flags
+        val declineIntent = Intent(context, CallDeclineReceiver::class.java).withCallExtras(ACTION_CALL_DECLINE).apply {
+            flags = Intent.FLAG_RECEIVER_FOREGROUND
+        }
         val reqBase = from.hashCode()
         val piFlags = PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         val fullScreen = PendingIntent.getActivity(context, reqBase, callIntent(ACTION_CALL_SHOW), piFlags)
         val accept = PendingIntent.getActivity(context, reqBase + 1, callIntent(ACTION_CALL_ACCEPT), piFlags)
-        val decline = PendingIntent.getActivity(context, reqBase + 2, callIntent(ACTION_CALL_DECLINE), piFlags)
+        val decline = PendingIntent.getBroadcast(context, reqBase + 2, declineIntent, piFlags)
 
         val title = callerName.ifBlank { "来电" }
         val text = if (callType == "video") "邀请你视频通话" else "邀请你语音通话"

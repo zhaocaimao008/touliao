@@ -1,7 +1,6 @@
 package com.touliao.app.feature.call
 
 import androidx.compose.material3.MaterialTheme
-import android.Manifest
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -68,20 +67,17 @@ fun GroupCallHost(viewModel: GroupCallViewModel = hiltViewModel()) {
     // 通话进行中：全屏浮层
     if (state.stage != GroupCallStage.IDLE) {
         com.touliao.app.ui.components.DarkMediaSystemBars()
+        // 麦克风/摄像头为必需，蓝牙(BLUETOOTH_CONNECT，Android 12+)为可选，同 1v1 CallScreen（见 CallPermissions）
         val perms = remember(state.isVideo) {
-            val base = if (state.isVideo) arrayOf(Manifest.permission.RECORD_AUDIO, Manifest.permission.CAMERA)
-            else arrayOf(Manifest.permission.RECORD_AUDIO)
-            // 蓝牙耳机音频路由需要 BLUETOOTH_CONNECT(Android 12+)，同 1v1 CallScreen
-            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
-                base + Manifest.permission.BLUETOOTH_CONNECT
-            } else base
+            CallPermissions.toRequest(state.isVideo, android.os.Build.VERSION.SDK_INT)
         }
         val groupCallContext = androidx.compose.ui.platform.LocalContext.current
         val permLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { res ->
             // 授权后补起通话前台服务（RECORD_AUDIO 未授权时建流阶段会跳过）+ 刷新蓝牙可用性
             viewModel.onPermissionsResult()
-            if (!res.values.all { it }) {
-                com.touliao.app.ui.components.TouliaoFeedback.show(groupCallContext, "缺少麦克风/摄像头权限，通话可能无法正常进行", com.touliao.app.ui.components.FeedbackKind.ERROR)
+            // 只看必需权限：只拒绝"附近的设备"(蓝牙)时不提示，只是不显示蓝牙按钮
+            CallPermissions.deniedMessage(CallPermissions.deniedRequired(res))?.let { message ->
+                com.touliao.app.ui.components.TouliaoFeedback.show(groupCallContext, message, com.touliao.app.ui.components.FeedbackKind.ERROR)
             }
         }
         LaunchedEffect(Unit) { permLauncher.launch(perms) }

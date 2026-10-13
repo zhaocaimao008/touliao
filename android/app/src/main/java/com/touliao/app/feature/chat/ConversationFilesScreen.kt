@@ -54,6 +54,8 @@ import coil.compose.AsyncImage
 import com.touliao.app.core.util.downloadFile
 import com.touliao.app.data.model.ConversationFile
 import com.touliao.app.ui.components.EmptyState
+import com.touliao.app.ui.components.ImageThumbnail
+import com.touliao.app.ui.components.VideoThumbnail
 import com.touliao.app.ui.theme.VxinTextSecondary
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -208,18 +210,22 @@ private fun FileGridItem(
                 .background(MaterialTheme.colorScheme.surfaceVariant)
                 .clickable(onClick = onClick),
         ) {
-            AsyncImage(
-                model = resolveUrl(file.file_url),
-                contentDescription = if (file.type == "image") "图片" else "视频",
-                contentScale = ContentScale.Crop,
-                modifier = Modifier.fillMaxSize(),
-            )
-            // 视频角标：半透明播放标识
-            if (file.type == "video") {
-                Box(
-                    Modifier.fillMaxSize().background(Color(0x22000000)),
-                    contentAlignment = Alignment.Center,
-                ) { com.touliao.app.ui.TouliaoGlyph(com.touliao.app.ui.TouliaoIcons.Play, color = com.touliao.app.ui.IconColor.OnDark, size = com.touliao.app.ui.IconSize.Md) }
+            // 宫格只加载服务端缩略图（<uuid>_thumb.webp）：图片失败回退原图；视频失败只留渐变底 + 播放图标，
+            // 绝不把 .mp4 交给 Coil（未装视频解码器，会整段下载进磁盘缓存后仍显示灰块）。点开预览仍用原图。
+            if (file.type == "image") {
+                ImageThumbnail(
+                    rawUrl = file.file_url,
+                    resolveUrl = resolveUrl,
+                    contentDescription = "图片",
+                    modifier = Modifier.fillMaxSize(),
+                )
+            } else {
+                VideoThumbnail(
+                    rawUrl = file.file_url,
+                    resolveUrl = resolveUrl,
+                    contentDescription = "视频",
+                    modifier = Modifier.fillMaxSize(),
+                )
             }
         }
         // 文件：图标 + 文件名 + 发送者 + 时间（单列行）
