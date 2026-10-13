@@ -73,6 +73,17 @@
 -keep class com.touliao.app.core.push.** extends android.app.Service { *; }
 -keep class * extends com.igexin.sdk.GTIntentService { *; }
 
+# ---------- 应用内更新签名校验（发版回归按名反射调用真实编译产物） ----------
+# scripts/legacy-update/ApkSignatureCompatProbe.java 在 API 29 模拟器上用 DexClassLoader
+# 加载新旧 APK 里的 com.touliao.app.core.update.ApkInstaller，反射调用
+# 构造器 (Context) 与 isSignatureMatch(File)，以证明同签名包被接受、篡改包被拒绝。
+# 若被 R8 改名（曾变成 l5.j / a），探针 ClassNotFoundException -> app_process 被 SIGKILL（Killed/137）。
+# 只保留这个类名和这两个成员的名字，不影响其余代码的混淆与裁剪。
+-keep class com.touliao.app.core.update.ApkInstaller {
+    public <init>(android.content.Context);
+    public boolean isSignatureMatch(java.io.File);
+}
+
 # ---------- Parcelable / 枚举 ----------
 -keepclassmembers class * implements android.os.Parcelable {
     public static final ** CREATOR;

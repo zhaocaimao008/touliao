@@ -21,7 +21,20 @@ public final class ApkSignatureCompatProbe {
         return (Boolean) verifier.getClass().getMethod("isSignatureMatch", File.class)
                 .invoke(verifier, new File(apk));
     }
-    public static void main(String[] args) throws Exception {
+    public static void main(String[] args) {
+        // app_process 的默认未捕获异常处理器只写 logcat 然后 SIGKILL 自己，CI 只能看到
+        // "Killed"/137。这里把异常打到 stdout 并以非零码退出，失败原因直接出现在日志里。
+        try {
+            run(args);
+        } catch (Throwable t) {
+            System.out.println("ApkSignatureCompatProbe failed:");
+            t.printStackTrace(System.out);
+            System.out.flush();
+            System.exit(1);
+        }
+        System.exit(0);
+    }
+    static void run(String[] args) throws Exception {
         if (Looper.myLooper() == null) Looper.prepareMainLooper();
         Class<?> thread = Class.forName("android.app.ActivityThread");
         Object activityThread = thread.getMethod("systemMain").invoke(null);
