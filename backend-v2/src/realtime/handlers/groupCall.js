@@ -31,7 +31,9 @@ const { write } = require('../../db/writer');
 const { isMember } = require('../../modules/messages/shared');
 const { guardPayload, guardId } = require('../guard');
 const { writeCallMessage } = require('../callMessage');
-const { pushGroupCallInvite } = require('../../utils/push');
+// 整个模块引用、调用时再取函数：部分测试把 utils/push mock 成不含 pushGroupCallInvite 的对象，
+// 加载时解构会把它固定成 undefined；调用时取则总走 pushInviteInBackground 的异常隔离分支
+const push = require('../../utils/push');
 
 const MAX_PARTICIPANTS = 9;
 const GROUP_INVITE_TTL_MS = 60 * 1000; // 群邀请有效期，与四端一致；socket 邀请与推送共用同一个 expiresAt
@@ -144,7 +146,7 @@ function endCall(io, registry, callId, reason = 'ended') {
 // 不含它的对象）都只记日志，绝不影响发起方已收到的 started 回执与 socket 邀请。
 function pushInviteInBackground(args) {
   try {
-    Promise.resolve(pushGroupCallInvite(args)).catch(e => console.warn('[groupCall] 群通话邀请推送失败:', e?.message || e));
+    Promise.resolve(push.pushGroupCallInvite(args)).catch(e => console.warn('[groupCall] 群通话邀请推送失败:', e?.message || e));
   } catch (e) {
     console.warn('[groupCall] 群通话邀请推送失败:', e?.message || e);
   }

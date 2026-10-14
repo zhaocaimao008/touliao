@@ -249,24 +249,25 @@ describe('group_call:start 群邀请推送接线', () => {
     expect(pushGroupCallInvite).not.toHaveBeenCalled();
   });
 
-  // 放在最后：isolateModules 里重新加载一份 groupCall.js，utils/push 换成不含 pushGroupCallInvite 的 mock
+  // groupCall.js 在调用时才从 utils/push 取函数：临时删掉 mock 对象上的 pushGroupCallInvite，
+  // 模拟其它测试把 utils/push mock 成不含它的对象
   test('utils/push 不含 pushGroupCallInvite（部分测试的 mock）：started 照常发出、不抛错', () => {
-    let isolatedHandler;
-    jest.isolateModules(() => {
-      jest.doMock('../src/utils/push', () => ({ pushNewMessage: jest.fn(() => Promise.resolve()) }));
-      // 只为隔离加载 groupCall.js：通话消息模块打桩，免得把 logger / presence / sync 再加载一份
-      jest.doMock('../src/realtime/callMessage', () => ({ writeCallMessage: jest.fn() }));
-      isolatedHandler = require('../src/realtime/handlers/groupCall');
-    });
-    const io = createIoHarness();
-    const registry = createRegistry();
-    const alice = createSocket('push-missing', 'push-missing-web', io);
-    isolatedHandler(io, alice, registry);
+    const pushModule = require('../src/utils/push');
+    const saved = pushModule.pushGroupCallInvite;
+    delete pushModule.pushGroupCallInvite;
+    try {
+      const io = createIoHarness();
+      const registry = createRegistry();
+      const alice = createSocket('push-missing', 'push-missing-web', io);
+      registerGroupCallHandler(io, alice, registry);
 
-    expect(() => alice.handlers['group_call:start']({ conversationId: 'conv-push-missing', type: 'audio' })).not.toThrow();
-    expect(alice.last('group_call:started')).toBeDefined();
-    expect(io.last('group_call:invite')).toBeDefined();
-    expect(warnSpy).toHaveBeenCalledWith('[groupCall] 群通话邀请推送失败:', expect.stringContaining('not a function'));
-    expect(pushGroupCallInvite).not.toHaveBeenCalled();
+      expect(() => alice.handlers['group_call:start']({ conversationId: 'conv-push-missing', type: 'audio' })).not.toThrow();
+      expect(alice.last('group_call:started')).toBeDefined();
+      expect(io.last('group_call:invite')).toBeDefined();
+      expect(warnSpy).toHaveBeenCalledWith('[groupCall] 群通话邀请推送失败:', expect.stringContaining('not a function'));
+    } finally {
+      pushModule.pushGroupCallInvite = saved;
+    }
+    expect(saved).not.toHaveBeenCalled();
   });
 });
