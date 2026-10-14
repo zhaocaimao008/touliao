@@ -15,7 +15,6 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -37,36 +36,50 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.touliao.app.core.call.GroupCallStage
-import com.touliao.app.core.realtime.GroupCallInviteEvent
+import com.touliao.app.core.call.GroupRoster
 import com.touliao.app.ui.theme.TouliaoMedia
 import com.touliao.app.ui.components.InitialAvatar
 
-private val CallGreen = TouliaoMedia.accept // Opaque media controls keep a readable white foreground.
 private val CallRed = TouliaoMedia.danger
 
-/** 全局群通话浮层 + 来电邀请横幅：始终挂载，监听邀请与通话状态。 */
+/**
+ * 群通话全屏界面。邀请横幅已移到 MainActivity 的 CallOverlay（数据来自 GroupCallInviteCoordinator）。
+ * [leaveCallUi] 的两种模式同 1v1 [CallHost]（contracts C13）：
+ * - 为 null：内联模式（测试宿主），收起后在同一个组合里画小窗，点小窗恢复全屏；
+ * - 不为 null：由 CallActivity 托管，永远画全屏，收起交给 leaveCallUi。
+ */
 @OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 @Composable
-fun GroupCallHost(viewModel: GroupCallViewModel = hiltViewModel()) {
+fun GroupCallHost(
+    viewModel: GroupCallViewModel = hiltViewModel(),
+    leaveCallUi: ((before: () -> Unit) -> Unit)? = null,
+) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val remoteTracks by viewModel.remoteTracks.collectAsStateWithLifecycle()
-    var invite by remember { mutableStateOf<GroupCallInviteEvent?>(null) }
+    val roster by viewModel.roster.collectAsStateWithLifecycle()
 
-    LaunchedEffect(Unit) { viewModel.inviteEvents.collect { invite = it } }
-    // 已进入通话则清掉邀请横幅；结束态稍后自动归零
-    if (state.stage != GroupCallStage.IDLE && state.stage != GroupCallStage.ENDED) invite = null
+    // 收起：托管模式先经 CallActivity 处理锁屏再写 isMinimized；内联模式直接写
+    val minimize: () -> Unit = {
+        if (leaveCallUi != null) leaveCallUi { viewModel.setMinimized(true) } else viewModel.setMinimized(true)
+    }
+
+    // 结束态稍后自动归零
     LaunchedEffect(state.stage) {
         if (state.stage == GroupCallStage.ENDED) { kotlinx.coroutines.delay(800); viewModel.consumeEnded() }
     }
 
-    // 通话进行中：全屏浮层
+    // 通话进行中：全屏界面
     if (state.stage != GroupCallStage.IDLE) {
-        com.touliao.app.ui.components.DarkMediaSystemBars()
+        // 2026-10-12：通话期间保持屏幕常亮(与 1v1 共用按 View 的引用计数)，小窗状态下同样常亮
+        KeepScreenOnDuringCall()
+
         // 麦克风/摄像头为必需，蓝牙(BLUETOOTH_CONNECT，Android 12+)为可选，同 1v1 CallScreen（见 CallPermissions）
         val perms = remember(state.isVideo) {
             CallPermissions.toRequest(state.isVideo, android.os.Build.VERSION.SDK_INT)
@@ -80,22 +93,49 @@ fun GroupCallHost(viewModel: GroupCallViewModel = hiltViewModel()) {
                 com.touliao.app.ui.components.TouliaoFeedback.show(groupCallContext, message, com.touliao.app.ui.components.FeedbackKind.ERROR)
             }
         }
-        LaunchedEffect(Unit) { permLauncher.launch(perms) }
+        // 每通电话只申请一次（标记在 GroupCallManager，CallActivity 重建、从小窗恢复都不重复弹框）；结束态不申请
+        LaunchedEffect(state.stage == GroupCallStage.ENDED) {
+            if (state.stage != GroupCallStage.ENDED && viewModel.tryConsumePermissionPrompt()) permLauncher.launch(perms)
+        }
 
-        // 2026-10-12：通话期间保持屏幕常亮(与 1v1 共用引用计数)
-        KeepScreenOnDuringCall()
-        // 2026-10-12：群通话暂无小窗，返回键直接吞掉，避免穿透到下层 NavHost；绝不在返回键上挂断
-        BackHandler { }
+        // CALL-11：内联模式下收起后画小窗（托管模式的小窗由 MainActivity 的 CallOverlay 负责）
+        if (leaveCallUi == null && state.isMinimized &&
+            (state.stage == GroupCallStage.CONNECTING || state.stage == GroupCallStage.CONNECTED)
+        ) {
+            GroupCallBubble(state, roster, remoteTracks, { viewModel.eglBaseContext }) { viewModel.setMinimized(false) }
+            return
+        }
+
+        com.touliao.app.ui.components.DarkMediaSystemBars()
+
+        // CALL-11：返回键在连接中/通话中收起(同左上角按钮)，结束态吞掉；任何情况都不挂断。
+        // 内联模式的小窗态在上面已 return，不注册本回调，返回键交还给宿主。
+        BackHandler {
+            if (state.stage == GroupCallStage.CONNECTING || state.stage == GroupCallStage.CONNECTED) minimize()
+        }
 
         // 2026-10-12：根节点吃掉子控件未处理的触摸，防止点击穿透到下层页面(同 1v1 CallHost)
         Column(Modifier.fillMaxSize().background(com.touliao.app.ui.theme.TouliaoDarkPalette.background).pointerInput(Unit) { detectTapGestures { } }.systemBarsPadding(), horizontalAlignment = Alignment.CenterHorizontally) {
-            val durationText = groupCallDuration(state.connectedAt)
-            Text(
-                "群${if (state.isVideo) "视频" else "语音"}通话 · ${state.participants.size + 1} 人" +
-                    if (durationText.isNotEmpty()) "  $durationText" else "",
-                color = Color.White, fontSize = com.touliao.app.ui.theme.VxinTextSize.md,
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 16.dp),
-            )
+            Box(Modifier.fillMaxWidth()) {
+                // 左上角收起按钮(同 1v1)：只在连接中/通话中显示，结束态没有可收起的通话
+                if (state.stage == GroupCallStage.CONNECTING || state.stage == GroupCallStage.CONNECTED) {
+                    Box(
+                        Modifier.align(Alignment.CenterStart).padding(start = 16.dp)
+                            .size(com.touliao.app.ui.theme.TouliaoMetrics.touchTarget).clip(CircleShape).background(Color.White.copy(alpha = 0.15f))
+                            .clickable(role = Role.Button) { minimize() },
+                        contentAlignment = Alignment.Center,
+                    ) { com.touliao.app.ui.TouliaoGlyph(com.touliao.app.ui.TouliaoIcons.Minimize, color = com.touliao.app.ui.IconColor.OnDark, size = com.touliao.app.ui.IconSize.Md, label = "收起通话") }
+                }
+                val durationText = groupCallDuration(state.connectedAt)
+                // 左右各让出收起按钮的宽度，标题始终居中且不压到按钮
+                Text(
+                    "群${if (state.isVideo) "视频" else "语音"}通话 · ${state.participants.size + 1} 人" +
+                        if (durationText.isNotEmpty()) "  $durationText" else "",
+                    color = Color.White, fontSize = com.touliao.app.ui.theme.VxinTextSize.md,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.align(Alignment.Center).padding(horizontal = 72.dp, vertical = 16.dp),
+                )
+            }
 
             val cols = if (state.participants.size + 1 <= 1) 1 else if (state.participants.size + 1 <= 4) 2 else 3
             LazyVerticalGrid(
@@ -111,9 +151,11 @@ fun GroupCallHost(viewModel: GroupCallViewModel = hiltViewModel()) {
                     )
                 }
                 items(state.participants, key = { it }) { pid ->
+                    // CALL-11：宫格显示群昵称；名单不属于本次通话所在的群时一律"群成员"
+                    val name = groupTileName(roster, state.conversationId, pid)
                     Tile(
                         track = if (state.isVideo) remoteTracks[pid] else null,
-                        eglContext = viewModel.eglBaseContext, mirror = false, label = "成员",
+                        eglContext = viewModel.eglBaseContext, mirror = false, label = name,
                     )
                 }
             }
@@ -136,29 +178,12 @@ fun GroupCallHost(viewModel: GroupCallViewModel = hiltViewModel()) {
                 }
             }
         }
-        return
-    }
-
-    // 收到邀请（且未在通话中）：顶部横幅
-    invite?.let { inv ->
-        Box(Modifier.fillMaxWidth().systemBarsPadding().padding(top = 60.dp), contentAlignment = Alignment.TopCenter) {
-            Row(
-                Modifier.clip(RoundedCornerShape(com.touliao.app.ui.theme.VxinRadius.avatar)).background(TouliaoMedia.surface).padding(12.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-            ) {
-                Text("${inv.fromName.ifBlank { "群成员" }} 发起了群${if (inv.type == "video") "视频" else "语音"}通话",
-                    color = Color.White, fontSize = com.touliao.app.ui.theme.VxinTextSize.base, modifier = Modifier.weight(1f))
-                Box(Modifier.clip(RoundedCornerShape(com.touliao.app.ui.theme.VxinRadius.thumb)).background(CallGreen)
-                    .clickable { viewModel.join(inv.callId, inv.conversationId, inv.type == "video"); invite = null }
-                    .heightIn(min = 44.dp).padding(horizontal = 14.dp, vertical = 10.dp), contentAlignment = Alignment.Center) { Text("加入", color = Color.White, fontSize = com.touliao.app.ui.theme.VxinTextSize.sm2) }
-                Box(Modifier.clickable { invite = null }.heightIn(min = 44.dp).padding(horizontal = 8.dp, vertical = 10.dp), contentAlignment = Alignment.Center) {
-                    Text("忽略", color = TouliaoMedia.secondary, fontSize = com.touliao.app.ui.theme.VxinTextSize.sm2)
-                }
-            }
-        }
     }
 }
+
+/** 宫格成员名（纯函数，JVM 单测覆盖）：名单属于本次群通话所在的群才查昵称，否则一律"群成员"（contracts C6） */
+internal fun groupTileName(roster: GroupRoster, conversationId: String, userId: String): String =
+    if (roster.conversationId == conversationId) roster.nameOf(userId) else "群成员"
 
 @Composable
 private fun Tile(track: org.webrtc.VideoTrack?, eglContext: org.webrtc.EglBase.Context, mirror: Boolean, label: String, self: Boolean = false) {

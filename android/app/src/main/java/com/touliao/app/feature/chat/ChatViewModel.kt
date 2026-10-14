@@ -466,6 +466,11 @@ class ChatViewModel @Inject constructor(
     /** 发起通话；无法确定对方（如群聊/无消息）返回 false */
     fun startCall(video: Boolean): Boolean {
         if (isGroup) return false
+        // 客户端互斥：群通话进行中不能再发起 1v1
+        if (com.touliao.app.core.call.CallUiRules.isGroupActive(groupCallManager.state.value.stage)) {
+            _uiState.update { it.copy(error = "正在群通话中，请先结束当前通话") }
+            return false
+        }
         val peer = peerId()
         if (peer == null) {
             // 拿不到对方 userId（导航未传 peerUserId 且历史无对方消息）→ 明确提示，避免"点了没反应"
@@ -479,6 +484,12 @@ class ChatViewModel @Inject constructor(
     /** 发起群通话（mesh）。仅群聊有效。 */
     fun startGroupCall(video: Boolean): Boolean {
         if (!isGroup) return false
+        // 客户端互斥：1v1 响铃或进行中不能再发起群通话
+        val p2pStage = callManager.state.value.stage
+        if (p2pStage != com.touliao.app.core.call.CallStage.IDLE && p2pStage != com.touliao.app.core.call.CallStage.ENDED) {
+            _uiState.update { it.copy(error = "正在通话中，请先结束当前通话") }
+            return false
+        }
         groupCallManager.start(conversationId, video)
         return true
     }

@@ -6,7 +6,6 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -16,7 +15,6 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.safeDrawingPadding
@@ -37,12 +35,9 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.semantics.Role
-import androidx.compose.ui.semantics.clearAndSetSemantics
-import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
-import kotlin.math.roundToInt
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.touliao.app.core.call.CallStage
@@ -57,21 +52,42 @@ import org.webrtc.VideoTrack
 private val CallGreen = TouliaoMedia.accept // Opaque media controls keep a readable white foreground.
 private val CallRed = TouliaoMedia.danger
 
-/** 全局通话浮层：通话激活时覆盖在主界面之上 */
+/**
+ * 1v1 通话全屏界面（CALL-2 起有两种模式，见 contracts C13）：
+ * - [leaveCallUi] 为 null：内联模式，只有测试宿主 UiReviewActivity 使用。收起时写 isMinimized=true，
+ *   并在同一个组合里画小窗；点小窗写回 false。
+ * - [leaveCallUi] 不为 null：由 CallActivity 托管。永远画全屏(即使 isMinimized 为 true)；收起、返回键收起、
+ *   "回复消息"都交给 leaveCallUi，由 CallActivity 先处理锁屏再执行 before 并离开。应用内小窗由 CallOverlay 负责。
+ */
 @OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 @Composable
 fun CallHost(
-    navController: androidx.navigation.NavHostController? = null,
+    // 不再使用：拒接后回复改由 PendingConversationHolder.offer 交给 AppNavigation 跳转，
+    // CallActivity 里也没有 NavController。保留参数只为兼容旧调用方的签名(contracts C13)。
+    @Suppress("UNUSED_PARAMETER") navController: androidx.navigation.NavHostController? = null,
     viewModel: CallViewModel = hiltViewModel(),
+    leaveCallUi: ((before: () -> Unit) -> Unit)? = null,
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
-    // 拒接后回复消息：取/建私聊会话成功 → 导航打开
-    LaunchedEffect(Unit) {
-        viewModel.replyNavigation.collect { (conversationId, peerUserId, title) ->
-            navController?.navigate(com.touliao.app.navigation.Routes.chat(conversationId, title, "private", peerUserId))
+    if (state.stage == CallStage.IDLE) return
+
+    // 托管模式：由 CallActivity 承载，不画小窗
+    val hosted = leaveCallUi != null
+    // 收起：托管模式先经 CallActivity 处理锁屏再写 isMinimized；内联模式直接写
+    val minimize: () -> Unit = {
+        if (leaveCallUi != null) leaveCallUi { viewModel.setMinimized(true) } else viewModel.setMinimized(true)
+    }
+    // 拒接后回复消息：托管模式同样先经 CallActivity 处理锁屏。
+    // 对端信息在点按这一刻取快照：等待解锁期间对方挂断 / 来电超时会让状态归零，到时再读就拿不到对端了
+    val reply: () -> Unit = {
+        val peerId = state.peerId
+        val peerName = state.peerName
+        if (leaveCallUi != null) {
+            leaveCallUi { viewModel.rejectAndReply(peerId, peerName) }
+        } else {
+            viewModel.rejectAndReply(peerId, peerName)
         }
     }
-    if (state.stage == CallStage.IDLE) return
 
     // 2026-10-12：通话期间(来电振铃/呼出/接通，含小窗)保持屏幕常亮
     KeepScreenOnDuringCall()
@@ -82,25 +98,24 @@ fun CallHost(
     val showVolumeHint = voiceVolumeZero &&
         (state.stage == CallStage.OUTGOING || state.stage == CallStage.CONNECTING)
 
-    // 每通电话只申请一次权限(CALL-M1)：标记放在小窗分支之前，从小窗恢复全屏时不再重复弹系统权限框/
-    // "去设置"对话框。IDLE 时上面提前 return 会丢弃该标记；ENDED 时在下面复位，紧接着的下一通重新申请。
-    var permRequestedThisCall by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(false) }
-
     // 结束态：短暂展示后自动关闭
     LaunchedEffect(state.stage) {
         if (state.stage == CallStage.ENDED) {
-            permRequestedThisCall = false
             // 有失败原因（如对方忙线）时多停留一会儿，保证看得到
             kotlinx.coroutines.delay(if (state.endMessage.isNotEmpty()) 2000 else 800)
             viewModel.consumeEnded()
         }
     }
 
-    // 2026-08-29新增：通话小窗(对齐iOS)。isMinimized时渲染悬浮气泡而非全屏通话界面，
-    // 用户可退回App其它页面继续操作；上面的LaunchedEffect(state.stage)在CallHost顶层，
-    // 不受这里的分支影响，结束态自动consumeEnded()在小窗状态下依然正常触发。
-    if (state.isMinimized) {
-        CallMinimizedBubble(viewModel = viewModel, state = state)
+    // 2026-08-29新增：通话小窗(对齐iOS)。内联模式下 isMinimized 时渲染悬浮气泡而非全屏通话界面；
+    // 上面的LaunchedEffect(state.stage)在CallHost顶层，不受这里的分支影响，结束态自动consumeEnded()照常触发。
+    if (!hosted && state.isMinimized) {
+        P2pCallBubble(
+            state,
+            eglContext = { viewModel.eglBaseContext },
+            remoteTrack = { viewModel.remoteTrack() },
+            onClick = { viewModel.setMinimized(false) },
+        )
         return
     }
 
@@ -136,13 +151,11 @@ fun CallHost(
             }
         }
     }
-    // 每通电话只申请一次（见 permRequestedThisCall）；结束态不申请。
-    // key 含"是否结束态"：上一通 ENDED 直接进入下一通 INCOMING 时全屏分支不离开组合，靠它重新触发。
-    LaunchedEffect(permRequestedThisCall, state.stage == CallStage.ENDED) {
-        if (!permRequestedThisCall && state.stage != CallStage.ENDED) {
-            permRequestedThisCall = true
-            permLauncher.launch(perms)
-        }
+    // 每通电话只申请一次(CALL-M1)：标记放在 CallManager（cleanup 时复位），CallActivity 重建、
+    // 从小窗恢复全屏都不会重复弹系统权限框/"去设置"对话框；结束态不申请。
+    // key 是"是否结束态"：上一通 ENDED 直接进入下一通 INCOMING 时全屏分支不离开组合，靠它重新触发。
+    LaunchedEffect(state.stage == CallStage.ENDED) {
+        if (state.stage != CallStage.ENDED && viewModel.tryConsumePermissionPrompt()) permLauncher.launch(perms)
     }
     permDeniedDialogName?.let { name ->
         com.touliao.app.ui.components.PermissionDeniedDialog(
@@ -151,16 +164,16 @@ fun CallHost(
         )
     }
 
-    // 2026-10-12：全屏通话界面拦截返回键(此前穿透到下层 NavHost 弹栈)。
-    // 呼出/连接中/已接通 → 收起为小窗(同左上角按钮)；来电振铃/结束态 → 吞掉，须明确接听/拒绝。
-    // 绝不在返回键上挂断。小窗态在上面已 return，不注册本回调，返回键交还给 App。
+    // 2026-10-12：全屏通话界面拦截返回键(此前穿透到下层页面)。
+    // 呼出/连接中/已接通 → 收起(同左上角按钮)；来电振铃/结束态 → 吞掉，须明确接听/拒绝。
+    // 绝不在返回键上挂断。内联模式的小窗态在上面已 return，不注册本回调，返回键交还给宿主。
     BackHandler {
         if (state.stage == CallStage.OUTGOING || state.stage == CallStage.CONNECTING || state.stage == CallStage.CONNECTED) {
-            minimizeCall(activity, viewModel)
+            minimize()
         }
     }
 
-    // 2026-10-12：CallHost 与 NavHost 是兄弟节点，根 Box 不处理触摸时点击会穿透到下层页面；
+    // 2026-10-12：全屏通话界面的根 Box 吃掉子控件未处理的触摸(内联模式下宿主页面在下层，防止点击穿透)；
     // 空 detectTapGestures 让根节点成为命中目标，子按钮仍优先处理(无涟漪/无无障碍语义)。
     Box(Modifier.fillMaxSize().background(TouliaoMedia.canvas).pointerInput(Unit) { detectTapGestures { } }) {
         // 通话音量=0 提示:回铃音无声时用户会以为 App 坏了,主动引导调音量
@@ -237,7 +250,7 @@ fun CallHost(
             Box(
                 Modifier.align(Alignment.TopStart).safeDrawingPadding().padding(start = 16.dp, top = 8.dp)
                     .size(com.touliao.app.ui.theme.TouliaoMetrics.touchTarget).clip(CircleShape).background(Color.White.copy(alpha = 0.15f))
-                    .clickable(role = Role.Button) { minimizeCall(activity, viewModel) },
+                    .clickable(role = Role.Button) { minimize() },
                 contentAlignment = Alignment.Center,
             ) { com.touliao.app.ui.TouliaoGlyph(com.touliao.app.ui.TouliaoIcons.Minimize, color = com.touliao.app.ui.IconColor.OnDark, size = com.touliao.app.ui.IconSize.Md, label = "收起通话") }
         }
@@ -251,7 +264,7 @@ fun CallHost(
                 Row(horizontalArrangement = Arrangement.spacedBy(20.dp)) {
                     // 2026-10-12：拒绝在左、接听在右(对齐微信/Android 系统来电习惯)
                     RoundButton("拒绝", CallRed) { viewModel.reject() }
-                    RoundButton("回复消息", com.touliao.app.ui.theme.TouliaoDarkPalette.surfaceSecondary) { viewModel.rejectAndReply() }
+                    RoundButton("回复消息", com.touliao.app.ui.theme.TouliaoDarkPalette.surfaceSecondary) { reply() }
                     RoundButton("接听", CallGreen) { viewModel.accept() }
                 }
             } else {
@@ -310,46 +323,35 @@ private fun RoundButton(label: String, color: Color, onClick: () -> Unit) {
 }
 
 /**
- * 收起为小窗(CALL-2)。来电越过锁屏接听后设备仍处于锁屏时，先请求解锁、解锁成功才收起：
- * 收起后露出的是会话列表/聊天页，不能展示在锁屏上；用户取消解锁则留在通话页。
- * 收起本身是安全的——MainActivity 在通话收起时会撤掉"越过锁屏显示"，所以请求解锁失败
- * (onDismissError) 或 API 26 以下没有 requestDismissKeyguard 时直接收起，系统锁屏随即盖回。
+ * 常亮引用计数，按 View 分开记：CallActivity 与 MainActivity 各有自己的根 View，
+ * 同一个 View 上 1v1 与群通话(或小窗)各算一次，一方结束不会清掉另一方的常亮；
+ * 也不会因为另一个 Activity 里还有通话界面，让这个 Activity 一直常亮。
+ * 弱引用持有 View，Activity 销毁后自动回收。只在主线程访问。
  */
-private fun minimizeCall(activity: android.app.Activity?, viewModel: CallViewModel) {
-    if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
-        val keyguard = activity?.getSystemService(android.content.Context.KEYGUARD_SERVICE) as? android.app.KeyguardManager
-        if (activity != null && keyguard != null && keyguard.isKeyguardLocked) {
-            keyguard.requestDismissKeyguard(activity, object : android.app.KeyguardManager.KeyguardDismissCallback() {
-                override fun onDismissSucceeded() { viewModel.setMinimized(true) }
-                override fun onDismissError() { viewModel.setMinimized(true) }
-                // onDismissCancelled：用户取消解锁，留在通话页
-            })
-            return
-        }
-    }
-    viewModel.setMinimized(true)
-}
+private val keepScreenOnRefs = java.util.WeakHashMap<android.view.View, Int>()
 
-/** 1v1 与群通话浮层挂在同一个 ComposeView 上，按引用计数开关 keepScreenOn，避免一方结束时清掉另一方的常亮(仅主线程访问) */
-private var keepScreenOnRefs = 0
-
-/** 通话浮层在组合中即保持屏幕常亮；离开组合(通话归零)自动恢复 */
+/** 通话界面/小窗在组合中即保持屏幕常亮；离开组合(通话归零)自动恢复 */
 @Composable
 internal fun KeepScreenOnDuringCall() {
     val view = androidx.compose.ui.platform.LocalView.current
     DisposableEffect(view) {
-        keepScreenOnRefs++
+        keepScreenOnRefs[view] = (keepScreenOnRefs[view] ?: 0) + 1
         view.keepScreenOn = true
         onDispose {
-            keepScreenOnRefs = (keepScreenOnRefs - 1).coerceAtLeast(0)
-            if (keepScreenOnRefs == 0) view.keepScreenOn = false
+            val left = (keepScreenOnRefs[view] ?: 0) - 1
+            if (left <= 0) {
+                keepScreenOnRefs.remove(view)
+                view.keepScreenOn = false
+            } else {
+                keepScreenOnRefs[view] = left
+            }
         }
     }
 }
 
-/** SurfaceViewRenderer 包装：按 track 变化挂/摘 sink，离场释放 */
+/** SurfaceViewRenderer 包装：按 track 变化挂/摘 sink，离场释放（CallBubble.kt 的小窗也用它） */
 @Composable
-private fun VideoView(
+internal fun VideoView(
     track: VideoTrack?,
     eglContext: EglBase.Context,
     mirror: Boolean,
@@ -375,80 +377,5 @@ private fun VideoView(
     }
     DisposableEffect(Unit) {
         onDispose { rendererState.value?.let { runCatching { it.release() } } }
-    }
-}
-
-/**
- * 通话小窗：可拖拽悬浮气泡，默认停靠右上角；拖动跟手，松手停在拖到的位置(不做边缘吸附，
- * 保持简单，对齐iOS CallMinimizedBubble)。视频通话已接通时显示对方画面缩略图，其余显示头像。
- * CALL-1：点击与拖动拆成两个手势。此前只靠 detectDragGestures 的 onDragEnd 判断"位移<阈值"算点击，
- * 但拖动回调要手指先越过 touch slop 才触发，单纯点一下毫无反应，收起后回不到挂断键。
- * 现在外层 pointerInput 只管拖，内层 clickable 管点：拖动越过 slop 会消费事件，clickable 随之取消；
- * 单纯点按则正常触发 clickable，恢复全屏。clickable 同时提供读屏的按钮角色与操作说明。
- */
-@Composable
-private fun CallMinimizedBubble(viewModel: CallViewModel, state: com.touliao.app.core.call.CallState) {
-    val bubbleSizeDp = 64.dp
-    val peer = state.peerName.ifBlank { "对方" }
-    val bubbleDescription = when (state.stage) {
-        CallStage.CONNECTED -> "与${peer}通话中，点按返回"
-        CallStage.ENDED -> "与${peer}的通话已结束"
-        else -> "正在连接${peer}，点按返回"
-    }
-    androidx.compose.foundation.layout.BoxWithConstraints(Modifier.fillMaxSize()) {
-        val density = androidx.compose.ui.platform.LocalDensity.current
-        val bubblePx = with(density) { bubbleSizeDp.toPx() }
-        val marginPx = bubblePx / 2 + with(density) { 8.dp.toPx() }
-        val maxWidthPx = with(density) { maxWidth.toPx() }
-        val maxHeightPx = with(density) { maxHeight.toPx() }
-        val defaultXPx = maxWidthPx - marginPx
-        val defaultYPx = with(density) { 130.dp.toPx() }
-
-        var dragX by remember { mutableStateOf(0f) }
-        var dragY by remember { mutableStateOf(0f) }
-
-        val centerX = (defaultXPx + dragX).coerceIn(marginPx, (maxWidthPx - marginPx).coerceAtLeast(marginPx))
-        val centerY = (defaultYPx + dragY).coerceIn(marginPx, (maxHeightPx - marginPx).coerceAtLeast(marginPx))
-
-        Box(
-            Modifier
-                .offset {
-                    androidx.compose.ui.unit.IntOffset(
-                        (centerX - bubblePx / 2).roundToInt(),
-                        (centerY - bubblePx / 2).roundToInt(),
-                    )
-                }
-                .size(bubbleSizeDp)
-                .clip(RoundedCornerShape(16.dp))
-                .background(TouliaoMedia.surface)
-                // 外层：只处理拖动(越过 touch slop 后消费事件，内层点击随之取消)
-                .pointerInput(Unit) {
-                    detectDragGestures { change, amount ->
-                        change.consume()
-                        dragX += amount.x
-                        dragY += amount.y
-                    }
-                }
-                // 内层：单纯点按恢复全屏
-                .clickable(role = Role.Button, onClickLabel = "返回通话界面") { viewModel.setMinimized(false) }
-                // 读屏只念一句"与 X 通话中，点按返回"，不再逐个念头像首字/加载圈(clickable 在外层，其按钮语义保留)
-                .clearAndSetSemantics { contentDescription = bubbleDescription },
-            contentAlignment = Alignment.Center,
-        ) {
-            if (state.isVideo && state.remoteVideoActive && state.stage == CallStage.CONNECTED) {
-                VideoView(
-                    track = viewModel.remoteTrack(), eglContext = viewModel.eglBaseContext,
-                    mirror = false, modifier = Modifier.fillMaxSize(),
-                )
-            } else {
-                InitialAvatar(name = state.peerName.ifBlank { "?" }, size = bubbleSizeDp)
-            }
-            if (state.stage != CallStage.CONNECTED) {
-                Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.35f)))
-                androidx.compose.material3.CircularProgressIndicator(
-                    modifier = Modifier.size(20.dp), color = Color.White, strokeWidth = 2.dp,
-                )
-            }
-        }
     }
 }

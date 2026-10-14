@@ -12,4 +12,9 @@
         <!-- 启动后切回主主题 -->
         <item name="postSplashScreenTheme">@style/Theme.Touliao</item>
     </style>
+
+    <!-- 通话页（CallActivity）：窗口背景用通话底色，系统启动窗口和首帧之前都不闪白 -->
+    <style name="Theme.Touliao.Call" parent="Theme.Touliao">
+        <item name="android:windowBackground">@color/call_canvas</item>
+    </style>
 </resources>

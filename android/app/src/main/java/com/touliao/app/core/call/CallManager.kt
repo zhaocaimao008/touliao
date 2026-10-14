@@ -177,6 +177,11 @@ class CallManager @Inject constructor(
     private var iceRestartRecoverJob: Job? = null    // restart 后等待 connected 的窗口
     private var iceRestartCount = 0                  // 连续重启次数,恢复后清零
     @Volatile private var callAttempt = 0L   // 主叫呼出序号：ack 延迟时防止旧 callId 写入新一次呼出（P2-1 @Volatile 防跨线程撕裂）
+    // 每通电话只申请一次权限（CALL-2）：标记放在 Manager 里，CallActivity 重建也不会再弹权限框；cleanup() 时复位。
+    private val permissionPromptConsumed = java.util.concurrent.atomic.AtomicBoolean(false)
+    // 进入 ENDED 后的兜底：结束页 5 秒内没人消费（如熄屏时结束、通话页不在前台）就自动回到 IDLE，
+    // 避免结束页长期留在锁屏上。新一通（callAttempt 自增）会让旧的兜底失效。
+    private var endedFallbackJob: Job? = null
     @Volatile private var participatingCallId = "" // 仅本设备实际request/accept成功进入的通话可在重连后resume
     // Q06 全修：resume 时必须证明持有它，光凭 callId+userId 不再够（同账号旁观设备
     // 不能在断线宽限期内抢注这通电话）。request/accept 的 ack 里签发，cleanup() 清空。
@@ -380,6 +385,8 @@ class CallManager @Inject constructor(
     fun accept() {
         val s = _state.value
         if (s.stage != CallStage.INCOMING) return
+        // 应用内接听后立即收起常驻的来电通知（此前要等 60s 超时才消失）
+        notificationHelper.cancelCallNotification()
         stopIncomingTone()
         incomingTimeoutJob?.cancel(); incomingTimeoutJob = null
         _state.update { it.copy(stage = CallStage.CONNECTING) }
@@ -461,8 +468,15 @@ class CallManager @Inject constructor(
             return
         }
         // 只有请求真正发出才记为已起；被拒保持 false，回到前台时 onAppForeground() 补起
-        foregroundStarted = CallForegroundService.start(context, _state.value.isVideo)
+        // 1v1 与群通话共用前台服务，按 owner 计数，互不提前 stop
+        foregroundStarted = CallForegroundService.start(context, _state.value.isVideo, CallForegroundService.Owner.P2P)
     }
+
+    /**
+     * 本通是否还可以发起权限申请：本通第一次调用返回 true，之后都返回 false；cleanup() 时复位。
+     * UI 只在返回 true 时申请，CallActivity 重建不会重复弹权限框。
+     */
+    fun tryConsumePermissionPrompt(): Boolean = permissionPromptConsumed.compareAndSet(false, true)
 
     /** App 回到前台：此前前台服务被系统拒绝（后台启动限制 / startForeground 失败）则补起。 */
     fun onAppForeground() {
@@ -553,7 +567,8 @@ class CallManager @Inject constructor(
     }
 
     fun consumeEnded() {
-        if (_state.value.stage == CallStage.ENDED) _state.value = CallState()
+        // 原子"判断 + 归零"：ENDED 兜底在 AppScope 后台线程调用，不能把期间刚写入的新一通（来电/呼出）覆盖成 IDLE
+        _state.update { if (it.stage == CallStage.ENDED) CallState() else it }
     }
 
     /**
@@ -583,7 +598,13 @@ class CallManager @Inject constructor(
             // 与 socket 通路 call:incoming 的 busy 语义一致；同一通的重复推送不算（只升级了 callId）
             val s = _state.value
             val sameIncoming = s.stage == CallStage.INCOMING && s.peerId == from
-            if (!sameIncoming) socketManager.emitCallResponse(from, false, callId, busy = true)
+            // CALL-2：同一通已经接听（本端是被叫、同一主叫、callId 一致或任一为空）后迟到/重复的推送或
+            // 通知意图（CallActivity、MainActivity 厂商通道、FCM 前台分支都会走到这里）也不是新来电：
+            // 接听应答发出前回一条带本通 callId 的忙线，服务端会按拒接结束这通电话
+            val sameAccepted = !s.isCaller && s.peerId == from &&
+                (s.stage == CallStage.CONNECTING || s.stage == CallStage.CONNECTED) &&
+                (callId.isEmpty() || s.callId.isEmpty() || s.callId == callId)
+            if (!sameIncoming && !sameAccepted) socketManager.emitCallResponse(from, false, callId, busy = true)
         }
     }
 
@@ -1052,6 +1073,8 @@ class CallManager @Inject constructor(
 
     // ── 清理 ──────────────────────────────────────────────
     private fun cleanup(finalStage: CallStage, endReason: String = "ended") {
+        // 进入清理前的状态快照：用于收起本通的来电通知
+        val snapshot = _state.value
         // 质量上报：仅本设备实际参与（发起成功/已接听）的这一通，且只报一次（已 ENDED/IDLE 不再报）。
         // 只读内存快照 + 异步发送，任何异常都吞掉，绝不影响/拖慢挂断。
         runCatching {
@@ -1087,10 +1110,10 @@ class CallManager @Inject constructor(
         iceRestartDebounceJob?.cancel(); iceRestartDebounceJob = null
         iceRestartRecoverJob?.cancel(); iceRestartRecoverJob = null
         renegotiateAfterRollback = false
-        if (foregroundStarted) {
-            foregroundStarted = false
-            CallForegroundService.stop(context)           // 停前台服务
-        }
+        permissionPromptConsumed.set(false)               // 下一通重新允许申请一次权限
+        // 停前台服务中 1v1 这一份（stop 幂等；群通话仍在进行时服务不会被提前停掉）
+        foregroundStarted = false
+        CallForegroundService.stop(context, CallForegroundService.Owner.P2P)
         runCatching { videoCapturer?.stopCapture() }
         runCatching { videoCapturer?.dispose() }
         videoCapturer = null
@@ -1108,7 +1131,19 @@ class CallManager @Inject constructor(
         val ended = if (cur.connectedAt > 0L && cur.endedAt == 0L) android.os.SystemClock.elapsedRealtime() else cur.endedAt
         // 通话结束强制回到全屏(对齐iOS)：即便之前是小窗状态，也让用户看到结束态摘要。
         val forceFullScreen = finalStage == CallStage.ENDED
+        // 收起本通的来电通知（拒接/超时/对方取消/挂断）；按 callId/主叫没匹配上但本通正在响铃时，也直接收起
+        val matched = notificationHelper.cancelCallNotificationFor(snapshot.callId, snapshot.peerId, selfDeviceSync = false)
+        if (!matched && snapshot.stage == CallStage.INCOMING) notificationHelper.cancelCallNotification()
         _state.value = cur.copy(stage = finalStage, endedAt = ended, isMinimized = if (forceFullScreen) false else cur.isMinimized)
+        if (finalStage == CallStage.ENDED) {
+            // 结束页兜底：5 秒内没人 consumeEnded（通话页不在前台/熄屏）就自动回到 IDLE
+            val attempt = callAttempt
+            endedFallbackJob?.cancel()
+            endedFallbackJob = scope.launch {
+                delay(ENDED_FALLBACK_MS)
+                if (attempt == callAttempt && _state.value.stage == CallStage.ENDED) consumeEnded()
+            }
+        }
     }
 
     // ── 通话提示音（回铃/接通）─────────────────────────────
@@ -1263,6 +1298,7 @@ class CallManager @Inject constructor(
         const val ICE_RESTART_WINDOW_MS = 15000L
         const val ICE_RESTART_MAX = 3
         const val INCOMING_TIMEOUT_MS = 60_000L   // 来电未接听看门狗
+        const val ENDED_FALLBACK_MS = 5_000L      // ENDED 结束页无人消费时的自动回收兜底
     }
 }
 

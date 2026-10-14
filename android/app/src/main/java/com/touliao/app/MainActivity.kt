@@ -1,9 +1,7 @@
 package com.touliao.app
 
 import android.content.Intent
-import android.os.Build
 import android.os.Bundle
-import android.view.WindowManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -14,22 +12,34 @@ import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.testTagsAsResourceId
+import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.repeatOnLifecycle
 import com.touliao.app.core.call.CallManager
-import com.touliao.app.core.call.CallStage
+import com.touliao.app.core.call.CallUiPresence
+import com.touliao.app.core.call.CallUiRules
 import com.touliao.app.core.call.GroupCallManager
-import com.touliao.app.core.call.GroupCallStage
-import com.touliao.app.core.push.CallDeclineReceiver
+import com.touliao.app.core.push.CallActionReceiver
 import com.touliao.app.core.push.NotificationHelper
 import com.touliao.app.core.realtime.SocketManager
+import com.touliao.app.feature.call.CallActivity
 import com.touliao.app.navigation.AppNavigation
 import com.touliao.app.navigation.PendingConversationHolder
 import com.touliao.app.ui.theme.VxinThemeWithPref
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
+/**
+ * 启动入口与主界面（会话列表、聊天等）。
+ *
+ * CALL-2：本 Activity 在清单和代码里都永远不能越过锁屏显示，也不点亮屏幕——锁屏时它只会被系统锁屏盖住，
+ * 聊天内容不会泄露。来电页、通话页等全屏通话界面一律由独立任务里的 [CallActivity] 负责；
+ * 这里只渲染应用内通话小窗和群邀请横幅（AppNavigation 里的 CallOverlay），
+ * 并在自己可见时按 [CallUiRules.mainShouldOpenCallUi] 自动拉起 [CallActivity]。
+ */
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
 
@@ -37,9 +47,6 @@ class MainActivity : ComponentActivity() {
     @Inject lateinit var groupCallManager: GroupCallManager
     @Inject lateinit var socketManager: SocketManager
     @Inject lateinit var notificationHelper: NotificationHelper
-
-    /** 本 Activity 当前是否被设成越过锁屏/亮屏（只由来电意图设上，通话结束或收起小窗时撤掉） */
-    private var showingOverLockscreen = false
 
     @OptIn(ExperimentalComposeUiApi::class)
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -49,18 +56,9 @@ class MainActivity : ComponentActivity() {
         // 这样 Scaffold + Modifier.imePadding() 才能正确处理键盘弹出时的输入框位置。
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
-        // 配置变更(深色模式/语言/字号等，清单未声明 uiMode/locale)重建时，系统侧的 showWhenLocked 不会随实例重置，
-        // 而来电意图已被消费、不会再设上标记：标记须随实例状态恢复，否则通话结束后撤不掉，锁屏照样泄露。
-        showingOverLockscreen = savedInstanceState?.getBoolean(STATE_OVER_LOCKSCREEN) == true
-        // 来电通过 fullScreenIntent 拉起本 Activity 时，若设备处于锁屏/熄屏，
-        // 需主动点亮屏幕并越过锁屏展示来电界面，否则用户只看到黑屏/锁屏、看不到弹窗。
-        if (needsLockscreenForIntent(intent)) enableShowOverLockscreen()
         handleCallIntent(intent)
         handleMessageIntent(intent)
-        // CALL-2：越过锁屏只服务于通话页。处理完意图后若并没有进行中的通话（拒接、空推送等）立即复原，
-        // 之后通话结束/收起小窗时也复原——此前设上后从不复原，来过一次电后聊天内容能在锁屏上直接看到。
-        syncShowOverLockscreen()
-        observeCallsForLockscreen()
+        observeCallUi()
         setContent {
             // 主题：由 VxinTheme 内部读取本地外观偏好（不在 Activity 根注入/收集 Flow，
             // 与 1.0.14 的启动路径保持一致，杜绝启动期换肤相关的崩溃风险）。
@@ -75,60 +73,49 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    override fun onStart() {
+        super.onStart()
+        // 主界面在场标记：群邀请据此决定弹横幅还是发通知
+        CallUiPresence.setMainUiStarted(true)
+    }
+
+    override fun onStop() {
+        super.onStop()
+        // 配置变更引起的 onStop 不写 false：新实例紧接着 onStart，中间不应被当成"主界面不可见"
+        if (!isChangingConfigurations) CallUiPresence.setMainUiStarted(false)
+    }
+
     override fun onResume() {
         super.onResume()
         // 通话中切后台时若保活前台服务没能起来（系统后台启动限制），回到前台立即补起，
         // 之后再切后台麦克风不再被系统静音
         callManager.onAppForeground()
         groupCallManager.onAppForeground()
-        // 兜底：通话已结束却仍越过锁屏时复原（正常由 observeCallsForLockscreen 处理）
-        syncShowOverLockscreen()
-    }
-
-    override fun onSaveInstanceState(outState: Bundle) {
-        super.onSaveInstanceState(outState)
-        outState.putBoolean(STATE_OVER_LOCKSCREEN, showingOverLockscreen)
     }
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
-        if (needsLockscreenForIntent(intent)) enableShowOverLockscreen()
         handleCallIntent(intent)
         handleMessageIntent(intent)
-        syncShowOverLockscreen()
     }
 
     /**
-     * 来电意图是否需要越过锁屏展示来电界面。拒绝不需要：新版通知的「拒绝」已改走
-     * [CallDeclineReceiver]，这里只剩旧版本遗留的通知意图，直接拒接即可，不点亮也不越过锁屏。
+     * 自己可见（STARTED）时自动拉起通话页：来电响铃、1v1 结束页、未收起的 1v1 / 群通话，
+     * 且通话页当前不在前台（规则见 [CallUiRules.mainShouldOpenCallUi]）。
+     * 覆盖前台收到来电、发起通话、从横幅加入群通话、收起状态下通话结束（显示结束页），
+     * 以及在通话页按 Home 后再从图标打开 App（回到全屏通话页）。
+     * 经 distinctUntilChanged 只在结果由假变真时拉起一次；每次重新 STARTED 会重新判断。
      */
-    private fun needsLockscreenForIntent(intent: Intent?): Boolean =
-        isCallIntent(intent) && intent?.action != NotificationHelper.ACTION_CALL_DECLINE &&
-            notificationHelper.acceptsRecipient(intent?.getStringExtra(NotificationHelper.EXTRA_RECIPIENT_ID))
-
-    /** 通话页是否仍需越过锁屏：1v1 进行中(含响铃)且未收起成小窗，或群通话进行中 */
-    private fun callNeedsLockscreen(): Boolean {
-        val call = callManager.state.value
-        val callActive = call.stage != CallStage.IDLE && call.stage != CallStage.ENDED
-        val groupStage = groupCallManager.state.value.stage
-        val groupActive = groupStage != GroupCallStage.IDLE && groupStage != GroupCallStage.ENDED
-        return (callActive && !call.isMinimized) || groupActive
-    }
-
-    /** 不再需要时撤掉越过锁屏/亮屏（幂等）。每次都读当前状态，不依赖某次推送的快照，避免迟到的旧状态误判。 */
-    private fun syncShowOverLockscreen() {
-        if (!callNeedsLockscreen()) disableShowOverLockscreen()
-    }
-
-    /**
-     * 观察 1v1 与群通话状态：回到空闲/结束、或收起成小窗(露出会话列表/聊天页)时撤掉越过锁屏。
-     * 不用 repeatOnLifecycle：熄屏/切后台(STOPPED)期间通话结束也要立即复原，否则下次亮屏仍越过锁屏。
-     * lifecycleScope 在主线程执行，Activity 销毁时自动取消。
-     */
-    private fun observeCallsForLockscreen() {
+    private fun observeCallUi() {
         lifecycleScope.launch {
-            combine(callManager.state, groupCallManager.state) { _, _ -> }.collect { syncShowOverLockscreen() }
+            repeatOnLifecycle(Lifecycle.State.STARTED) {
+                combine(callManager.state, groupCallManager.state, CallUiPresence.callUiStarted) { c, g, s ->
+                    CallUiRules.mainShouldOpenCallUi(c, g, s)
+                }.distinctUntilChanged().collect { shouldOpen ->
+                    if (shouldOpen) CallActivity.open(this@MainActivity)
+                }
+            }
         }
     }
 
@@ -143,47 +130,10 @@ class MainActivity : ComponentActivity() {
     }
 
     /**
-     * 越过锁屏 + 点亮屏幕展示来电界面。
-     * Android 8.1(27)+ 用 setShowWhenLocked/setTurnScreenOn；旧版用 window flags。
-     * CALL-2：响铃时不再请求解锁（requestDismissKeyguard / FLAG_DISMISS_KEYGUARD）——有锁屏密码时
-     * 解锁界面会先弹出盖住来电页。接听后要收起小窗离开通话页时才请求解锁（见 CallScreen.minimizeCall）；
-     * 通话结束则由 [disableShowOverLockscreen] 复原，系统锁屏盖回，用户正常解锁后继续使用 App。
-     */
-    private fun enableShowOverLockscreen() {
-        showingOverLockscreen = true
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1) {
-            setShowWhenLocked(true)
-            setTurnScreenOn(true)
-        } else {
-            @Suppress("DEPRECATION")
-            window.addFlags(
-                WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED or
-                    WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON or
-                    WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON
-            )
-        }
-    }
-
-    /** 撤掉 [enableShowOverLockscreen] 设上的越过锁屏/亮屏（未设过则不动）。旧系统清掉对应窗口标志。 */
-    private fun disableShowOverLockscreen() {
-        if (!showingOverLockscreen) return
-        showingOverLockscreen = false
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1) {
-            setShowWhenLocked(false)
-            setTurnScreenOn(false)
-        } else {
-            @Suppress("DEPRECATION")
-            window.clearFlags(
-                WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED or
-                    WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON or
-                    WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON
-            )
-        }
-    }
-
-    /**
-     * 处理来电通知拉起的意图：进入 INCOMING 显示来电界面（CallHost 观察 CallManager.state 渲染）。
-     * 接听/拒绝动作直接驱动 CallManager；信令走已有 socket（确保已重连）。
+     * 处理旧版通知 / 个推厂商通道点击拉起本 Activity 的来电意图（新版来电通知直接指向 [CallActivity]）。
+     * 这里只驱动 CallManager 进入来电状态，来电页由 [observeCallUi] 拉起 [CallActivity] 显示；
+     * 本 Activity 自己不显示来电页，所以锁屏时用户要先解锁才会看到（放弃越过锁屏后接受的取舍）。
+     * 信令走已有 socket（确保已重连）。
      */
     private fun handleCallIntent(intent: Intent?) {
         val action = intent?.action ?: return
@@ -199,19 +149,19 @@ class MainActivity : ComponentActivity() {
         val callType = intent.getStringExtra(NotificationHelper.EXTRA_CALL_TYPE) ?: "audio"
         val callerName = intent.getStringExtra(NotificationHelper.EXTRA_CALL_NAME).orEmpty()
         val callId = intent.getStringExtra(NotificationHelper.EXTRA_CALL_ID).orEmpty()
-        notificationHelper.cancelCallNotification()
         // 后台被唤醒时 socket 可能已断，接听/拒绝的信令需要它 → 先确保连接
         socketManager.connect()
 
         when (action) {
             NotificationHelper.ACTION_CALL_DECLINE -> {
-                // 新版通知的「拒绝」走 CallDeclineReceiver；这里只兜底旧版本遗留的通知意图，拒接逻辑共用
-                CallDeclineReceiver.rejectFromNotification(callManager, from, callType, callerName, callId)
+                // 新版通知的「拒绝」走 CallActionReceiver 广播；这里只兜底旧版本遗留的通知意图，拒接逻辑共用
+                notificationHelper.cancelCallNotification()
+                CallActionReceiver.rejectFromNotification(callManager, from, callType, callerName, callId)
             }
             else -> {
-                // SHOW / ACCEPT 均只进入来电界面（INCOMING）。
-                // 不在此直接 accept()：接听需麦克风/摄像头运行时权限，由 CallHost 挂载后统一申请再建连，
-                // 避免冷启动权限未授予就 createLocalTracks。用户在来电界面点「接听」走正常权限流。
+                // SHOW / ACCEPT / 厂商通道点击均只进入来电状态（INCOMING），不收起来电通知、也不在此接听：
+                // 来电通知由 CallManager.accept() / cleanup() 收起；接听需麦克风/摄像头运行时权限，
+                // 由通话页统一申请后再由用户点「接听」。
                 callManager.incomingFromPush(from, callType, callerName, callId)
             }
         }
@@ -243,8 +193,4 @@ class MainActivity : ComponentActivity() {
 
     private fun isValidConversationId(id: String): Boolean =
         id.isNotBlank() && id.length <= 64 && id.all { it.isLetterOrDigit() || it == '-' || it == '_' }
-
-    private companion object {
-        const val STATE_OVER_LOCKSCREEN = "touliao:showingOverLockscreen"
-    }
 }

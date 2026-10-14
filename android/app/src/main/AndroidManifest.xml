@@ -63,6 +63,21 @@
             </intent-filter>
         </activity>
 
+        <!-- 通话页（CALL-2）：整个 App 只有这一个页面可以越过锁屏显示，MainActivity 永远不行。
+             它是独立任务（taskAffinity=包名.call）且不进最近任务，只承载全屏通话界面，没有会话列表和导航；
+             离开它的每条路都先要求解锁。清单里只声明越过锁屏，不声明亮屏：亮屏只在 1v1 响铃时由代码动态打开，
+             响铃结束即撤掉。API 24-26 不认这个属性，由代码改加窗口标志。不导出，外部 App 无法拉起。 -->
+        <activity
+            android:name=".feature.call.CallActivity"
+            android:exported="false"
+            android:launchMode="singleTask"
+            android:taskAffinity="${applicationId}.call"
+            android:excludeFromRecents="true"
+            android:showWhenLocked="true"
+            android:configChanges="orientation|screenSize|smallestScreenSize|screenLayout|keyboardHidden|keyboard|navigation|uiMode"
+            android:theme="@style/Theme.Touliao.Call"
+            tools:targetApi="o_mr1" />
+
         <!-- FCM 接收服务 -->
         <service
             android:name=".core.push.TouliaoMessagingService"
@@ -92,17 +107,16 @@
             android:name=".core.push.TouliaoGeTuiService"
             android:exported="false" />
 
-        <!-- 通话保活前台服务（1对1）。type 声明 microphone|camera；实际以运行时传入的 type 起服务。 -->
+        <!-- 通话保活前台服务（1v1 与群通话共用，按 owner 计数，常驻"通话中"通知）。
+             type 声明 microphone|camera；实际以运行时传入的 type 起服务。 -->
         <service
             android:name=".core.call.CallForegroundService"
             android:exported="false"
             android:foregroundServiceType="microphone|camera" />
 
-        <!-- 来电通知「拒绝」：通知发显式广播到这里直接拒接，不拉起 MainActivity（锁屏上无需先解锁）。
-             不导出，外部 App 无法伪造拒接。 -->
-        <receiver
-            android:name=".core.push.CallDeclineReceiver"
-            android:exported="false" />
+        <!-- 通话通知上的广播动作：拒绝 / 锁屏接听 / 挂断 / 忽略群邀请。通知发显式广播到这里直接处理，
+             锁屏上无需先解锁（只有锁屏接听会尽力打开通话页，Android 12+ 会被系统拦下）。不导出，外部 App 无法伪造。 -->
+        <receiver android:name=".core.push.CallActionReceiver" android:exported="false" />
 
         <!-- 全屏截图前台服务（MediaProjection）。type 必须为 mediaProjection（Android 14+ 强制）。 -->
         <service
