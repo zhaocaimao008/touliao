@@ -49,6 +49,8 @@ data class GroupCallState(
     val speakerOn: Boolean = false,
     val bluetoothOn: Boolean = false,
     val bluetoothAvailable: Boolean = false,
+    // CALL-11：群通话小窗。只表示"用户主动收起"，语义同 1v1 CallState.isMinimized；cleanup 时复位为 false
+    val isMinimized: Boolean = false,
 )
 
 /**
@@ -150,6 +152,10 @@ class GroupCallManager @Inject constructor(
     // 旁观设备不能在断线宽限期内抢注）。group_call:started/peers 里签发，cleanup() 清空。
     @Volatile private var participatingResumeToken: String? = null
     @Volatile private var callAttempt = 0L
+    // 每通群通话只申请一次权限（同 CallManager）：CallActivity 重建不会再弹权限框；cleanup() 时复位
+    private val permissionPromptConsumed = java.util.concurrent.atomic.AtomicBoolean(false)
+    // 进入 ENDED 后 5 秒无人消费就自动回到 IDLE（同 CallManager）；新一通（callAttempt 自增）会让旧兜底失效
+    private var endedFallbackJob: Job? = null
 
     init {
         // 2026-10-12：不再在 init 里建 PeerConnectionFactory，改为首次发起/加入群通话时后台懒初始化
@@ -272,8 +278,22 @@ class GroupCallManager @Inject constructor(
             return
         }
         // 只有请求真正发出才记为已起；被拒保持 false，回到前台时 onAppForeground() 补起
-        foregroundStarted = CallForegroundService.start(context, _state.value.isVideo)
+        // 1v1 与群通话共用前台服务，按 owner 计数，互不提前 stop
+        foregroundStarted = CallForegroundService.start(context, _state.value.isVideo, CallForegroundService.Owner.GROUP)
     }
+
+    /** 群通话小窗：收起/恢复全屏。只在连接中、已接通时生效，只切 UI 呈现，不碰 PeerConnection/信令。 */
+    fun setMinimized(minimized: Boolean) {
+        _state.update {
+            if (it.stage == GroupCallStage.CONNECTING || it.stage == GroupCallStage.CONNECTED) it.copy(isMinimized = minimized) else it
+        }
+    }
+
+    /**
+     * 本通是否还可以发起权限申请：本通第一次调用返回 true，之后都返回 false；cleanup() 时复位。
+     * UI 只在返回 true 时申请，CallActivity 重建不会重复弹权限框。
+     */
+    fun tryConsumePermissionPrompt(): Boolean = permissionPromptConsumed.compareAndSet(false, true)
 
     /** App 回到前台：此前前台服务被系统拒绝（后台启动限制 / startForeground 失败）则补起。 */
     fun onAppForeground() {
@@ -282,7 +302,8 @@ class GroupCallManager @Inject constructor(
     }
 
     fun consumeEnded() {
-        if (_state.value.stage == GroupCallStage.ENDED) _state.value = GroupCallState()
+        // 原子"判断 + 归零"：ENDED 兜底在 AppScope 后台线程调用，不能把期间刚发起/加入的新一通覆盖成 IDLE
+        _state.update { if (it.stage == GroupCallStage.ENDED) GroupCallState() else it }
     }
 
     // ── 信令处理 ───────────────────────────────────────────
@@ -314,7 +335,9 @@ class GroupCallManager @Inject constructor(
         }
         scope.launch {
             socketManager.groupCallStartedEvents.collect { e ->
-                if (_state.value.stage == GroupCallStage.ENDED) return@collect
+                // 已结束或已被 ENDED 兜底回收为 IDLE：迟到的 started 一律丢弃，避免凭空出现一通"幽灵"群通话
+                val st = _state.value.stage
+                if (st == GroupCallStage.IDLE || st == GroupCallStage.ENDED) return@collect
                 participatingCallId = e.callId
                 participatingResumeToken = e.resumeToken
                 _state.update { it.copy(stage = GroupCallStage.CONNECTED, callId = e.callId, connectedAt = if (it.connectedAt == 0L) android.os.SystemClock.elapsedRealtime() else it.connectedAt) }
@@ -322,6 +345,9 @@ class GroupCallManager @Inject constructor(
         }
         scope.launch {
             socketManager.groupCallPeersEvents.collect { e ->
+                // 同上：不在通话中（IDLE/ENDED）时迟到的 peers 不得把状态改成 CONNECTED、也不得再建 PeerConnection
+                val st = _state.value.stage
+                if (st == GroupCallStage.IDLE || st == GroupCallStage.ENDED) return@collect
                 if (_state.value.callId.isNotEmpty() && e.callId != _state.value.callId) return@collect
                 participatingCallId = e.callId
                 participatingResumeToken = e.resumeToken
@@ -717,10 +743,10 @@ class GroupCallManager @Inject constructor(
         mutedForSystemCall = false
         audioRouter.release(audioListener)                 // 恢复 MODE_NORMAL/释放焦点与蓝牙
         localMediaReady = false
-        if (foregroundStarted) {
-            foregroundStarted = false
-            CallForegroundService.stop(context)
-        }
+        permissionPromptConsumed.set(false)                // 下一通重新允许申请一次权限
+        // 停前台服务中群通话这一份（stop 幂等；1v1 仍在进行时服务不会被提前停掉）
+        foregroundStarted = false
+        CallForegroundService.stop(context, CallForegroundService.Owner.GROUP)
         val old = synchronized(peersLock) { peers.values.toList().also { peers.clear() } }
         old.forEach {
             it.iceRestartDebounceJob?.cancel(); it.iceRestartDebounceJob = null
@@ -735,7 +761,14 @@ class GroupCallManager @Inject constructor(
         runCatching { videoSource?.dispose() }; videoSource = null
         runCatching { audioSource?.dispose() }; audioSource = null
         localAudioTrack = null
-        _state.value = _state.value.copy(stage = GroupCallStage.ENDED, participants = emptyList())
+        _state.value = _state.value.copy(stage = GroupCallStage.ENDED, participants = emptyList(), isMinimized = false)
+        // 结束页兜底：5 秒内没人 consumeEnded（通话页不在前台/熄屏）就自动回到 IDLE
+        val attempt = callAttempt
+        endedFallbackJob?.cancel()
+        endedFallbackJob = scope.launch {
+            delay(ENDED_FALLBACK_MS)
+            if (attempt == callAttempt && _state.value.stage == GroupCallStage.ENDED) consumeEnded()
+        }
     }
 
     private companion object {
@@ -746,5 +779,6 @@ class GroupCallManager @Inject constructor(
         const val ICE_RESTART_WINDOW_MS = 15000L
         const val ICE_RESTART_MAX = 3
         const val STATS_INTERVAL_MS = 5000L   // 质量上报用 stats 采样间隔（群通话无质量指示 UI，不必 2s）
+        const val ENDED_FALLBACK_MS = 5_000L  // ENDED 结束页无人消费时的自动回收兜底
     }
 }

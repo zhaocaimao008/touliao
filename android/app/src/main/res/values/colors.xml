@@ -1,3 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <!-- 通话页窗口底色：与 Compose 的 TouliaoMedia.canvas 一致，冷启动 CallActivity 时不闪白 -->
+    <color name="call_canvas">#FF10151E</color>
 </resources>

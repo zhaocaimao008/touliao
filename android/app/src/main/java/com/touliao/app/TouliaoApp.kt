@@ -21,6 +21,7 @@ class TouliaoApp : Application(), ImageLoaderFactory {
         fun notificationHelper(): com.touliao.app.core.push.NotificationHelper
         fun pushManager(): com.touliao.app.core.push.PushManager
         fun socketBackgroundPolicy(): com.touliao.app.core.realtime.SocketBackgroundPolicy
+        fun groupCallInviteCoordinator(): com.touliao.app.core.call.GroupCallInviteCoordinator
         fun tokenStore(): com.touliao.app.core.storage.TokenStore
         fun accountStore(): com.touliao.app.core.storage.AccountStore
     }
@@ -48,6 +49,8 @@ class TouliaoApp : Application(), ImageLoaderFactory {
         entry.messageNotificationBridge().install(this)
         // 后台 60s 无通话自动断开 socket，回前台重连（消息/来电后台走 FCM / 个推）
         entry.socketBackgroundPolicy().start()
+        // 群通话邀请：横幅 / 通知 / 过期与清除（构造不做任何事，依赖在 AppScope 协程里才取用）
+        entry.groupCallInviteCoordinator().start()
         // 有 GMS 时手动启用 FCM 自动注册（Manifest 已关闭自动初始化防华为崩溃）
         initFirebaseIfGmsAvailable()
         // 个推 SDK 要求 initialize 只在主进程调用（非主进程会抛 Must be called in main process）。

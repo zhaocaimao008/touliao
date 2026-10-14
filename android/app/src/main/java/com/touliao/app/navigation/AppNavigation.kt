@@ -37,7 +37,6 @@ import com.touliao.app.feature.auth.ForgotPasswordScreen
 import com.touliao.app.feature.auth.LoginScreen
 import com.touliao.app.feature.auth.RegisterScreen
 import com.touliao.app.ui.theme.TouliaoMotion
-import com.touliao.app.feature.call.CallHost
 import com.touliao.app.feature.chat.ChatScreen
 import com.touliao.app.feature.chat.ConversationListScreen
 import com.touliao.app.feature.contacts.AddFriendScreen
@@ -260,9 +259,19 @@ private fun MainFlow(features: Features, unreadTotal: Int = 0, appViewModel: App
             if (convId == null) return@collect
             // navigate/resolveChatTarget 抛异常时若不捕获，collect 所在协程会直接死亡，
             // 且 LaunchedEffect(Unit) 不会因 key 不变而重启 → 之后所有通知点击都静默失效。
+            // 通话页「回复消息」会经 PendingConversationHolder.offer 带上标题和对端 id：新建的私聊可能
+            // 还不在本地会话列表里，resolveChatTarget 查不到时用它兜底，避免聊天页标题为空。
+            val hint = PendingConversationHolder.takeHint(convId)
             runCatching {
                 val target = appViewModel.resolveChatTarget(convId)
-                navController.navigate(Routes.chat(target.conversationId, target.title, target.type, target.peerUserId)) {
+                navController.navigate(
+                    Routes.chat(
+                        target.conversationId,
+                        target.title.ifBlank { hint?.first.orEmpty() },
+                        target.type,
+                        target.peerUserId.ifBlank { hint?.second.orEmpty() },
+                    )
+                ) {
                     launchSingleTop = true
                 }
             }.onFailure { android.util.Log.e("AppNavigation", "通知跳转会话失败 convId=$convId", it) }
@@ -531,8 +540,8 @@ private fun MainFlow(features: Features, unreadTotal: Int = 0, appViewModel: App
         }
         }
     }
-        CallHost(navController = navController)
-        com.touliao.app.feature.call.GroupCallHost()
+        // CALL-2：全屏通话界面改由独立的 CallActivity 承载，这里只叠加应用内小窗和群邀请横幅
+        com.touliao.app.feature.call.CallOverlay()
     }
 }
 

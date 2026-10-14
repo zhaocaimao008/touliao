@@ -169,6 +169,13 @@ object ReviewModule {
     fun provideTurnApi(retrofit: Retrofit): com.touliao.app.data.api.TurnApi =
         retrofit.create(com.touliao.app.data.api.TurnApi::class.java)
 
+    // 与 AppModule 对齐：CallManager / GroupCallManager → CallQualityReporter 依赖它，
+    // 缺了测试组件的 Hilt 图编不过（AppModule 10-12 新增后这里一直没补）
+    @Provides
+    @Singleton
+    fun provideCallReportApi(retrofit: Retrofit): com.touliao.app.data.api.CallReportApi =
+        retrofit.create(com.touliao.app.data.api.CallReportApi::class.java)
+
     @Provides
     @Singleton
     fun provideFavoritesApi(retrofit: Retrofit): com.touliao.app.data.api.FavoritesApi =
