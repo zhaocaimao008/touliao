@@ -2,9 +2,14 @@
 set -euo pipefail
 apk=${1:?Verified signed release APK required}
 evidence=${2:-android-release-evidence}
-test -n "${DEPLOY_SSH_KEY:-}"
-test -n "${DEPLOY_USER:-}"
-test "${DEPLOY_HOST:-}" = '13.213.234.231'
+fail() { echo "::error::$*" >&2; exit 1; }
+test -n "${DEPLOY_SSH_KEY:-}" || fail 'DEPLOY_SSH_KEY secret is empty'
+test -n "${DEPLOY_USER:-}" || fail 'DEPLOY_USER secret is empty'
+# Only publish to a host pinned in deploy/ssh_known_hosts (the same file StrictHostKeyChecking trusts below),
+# so a server move only needs that file updated. It used to hard-code the retired 13.213.234.231 and exited silently.
+known_hosts="$GITHUB_WORKSPACE/deploy/ssh_known_hosts"
+pinned_hosts=$(awk '!/^[[:space:]]*(#|$)/ {print $1}' "$known_hosts" | tr ',' '\n')
+grep -qxF -- "${DEPLOY_HOST:-}" <<<"$pinned_hosts" || fail "DEPLOY_HOST is not pinned in deploy/ssh_known_hosts (pinned: $(echo $pinned_hosts))"
 run_id="${GITHUB_RUN_ID:?}-${GITHUB_RUN_ATTEMPT:?}"
 [[ "$run_id" =~ ^[0-9]+-[0-9]+$ ]]
 version=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["versionName"])' "$evidence/new-version.json")
@@ -12,7 +17,7 @@ version=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["versi
 key="$RUNNER_TEMP/touliao-release-deploy-key"
 umask 077
 printf '%s\n' "$DEPLOY_SSH_KEY" > "$key"
-ssh_args=(-i "$key" -o BatchMode=yes -o StrictHostKeyChecking=yes -o "UserKnownHostsFile=$GITHUB_WORKSPACE/deploy/ssh_known_hosts")
+ssh_args=(-i "$key" -o BatchMode=yes -o StrictHostKeyChecking=yes -o "UserKnownHostsFile=$known_hosts")
 remote="$DEPLOY_USER@$DEPLOY_HOST"
 stage="/var/www/downloads/.android-stage-$run_id"
 name="touliao-android-$version.apk"
