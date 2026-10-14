@@ -10,6 +10,7 @@ package com.touliao.app.core.call
  *   就优先于群通话，两路都 IDLE 时 CallActivity 结束自己。
  * - 小窗（[bubbleKind]）：MainActivity 的 CallOverlay 只为"进行中且被用户收起"的那一路画小窗，1v1 优先。
  * - 亮屏（[turnScreenOn]）：只有 1v1 响铃时 CallActivity 才动态点亮屏幕；其余阶段撤掉亮屏。
+ * - 群通话中来 1v1（[rejectP2pForGroup]）：1v1 空闲且群通话进行中时，新的 1v1 来电回忙线，不进 INCOMING 盖住群通话。
  */
 enum class CallUiKind { NONE, P2P, GROUP }
 
@@ -48,4 +49,8 @@ object CallUiRules {
 
     /** CallActivity 是否需要点亮屏幕：仅 1v1 响铃时。 */
     fun turnScreenOn(call: CallState): Boolean = call.stage == CallStage.INCOMING
+
+    /** 1v1 空闲（IDLE/ENDED）且群通话进行中（连接中/已接通）：新的 1v1 来电应回忙线，不进 INCOMING 盖住群通话。 */
+    fun rejectP2pForGroup(call: CallStage, group: GroupCallStage): Boolean =
+        (call == CallStage.IDLE || call == CallStage.ENDED) && isGroupActive(group)
 }

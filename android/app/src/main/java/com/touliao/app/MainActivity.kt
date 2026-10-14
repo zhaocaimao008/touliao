@@ -15,11 +15,14 @@ import androidx.compose.ui.semantics.testTagsAsResourceId
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
+import com.touliao.app.core.call.CallIntents
 import com.touliao.app.core.call.CallManager
 import com.touliao.app.core.call.CallUiPresence
 import com.touliao.app.core.call.CallUiRules
+import com.touliao.app.core.call.GroupCallInviteCoordinator
 import com.touliao.app.core.call.GroupCallManager
 import com.touliao.app.core.push.CallActionReceiver
+import com.touliao.app.core.push.GroupCallInvitePush
 import com.touliao.app.core.push.NotificationHelper
 import com.touliao.app.core.realtime.SocketManager
 import com.touliao.app.feature.call.CallActivity
@@ -47,6 +50,7 @@ class MainActivity : ComponentActivity() {
     @Inject lateinit var groupCallManager: GroupCallManager
     @Inject lateinit var socketManager: SocketManager
     @Inject lateinit var notificationHelper: NotificationHelper
+    @Inject lateinit var inviteCoordinator: GroupCallInviteCoordinator
 
     @OptIn(ExperimentalComposeUiApi::class)
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -57,6 +61,7 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
         handleCallIntent(intent)
+        handleGroupInviteIntent(intent)
         handleMessageIntent(intent)
         observeCallUi()
         setContent {
@@ -97,6 +102,7 @@ class MainActivity : ComponentActivity() {
         super.onNewIntent(intent)
         setIntent(intent)
         handleCallIntent(intent)
+        handleGroupInviteIntent(intent)
         handleMessageIntent(intent)
     }
 
@@ -168,6 +174,22 @@ class MainActivity : ComponentActivity() {
         // 消费掉，避免旋转/重建时重复触发
         intent.action = null
         intent.removeExtra(NotificationHelper.EXTRA_CALL_ID)
+    }
+
+    /**
+     * 个推厂商通道的群通话邀请通知被点击（App 被杀时由系统展示，后端 pushGroupCallInviteToCid 的 intent 带 groupCallId 等 extra）：
+     * 仍在有效期内就交给协调器（quiet：不振动、不另发通知），MainActivity 可见后由 CallOverlay 显示"加入 / 忽略"横幅；
+     * 进群仍由 handleMessageIntent 按 conversationId 处理。MainActivity 是导出的：校验收件人和 id 格式，加入时服务端还会校验成员身份。
+     */
+    private fun handleGroupInviteIntent(intent: Intent?) {
+        val i = intent ?: return
+        if (i.getStringExtra(CallIntents.EXTRA_GROUP_CALL_ID) == null) return
+        val parsed = GroupCallInvitePush.parse { key -> i.getStringExtra(GroupCallInvitePush.vendorExtraKey(key)) }
+        i.removeExtra(CallIntents.EXTRA_GROUP_CALL_ID)   // 消费掉，避免旋转/重建时重复触发
+        if (parsed == null || !notificationHelper.acceptsRecipient(parsed.recipientId)) return
+        if (!isValidConversationId(parsed.event.conversationId) || !isValidConversationId(parsed.event.callId)) return
+        // 厂商通道 intent 不带群名；quiet 模式不发通知，群名用不上
+        inviteCoordinator.onPushInvite(parsed.event, "", quiet = true)
     }
 
     /**

@@ -312,6 +312,51 @@ class NotificationHelper @Inject constructor(
         return match
     }
 
+    /**
+     * 群通话进行中错过的 1v1 来电：不响铃、不振动的"未接来电（你正在群通话中）"提示。
+     * 由 CallManager.rejectIfInGroupCall 调用（此时已给主叫回了忙线，来电不进 INCOMING、不弹全屏来电）。
+     * tag 为 "missed-call:" + callId（缺 callId 时用主叫 id）、id 为 [CallIntents.MISSED_CALL_NOTIFICATION_ID]：
+     * 同一 tag + id 重发只会更新，推送与 socket 重复到达也只有一条。
+     * 点击只打开 App，不直接进私聊：来电载荷里没有会话 id；发通知时调 createPrivate 会顺带"取消隐藏"已删除的聊天
+     * （有副作用）；MainActivity 是导出的，按外部可构造的 extra 去建会话有被滥用的风险。
+     * 因此 intent 绝不带 callId / conversationId（MainActivity 会把带 callId 的意图当成来电）。
+     */
+    fun showMissedCallInGroupCall(callId: String, from: String, callerName: String, isVideo: Boolean, recipientId: String? = accountStore.activeId()) {
+        if (!acceptsRecipient(recipientId)) return
+        val recipient = recipientId ?: return
+        val key = callId.ifEmpty { from }
+        if (key.isEmpty()) return
+        val intent = Intent(context, MainActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+            putExtra(EXTRA_RECIPIENT_ID, recipient)
+            data = android.net.Uri.Builder().scheme("touliao").authority("missed-call").appendPath(recipient).appendPath(key).build()
+        }
+        val pending = PendingIntent.getActivity(
+            context, ("missed-call:" + key).hashCode(), intent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+        )
+        val publicVersion = NotificationCompat.Builder(context, CallIntents.MISSED_CALL_CHANNEL_ID)
+            .setSmallIcon(R.drawable.ic_notification)
+            .setContentTitle("投聊")
+            .setContentText("未接来电")
+            .build()
+        val notification = NotificationCompat.Builder(context, CallIntents.MISSED_CALL_CHANNEL_ID)
+            .setSmallIcon(R.drawable.ic_notification)
+            .setContentTitle(callerName.ifBlank { "未接来电" })
+            .setContentText("未接${if (isVideo) "视频" else "语音"}来电（你正在群通话中）")
+            .setPriority(NotificationCompat.PRIORITY_DEFAULT)
+            .setSilent(true)
+            .setOnlyAlertOnce(true)
+            .setAutoCancel(true)
+            .setVisibility(NotificationCompat.VISIBILITY_PRIVATE)
+            .setPublicVersion(publicVersion)
+            .setContentIntent(pending)
+            .build()
+        try {
+            NotificationManagerCompat.from(context).notify("missed-call:" + key, CallIntents.MISSED_CALL_NOTIFICATION_ID, notification)
+        } catch (_: SecurityException) { /* 无权限，忽略 */ }
+    }
+
     private fun createChannel() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val mgr = context.getSystemService(NotificationManager::class.java) ?: return
@@ -371,6 +416,16 @@ class NotificationHelper @Inject constructor(
                 lockscreenVisibility = android.app.Notification.VISIBILITY_PRIVATE
             }
             mgr.createNotificationChannel(groupInvites)
+            // 未接来电渠道：群通话中错过的 1v1 来电提示，不响铃、不振动（正在通话，不能打扰）；锁屏上隐藏详情。
+            val missedCalls = NotificationChannel(
+                CallIntents.MISSED_CALL_CHANNEL_ID, "未接来电", NotificationManager.IMPORTANCE_DEFAULT,
+            ).apply {
+                description = "群通话中错过的来电（不响铃）"
+                setSound(null, null)
+                enableVibration(false)
+                lockscreenVisibility = android.app.Notification.VISIBILITY_PRIVATE
+            }
+            mgr.createNotificationChannel(missedCalls)
         }
     }
 

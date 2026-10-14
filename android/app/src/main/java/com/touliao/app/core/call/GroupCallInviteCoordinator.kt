@@ -55,7 +55,11 @@ object GroupInviteExpiry {
 
 /**
  * 群通话邀请协调器（CALL-11）：应用级单例，在 TouliaoApp.onCreate（主进程）里 [start]。
+ * - 来源：socket 的 group_call:invite，以及推送通路（FCM / 个推透传 / 个推厂商通道点击，经 [onPushInvite]），
+ *   两路共用下面的过滤、去重、过期和横幅/通知；
  * - 过滤：空 id、发起人是自己（本账号其他设备发起）、已过期、本机正在 1v1 或群通话中；
+ * - 去重（按 callId）：与当前邀请同一 callId，或最近已清掉过（加入、忽略、结束、过期、忙线清除、身份清理）、
+ *   本机进过的群通话 callId 一律忽略：推送与 socket 重复到达只出现一次，迟到的那份也不会把已处理的邀请复活；
  * - 写入 [invite]，到截止时间自动清掉；
  * - MainActivity 可见时短振一下（由 CallOverlay 显示横幅），不可见时发带"加入 / 忽略"的系统通知，
  *   拿到群名后静默更新一次；
@@ -83,6 +87,8 @@ class GroupCallInviteCoordinator @Inject constructor(
     // 保护 _invite 的读改写、过期 Job 引用和邀请通知的发/撤顺序（避免撤掉之后又被旧流程发出来）
     private val lock = Any()
     private var expiryJob: Job? = null
+    // 最近清掉过的邀请 callId（见 clear）与本机进过的群通话 callId（见 start 的 4b）：迟到的推送 / socket 重发不得复活已处理的邀请
+    private val handledCallIds = RecentIds(32)
 
     /** 启动监听（幂等）。 */
     fun start() {
@@ -99,6 +105,15 @@ class GroupCallInviteCoordinator @Inject constructor(
                 combine(callManager.get().state, groupCallManager.get().state) { c, g ->
                     (c.stage != CallStage.IDLE && c.stage != CallStage.ENDED) || CallUiRules.isGroupActive(g.stage)
                 }.distinctUntilChanged().collect { busy -> if (busy) clearCurrent() }
+            }
+            // (4b) 进过的群通话（含未经邀请、从会话里直接加入或自己发起的）记为已处理：离开后迟到的推送
+            //      不会再为这通弹邀请（socket 只在发起时发一次邀请，两路行为一致）
+            launch {
+                groupCallManager.get().state.collect { g ->
+                    if (CallUiRules.isGroupActive(g.stage) && g.callId.isNotEmpty()) {
+                        handledCallIds.add(g.callId)
+                    }
+                }
             }
             // (5) MainActivity 回到前台：撤掉通知，改由横幅显示
             launch {
@@ -145,7 +160,17 @@ class GroupCallInviteCoordinator @Inject constructor(
         clear(callId)
     }
 
-    private fun onInvite(e: GroupCallInviteEvent) {
+    /**
+     * 推送通路（FCM / 个推透传 / 厂商通道点击）的群邀请：与 socket 共用过滤、去重、过期、横幅或通知；任意线程可调用。
+     * 收件人由调用方校验。[quiet]=true（用户点厂商通道通知拉起 MainActivity）时不振动、不另发通知，只写入邀请，由横幅显示。
+     */
+    fun onPushInvite(e: GroupCallInviteEvent, groupName: String, quiet: Boolean = false) = onInvite(e, groupName, quiet)
+
+    /**
+     * [knownGroupName] 非空（推送带了群名）时直接带群名发通知，不再拉取群名；
+     * [quiet] 见 [onPushInvite]。
+     */
+    private fun onInvite(e: GroupCallInviteEvent, knownGroupName: String = "", quiet: Boolean = false) {
         if (e.callId.isEmpty() || e.conversationId.isEmpty()) return
         // 自己另一台设备发起的群通话：服务端用 socket.to(room) 发出，本账号其他设备也会收到
         if (e.from == sessionManager.get().currentUser?.id) return
@@ -158,6 +183,8 @@ class GroupCallInviteCoordinator @Inject constructor(
         val foreground = synchronized(lock) {
             // 忙线判断放在锁内：与 (4) 的 clearCurrent 互斥，避免"刚进通话又写入邀请"
             if (isBusy()) return
+            // 推送与 socket 重复到达只出现一次；已处理的邀请不被迟到的那份复活
+            if (inv.callId in handledCallIds || _invite.value?.callId == inv.callId) return
             val old = _invite.value
             if (old != null && old.callId != inv.callId) cancelNotification(old.callId)
             _invite.value = inv
@@ -167,14 +194,16 @@ class GroupCallInviteCoordinator @Inject constructor(
                 clear(inv.callId)
             }
             val fg = CallUiPresence.mainUiStarted.value
-            if (!fg) postNotification(inv, "", remaining)
+            if (!fg && !quiet) postNotification(inv, knownGroupName, remaining)
             fg
         }
+        // 厂商通道点击拉起：用户已经在看了，不振动、不另发通知，由横幅显示
+        if (quiet) return
         if (foreground) {
             // MainActivity 可见：横幅由 CallOverlay 显示，这里只短振一下
             vibrateShort()
-        } else {
-            // 先发不带群名的通知，取到群名后静默更新一次
+        } else if (knownGroupName.isEmpty()) {
+            // 先发不带群名的通知，取到群名后静默更新一次（推送已带群名时不再拉取）
             scope.launch {
                 val name = runCatching { roster.get().groupName(inv.conversationId) }.getOrDefault("")
                 if (name.isEmpty()) return@launch
@@ -187,10 +216,14 @@ class GroupCallInviteCoordinator @Inject constructor(
         }
     }
 
-    /** 清掉指定邀请：是当前邀请就置空并取消过期 Job；无论是否当前，都撤掉该 callId 的通知。 */
+    /**
+     * 清掉指定邀请：是当前邀请就置空并取消过期 Job；无论是否当前，都撤掉该 callId 的通知。
+     * 同时记下 callId（加入、忽略、结束、过期、忙线清除、身份清理都经过这里），迟到的推送因此不会复活这些邀请。
+     */
     private fun clear(callId: String) {
         if (callId.isEmpty()) return
         synchronized(lock) {
+            handledCallIds.add(callId)
             if (_invite.value?.callId == callId) {
                 _invite.value = null
                 expiryJob?.cancel()

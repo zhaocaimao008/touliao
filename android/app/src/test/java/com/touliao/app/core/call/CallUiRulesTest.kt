@@ -152,4 +152,30 @@ class CallUiRulesTest {
             assertFalse("stage=$stage", CallUiRules.turnScreenOn(p2p(stage)))
         }
     }
+
+    // ── rejectP2pForGroup ──
+
+    @Test
+    fun rejectP2pWhenIdleAndGroupActive() {
+        assertTrue(CallUiRules.rejectP2pForGroup(CallStage.IDLE, GroupCallStage.CONNECTING))
+        assertTrue(CallUiRules.rejectP2pForGroup(CallStage.IDLE, GroupCallStage.CONNECTED))
+        assertTrue(CallUiRules.rejectP2pForGroup(CallStage.ENDED, GroupCallStage.CONNECTED))
+        assertTrue(CallUiRules.rejectP2pForGroup(CallStage.ENDED, GroupCallStage.CONNECTING))
+    }
+
+    @Test
+    fun noRejectWhenGroupNotActive() {
+        assertFalse(CallUiRules.rejectP2pForGroup(CallStage.IDLE, GroupCallStage.IDLE))
+        assertFalse(CallUiRules.rejectP2pForGroup(CallStage.IDLE, GroupCallStage.ENDED))
+        assertFalse(CallUiRules.rejectP2pForGroup(CallStage.ENDED, GroupCallStage.IDLE))
+    }
+
+    @Test
+    fun noRejectWhenP2pNotIdle() {
+        // 1v1 不空闲时走原有忙线分支，不归本规则管
+        assertFalse(CallUiRules.rejectP2pForGroup(CallStage.INCOMING, GroupCallStage.CONNECTED))
+        assertFalse(CallUiRules.rejectP2pForGroup(CallStage.OUTGOING, GroupCallStage.CONNECTING))
+        assertFalse(CallUiRules.rejectP2pForGroup(CallStage.CONNECTING, GroupCallStage.CONNECTED))
+        assertFalse(CallUiRules.rejectP2pForGroup(CallStage.CONNECTED, GroupCallStage.CONNECTED))
+    }
 }
