@@ -58,14 +58,19 @@ public final class ApkSignatureCompatProbe {
         boolean tamperedResult = matches(fixed, args[2]);
         boolean oldFlagsNull = oldFlags != null && oldFlags.signingInfo == null;
         boolean bothFlagsPresent = bothFlags != null && bothFlags.signingInfo != null;
-        System.out.println("{\"environment\":\"API 29 native framework; actual compiled verifier classes\","
-            + "\"oldFlagsSigningInfoNull\":" + oldFlagsNull + ",\"bothFlagsSigningInfoPresent\":" + bothFlagsPresent
+        int sdk = android.os.Build.VERSION.SDK_INT;
+        System.out.println("{\"environment\":\"API " + sdk + " native framework; actual compiled verifier classes\","
+            + "\"apiLevel\":" + sdk
+            + ",\"oldFlagsSigningInfoNull\":" + oldFlagsNull + ",\"bothFlagsSigningInfoPresent\":" + bothFlagsPresent
             + ",\"oldVerifierAcceptedSameSigner\":" + oldResult + ",\"fixedVerifierAcceptedSameSigner\":" + fixedResult
             + ",\"fixedVerifierAcceptedTamperedApk\":" + tamperedResult + ",\"physicalDevice\":false}");
         // The currently published baseline will eventually contain this fix too.
         // Record its behavior, but do not require a future baseline to stay broken.
-        if (!oldFlagsNull || !bothFlagsPresent || !fixedResult || tamperedResult) {
-            throw new AssertionError("API 29 certificate compatibility regression failed");
+        // 只有 API 29 存在「仅 GET_SIGNING_CERTIFICATES 时 signingInfo 为空」的系统缺陷，必须在 29 上复现它才算测到；
+        // ARM-only 旧包时升级冒烟改用 API 30 镜像（缺陷已由系统修复），此时只检查同签名接受、篡改包拒绝。
+        boolean legacyBugReproduced = sdk != 29 || oldFlagsNull;
+        if (!legacyBugReproduced || !bothFlagsPresent || !fixedResult || tamperedResult) {
+            throw new AssertionError("API " + sdk + " certificate compatibility regression failed");
         }
     }
 }
