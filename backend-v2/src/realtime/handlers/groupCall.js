@@ -31,8 +31,10 @@ const { write } = require('../../db/writer');
 const { isMember } = require('../../modules/messages/shared');
 const { guardPayload, guardId } = require('../guard');
 const { writeCallMessage } = require('../callMessage');
+const { pushGroupCallInvite } = require('../../utils/push');
 
 const MAX_PARTICIPANTS = 9;
+const GROUP_INVITE_TTL_MS = 60 * 1000; // 群邀请有效期，与四端一致；socket 邀请与推送共用同一个 expiresAt
 const MAX_CALL_DURATION_MS = 4 * 60 * 60 * 1000; // 4小时强制结束，防单用户永久独占
 const nowSec = () => Math.floor(Date.now() / 1000);
 
@@ -138,6 +140,16 @@ function endCall(io, registry, callId, reason = 'ended') {
   }, io);
 }
 
+// 群邀请推送：发出不等结果。同步异常、异步失败、函数缺失（部分测试把 utils/push mock 成
+// 不含它的对象）都只记日志，绝不影响发起方已收到的 started 回执与 socket 邀请。
+function pushInviteInBackground(args) {
+  try {
+    Promise.resolve(pushGroupCallInvite(args)).catch(e => console.warn('[groupCall] 群通话邀请推送失败:', e?.message || e));
+  } catch (e) {
+    console.warn('[groupCall] 群通话邀请推送失败:', e?.message || e);
+  }
+}
+
 function removeMember(io, registry, callId, userId) {
   const call = groupCalls.get(callId);
   if (!call || !call.members.has(userId)) return;
@@ -229,14 +241,22 @@ module.exports = function registerGroupCallHandler(io, socket, registry) {
       [callId, conversationId, userId, t]);
 
     const starter = readDb.prepare('SELECT username, avatar FROM users WHERE id=?').get(userId);
+    // socket 邀请与推送用同一个 expiresAt，客户端两条路径的过期判断完全一致
+    const expiresAt = Date.now() + GROUP_INVITE_TTL_MS;
     // 通知会话内其他成员有群通话邀请（conversationId 房间已在连接时 join）
     socket.to(conversationId).emit('group_call:invite', {
-      callId, conversationId, type: t, from: userId, expiresAt: Date.now() + 60000,
+      callId, conversationId, type: t, from: userId, expiresAt,
       fromName: starter?.username, fromAvatar: starter?.avatar,
     });
     // resumeToken（Q06 全修）：只经这条直连 ack 回给发起方自己这一条 Socket，
     // group_call:invite 群广播不带它。
     socket.emit('group_call:started', { callId, conversationId, type: t, resumeToken: created.resumeToken, ...requestMeta });
+    // 补发推送：被邀请人 App 在后台、socket 已被省电策略断开时也能收到邀请（见 utils/push.js pushGroupCallInvite）。
+    // 放在 started 之后、发出不等结果；正在任何通话中的成员（registry 占用中）不推。
+    pushInviteInBackground({
+      callId, conversationId, callType: t, fromUserId: userId, fromName: starter?.username || '', expiresAt,
+      isBusy: uid => !!registry.callForUser(uid),
+    });
   });
 
   socket.on('group_call:join', (payload) => {

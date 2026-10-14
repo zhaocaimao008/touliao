@@ -792,10 +792,132 @@ async function pushCallInvite({ toUserId, fromUserId, callerName, callType, call
       if (err.code === 'messaging/invalid-registration-token' ||
           err.code === 'messaging/registration-token-not-registered') {
         deviceOwnership.forget(row);
+      } else {
+        // 诊断日志（只加日志、不改行为）：此前其他失败被静默吞掉；用来确认 data 里的键 from
+        // （FCM 保留键）是否会让整条来电推送被拒
+        console.warn('[call-push] FCM 来电推送失败:', err.code || err.message);
       }
     }));
   }
   await Promise.allSettled(promises);
 }
 
-module.exports = { pushToUser, pushNewMessage, pushCallInvite, sendIosPush, isAllowedPushEndpoint, isInQuietHours, DEFAULT_TIMEZONE, langOf, badgeCountSql };
+// ── 群通话邀请推送 ───────────────────────────────────────────────
+const GROUP_INVITE_MAX_TTL_MS = 60 * 1000;
+const GROUP_INVITE_PUSH_PLATFORMS = new Set(['android', 'getui']);
+
+/**
+ * 群通话邀请推送（realtime/handlers/groupCall.js 在 group_call:start 成功后「发出不等结果」调用）。
+ *
+ * 背景：群邀请此前只走 socket 的 group_call:invite；Android 退到后台约 60 秒后 socket 被省电策略
+ * 断开，被邀请人就收不到。这里给群成员的 Android 设备补发推送，交给新版客户端的
+ * GroupCallInviteCoordinator（过期 / 按 callId 去重 / 忙线判断 / 前台横幅或后台「加入/忽略」通知）。
+ *
+ * 判定规则同 1v1 来电推送：不看 socket 是否在线，总是推；推送与 socket 先到者生效，客户端按 callId 去重。
+ * 跳过：发起人本人、对本群开了免打扰的成员、正在任何通话中的成员（isBusy，由调用方按 registry 判定）。
+ *
+ * 只发 Android（device_tokens 里平台为 android 的走 FCM，为 getui 的走个推）：
+ *  - iOS 不发：iOS 没有群邀请推送的处理代码、没有 Notification Service Extension，通话结束后通知撤不掉，
+ *    点开也加入不了（服务端没有查询进行中群通话的接口）；载荷带 callId 又缺 conversationId 时还会被
+ *    AppDelegate 误当成 1v1 来电；ios 平台的 FCM→APNs 转发本来就失败。iOS 行为与改动前完全一致。
+ *  - Web / 桌面不发：不走 pushToUser，也不碰 push_subscriptions。
+ *  - 不走 pushToUser：它发的是 notification+data，Android 在后台时由系统托盘直接展示，
+ *    onMessageReceived 收不到，交不到协调器手里。这里 FCM 一律 data-only、高优先级。
+ *  - 不用键名 from：FCM 保留键，发起人 id 放在 fromId。
+ *  - 同一登录会话已有 android(FCM) 令牌且 FCM 已配置时不再发个推，防同一台设备弹两次（同 pushCallInvite）。
+ *
+ * 旧版 Android 兼容：载荷沿用通用键 recipientId，另带 senderName/body（个推为 title/body）和
+ * messageId=callId。旧版不认识 type，会按普通消息分支展示成该群的一条可读通知
+ * （「群名 / X 邀请你加入群语音通话」），按 conversationId + messageId 去重，点击进群；不会崩溃或乱码。
+ *
+ * expiresAt 与同一次 socket group_call:invite 的 expiresAt 相同；剩余有效期 ≤ 0 时整次不发，
+ * FCM ttl 与个推 ttl 都跟随剩余有效期，过期的邀请不会在设备上线后补投。
+ * 所有数据库查询都在第一个 await 之前同步完成（发起时刻的成员 / 免打扰 / 忙线快照）。
+ */
+async function pushGroupCallInvite({ callId, conversationId, callType, fromUserId, fromName, expiresAt, isBusy } = {}) {
+  const exp = Number(expiresAt);
+  const remainingMs = Math.min(GROUP_INVITE_MAX_TTL_MS, Math.floor(exp - Date.now()));
+  if (!callId || !conversationId || !Number.isFinite(exp) || !(remainingMs > 0)) return;
+  const fromId = String(fromUserId || '');
+  // 本群所有非发起人、未对本群免打扰的成员的设备令牌，连同各自的推送语言（一条查询取回）
+  const rows = db.prepare(`
+    SELECT dt.*, us.lang AS invite_lang
+    FROM conversation_members cm
+    JOIN device_tokens dt ON dt.user_id = cm.user_id
+    LEFT JOIN conversation_settings cs ON cs.user_id = cm.user_id AND cs.conversation_id = cm.conversation_id
+    LEFT JOIN user_settings us ON us.user_id = cm.user_id
+    WHERE cm.conversation_id = ? AND cm.user_id != ? AND COALESCE(cs.muted, 0) = 0
+  `).all(conversationId, fromId);
+  // 忙线判定按用户缓存：同一个人多台设备只问一次
+  const busyCache = new Map();
+  const busy = uid => {
+    if (typeof isBusy !== 'function') return false;
+    if (!busyCache.has(uid)) busyCache.set(uid, !!isBusy(uid));
+    return busyCache.get(uid);
+  };
+  const targets = rows.filter(row => GROUP_INVITE_PUSH_PLATFORMS.has(row.platform) && !busy(row.user_id));
+  if (!targets.length) return;
+  const groupName = String(db.prepare('SELECT name FROM conversations WHERE id=?').get(conversationId)?.name || '');
+  const isVideo = callType === 'video';
+  const t = isVideo ? 'video' : 'audio';
+  const fromNameStr = String(fromName || '');
+  // FCM 优先（防同设备双弹）：同一登录会话同时注册了 android + getui 时只发 FCM（同 pushCallInvite）
+  const androidSessions = new Set(targets.filter(r => r.platform === 'android').map(r => r.session_id).filter(Boolean));
+  const promises = [];
+  for (const row of targets) {
+    // 文案按【被邀请人】语言渲染
+    const lang = pushI18n.normalizeLang(row.invite_lang);
+    const title = groupName || pushI18n.t(lang, 'groupCall.title');
+    const body = pushI18n.tf(lang, isVideo ? 'groupCall.video' : 'groupCall.audio', {
+      name: fromNameStr || pushI18n.t(lang, 'groupCall.someone'),
+    });
+    const fields = {
+      type: 'group_call_invite',
+      recipientId: String(row.user_id),
+      callId: String(callId),
+      conversationId: String(conversationId),
+      callType: t,
+      fromId,
+      fromName: fromNameStr,
+      groupName,
+      expiresAt: String(exp),
+      messageId: String(callId),
+    };
+    if (row.platform === 'getui') {
+      if (!getuiPush.isEnabled()) continue;
+      if (firebaseAdmin && row.session_id && androidSessions.has(row.session_id)) continue;
+      promises.push((async () => {
+        try {
+          await getuiPush.pushGroupCallInviteToCid(row.token, {
+            ...fields, title, body,
+            isCurrent: () => deviceOwnership.isCurrent(row),
+          });
+        } catch (err) {
+          console.warn(`[group-call-push] 个推群邀请失败 user=${row.user_id}: ${err?.message || err}`);
+        }
+      })());
+      continue;
+    }
+    if (!firebaseAdmin) continue;   // FCM 未配置：android 令牌无从下发
+    promises.push((async () => {
+      try {
+        // data-only + 高优先级：保证 App 在后台/被杀时 onMessageReceived 也会被调起；值全部为字符串
+        await firebaseAdmin.messaging().send({
+          token: row.token,
+          data: { ...fields, senderName: title, body },
+          android: { priority: 'high', ttl: remainingMs },
+        });
+      } catch (err) {
+        if (err?.code === 'messaging/invalid-registration-token' ||
+            err?.code === 'messaging/registration-token-not-registered') {
+          deviceOwnership.forget(row);
+        } else {
+          console.warn('[group-call-push] FCM 群邀请失败:', err?.code || err?.message || err);
+        }
+      }
+    })());
+  }
+  await Promise.allSettled(promises);
+}
+
+module.exports = { pushToUser, pushNewMessage, pushCallInvite, pushGroupCallInvite, sendIosPush, isAllowedPushEndpoint, isInQuietHours, DEFAULT_TIMEZONE, langOf, badgeCountSql };
