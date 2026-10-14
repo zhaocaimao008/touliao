@@ -145,6 +145,19 @@ jobs:
           # 安装的是与正式包 dex/资源/签名逐项一致、仅额外带 lib/x86_64 的冒烟包（见上一步校验）
           script: bash scripts/android-upgrade-smoke.sh android-release-evidence/previous.apk ${{ runner.temp }}/smoke-apk/app-release-x86_64.apk
 
+      # 签名兼容探针的 API 29 专项回归（77bf376a：Android 10 上仅 GET_SIGNING_CERTIFICATES 时 signingInfo 为空）。
+      # 旧包 ARM-only 时上面的升级冒烟走 API 30 镜像，那里系统已修复该缺陷、测不到；这里另起 API 29 x86_64 镜像单独跑探针。
+      # 探针只用 DexClassLoader 加载 APK 里的 dex（不带原生库路径），ARM-only 的 APK 在 x86_64 上同样可跑。
+      - name: API 29 signature compatibility probe
+        if: steps.smoke_image.outputs.api != '29'
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 29
+          arch: x86_64
+          target: default
+          disable-animations: true
+          script: bash scripts/legacy-update/run-signature-compat-probe.sh android-release-evidence/previous.apk ${{ runner.temp }}/smoke-apk/app-release-x86_64.apk android-startup-evidence/api29
+
       - name: Upload startup evidence
         if: always()
         uses: actions/upload-artifact@v4

@@ -12,15 +12,31 @@ class ReviewEvidenceTests(unittest.TestCase):
             for name in review.P2_IMAGES | {f'baseline-{i}.png' for i in range(60)}:
                 (images / name).touch()
             log = root / 'instrumentation.txt'
+            (root / 'call-regression.txt').write_text(f'OK ({review.EXPECTED_CALL_TESTS} tests)')
             log.write_text('OK (3 tests)')
             with self.assertRaises(AssertionError): review.validate(root)
             log.write_text('OK (4 tests)')
-            self.assertEqual(review.validate(root)['testsPassed'], 4)
+            result = review.validate(root)
+            self.assertEqual(result['testsPassed'], 4)
+            self.assertEqual(result['callRegressionTestsPassed'], review.EXPECTED_CALL_TESTS)
             (images / 'p2-component-states-dark.png').unlink()
             with self.assertRaises(AssertionError): review.validate(root)
     def test_failed_instrumentation_is_rejected(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory); (root / 'instrumentation.txt').write_text('FAILURES!!! Tests run: 4, Failures: 1')
             with self.assertRaises(AssertionError): review.validate(root)
+    def test_call_regression_failure_or_shortfall_is_rejected(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory); images = root / 'NativeUiReview'; images.mkdir()
+            for name in review.P2_IMAGES | {f'baseline-{i}.png' for i in range(60)}:
+                (images / name).touch()
+            (root / 'instrumentation.txt').write_text('OK (4 tests)')
+            call = root / 'call-regression.txt'
+            call.write_text('FAILURES!!! Tests run: 7, Failures: 1')
+            with self.assertRaises(AssertionError): review.validate(root)
+            call.write_text('OK (5 tests)')
+            with self.assertRaises(AssertionError): review.validate(root)
+            call.write_text(f'OK ({review.EXPECTED_CALL_TESTS} tests)')
+            self.assertEqual(review.validate(root)['callRegressionTestsPassed'], review.EXPECTED_CALL_TESTS)
 
 if __name__ == '__main__': unittest.main()

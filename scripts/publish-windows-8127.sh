@@ -10,7 +10,9 @@ esac
 installer="touliao-$version-setup.exe"
 evidence=windows-publication-evidence
 mkdir -p "$evidence"
-test "${DEPLOY_HOST:?}" = 13.213.234.231
+# 只允许 deploy/ssh_known_hosts 里固定的主机（与 publish-android-release.sh 一致）；原先写死已退役的 13.213.234.231
+pinned_hosts=$(awk '!/^[[:space:]]*(#|$)/ {print $1}' "$GITHUB_WORKSPACE/deploy/ssh_known_hosts" | tr ',' '\n')
+grep -qxF -- "${DEPLOY_HOST:?}" <<<"$pinned_hosts" || { echo "::error::DEPLOY_HOST is not pinned in deploy/ssh_known_hosts" >&2; exit 1; }
 test -n "${DEPLOY_USER:?}"
 test -n "${DEPLOY_SSH_KEY:?}"
 run_id="${GITHUB_RUN_ID:?}-${GITHUB_RUN_ATTEMPT:?}"

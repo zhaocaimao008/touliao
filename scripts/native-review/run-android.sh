@@ -15,5 +15,8 @@ git rev-parse HEAD > native-review/review-commit.txt
 adb shell am instrument -w -e class com.touliao.app.review.NativeUIReviewTest \
   com.touliao.app.test/com.touliao.app.review.ReviewRunner | tee native-review/instrumentation.txt
 adb pull /sdcard/Android/data/com.touliao.app/files/NativeUiReview native-review/ || true
+# 通话与气泡手势回归（#120 / #121）：截图收集完之后单独跑一次，结果另存，由 verify-android.py 要求全部通过
+adb shell am instrument -w -e class com.touliao.app.feature.chat.BubbleGestureTest,com.touliao.app.review.CallMinimizedBubbleTest,com.touliao.app.review.CallActivityManifestTest,com.touliao.app.review.GroupCallMinimizeTest \
+  com.touliao.app.test/com.touliao.app.review.ReviewRunner | tee native-review/call-regression.txt
 adb logcat -d > native-review/logcat.txt || true
 python3 ../scripts/native-review/verify-android.py
