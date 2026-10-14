@@ -3,8 +3,13 @@ set -euo pipefail
 previous=${1:?Old signed APK required}
 release=${2:?Candidate signed APK required}
 output=${3:?Evidence directory required}
-test "$(adb shell getprop ro.kernel.qemu | tr -d '\r')" = 1
-test "$(adb shell getprop ro.build.version.sdk | tr -d '\r')" = 29
+fail() { echo "::error::signature compat probe: $*" >&2; exit 1; }
+test "$(adb shell getprop ro.kernel.qemu | tr -d '\r')" = 1 || fail 'not running on an emulator'
+# 升级冒烟按线上旧包 ABI 选镜像（android-release.yml）：带 x86_64 的旧包走 API 29，ARM-only 旧包走 API 30
+# 带 ARM 翻译的镜像。此前这里写死 = 29，API 30 时静默退出、整次发版失败。探针只用 app_process + 反射，29+ 均可。
+sdk=$(adb shell getprop ro.build.version.sdk | tr -d '\r')
+[[ "$sdk" =~ ^[0-9]+$ ]] && [ "$sdk" -ge 29 ] || fail "emulator API level $sdk is below 29"
+echo "signature compat probe on emulator API $sdk"
 mkdir -p "$output/compat-probe/classes"
 javac -source 8 -target 8 -cp "$ANDROID_HOME/platforms/android-34/android.jar" -d "$output/compat-probe/classes" scripts/legacy-update/ApkSignatureCompatProbe.java
 jar cf "$output/compat-probe/classes.jar" -C "$output/compat-probe/classes" .
