@@ -42,6 +42,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -75,11 +76,15 @@ fun ConversationListScreen(
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val socketStatus by viewModel.socketStatus.collectAsStateWithLifecycle()
     var clearTarget by remember { mutableStateOf<Conversation?>(null) }
-    // 归档视图开关（纯展示态）：主列表/归档列表按 archived 标记本地分流
-    var showArchived by remember { mutableStateOf(false) }
+    // 归档视图开关（纯展示态）：主列表/归档列表按 archived 标记本地分流。
+    // rememberSaveable：从归档会话进聊天页再返回时仍停在归档视图（remember 会随导航丢失）
+    var showArchived by rememberSaveable { mutableStateOf(false) }
     val archivedList = remember(state.conversations) { archivedConversations(state.conversations) }
     val activeList = remember(state.conversations) { activeConversations(state.conversations) }
     val archiveUnread = remember(state.conversations) { archiveUnreadTotal(state.conversations) }
+
+    // 归档视图里按系统返回（含手势返回）先回主列表；会话列表是起始页，不拦截就直接退出 App
+    androidx.activity.compose.BackHandler(enabled = showArchived && state.conversations.isNotEmpty()) { showArchived = false }
 
     // 从聊天页返回时刷新草稿(显示/清除「[草稿]」前缀)
     LifecycleResumeEffect(Unit) {
@@ -98,6 +103,13 @@ fun ConversationListScreen(
             android.content.pm.PackageManager.PERMISSION_GRANTED
         ) {
             notifPermLauncher.launch(android.Manifest.permission.POST_NOTIFICATIONS)
+        }
+    }
+
+    // 一次性提示（如双向清空失败、群聊无权限）：列表非空时 error 字段不显示，改用 Toast 透出
+    androidx.compose.runtime.LaunchedEffect(Unit) {
+        viewModel.toasts.collect { msg ->
+            com.touliao.app.ui.components.TouliaoFeedback.show(context, msg, com.touliao.app.ui.components.FeedbackKind.ERROR)
         }
     }
 
@@ -273,12 +285,17 @@ fun ConversationListScreen(
         }
     }
 
+    // 双向清空确认：私聊会连对方的记录一起删，文案照搬 Web（privateChat.confirmClearTemplate），确认按钮用错误色
     clearTarget?.let { target ->
         AlertDialog(
             onDismissRequest = { clearTarget = null },
-            title = { Text("清空聊天记录") },
-            text = { Text("确认清空与「${target.name.ifBlank { "该会话" }}」的聊天记录？此操作不可恢复。") },
-            confirmButton = { TextButton(onClick = { viewModel.clearMessages(target); clearTarget = null }) { Text("清空", color = com.touliao.app.ui.theme.VxinError) } },
+            title = { Text(clearMenuLabel(target.type) ?: "清空聊天记录") },
+            text = { Text(clearConfirmText(target)) },
+            confirmButton = {
+                TextButton(onClick = { viewModel.clearMessages(target); clearTarget = null }) {
+                    Text(if (target.type == "filehelper") "清空" else "删除", color = MaterialTheme.colorScheme.error)
+                }
+            },
             dismissButton = { TextButton(onClick = { clearTarget = null }) { Text("取消") } },
         )
     }
@@ -408,7 +425,10 @@ internal fun ConversationRow(
             DropdownMenuItem(text = { Text(if (conv.pinned == 1) "取消置顶" else "置顶") }, onClick = { onTogglePin(); menuOpen = false })
             DropdownMenuItem(text = { Text(if (conv.muted == 1) "取消免打扰" else "消息免打扰") }, onClick = { onToggleMute(); menuOpen = false })
             DropdownMenuItem(text = { Text(if (conv.archived == 1) "取消归档" else "归档该会话") }, onClick = { onToggleArchive(); menuOpen = false })
-            DropdownMenuItem(text = { Text("清空聊天记录", color = com.touliao.app.ui.theme.VxinError) }, onClick = { onClear(); menuOpen = false })
+            // 该接口是双向清空；群聊只有群主/管理员能清而列表拿不到角色，群聊不显示此项
+            clearMenuLabel(conv.type)?.let { label ->
+                DropdownMenuItem(text = { Text(label, color = com.touliao.app.ui.theme.VxinError) }, onClick = { onClear(); menuOpen = false })
+            }
         }
     }
 }

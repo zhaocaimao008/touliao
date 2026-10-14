@@ -61,11 +61,11 @@ import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
-import coil.compose.SubcomposeAsyncImage
 import com.touliao.app.core.util.formatChatTime
 import com.touliao.app.data.model.Moment
 import com.touliao.app.data.model.MomentComment
 import com.touliao.app.data.model.MomentNotification
+import com.touliao.app.ui.components.ImageThumbnail
 import com.touliao.app.ui.components.InitialAvatar
 import com.touliao.app.ui.theme.VxinBrand
 import com.touliao.app.ui.theme.VxinTextSecondary
@@ -384,12 +384,16 @@ private fun MomentCard(
 
 @Composable
 private fun ImageGrid(images: List<String>, resolveUrl: (String?) -> String?, onImageClick: (Int) -> Unit) {
-    // 单图：限制最大尺寸不铺满（对齐微信），保留原图比例
+    // 单图和九宫格都只加载服务端缩略图（长边 400px 的 <uuid>_thumb.webp），失败回退原图；
+    // 点开全屏画廊（ImageGallery）仍是原图。
+    // 单图：限制最大尺寸不铺满（对齐微信），保留原图比例；scaleToBounds 让缩略图按比例撑满最大尺寸，不因像素少而缩小
     if (images.size == 1) {
-        AsyncImage(
-            model = resolveUrl(images[0]),
+        ImageThumbnail(
+            rawUrl = images[0],
+            resolveUrl = resolveUrl,
             contentDescription = "图片",
             contentScale = ContentScale.Fit,
+            scaleToBounds = true,
             modifier = Modifier
                 .widthIn(max = 220.dp)
                 .heightIn(max = 280.dp)
@@ -404,18 +408,18 @@ private fun ImageGrid(images: List<String>, resolveUrl: (String?) -> String?, on
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
             rowImgs.forEachIndexed { i, img ->
                 val index = rowIdx * cols + i
-                SubcomposeAsyncImage(
-                    model = resolveUrl(img),
+                ImageThumbnail(
+                    rawUrl = img,
+                    resolveUrl = resolveUrl,
                     contentDescription = "图片",
                     contentScale = ContentScale.Crop,
                     modifier = Modifier
                         .weight(1f)
                         .aspectRatio(1f)
                         .clip(RoundedCornerShape(com.touliao.app.ui.theme.VxinRadius.sm))
+                        // 加载中/失败纯色灰底占位（替代开销较大的 SubcomposeAsyncImage），避免九宫格空白闪烁
+                        .background(MaterialTheme.colorScheme.surfaceVariant)
                         .clickable { onImageClick(index) },
-                    // 加载中/失败灰底占位，避免九宫格空白闪烁
-                    loading = { Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.surfaceVariant)) },
-                    error = { Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.surfaceVariant)) },
                 )
             }
             repeat(cols - rowImgs.size) { Spacer(Modifier.weight(1f)) }

@@ -98,6 +98,12 @@
             android:exported="false"
             android:foregroundServiceType="microphone|camera" />
 
+        <!-- 来电通知「拒绝」：通知发显式广播到这里直接拒接，不拉起 MainActivity（锁屏上无需先解锁）。
+             不导出，外部 App 无法伪造拒接。 -->
+        <receiver
+            android:name=".core.push.CallDeclineReceiver"
+            android:exported="false" />
+
         <!-- 全屏截图前台服务（MediaProjection）。type 必须为 mediaProjection（Android 14+ 强制）。 -->
         <service
             android:name=".core.capture.ScreenCaptureService"

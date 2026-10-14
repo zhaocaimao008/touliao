@@ -11,10 +11,13 @@ import com.touliao.app.core.util.MediaUrlResolver
 import com.touliao.app.data.model.Conversation
 import com.touliao.app.data.repository.ChatRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
@@ -51,6 +54,11 @@ class ConversationListViewModel @Inject constructor(
     private val _uiState = MutableStateFlow(ConversationListUiState(loading = true, conversations = accountStore.cachedConversations(serverConfig.baseUrl)))
     val uiState: StateFlow<ConversationListUiState> = _uiState.asStateFlow()
 
+    // 一次性提示（操作失败等）：error 字段只在列表为空时显示，列表非空时的失败要另走 Toast。
+    // 用 Channel 而非 SharedFlow：页面暂时不在前台时提示不丢，回到列表再弹。
+    private val _toasts = Channel<String>(Channel.BUFFERED)
+    val toasts: Flow<String> = _toasts.receiveAsFlow()
+
     init {
         refresh()
         observeIncoming()
@@ -60,6 +68,17 @@ class ConversationListViewModel @Inject constructor(
         observeUnreadCleared()
         observeNewConversation()
         observeGroupEvents()
+        observeConversationCleared()
+    }
+
+    /** 会话被双向清空（本端/其他端/对方操作，服务端广播 conversation_messages_cleared）→ 清掉列表预览，
+     *  否则对方清空后本端仍显示已删的内容，直到下次整表刷新 */
+    private fun observeConversationCleared() {
+        viewModelScope.launch {
+            chatRepository.conversationClearedEvents.collect { convId ->
+                _uiState.update { s -> s.copy(conversations = clearConversationPreview(s.conversations, convId)) }
+            }
+        }
     }
 
     /** 被踢/解散 → 从列表移除；群资料变更 → 刷新 */
@@ -162,13 +181,14 @@ class ConversationListViewModel @Inject constructor(
         }
     }
 
+    /** 双向清空（私聊对方的记录也会被删，群聊仅群主/管理员可用）；失败用 Toast 提示（如群聊普通成员 403） */
     fun clearMessages(conv: Conversation) {
         viewModelScope.launch {
             runCatching { chatRepository.clearMessages(conv.id) }
                 .onSuccess {
-                    _uiState.update { s -> s.copy(conversations = s.conversations.map { if (it.id == conv.id) it.copy(lastMessage = null, lastMessageType = null) else it }) }
+                    _uiState.update { s -> s.copy(conversations = clearConversationPreview(s.conversations, conv.id)) }
                 }
-                .onFailure { e -> _uiState.update { it.copy(error = e.toUserMessage("清空失败")) } }
+                .onFailure { e -> _toasts.trySend("清空失败：${e.toUserMessage("请稍后重试")}") }
         }
     }
 
@@ -199,7 +219,8 @@ class ConversationListViewModel @Inject constructor(
         _uiState.update { it.copy(drafts = drafts) }
     }
 
-    /** 新消息到达：就地更新对应会话的最后消息/时间/未读，并置顶。
+    /** 新消息到达：就地更新对应会话的最后消息/时间/未读，并移到所在分组的最前（置顶会话在最前，
+     *  非置顶会话排在所有置顶会话之后，见 [reorderAfterIncoming]）。
      *  归档会话只原地刷新 summary/unread（保留 archived 标记），不移回主列表也不置顶——
      *  主列表/归档列表始终按 archived 标记分流，对齐 Web archiveConversations 语义。 */
     private fun observeIncoming() {
@@ -209,10 +230,7 @@ class ConversationListViewModel @Inject constructor(
                 // 否则要等下次下拉/重连才出现（与 Web onMsg 找不到会话时 fetchConvs 同口径）
                 if (_uiState.value.conversations.none { it.id == msg.conversation_id }) { refresh(); return@collect }
                 _uiState.update { state ->
-                    val list = state.conversations.toMutableList()
-                    val idx = list.indexOfFirst { it.id == msg.conversation_id }
-                    if (idx < 0) return@update state
-                    val old = list.removeAt(idx)
+                    val old = state.conversations.firstOrNull { it.id == msg.conversation_id } ?: return@update state
                     val updated = old.copy(
                         // 阅后即焚：预览不透出原文（与服务端列表/推送同口径）
                         lastMessage = when {
@@ -226,8 +244,8 @@ class ConversationListViewModel @Inject constructor(
                         lastSenderName = msg.senderName.ifBlank { old.lastSenderName },
                         unreadCount = if (msg.sender_id != myId && msg.type != "system") old.unreadCount + 1 else old.unreadCount,  // 群系统提示不计未读
                     )
-                    if (updated.archived == 1) list.add(idx, updated) else list.add(0, updated)
-                    state.copy(conversations = list)
+                    // 原来一律插到第 0 位，普通会话来消息会排到置顶会话前面；改为复现服务端「置顶在前」规则
+                    state.copy(conversations = reorderAfterIncoming(state.conversations, updated))
                 }
             }
         }
