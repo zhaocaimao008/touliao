@@ -24,7 +24,7 @@ jest.mock('../src/realtime/presence', () => ({
   cleanupUser: jest.fn(),
   onlineUserIdSet: jest.fn(() => new Set()),
 }));
-jest.mock('../src/utils/push', () => ({ pushCallInvite: jest.fn(() => Promise.resolve()) }));
+jest.mock('../src/utils/push', () => ({ pushCallInvite: jest.fn(() => Promise.resolve()), pushGroupCallInvite: jest.fn(() => Promise.resolve()) }));
 
 const createRegistryFactory = require('../src/realtime/callSessionRegistry');
 const registerCallHandler = require('../src/realtime/handlers/call');

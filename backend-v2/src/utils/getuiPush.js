@@ -251,4 +251,100 @@ async function pushCallToCid(cid, { callId, from, callerName, callType, lang, re
   return { status, json, cid };
 }
 
-module.exports = { isEnabled, pushToCid, pushCallToCid, getToken, sendPushWithRetry, PUSH_MAX_ATTEMPTS };
+// intent extra 值编码：encodeURIComponent 遇到孤立代理项（如被截断的 emoji）会抛 URIError，
+// 先替换成 U+FFFD，保证一个怪名字不会让整条推送失败。
+function encIntentValue(v) {
+  return encodeURIComponent(String(v ?? '').replace(/[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/g, '\uFFFD'));
+}
+
+/**
+ * 群通话邀请推送（push.js 的 pushGroupCallInvite 调用；只发给 platform 为 getui 的设备）：
+ *  - 透传 transmission type='group_call_invite'：App 进程活着时 TouliaoGeTuiService 收到，
+ *    交给 GroupCallInviteCoordinator（过期 / 按 callId 去重 / 忙线判断 / 前台横幅或后台「加入/忽略」通知）。
+ *    旧版客户端不认识这个 type，会按普通消息分支用 title/body 展示成该群的一条可读通知，
+ *    并按 conversationId + messageId(=callId) 去重。
+ *  - 厂商通道 ups.notification：App 被杀时由厂商系统展示，点击进 MainActivity。intent 只带
+ *    S.recipientId / S.conversationId / S.groupCall* 等 extra：新版据此进群并恢复邀请横幅
+ *    （过期则只进群）；旧版只认 conversationId，进群。刻意不带 S.callId / S.callFrom——
+ *    旧版 MainActivity 只要 intent 带 callId 就当成 1v1 来电。
+ *  - notify_id 与消息通知同算法（notificationId），用户读这个群时客户端会一并撤掉这条通知。
+ *  - request_id 由 cid + 收件人 + callId 派生：重试、重复调用都幂等，个推不会重复下发。
+ *  - ttl 跟随邀请剩余有效期，夹在 1~60 秒：过期的邀请不在设备上线后补投。
+ */
+async function pushGroupCallInviteToCid(cid, { recipientId, callId, conversationId, callType, fromId, fromName, groupName, expiresAt, title, body, isCurrent }) {
+  const token = await getToken();
+  const t = callType === 'video' ? 'video' : 'audio';
+  const exp = Number(expiresAt);
+  // 透传：恰好 12 个键、值全部为字符串（与 FCM data 同名字段语义一致；title/body 对应 FCM 的 senderName/body）
+  const transmissionPayload = JSON.stringify({
+    title: String(title || ''),
+    body: String(body || ''),
+    type: 'group_call_invite',
+    recipientId: String(recipientId || ''),
+    callId: String(callId || ''),
+    conversationId: String(conversationId || ''),
+    callType: t,
+    fromId: String(fromId || ''),
+    fromName: String(fromName || ''),
+    groupName: String(groupName || ''),
+    expiresAt: String(exp),
+    messageId: String(callId || ''),
+  });
+  // fromName 按字符（码点）截前 32 个，避免把 emoji 从中间切开
+  const shortFromName = Array.from(String(fromName || '')).slice(0, 32).join('');
+  const intent = 'intent:#Intent;action=android.intent.action.MAIN;category=android.intent.category.LAUNCHER;'
+    + 'package=com.touliao.app;component=com.touliao.app/com.touliao.app.MainActivity;'
+    + `S.recipientId=${encIntentValue(recipientId)};`
+    + `S.conversationId=${encIntentValue(conversationId)};`
+    + `S.groupCallId=${encIntentValue(callId)};`
+    + `S.groupCallType=${t};`
+    + `S.groupCallFromId=${encIntentValue(fromId)};`
+    + `S.groupCallFromName=${encIntentValue(shortFromName)};`
+    + `S.groupInviteExpiresAt=${exp};`
+    + 'end';
+  const message = {
+    request_id: sha256(`${cid}:${recipientId}:group_call_invite:${callId}`).slice(0, 32),
+    settings: { ttl: Math.min(60000, Math.max(1000, Math.floor(exp - Date.now()))) },
+    audience: { cid: [cid] },
+    push_message: { transmission: transmissionPayload },
+    push_channel: {
+      android: {
+        ups: {
+          notification: {
+            title, body,
+            click_type: 'intent',
+            notify_id: notificationId(recipientId, conversationId),
+            intent,
+          },
+          // 走消息渠道（有声、不振动），不占用来电渠道：邀请不是 1v1 来电，不该全屏/持续响铃
+          options: {
+            HW: {
+              '/message/android/notification/importance': 'NORMAL',
+              '/message/android/notification/channel_id': messageChannel(true, false),
+            },
+            XM: { '/extra.notify_effect': '1' },
+          },
+        },
+      },
+    },
+  };
+  // 同一个 message 对象在重试与刷新 token 后的重发中复用，request_id 不变（个推按它幂等去重）
+  let result = await sendPushWithRetry('/push/single/cid', token, message, { shouldSend: isCurrent });
+  // 个推 auth token 可能先于本地缓存过期：刷新一次再发（同 pushToCid），不丢弃设备 CID
+  if (result?.json?.code === 10001 && (!isCurrent || isCurrent())) {
+    if (_cachedToken === token) { _cachedToken = null; _tokenExpireAt = 0; }
+    const refreshed = await getToken();
+    result = await sendPushWithRetry('/push/single/cid', refreshed, message, { shouldSend: isCurrent });
+  }
+  // 发送前发现令牌已换绑到别的登录会话：不是失败，不发也不报错
+  if (result?.skipped) return { ...result, cid };
+  const status = result?.status;
+  const json = result?.json || {};
+  // HTTP 200 但业务码非 0（cid 过期 / 厂商 Key 未配置等）也算失败：抛出让 push.js 的 catch 打进日志
+  if (status !== 200 || json.code !== 0) {
+    throw new Error(`个推群通话邀请推送失败 status=${status} ${JSON.stringify(json)}`);
+  }
+  return { status, json, cid };
+}
+
+module.exports = { isEnabled, pushToCid, pushCallToCid, pushGroupCallInviteToCid, getToken, sendPushWithRetry, PUSH_MAX_ATTEMPTS };

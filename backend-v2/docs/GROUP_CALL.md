@@ -14,7 +14,7 @@ ICE 配置复用 1:1 通话的 `GET /api/turn/credentials`（已动态化，见 
 |------|------|---------|------|
 | C→S | `group_call:start` | `{conversationId, type}` | 发起。type=audio\|video。仅群会话 |
 | S→发起者 | `group_call:started` | `{callId, conversationId, type}` | 发起成功，自己进入通话 |
-| S→群其他成员 | `group_call:invite` | `{callId, conversationId, type, from, fromName, fromAvatar}` | 来电邀请，弹接听 UI |
+| S→群其他成员 | `group_call:invite` | `{callId, conversationId, type, from, fromName, fromAvatar, expiresAt}` | 来电邀请，弹接听 UI。expiresAt=发起时刻+60s（毫秒时间戳）；Android 成员另收推送，见下文「群邀请推送」 |
 | C→S | `group_call:join` | `{callId}` | 接听/加入 |
 | S→加入者 | `group_call:peers` | `{callId, type, peers:[userId...]}` | 既有成员列表。加入者作为 **answerer**，等这些人的 offer |
 | S→既有成员 | `group_call:peer_joined` | `{callId, userId}` | 新成员加入 → 你向其 `createOffer` |
@@ -25,7 +25,7 @@ ICE 配置复用 1:1 通话的 `GET /api/turn/credentials`（已动态化，见 
 | S→其余成员 | `group_call:peer_left` | `{callId, userId}` | 某人离开 → 关闭对应 PC、移除画面 |
 | S→发起/加入者 | `group_call:error` | `{reason}` | reason=busy\|not_group\|not_found\|full |
 
-断线由后端按 `leave` 自动处理（会广播 `peer_left`）。
+断线由后端按 `leave` 自动处理（会广播 `peer_left`）。群邀请推送：`group_call:start` 成功后，后端给群内非发起人、未对本群免打扰、不在任何通话中的成员的 Android 设备（FCM data-only / 个推透传 + 厂商通道）补发 `type=group_call_invite` 推送（`utils/push.js` 的 `pushGroupCallInvite`），字段与 socket 邀请同义（发起人 id 用 `fromId`，避开 FCM 保留键 `from`），`expiresAt` 与 socket 邀请相同；iOS / Web 不发。客户端按 callId 与 socket 邀请去重。
 
 ## 防 glare 约定（关键）
 
