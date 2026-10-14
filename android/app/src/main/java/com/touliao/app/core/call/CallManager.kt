@@ -77,6 +77,9 @@ class CallManager @Inject constructor(
     private val iceProvider: IceServerProvider,
     private val userApi: com.touliao.app.data.api.UserApi,
     private val notificationHelper: com.touliao.app.core.push.NotificationHelper,
+    // 只读群通话状态（群通话中来 1v1 回忙线）。用 Lazy：不与 GroupCallManager 的初始化顺序耦合，
+    // 首次来电时才取；这个方向没有反向依赖（GroupCallManager 的构造参数里没有 CallManager）。
+    private val groupCallManager: dagger.Lazy<GroupCallManager>,
     private val audioRouter: CallAudioRouter,
     private val webRtc: WebRtcFactoryHolder,
     private val qualityReporter: CallQualityReporter,
@@ -186,6 +189,8 @@ class CallManager @Inject constructor(
     // Q06 全修：resume 时必须证明持有它，光凭 callId+userId 不再够（同账号旁观设备
     // 不能在断线宽限期内抢注这通电话）。request/accept 的 ack 里签发，cleanup() 清空。
     @Volatile private var participatingResumeToken: String? = null
+    // 群通话中已回过忙线的 1v1 来电 callId：推送与 socket 重复到达、群通话刚结束时迟到的同一通都只处理一次
+    private val groupBusyCallIds = RecentIds(16)
     private var audioSource: org.webrtc.AudioSource? = null
     private var videoSource: VideoSource? = null
     private var localAudioTrack: AudioTrack? = null
@@ -577,6 +582,9 @@ class CallManager @Inject constructor(
      */
     fun incomingFromPush(from: String, callType: String, callerName: String, callId: String = "") {
         if (from.isEmpty()) return
+        // 群通话进行中：不进 INCOMING 盖住群通话，回忙线 + 不响铃的未接提示（FCM 前台、CallActivity、
+        // CallActionReceiver 接听/拒绝、MainActivity 厂商通道点击都经过这里）
+        if (rejectIfInGroupCall(from, callType, callerName, callId)) return
         // 原子读-改-写（P2-3）：stage 判断与写入放同一临界区，防 Default 线程 socket collect 与
         // 主线程 push 处理 TOCTOU；已展示同 peer 来电时仅升级 callId（防过期通知带旧 id 应答被服务端丢弃）
         val wasIdle = _state.value.stage == CallStage.IDLE || _state.value.stage == CallStage.ENDED
@@ -606,6 +614,27 @@ class CallManager @Inject constructor(
                 (callId.isEmpty() || s.callId.isEmpty() || s.callId == callId)
             if (!sameIncoming && !sameAccepted) socketManager.emitCallResponse(from, false, callId, busy = true)
         }
+    }
+
+    /**
+     * 群通话进行中（GroupCallManager 连接中/已接通、1v1 空闲）又来 1v1：不进 INCOMING、不弹全屏来电，
+     * 回忙线（拿得到主叫 id 时）+ 不响铃的"未接来电（你正在群通话中）"。返回 true = 已处理，调用方不得再进来电或弹来电通知。
+     * 只在 1v1 空闲时生效：1v1 不空闲时仍走原忙线分支。任意线程可调用。
+     */
+    fun rejectIfInGroupCall(from: String, callType: String, callerName: String, callId: String): Boolean {
+        if (from.isEmpty() && callId.isEmpty()) return false
+        // 已为这通回过忙线：推送与 socket 重复到达，或群通话刚结束时迟到的同一通
+        if (callId.isNotEmpty() && callId in groupBusyCallIds) return true
+        if (!CallUiRules.rejectP2pForGroup(_state.value.stage, groupCallManager.get().state.value.stage)) return false
+        if (from.isNotEmpty()) {
+            // 真正回了忙线才记 callId；推送里主叫 id 缺失时只压住界面，留给随后的 socket 来电回忙线
+            if (callId.isNotEmpty() && !groupBusyCallIds.add(callId)) return true
+            socketManager.emitCallResponse(from, false, callId, busy = true)
+        }
+        // 在 socket 收集协程或推送线程里跑：通知调用一律吞异常，异常外抛会让 call:incoming 监听永久退出
+        runCatching { notificationHelper.cancelCallNotificationFor(callId, from, selfDeviceSync = false) }
+        runCatching { notificationHelper.showMissedCallInGroupCall(callId, from, callerName, callType == "video") }
+        return true
     }
 
     /** 新进入 INCOMING：播来电铃声 + 起 60s 未接听看门狗。 */
@@ -675,6 +704,8 @@ class CallManager @Inject constructor(
                     socketManager.emitCallResponse(e.from, false, e.callId, busy = true)
                     return@collect
                 }
+                // 群通话进行中：回忙线 + 不响铃的未接提示，不进 INCOMING 盖住群通话
+                if (rejectIfInGroupCall(e.from, e.type, e.callerName, e.callId)) return@collect
                 _state.value = CallState(
                     CallStage.INCOMING, e.from, e.callerName, isVideo = e.type == "video", isCaller = false, callId = e.callId,
                 )
